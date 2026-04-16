@@ -33,8 +33,8 @@ func TestServiceDispatchEnqueuesProviderReadyDeliveries(t *testing.T) {
 		SubscriptionType:  NotificationTypeRiskNotifications,
 		SupportedChannels: []string{DeliveryChannelEmail, DeliveryChannelSlack},
 		Renderers: map[string]ChannelRenderer{
-			DeliveryChannelEmail: EmailChannelRenderer(func(context.Context, any) (EmailContent, error) {
-				return EmailContent{Subject: "Risk review due", TextBody: "Email body"}, nil
+			DeliveryChannelEmail: ProviderRenderer(DeliveryChannelEmail, func(context.Context, any) (any, error) {
+				return testEmailContent{From: "from@example.com", Subject: "Risk review due", TextBody: "Email body"}, nil
 			}),
 			DeliveryChannelSlack: ProviderRenderer(DeliveryChannelSlack, func(context.Context, any) (any, error) {
 				return map[string]string{"text": "Slack body"}, nil
@@ -48,6 +48,7 @@ func TestServiceDispatchEnqueuesProviderReadyDeliveries(t *testing.T) {
 				ID:    "user-1",
 				Email: "user@example.com",
 				Identities: map[string]map[string]string{
+					DeliveryChannelEmail: {"email": "user@example.com"},
 					DeliveryChannelSlack: {"channel": "U123", "target_type": "direct_message"},
 				},
 				Subscriptions: []UserSubscription{
@@ -61,7 +62,7 @@ func TestServiceDispatchEnqueuesProviderReadyDeliveries(t *testing.T) {
 	}, nil, nil)
 
 	transport := &stubTransport{}
-	service := NewService(transport, registry, resolver, WithDefaultEmailFrom("from@example.com"))
+	service := NewService(transport, registry, resolver)
 
 	err := service.Dispatch(context.Background(), Request{
 		Kind: Kind("risk_review_due"),
@@ -82,7 +83,7 @@ func TestServiceDispatchEnqueuesProviderReadyDeliveries(t *testing.T) {
 
 	require.Len(t, emails, 1)
 	assert.Equal(t, "user@example.com", emails[0].Target.Address["email"])
-	emailContent, ok := emails[0].Content.Payload.(EmailContent)
+	emailContent, ok := emails[0].Content.Payload.(testEmailContent)
 	require.True(t, ok)
 	assert.Equal(t, "from@example.com", emailContent.From)
 	assert.Equal(t, Kind("risk_review_due"), emails[0].Metadata.NotificationKind)
@@ -150,7 +151,7 @@ func TestServiceDispatchReturnsDefinitionErrorForUnknownKind(t *testing.T) {
 	err = service.Dispatch(context.Background(), Request{
 		Kind: Kind("missing"),
 		Audiences: []Audience{
-			{DirectEmail: &DirectEmailAudience{Email: "user@example.com"}},
+			{Direct: &DirectAudience{Provider: DeliveryChannelEmail, Address: map[string]string{"email": "user@example.com"}}},
 		},
 	})
 	require.Error(t, err)
@@ -163,9 +164,9 @@ func TestServiceDispatchFanoutSubscribedUsersBuildsPerUserDeliveries(t *testing.
 		SubscriptionType:  NotificationTypeEvidenceDigest,
 		SupportedChannels: []string{DeliveryChannelEmail, DeliveryChannelSlack},
 		Renderers: map[string]ChannelRenderer{
-			DeliveryChannelEmail: EmailChannelRenderer(func(_ context.Context, model any) (EmailContent, error) {
+			DeliveryChannelEmail: ProviderRenderer(DeliveryChannelEmail, func(_ context.Context, model any) (any, error) {
 				data := model.(string)
-				return EmailContent{Subject: "Digest", TextBody: data}, nil
+				return testEmailContent{From: "from@example.com", Subject: "Digest", TextBody: data}, nil
 			}),
 			DeliveryChannelSlack: ProviderRenderer(DeliveryChannelSlack, func(_ context.Context, model any) (any, error) {
 				data := model.(string)
@@ -181,6 +182,7 @@ func TestServiceDispatchFanoutSubscribedUsersBuildsPerUserDeliveries(t *testing.
 				Email:     "alice@example.com",
 				FirstName: "Alice",
 				Identities: map[string]map[string]string{
+					DeliveryChannelEmail: {"email": "alice@example.com"},
 					DeliveryChannelSlack: {"channel": "UALICE", "target_type": "direct_message"},
 				},
 				Subscriptions: []UserSubscription{
@@ -194,6 +196,9 @@ func TestServiceDispatchFanoutSubscribedUsersBuildsPerUserDeliveries(t *testing.
 				ID:        "user-2",
 				Email:     "bob@example.com",
 				FirstName: "Bob",
+				Identities: map[string]map[string]string{
+					DeliveryChannelEmail: {"email": "bob@example.com"},
+				},
 				Subscriptions: []UserSubscription{
 					{
 						NotificationType: NotificationTypeEvidenceDigest,
@@ -205,7 +210,7 @@ func TestServiceDispatchFanoutSubscribedUsersBuildsPerUserDeliveries(t *testing.
 	}, nil, nil)
 
 	transport := &stubTransport{}
-	service := NewService(transport, registry, resolver, WithDefaultEmailFrom("from@example.com"))
+	service := NewService(transport, registry, resolver)
 
 	err := service.DispatchFanout(context.Background(), FanoutRequest{
 		SubscribedUsers: []SubscribedUsersRequest{
@@ -224,11 +229,11 @@ func TestServiceDispatchFanoutSubscribedUsersBuildsPerUserDeliveries(t *testing.
 
 	require.Len(t, emails, 2)
 	assert.Equal(t, "alice@example.com", emails[0].Target.Address["email"])
-	email0, ok := emails[0].Content.Payload.(EmailContent)
+	email0, ok := emails[0].Content.Payload.(testEmailContent)
 	require.True(t, ok)
 	assert.Equal(t, "hello Alice", email0.TextBody)
 	assert.Equal(t, "bob@example.com", emails[1].Target.Address["email"])
-	email1, ok := emails[1].Content.Payload.(EmailContent)
+	email1, ok := emails[1].Content.Payload.(testEmailContent)
 	require.True(t, ok)
 	assert.Equal(t, "hello Bob", email1.TextBody)
 	assert.Equal(t, "from@example.com", email0.From)
@@ -249,8 +254,8 @@ func TestServiceDispatchFanoutSupportsSharedAndSubscribedRequests(t *testing.T) 
 		SubscriptionType:  NotificationTypeEvidenceDigest,
 		SupportedChannels: []string{DeliveryChannelEmail, DeliveryChannelSlack},
 		Renderers: map[string]ChannelRenderer{
-			DeliveryChannelEmail: EmailChannelRenderer(func(_ context.Context, model any) (EmailContent, error) {
-				return EmailContent{Subject: "Digest", TextBody: model.(string)}, nil
+			DeliveryChannelEmail: ProviderRenderer(DeliveryChannelEmail, func(_ context.Context, model any) (any, error) {
+				return testEmailContent{From: "from@example.com", Subject: "Digest", TextBody: model.(string)}, nil
 			}),
 			DeliveryChannelSlack: ProviderRenderer(DeliveryChannelSlack, func(_ context.Context, model any) (any, error) {
 				return map[string]string{"text": model.(string)}, nil
@@ -264,6 +269,9 @@ func TestServiceDispatchFanoutSupportsSharedAndSubscribedRequests(t *testing.T) 
 				ID:        "user-1",
 				Email:     "alice@example.com",
 				FirstName: "Alice",
+				Identities: map[string]map[string]string{
+					DeliveryChannelEmail: {"email": "alice@example.com"},
+				},
 				Subscriptions: []UserSubscription{
 					{
 						NotificationType: NotificationTypeEvidenceDigest,
@@ -285,7 +293,7 @@ func TestServiceDispatchFanoutSupportsSharedAndSubscribedRequests(t *testing.T) 
 	}, nil)
 
 	transport := &stubTransport{}
-	service := NewService(transport, registry, resolver, WithDefaultEmailFrom("from@example.com"))
+	service := NewService(transport, registry, resolver)
 
 	err := service.DispatchFanout(context.Background(), FanoutRequest{
 		Requests: []Request{
@@ -311,7 +319,7 @@ func TestServiceDispatchFanoutSupportsSharedAndSubscribedRequests(t *testing.T) 
 
 	require.Len(t, emails, 1)
 	assert.Equal(t, "alice@example.com", emails[0].Target.Address["email"])
-	emailContent, ok := emails[0].Content.Payload.(EmailContent)
+	emailContent, ok := emails[0].Content.Payload.(testEmailContent)
 	require.True(t, ok)
 	assert.Equal(t, "personal digest", emailContent.TextBody)
 
@@ -330,19 +338,19 @@ func TestServiceDispatchFanoutDeliversEachRequestWithoutIdempotencyDedup(t *test
 		Kind:              Kind("evidence_digest"),
 		SupportedChannels: []string{DeliveryChannelEmail},
 		Renderers: map[string]ChannelRenderer{
-			DeliveryChannelEmail: EmailChannelRenderer(func(_ context.Context, model any) (EmailContent, error) {
-				return EmailContent{Subject: "Digest", TextBody: model.(string)}, nil
+			DeliveryChannelEmail: ProviderRenderer(DeliveryChannelEmail, func(_ context.Context, model any) (any, error) {
+				return testEmailContent{From: "from@example.com", Subject: "Digest", TextBody: model.(string)}, nil
 			}),
 		},
 	})
 
-	service := NewService(&stubTransport{}, registry, NewResolver(nil, nil, nil), WithDefaultEmailFrom("from@example.com"))
+	service := NewService(&stubTransport{}, registry, NewResolver(nil, nil, nil))
 	transport := service.transport.(*stubTransport)
 
 	request := Request{
 		Kind: Kind("evidence_digest"),
 		Audiences: []Audience{
-			{DirectEmail: &DirectEmailAudience{Email: "alice@example.com"}},
+			{Direct: &DirectAudience{Provider: DeliveryChannelEmail, Address: map[string]string{"email": "alice@example.com"}}},
 		},
 		Model: "same payload",
 	}

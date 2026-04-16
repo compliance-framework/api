@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/compliance-framework/api/internal/service/notification"
+	emailprovider "github.com/compliance-framework/api/internal/service/notification/providers/email"
 )
 
 const (
@@ -47,7 +48,7 @@ func poamOpenDigestNotificationDefinition(emailService EmailService) notificatio
 		SubscriptionType:  notification.NotificationTypeRiskNotifications,
 		SupportedChannels: []string{notification.DeliveryChannelEmail},
 		Renderers: map[string]notification.ChannelRenderer{
-			notification.DeliveryChannelEmail: notification.EmailChannelRenderer(func(ctx context.Context, model any) (notification.EmailContent, error) {
+			notification.DeliveryChannelEmail: emailprovider.Renderer(func(ctx context.Context, model any) (emailprovider.Content, error) {
 				return renderPoamOpenDigestEmail(ctx, emailService, model)
 			}),
 		},
@@ -87,14 +88,14 @@ func newPoamOpenDigestNotificationModel(data poamOpenDigestNotificationData) poa
 	}
 }
 
-func renderPoamOpenDigestEmail(_ context.Context, emailService EmailService, model any) (notification.EmailContent, error) {
+func renderPoamOpenDigestEmail(_ context.Context, emailService EmailService, model any) (emailprovider.Content, error) {
 	digestModel, err := poamOpenDigestNotificationModelFromAny(model)
 	if err != nil {
-		return notification.EmailContent{}, err
+		return emailprovider.Content{}, err
 	}
 
 	if emailService == nil {
-		return notification.EmailContent{
+		return emailprovider.Content{
 			From:     "noreply@localhost",
 			Subject:  fmt.Sprintf("Your POAM digest - %s", formatDate(digestModel.GeneratedAt)),
 			TextBody: "Your POAM digest is ready.",
@@ -103,10 +104,10 @@ func renderPoamOpenDigestEmail(_ context.Context, emailService EmailService, mod
 
 	htmlBody, textBody, err := emailService.UseTemplate("poam-open-digest", digestModel.templateData())
 	if err != nil {
-		return notification.EmailContent{}, fmt.Errorf("failed to render poam-open-digest template: %w", err)
+		return emailprovider.Content{}, fmt.Errorf("failed to render poam-open-digest template: %w", err)
 	}
 
-	return notification.EmailContent{
+	return emailprovider.Content{
 		From:     emailService.GetDefaultFromAddress(),
 		Subject:  fmt.Sprintf("Your POAM digest — %s", formatDate(digestModel.GeneratedAt)),
 		HTMLBody: htmlBody,

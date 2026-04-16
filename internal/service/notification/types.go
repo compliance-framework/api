@@ -4,10 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 	"sort"
 	"strings"
-
-	emailtypes "github.com/compliance-framework/api/internal/service/email/types"
 )
 
 var (
@@ -22,7 +21,6 @@ var (
 	ErrTransportNotConfigured        = errors.New("notification transport is not configured")
 	ErrConfiguredDestinationNotFound = errors.New("configured notification destination not found")
 	ErrMissingSubscriptionType       = errors.New("notification definition requires a subscription type for user audiences")
-	ErrMissingEmailFromAddress       = errors.New("notification email content requires a from address")
 )
 
 type Kind string
@@ -58,7 +56,6 @@ type DispatchOptions struct {
 type Audience struct {
 	User                  *UserAudience
 	Direct                *DirectAudience
-	DirectEmail           *DirectEmailAudience
 	ConfiguredDestination *ConfiguredDestinationAudience
 }
 
@@ -69,10 +66,6 @@ type UserAudience struct {
 type DirectAudience struct {
 	Provider string
 	Address  map[string]string
-}
-
-type DirectEmailAudience struct {
-	Email string
 }
 
 type ConfiguredDestinationAudience struct {
@@ -108,9 +101,6 @@ func (a Audience) Validate() error {
 	if a.Direct != nil {
 		modeCount++
 	}
-	if a.DirectEmail != nil {
-		modeCount++
-	}
 	if a.ConfiguredDestination != nil {
 		modeCount++
 	}
@@ -129,10 +119,6 @@ func (a Audience) Validate() error {
 		}
 		if len(a.Direct.Address) == 0 {
 			return fmt.Errorf("%w: direct audience requires address attributes", ErrInvalidAudience)
-		}
-	case a.DirectEmail != nil:
-		if strings.TrimSpace(a.DirectEmail.Email) == "" {
-			return fmt.Errorf("%w: direct email audience requires email", ErrInvalidAudience)
 		}
 	case a.ConfiguredDestination != nil:
 		if strings.TrimSpace(a.ConfiguredDestination.Key) == "" {
@@ -243,59 +229,6 @@ func (t Target) dedupKey() string {
 	return t.Provider + ":" + strings.Join(parts, "|")
 }
 
-type EmailContent struct {
-	From        string
-	Subject     string
-	HTMLBody    string
-	TextBody    string
-	Attachments []emailtypes.Attachment
-	Headers     map[string]string
-}
-
-func (c EmailContent) Validate() error {
-	if strings.TrimSpace(c.Subject) == "" {
-		return fmt.Errorf("%w: email content requires subject", ErrInvalidContent)
-	}
-	if strings.TrimSpace(c.HTMLBody) == "" && strings.TrimSpace(c.TextBody) == "" {
-		return fmt.Errorf("%w: email content requires html or text body", ErrInvalidContent)
-	}
-	return nil
-}
-
-func (c EmailContent) Clone() EmailContent {
-	cloned := c
-	if len(c.Attachments) > 0 {
-		cloned.Attachments = append([]emailtypes.Attachment(nil), c.Attachments...)
-	}
-	if len(c.Headers) > 0 {
-		cloned.Headers = make(map[string]string, len(c.Headers))
-		for key, value := range c.Headers {
-			cloned.Headers[key] = value
-		}
-	}
-	return cloned
-}
-
-type EmailDelivery struct {
-	To       string
-	Content  EmailContent
-	Metadata TransportMetadata
-}
-
-func (d EmailDelivery) Validate() error {
-	if strings.TrimSpace(d.To) == "" {
-		return fmt.Errorf("%w: email delivery requires recipient", ErrInvalidTarget)
-	}
-	if strings.TrimSpace(d.Content.From) == "" {
-		return ErrMissingEmailFromAddress
-	}
-	return d.Content.Validate()
-}
-
-func (d EmailDelivery) dedupKey() string {
-	return ""
-}
-
 type Content struct {
 	Provider string
 	Payload  any
@@ -306,20 +239,12 @@ func (c Content) Validate() error {
 	if !ok {
 		return fmt.Errorf("%w: content provider %q", ErrInvalidContent, c.Provider)
 	}
-	if c.Payload == nil {
+	if isNilPayload(c.Payload) {
 		return fmt.Errorf("%w: content payload is required for provider %q", ErrInvalidContent, provider)
 	}
 
-	switch payload := c.Payload.(type) {
-	case EmailContent:
-		if err := payload.Validate(); err != nil {
-			return err
-		}
-	case *EmailContent:
-		if payload == nil {
-			return fmt.Errorf("%w: email payload must not be nil", ErrInvalidContent)
-		}
-		if err := payload.Validate(); err != nil {
+	if validator, ok := c.Payload.(interface{ Validate() error }); ok {
+		if err := validator.Validate(); err != nil {
 			return err
 		}
 	}
@@ -330,17 +255,12 @@ func (c Content) Validate() error {
 func (c Content) Clone() Content {
 	cloned := Content{Provider: c.Provider}
 
-	switch payload := c.Payload.(type) {
-	case EmailContent:
-		cloned.Payload = payload.Clone()
-	case *EmailContent:
-		if payload != nil {
-			email := payload.Clone()
-			cloned.Payload = &email
-		}
-	default:
-		cloned.Payload = c.Payload
+	if payload, ok := c.Payload.(interface{ ClonePayload() any }); ok && !isNilPayload(c.Payload) {
+		cloned.Payload = payload.ClonePayload()
+		return cloned
 	}
+
+	cloned.Payload = c.Payload
 
 	return cloned
 }
@@ -398,4 +318,18 @@ func (d ConfiguredDestination) Validate() error {
 		Provider: d.Provider,
 		Address:  d.Address,
 	}.Validate()
+}
+
+func isNilPayload(payload any) bool {
+	if payload == nil {
+		return true
+	}
+
+	value := reflect.ValueOf(payload)
+	switch value.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
+		return value.IsNil()
+	default:
+		return false
+	}
 }

@@ -14,8 +14,8 @@ func TestRegistryRegisterNormalizesDefinition(t *testing.T) {
 		SubscriptionType:  " riskNotifications ",
 		SupportedChannels: []string{" Slack ", "email", "slack"},
 		Renderers: map[string]ChannelRenderer{
-			DeliveryChannelEmail: EmailChannelRenderer(func(context.Context, any) (EmailContent, error) {
-				return EmailContent{From: "from@example.com", Subject: "subject", TextBody: "body"}, nil
+			DeliveryChannelEmail: ProviderRenderer(DeliveryChannelEmail, func(context.Context, any) (any, error) {
+				return testEmailContent{From: "from@example.com", Subject: "subject", TextBody: "body"}, nil
 			}),
 			DeliveryChannelSlack: ProviderRenderer(DeliveryChannelSlack, func(context.Context, any) (any, error) {
 				return map[string]string{"text": "body"}, nil
@@ -38,8 +38,8 @@ func TestRegistryRegisterRejectsDuplicateKind(t *testing.T) {
 		Kind:              Kind("workflow_task_assigned"),
 		SupportedChannels: []string{DeliveryChannelEmail},
 		Renderers: map[string]ChannelRenderer{
-			DeliveryChannelEmail: EmailChannelRenderer(func(context.Context, any) (EmailContent, error) {
-				return EmailContent{From: "from@example.com", Subject: "subject", TextBody: "body"}, nil
+			DeliveryChannelEmail: ProviderRenderer(DeliveryChannelEmail, func(context.Context, any) (any, error) {
+				return testEmailContent{From: "from@example.com", Subject: "subject", TextBody: "body"}, nil
 			}),
 		},
 	}

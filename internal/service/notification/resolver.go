@@ -114,7 +114,6 @@ func (r *GORMUserRepository) FindUserByID(ctx context.Context, userID string) (U
 		Email:         record.Email,
 		FirstName:     record.FirstName,
 		LastName:      record.LastName,
-		Identities:    buildLegacyUserIdentities(record.Email),
 		Subscriptions: out,
 	}, nil
 }
@@ -188,7 +187,6 @@ func (r *GORMUserRepository) ListActiveUsersByNotificationType(ctx context.Conte
 			Email:         record.Email,
 			FirstName:     record.FirstName,
 			LastName:      record.LastName,
-			Identities:    buildLegacyUserIdentities(record.Email),
 			Subscriptions: subscriptionsByUserID[userID],
 		})
 	}
@@ -286,8 +284,6 @@ func (r *Resolver) resolveAudience(ctx context.Context, audience Audience, optio
 		return r.resolveUserAudience(ctx, *audience.User, options, definition)
 	case audience.Direct != nil:
 		return r.resolveDirectAudience(*audience.Direct, options, definition)
-	case audience.DirectEmail != nil:
-		return r.resolveDirectEmailAudience(*audience.DirectEmail, options, definition)
 	case audience.ConfiguredDestination != nil:
 		if r == nil || r.configuredDestinations == nil {
 			return nil, ErrResolverNotConfigured
@@ -342,6 +338,9 @@ func (r *Resolver) resolveUser(user User, options DispatchOptions, definition De
 			return nil, err
 		}
 		if !resolved {
+			if fallback, ok := legacyUserTarget(channel, user); ok {
+				targets = append(targets, fallback)
+			}
 			continue
 		}
 		target.UserID = user.ID
@@ -350,15 +349,6 @@ func (r *Resolver) resolveUser(user User, options DispatchOptions, definition De
 	}
 
 	return targets, nil
-}
-
-func (r *Resolver) resolveDirectEmailAudience(audience DirectEmailAudience, options DispatchOptions, definition Definition) ([]Target, error) {
-	return r.resolveDirectAudience(DirectAudience{
-		Provider: DeliveryChannelEmail,
-		Address: map[string]string{
-			"email": strings.TrimSpace(audience.Email),
-		},
-	}, options, definition)
 }
 
 func (r *Resolver) resolveDirectAudience(audience DirectAudience, options DispatchOptions, definition Definition) ([]Target, error) {
@@ -419,50 +409,21 @@ func (r *Resolver) provider(providerID string) (Provider, bool) {
 }
 
 func legacyUserTarget(provider string, user User) (Target, bool) {
-	switch provider {
-	case DeliveryChannelEmail:
-		email := strings.TrimSpace(user.Email)
-		if email == "" {
-			return Target{}, false
-		}
-		return Target{
-			Provider: DeliveryChannelEmail,
-			UserID:   user.ID,
-			Address: map[string]string{
-				"email": email,
-			},
-		}, true
-	default:
-		identityByProvider := user.Identities
-		if len(identityByProvider) == 0 {
-			return Target{}, false
-		}
-		identity, ok := identityByProvider[provider]
-		if !ok || len(identity) == 0 {
-			return Target{}, false
-		}
-
-		address := make(map[string]string, len(identity))
-		for key, value := range identity {
-			address[key] = strings.TrimSpace(value)
-		}
-
-		return Target{Provider: provider, UserID: user.ID, Address: address}, true
+	identityByProvider := user.Identities
+	if len(identityByProvider) == 0 {
+		return Target{}, false
 	}
-}
-
-func buildLegacyUserIdentities(email string) map[string]map[string]string {
-	identities := map[string]map[string]string{}
-
-	if trimmed := strings.TrimSpace(email); trimmed != "" {
-		identities[DeliveryChannelEmail] = map[string]string{"email": trimmed}
+	identity, ok := identityByProvider[provider]
+	if !ok || len(identity) == 0 {
+		return Target{}, false
 	}
 
-	if len(identities) == 0 {
-		return nil
+	address := make(map[string]string, len(identity))
+	for key, value := range identity {
+		address[key] = strings.TrimSpace(value)
 	}
 
-	return identities
+	return Target{Provider: provider, UserID: user.ID, Address: address}, true
 }
 
 func normalizeRequestedChannel(channel string) (string, bool) {

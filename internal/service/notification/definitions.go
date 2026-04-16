@@ -18,16 +18,6 @@ func ProviderRenderer(provider string, renderer func(ctx context.Context, model 
 	}
 }
 
-func EmailChannelRenderer(renderer func(ctx context.Context, model any) (EmailContent, error)) ChannelRenderer {
-	return func(ctx context.Context, model any) (Content, error) {
-		email, err := renderer(ctx, model)
-		if err != nil {
-			return Content{}, err
-		}
-		return Content{Provider: DeliveryChannelEmail, Payload: email}, nil
-	}
-}
-
 type Definition struct {
 	Kind              Kind
 	SubscriptionType  string

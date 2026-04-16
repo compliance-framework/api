@@ -9,6 +9,7 @@ import (
 	"github.com/compliance-framework/api/internal/service/email"
 	"github.com/compliance-framework/api/internal/service/email/types"
 	"github.com/compliance-framework/api/internal/service/notification"
+	emailprovider "github.com/compliance-framework/api/internal/service/notification/providers/email"
 	slackprovider "github.com/compliance-framework/api/internal/service/notification/providers/slack"
 	slacktypes "github.com/compliance-framework/api/internal/service/slack/types"
 	"github.com/riverqueue/river"
@@ -450,9 +451,9 @@ func TestSelectSlackJobArgs(t *testing.T) {
 }
 
 func TestServiceEnqueueNotificationEmailMapsMetadata(t *testing.T) {
-	params := notificationEmailInsertParams(notification.EmailDelivery{
+	params := notificationEmailInsertParams(emailprovider.Delivery{
 		To: "alice@example.com",
-		Content: notification.EmailContent{
+		Content: emailprovider.Content{
 			From:     "from@example.com",
 			Subject:  "Digest",
 			TextBody: "body",

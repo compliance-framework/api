@@ -9,6 +9,7 @@ import (
 	"github.com/compliance-framework/api/internal/config"
 	"github.com/compliance-framework/api/internal/service/email"
 	"github.com/compliance-framework/api/internal/service/notification"
+	emailprovider "github.com/compliance-framework/api/internal/service/notification/providers/email"
 	slackprovider "github.com/compliance-framework/api/internal/service/notification/providers/slack"
 	"gorm.io/gorm"
 )
@@ -60,7 +61,7 @@ func evidenceDigestDefinition(emailService *email.Service) notification.Definiti
 		SubscriptionType:  notification.NotificationTypeEvidenceDigest,
 		SupportedChannels: []string{notification.DeliveryChannelEmail, notification.DeliveryChannelSlack},
 		Renderers: map[string]notification.ChannelRenderer{
-			notification.DeliveryChannelEmail: notification.EmailChannelRenderer(func(ctx context.Context, model any) (notification.EmailContent, error) {
+			notification.DeliveryChannelEmail: emailprovider.Renderer(func(ctx context.Context, model any) (emailprovider.Content, error) {
 				return renderEvidenceDigestEmail(ctx, emailService, model)
 			}),
 			notification.DeliveryChannelSlack: slackprovider.Renderer(func(ctx context.Context, model any) (slackprovider.Content, error) {
@@ -105,13 +106,31 @@ func NewRuntimeProvider(
 	}
 
 	transport := notification.NewDeliveryTransport(
-		notification.WithWorkerEnqueuerProvider(workerEnqueuerProvider),
-		notification.WithEmailSenderProvider(func() notification.EmailSender {
-			if emailService == nil {
-				return nil
-			}
-			return emailService
-		}),
+		notification.WithProvider(emailprovider.NewProvider(
+			func() emailprovider.Sender {
+				if emailService == nil {
+					return nil
+				}
+				return emailService
+			},
+			func() emailprovider.Enqueuer {
+				if workerEnqueuerProvider == nil {
+					return nil
+				}
+
+				workerEnqueuer := workerEnqueuerProvider()
+				if workerEnqueuer == nil {
+					return nil
+				}
+
+				enqueuer, ok := workerEnqueuer.(emailprovider.Enqueuer)
+				if !ok {
+					return nil
+				}
+
+				return enqueuer
+			},
+		)),
 		notification.WithProvider(slackprovider.NewProvider(
 			slackSenderProvider,
 			func() slackprovider.Enqueuer {
@@ -130,17 +149,7 @@ func NewRuntimeProvider(
 		)),
 	)
 
-	return notification.NewStaticRuntimeProvider(
-		transport,
-		notification.WithDefaultEmailFrom(defaultFromAddress(emailService)),
-	)
-}
-
-func defaultFromAddress(emailService *email.Service) string {
-	if emailService == nil {
-		return ""
-	}
-	return emailService.GetDefaultFromAddress()
+	return notification.NewStaticRuntimeProvider(transport)
 }
 
 type digestConfiguredDestinationResolver struct {
@@ -173,22 +182,23 @@ func (r digestConfiguredDestinationResolver) ResolveConfiguredDestination(_ cont
 	}, nil
 }
 
-func renderEvidenceDigestEmail(_ context.Context, emailService *email.Service, model any) (notification.EmailContent, error) {
+func renderEvidenceDigestEmail(_ context.Context, emailService *email.Service, model any) (emailprovider.Content, error) {
 	if emailService == nil {
-		return notification.EmailContent{}, fmt.Errorf("email service is not configured")
+		return emailprovider.Content{}, fmt.Errorf("email service is not configured")
 	}
 
 	digestModel, err := evidenceDigestModelFromAny(model)
 	if err != nil {
-		return notification.EmailContent{}, err
+		return emailprovider.Content{}, err
 	}
 
 	htmlContent, textContent, err := emailService.UseTemplate("evidence-digest", digestModel.templateData())
 	if err != nil {
-		return notification.EmailContent{}, fmt.Errorf("failed to render digest template: %w", err)
+		return emailprovider.Content{}, fmt.Errorf("failed to render digest template: %w", err)
 	}
 
-	return notification.EmailContent{
+	return emailprovider.Content{
+		From:     emailService.GetDefaultFromAddress(),
 		Subject:  "Evidence Compliance Digest",
 		HTMLBody: htmlContent,
 		TextBody: textContent,

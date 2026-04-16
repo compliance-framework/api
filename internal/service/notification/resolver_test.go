@@ -64,6 +64,9 @@ func TestResolverResolveUserAudienceUsesSubscriptionsAndSkipsMissingSlackLink(t 
 			"user-1": {
 				ID:    "user-1",
 				Email: "user@example.com",
+				Identities: map[string]map[string]string{
+					DeliveryChannelEmail: {"email": "user@example.com"},
+				},
 				Subscriptions: []UserSubscription{
 					{
 						NotificationType: NotificationTypeRiskNotifications,
@@ -84,8 +87,8 @@ func TestResolverResolveUserAudienceUsesSubscriptionsAndSkipsMissingSlackLink(t 
 		SubscriptionType:  NotificationTypeRiskNotifications,
 		SupportedChannels: []string{DeliveryChannelEmail, DeliveryChannelSlack},
 		Renderers: map[string]ChannelRenderer{
-			DeliveryChannelEmail: EmailChannelRenderer(func(context.Context, any) (EmailContent, error) {
-				return EmailContent{From: "from@example.com", Subject: "subject", TextBody: "body"}, nil
+			DeliveryChannelEmail: ProviderRenderer(DeliveryChannelEmail, func(context.Context, any) (any, error) {
+				return testEmailContent{From: "from@example.com", Subject: "subject", TextBody: "body"}, nil
 			}),
 			DeliveryChannelSlack: ProviderRenderer(DeliveryChannelSlack, func(context.Context, any) (any, error) {
 				return map[string]string{"text": "body"}, nil
@@ -98,20 +101,20 @@ func TestResolverResolveUserAudienceUsesSubscriptionsAndSkipsMissingSlackLink(t 
 	assert.Equal(t, "user@example.com", targets[0].Address["email"])
 }
 
-func TestResolverResolveDirectEmailAudienceBypassesSubscriptionsByDesign(t *testing.T) {
+func TestResolverResolveDirectAudienceBypassesSubscriptionsByDesign(t *testing.T) {
 	resolver := NewResolver(nil, nil, nil)
 
 	targets, err := resolver.Resolve(context.Background(), Request{
 		Kind: Kind("forgot_password"),
 		Audiences: []Audience{
-			{DirectEmail: &DirectEmailAudience{Email: "reset@example.com"}},
+			{Direct: &DirectAudience{Provider: DeliveryChannelEmail, Address: map[string]string{"email": "reset@example.com"}}},
 		},
 	}, Definition{
 		Kind:              Kind("forgot_password"),
 		SupportedChannels: []string{DeliveryChannelEmail},
 		Renderers: map[string]ChannelRenderer{
-			DeliveryChannelEmail: EmailChannelRenderer(func(context.Context, any) (EmailContent, error) {
-				return EmailContent{From: "from@example.com", Subject: "subject", TextBody: "body"}, nil
+			DeliveryChannelEmail: ProviderRenderer(DeliveryChannelEmail, func(context.Context, any) (any, error) {
+				return testEmailContent{From: "from@example.com", Subject: "subject", TextBody: "body"}, nil
 			}),
 		},
 	})
@@ -187,6 +190,9 @@ func TestResolverListSubscribedUsers(t *testing.T) {
 			"user-1": {
 				ID:    "user-1",
 				Email: "alice@example.com",
+				Identities: map[string]map[string]string{
+					DeliveryChannelEmail: {"email": "alice@example.com"},
+				},
 				Subscriptions: []UserSubscription{
 					{
 						NotificationType: NotificationTypeEvidenceDigest,
@@ -212,8 +218,8 @@ func TestResolverListSubscribedUsers(t *testing.T) {
 		SubscriptionType:  NotificationTypeEvidenceDigest,
 		SupportedChannels: []string{DeliveryChannelEmail},
 		Renderers: map[string]ChannelRenderer{
-			DeliveryChannelEmail: EmailChannelRenderer(func(context.Context, any) (EmailContent, error) {
-				return EmailContent{From: "from@example.com", Subject: "subject", TextBody: "body"}, nil
+			DeliveryChannelEmail: ProviderRenderer(DeliveryChannelEmail, func(context.Context, any) (any, error) {
+				return testEmailContent{From: "from@example.com", Subject: "subject", TextBody: "body"}, nil
 			}),
 		},
 	})

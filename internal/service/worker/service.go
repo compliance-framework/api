@@ -11,6 +11,7 @@ import (
 	"github.com/compliance-framework/api/internal/config"
 	"github.com/compliance-framework/api/internal/service/email"
 	"github.com/compliance-framework/api/internal/service/notification"
+	emailprovider "github.com/compliance-framework/api/internal/service/notification/providers/email"
 	slackprovider "github.com/compliance-framework/api/internal/service/notification/providers/slack"
 	riskrel "github.com/compliance-framework/api/internal/service/relational/risks"
 	"github.com/compliance-framework/api/internal/service/relational/workflows"
@@ -827,7 +828,7 @@ func (s *Service) EnqueueSendEmail(ctx context.Context, args *SendEmailArgs) err
 }
 
 // EnqueueNotificationEmail enqueues a provider-ready notification email delivery.
-func (s *Service) EnqueueNotificationEmail(ctx context.Context, delivery notification.EmailDelivery) error {
+func (s *Service) EnqueueNotificationEmail(ctx context.Context, delivery emailprovider.Delivery) error {
 	if !s.config.Enabled {
 		return fmt.Errorf("worker service is disabled")
 	}
@@ -885,7 +886,7 @@ func notificationInsertOpts(queue string, maxAttempts int) *river.InsertOpts {
 	return JobInsertOptionsWithRetry(queue, maxAttempts)
 }
 
-func notificationEmailInsertParams(delivery notification.EmailDelivery, queue string, maxAttempts int) []river.InsertManyParams {
+func notificationEmailInsertParams(delivery emailprovider.Delivery, queue string, maxAttempts int) []river.InsertManyParams {
 	args := &SendEmailArgs{
 		From:             delivery.Content.From,
 		To:               []string{delivery.To},

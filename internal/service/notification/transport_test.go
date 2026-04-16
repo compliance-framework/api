@@ -13,14 +13,14 @@ import (
 
 type stubWorkerEnqueuer struct {
 	started bool
-	emails  []EmailDelivery
+	emails  []testEmailDelivery
 }
 
 func (s *stubWorkerEnqueuer) IsStarted() bool {
 	return s.started
 }
 
-func (s *stubWorkerEnqueuer) EnqueueNotificationEmail(_ context.Context, delivery EmailDelivery) error {
+func (s *stubWorkerEnqueuer) EnqueueNotificationEmail(_ context.Context, delivery testEmailDelivery) error {
 	s.emails = append(s.emails, delivery)
 	return nil
 }
@@ -51,6 +51,49 @@ func (s *stubEmailSender) IsEnabled() bool {
 func (s *stubEmailSender) Send(_ context.Context, message *emailtypes.Message) (*emailtypes.SendResult, error) {
 	s.messages = append(s.messages, message)
 	return &emailtypes.SendResult{Success: true, MessageID: "email-1"}, nil
+}
+
+type testEmailProvider struct {
+	sender   *stubEmailSender
+	enqueuer *stubWorkerEnqueuer
+}
+
+func (p *testEmailProvider) ID() string { return DeliveryChannelEmail }
+
+func (p *testEmailProvider) ResolveUserTarget(_ User) (Target, bool, error) {
+	return Target{}, false, nil
+}
+
+func (p *testEmailProvider) ValidateTarget(target Target) error {
+	if target.Address["email"] == "" {
+		return ErrInvalidTarget
+	}
+	return nil
+}
+
+func (p *testEmailProvider) Deliver(ctx context.Context, delivery Delivery) error {
+	payload, ok := delivery.Content.Payload.(testEmailContent)
+	if !ok {
+		return ErrInvalidContent
+	}
+	to := delivery.Target.Address["email"]
+
+	if p.enqueuer != nil && p.enqueuer.started {
+		return p.enqueuer.EnqueueNotificationEmail(ctx, testEmailDelivery{To: to, Content: payload})
+	}
+
+	if p.sender == nil || !p.sender.enabled {
+		return nil
+	}
+
+	_, err := p.sender.Send(ctx, &emailtypes.Message{
+		From:     payload.From,
+		To:       []string{to},
+		Subject:  payload.Subject,
+		HTMLBody: payload.HTMLBody,
+		TextBody: payload.TextBody,
+	})
+	return err
 }
 
 type stubSlackSender struct {
@@ -121,8 +164,7 @@ func TestDeliveryTransportUsesWorkerWhenStarted(t *testing.T) {
 	slackSender := &stubSlackSender{enabled: true}
 
 	transport := NewDeliveryTransport(
-		WithWorkerEnqueuerProvider(func() WorkerEnqueuer { return worker }),
-		WithEmailSenderProvider(func() EmailSender { return emailSender }),
+		WithProvider(&testEmailProvider{sender: emailSender, enqueuer: worker}),
 		WithProvider(&testSlackProvider{sender: slackSender, enqueuer: slackEnqueuer}),
 	)
 
@@ -130,7 +172,7 @@ func TestDeliveryTransportUsesWorkerWhenStarted(t *testing.T) {
 		{
 			Provider: DeliveryChannelEmail,
 			Target:   Target{Provider: DeliveryChannelEmail, Address: map[string]string{"email": "alice@example.com"}},
-			Content: Content{Provider: DeliveryChannelEmail, Payload: EmailContent{
+			Content: Content{Provider: DeliveryChannelEmail, Payload: testEmailContent{
 				From:     "from@example.com",
 				Subject:  "Subject",
 				TextBody: "body",
@@ -157,7 +199,7 @@ func TestDeliveryTransportFallsBackToDirectSend(t *testing.T) {
 	slackSender := &stubSlackSender{enabled: true}
 
 	transport := NewDeliveryTransport(
-		WithEmailSenderProvider(func() EmailSender { return emailSender }),
+		WithProvider(&testEmailProvider{sender: emailSender}),
 		WithProvider(&testSlackProvider{sender: slackSender}),
 	)
 
@@ -165,7 +207,7 @@ func TestDeliveryTransportFallsBackToDirectSend(t *testing.T) {
 		{
 			Provider: DeliveryChannelEmail,
 			Target:   Target{Provider: DeliveryChannelEmail, Address: map[string]string{"email": "alice@example.com"}},
-			Content: Content{Provider: DeliveryChannelEmail, Payload: EmailContent{
+			Content: Content{Provider: DeliveryChannelEmail, Payload: testEmailContent{
 				From:     "from@example.com",
 				Subject:  "Subject",
 				TextBody: "body",

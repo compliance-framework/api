@@ -36,6 +36,10 @@ func (c Content) Clone() Content {
 	return cloned
 }
 
+func (c Content) ClonePayload() any {
+	return c.Clone()
+}
+
 type Delivery struct {
 	Channel    string
 	TargetType string

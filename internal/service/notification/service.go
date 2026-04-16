@@ -10,10 +10,9 @@ import (
 type ServiceOption func(*Service)
 
 type Service struct {
-	transport        Transport
-	registry         *Registry
-	resolver         *Resolver
-	defaultEmailFrom string
+	transport Transport
+	registry  *Registry
+	resolver  *Resolver
 }
 
 type preparedDeliveries struct {
@@ -34,12 +33,6 @@ func NewService(transport Transport, registry *Registry, resolver *Resolver, opt
 	}
 
 	return service
-}
-
-func WithDefaultEmailFrom(address string) ServiceOption {
-	return func(service *Service) {
-		service.defaultEmailFrom = strings.TrimSpace(address)
-	}
 }
 
 func (s *Service) Resolve(ctx context.Context, request Request) ([]Target, Definition, error) {
@@ -180,7 +173,7 @@ func (s *Service) renderDeliveries(ctx context.Context, request Request, definit
 
 		content, exists := contentByProvider[provider]
 		if !exists {
-			rendered, err := renderContent(ctx, definition, provider, request.Model, s.defaultEmailFrom)
+			rendered, err := renderContent(ctx, definition, provider, request.Model)
 			if err != nil {
 				return preparedDeliveries{}, fmt.Errorf("render %s for kind %q: %w", provider, request.Kind, err)
 			}
@@ -220,14 +213,10 @@ func stringifyTargetAddress(address map[string]string) string {
 		return ""
 	}
 
-	if v := strings.TrimSpace(address["email"]); v != "" {
-		return v
-	}
-	if v := strings.TrimSpace(address["channel"]); v != "" {
-		return v
-	}
-	if v := strings.TrimSpace(address["id"]); v != "" {
-		return v
+	if len(address) == 1 {
+		for _, value := range address {
+			return strings.TrimSpace(value)
+		}
 	}
 
 	keys := make([]string, 0, len(address))

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/compliance-framework/api/internal/service/notification"
+	emailprovider "github.com/compliance-framework/api/internal/service/notification/providers/email"
 	slackprovider "github.com/compliance-framework/api/internal/service/notification/providers/slack"
 )
 
@@ -69,7 +70,7 @@ func workflowTaskAssignedNotificationDefinition(emailService EmailService) notif
 		SubscriptionType:  notification.NotificationTypeTaskAvailable,
 		SupportedChannels: []string{notification.DeliveryChannelEmail, notification.DeliveryChannelSlack},
 		Renderers: map[string]notification.ChannelRenderer{
-			notification.DeliveryChannelEmail: notification.EmailChannelRenderer(func(ctx context.Context, model any) (notification.EmailContent, error) {
+			notification.DeliveryChannelEmail: emailprovider.Renderer(func(ctx context.Context, model any) (emailprovider.Content, error) {
 				return renderWorkflowTaskAssignedEmail(ctx, emailService, model)
 			}),
 			notification.DeliveryChannelSlack: slackprovider.Renderer(func(ctx context.Context, model any) (slackprovider.Content, error) {
@@ -85,7 +86,7 @@ func workflowTaskDueSoonNotificationDefinition(emailService EmailService) notifi
 		SubscriptionType:  notification.NotificationTypeTaskAvailable,
 		SupportedChannels: []string{notification.DeliveryChannelEmail, notification.DeliveryChannelSlack},
 		Renderers: map[string]notification.ChannelRenderer{
-			notification.DeliveryChannelEmail: notification.EmailChannelRenderer(func(ctx context.Context, model any) (notification.EmailContent, error) {
+			notification.DeliveryChannelEmail: emailprovider.Renderer(func(ctx context.Context, model any) (emailprovider.Content, error) {
 				return renderWorkflowTaskDueSoonEmail(ctx, emailService, model)
 			}),
 			notification.DeliveryChannelSlack: slackprovider.Renderer(func(ctx context.Context, model any) (slackprovider.Content, error) {
@@ -101,7 +102,7 @@ func workflowTaskDigestNotificationDefinition(emailService EmailService) notific
 		SubscriptionType:  notification.NotificationTypeTaskDailyDigest,
 		SupportedChannels: []string{notification.DeliveryChannelEmail, notification.DeliveryChannelSlack},
 		Renderers: map[string]notification.ChannelRenderer{
-			notification.DeliveryChannelEmail: notification.EmailChannelRenderer(func(ctx context.Context, model any) (notification.EmailContent, error) {
+			notification.DeliveryChannelEmail: emailprovider.Renderer(func(ctx context.Context, model any) (emailprovider.Content, error) {
 				return renderWorkflowTaskDigestEmail(ctx, emailService, model)
 			}),
 			notification.DeliveryChannelSlack: slackprovider.Renderer(func(ctx context.Context, model any) (slackprovider.Content, error) {
@@ -165,7 +166,10 @@ func buildWorkflowTaskAssignedNotificationRequest(args WorkflowTaskAssignedArgs,
 	}
 	if args.AssignedToType == notification.DeliveryChannelEmail {
 		audience = notification.Audience{
-			DirectEmail: &notification.DirectEmailAudience{Email: args.UserID},
+			Direct: &notification.DirectAudience{
+				Provider: emailprovider.ChannelID,
+				Address:  emailprovider.Identity(args.UserID),
+			},
 		}
 	}
 
@@ -205,14 +209,14 @@ func buildWorkflowTaskDigestNotificationRequest(args WorkflowTaskDigestArgs, dat
 	}
 }
 
-func renderWorkflowTaskAssignedEmail(_ context.Context, emailService EmailService, model any) (notification.EmailContent, error) {
+func renderWorkflowTaskAssignedEmail(_ context.Context, emailService EmailService, model any) (emailprovider.Content, error) {
 	assignedModel, err := workflowTaskAssignedNotificationModelFromAny(model)
 	if err != nil {
-		return notification.EmailContent{}, err
+		return emailprovider.Content{}, err
 	}
 
 	if emailService == nil {
-		return notification.EmailContent{
+		return emailprovider.Content{
 			From:     "noreply@localhost",
 			Subject:  fmt.Sprintf("Task ready for you: %s - %s", assignedModel.StepTitle, assignedModel.WorkflowTitle),
 			TextBody: fmt.Sprintf("%s is assigned to you and due %s. Open: %s", assignedModel.StepTitle, assignedModel.DueDate, assignedModel.StepURL),
@@ -229,10 +233,10 @@ func renderWorkflowTaskAssignedEmail(_ context.Context, emailService EmailServic
 		"DueDate":               assignedModel.DueDate,
 	})
 	if err != nil {
-		return notification.EmailContent{}, fmt.Errorf("failed to render workflow-task-assigned template: %w", err)
+		return emailprovider.Content{}, fmt.Errorf("failed to render workflow-task-assigned template: %w", err)
 	}
 
-	return notification.EmailContent{
+	return emailprovider.Content{
 		From:     emailService.GetDefaultFromAddress(),
 		Subject:  fmt.Sprintf("Task ready for you: %s — %s", assignedModel.StepTitle, assignedModel.WorkflowTitle),
 		HTMLBody: htmlBody,
@@ -240,14 +244,14 @@ func renderWorkflowTaskAssignedEmail(_ context.Context, emailService EmailServic
 	}, nil
 }
 
-func renderWorkflowTaskDueSoonEmail(_ context.Context, emailService EmailService, model any) (notification.EmailContent, error) {
+func renderWorkflowTaskDueSoonEmail(_ context.Context, emailService EmailService, model any) (emailprovider.Content, error) {
 	dueSoonModel, err := workflowTaskDueSoonNotificationModelFromAny(model)
 	if err != nil {
-		return notification.EmailContent{}, err
+		return emailprovider.Content{}, err
 	}
 
 	if emailService == nil {
-		return notification.EmailContent{
+		return emailprovider.Content{
 			From:     "noreply@localhost",
 			Subject:  fmt.Sprintf("Reminder: %s is due soon - %s", dueSoonModel.StepTitle, dueSoonModel.WorkflowTitle),
 			TextBody: fmt.Sprintf("%s is due on %s. Open: %s", dueSoonModel.StepTitle, dueSoonModel.DueDate, dueSoonModel.StepURL),
@@ -264,10 +268,10 @@ func renderWorkflowTaskDueSoonEmail(_ context.Context, emailService EmailService
 		"DueDate":               dueSoonModel.DueDate,
 	})
 	if err != nil {
-		return notification.EmailContent{}, fmt.Errorf("failed to render workflow-task-due-soon template: %w", err)
+		return emailprovider.Content{}, fmt.Errorf("failed to render workflow-task-due-soon template: %w", err)
 	}
 
-	return notification.EmailContent{
+	return emailprovider.Content{
 		From:     emailService.GetDefaultFromAddress(),
 		Subject:  fmt.Sprintf("Reminder: %s is due soon — %s", dueSoonModel.StepTitle, dueSoonModel.WorkflowTitle),
 		HTMLBody: htmlBody,
@@ -275,14 +279,14 @@ func renderWorkflowTaskDueSoonEmail(_ context.Context, emailService EmailService
 	}, nil
 }
 
-func renderWorkflowTaskDigestEmail(_ context.Context, emailService EmailService, model any) (notification.EmailContent, error) {
+func renderWorkflowTaskDigestEmail(_ context.Context, emailService EmailService, model any) (emailprovider.Content, error) {
 	digestModel, err := workflowTaskDigestNotificationModelFromAny(model)
 	if err != nil {
-		return notification.EmailContent{}, err
+		return emailprovider.Content{}, err
 	}
 
 	if emailService == nil {
-		return notification.EmailContent{
+		return emailprovider.Content{
 			From:     "noreply@localhost",
 			Subject:  fmt.Sprintf("Your workflow task summary - %s", formatDate(digestModel.GeneratedAt)),
 			TextBody: "Your workflow task digest is ready.",
@@ -291,10 +295,10 @@ func renderWorkflowTaskDigestEmail(_ context.Context, emailService EmailService,
 
 	htmlBody, textBody, err := emailService.UseTemplate("workflow-task-digest", digestModel.templateData())
 	if err != nil {
-		return notification.EmailContent{}, fmt.Errorf("failed to render workflow-task-digest template: %w", err)
+		return emailprovider.Content{}, fmt.Errorf("failed to render workflow-task-digest template: %w", err)
 	}
 
-	return notification.EmailContent{
+	return emailprovider.Content{
 		From:     emailService.GetDefaultFromAddress(),
 		Subject:  fmt.Sprintf("Your workflow task summary — %s", formatDate(digestModel.GeneratedAt)),
 		HTMLBody: htmlBody,

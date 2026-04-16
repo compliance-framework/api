@@ -7,6 +7,7 @@ import (
 
 	emailtypes "github.com/compliance-framework/api/internal/service/email/types"
 	"github.com/compliance-framework/api/internal/service/notification"
+	emailprovider "github.com/compliance-framework/api/internal/service/notification/providers/email"
 	slackprovider "github.com/compliance-framework/api/internal/service/notification/providers/slack"
 	"github.com/compliance-framework/api/internal/workflow"
 )
@@ -38,13 +39,31 @@ func newWorkerNotificationTransport(
 	workerEnqueuerProvider notification.WorkerEnqueuerProvider,
 ) *notification.DeliveryTransport {
 	return notification.NewDeliveryTransport(
-		notification.WithWorkerEnqueuerProvider(workerEnqueuerProvider),
-		notification.WithEmailSenderProvider(func() notification.EmailSender {
-			if emailService == nil {
-				return nil
-			}
-			return &workerNotificationEmailSender{service: emailService}
-		}),
+		notification.WithProvider(emailprovider.NewProvider(
+			func() emailprovider.Sender {
+				if emailService == nil {
+					return nil
+				}
+				return &workerNotificationEmailSender{service: emailService}
+			},
+			func() emailprovider.Enqueuer {
+				if workerEnqueuerProvider == nil {
+					return nil
+				}
+
+				workerEnqueuer := workerEnqueuerProvider()
+				if workerEnqueuer == nil {
+					return nil
+				}
+
+				enqueuer, ok := workerEnqueuer.(emailprovider.Enqueuer)
+				if !ok {
+					return nil
+				}
+
+				return enqueuer
+			},
+		)),
 		notification.WithProvider(slackprovider.NewProvider(
 			func() slackprovider.Sender {
 				if slackService == nil {
@@ -101,7 +120,7 @@ func (e *workerNotificationEnqueuer) IsStarted() bool {
 	return e != nil && e.client != nil
 }
 
-func (e *workerNotificationEnqueuer) EnqueueNotificationEmail(ctx context.Context, delivery notification.EmailDelivery) error {
+func (e *workerNotificationEnqueuer) EnqueueNotificationEmail(ctx context.Context, delivery emailprovider.Delivery) error {
 	if e == nil || e.client == nil {
 		return fmt.Errorf("worker client is not initialized")
 	}
