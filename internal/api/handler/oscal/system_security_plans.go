@@ -1960,7 +1960,11 @@ func (h *SystemSecurityPlanHandler) AttachProfile(ctx echo.Context) error {
 
 	var ssp relational.SystemSecurityPlan
 	if err := h.db.Preload("ControlImplementation").Preload("Profiles").First(&ssp, "id = ?", sspID).Error; err != nil {
-		return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("SSP not found")))
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("SSP not found")))
+		}
+		h.sugar.Errorw("Failed to load SSP", "sspID", sspID, "error", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
 	// Capture the old profile IDs for orphaned risk cleanup.
@@ -1974,7 +1978,11 @@ func (h *SystemSecurityPlanHandler) AttachProfile(ctx echo.Context) error {
 	// Load the profile basic info
 	var profile relational.Profile
 	if err := h.db.First(&profile, "id = ?", profileID).Error; err != nil {
-		return ctx.JSON(http.StatusNotFound, api.NewError(errors.New("profile not found")))
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(errors.New("profile not found")))
+		}
+		h.sugar.Errorw("Failed to load profile", "profileId", profileID, "error", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
 	// Use the optimized resolution path
@@ -2161,13 +2169,21 @@ func (h *SystemSecurityPlanHandler) AddProfile(ctx echo.Context) error {
 
 	var ssp relational.SystemSecurityPlan
 	if err := h.db.Preload("ControlImplementation").First(&ssp, "id = ?", sspID).Error; err != nil {
-		return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("SSP not found")))
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("SSP not found")))
+		}
+		h.sugar.Errorw("Failed to load SSP", "sspID", sspID, "error", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
 	// Check profile exists
 	var profile relational.Profile
 	if err := h.db.First(&profile, "id = ?", profileID).Error; err != nil {
-		return ctx.JSON(http.StatusNotFound, api.NewError(errors.New("profile not found")))
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(errors.New("profile not found")))
+		}
+		h.sugar.Errorw("Failed to load profile", "profileId", profileID, "error", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
 	controlIDs, err := h.getControlIDsForProfile(profileID)

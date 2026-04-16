@@ -1,10 +1,14 @@
 package oscal
 
 import (
+	"bytes"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/google/uuid"
+	"github.com/labstack/echo/v4"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 	"gorm.io/driver/sqlite"
@@ -42,4 +46,66 @@ func TestGetControlIDsForAllProfilesFallsBackForProfilesMissingPivotRows(t *test
 
 	require.NoError(t, err)
 	require.ElementsMatch(t, []string{"ac-1", "ac-2"}, controlIDs)
+}
+
+func TestAttachProfileReturnsInternalServerErrorForUnexpectedSSPLoadError(t *testing.T) {
+	handler := NewSystemSecurityPlanHandler(zap.NewNop().Sugar(), closedSQLiteDB(t), nil, nil)
+	sspID := uuid.New()
+	profileID := uuid.New()
+	ctx, rec := newSSPProfileRequestContext(http.MethodPut, sspID, profileID)
+
+	require.NoError(t, handler.AttachProfile(ctx))
+	require.Equal(t, http.StatusInternalServerError, rec.Code)
+}
+
+func TestAddProfileReturnsInternalServerErrorForUnexpectedSSPLoadError(t *testing.T) {
+	handler := NewSystemSecurityPlanHandler(zap.NewNop().Sugar(), closedSQLiteDB(t), nil, nil)
+	sspID := uuid.New()
+	profileID := uuid.New()
+	ctx, rec := newSSPProfileRequestContext(http.MethodPost, sspID, profileID)
+
+	require.NoError(t, handler.AddProfile(ctx))
+	require.Equal(t, http.StatusInternalServerError, rec.Code)
+}
+
+func TestAddProfileReturnsInternalServerErrorForUnexpectedProfileLoadError(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	require.NoError(t, db.Exec(`CREATE TABLE system_security_plans (id TEXT PRIMARY KEY)`).Error)
+	require.NoError(t, db.Exec(`CREATE TABLE control_implementations (id TEXT PRIMARY KEY, system_security_plan_id TEXT)`).Error)
+
+	sspID := uuid.New()
+	profileID := uuid.New()
+	require.NoError(t, db.Exec("INSERT INTO system_security_plans (id) VALUES (?)", sspID.String()).Error)
+
+	handler := NewSystemSecurityPlanHandler(zap.NewNop().Sugar(), db, nil, nil)
+	ctx, rec := newSSPProfileRequestContext(http.MethodPost, sspID, profileID)
+
+	require.NoError(t, handler.AddProfile(ctx))
+	require.Equal(t, http.StatusInternalServerError, rec.Code)
+}
+
+func closedSQLiteDB(t *testing.T) *gorm.DB {
+	t.Helper()
+
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+
+	sqlDB, err := db.DB()
+	require.NoError(t, err)
+	require.NoError(t, sqlDB.Close())
+
+	return db
+}
+
+func newSSPProfileRequestContext(method string, sspID, profileID uuid.UUID) (echo.Context, *httptest.ResponseRecorder) {
+	e := echo.New()
+	body := bytes.NewBufferString(`{"profileId":"` + profileID.String() + `"}`)
+	req := httptest.NewRequest(method, "/", body)
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+	ctx := e.NewContext(req, rec)
+	ctx.SetParamNames("id")
+	ctx.SetParamValues(sspID.String())
+	return ctx, rec
 }
