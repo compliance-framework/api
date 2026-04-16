@@ -125,9 +125,8 @@ func (h *SystemSecurityPlanHandler) getControlIDsForProfile(profileID uuid.UUID)
 
 // getControlIDsForAllProfiles resolves control IDs from all profiles bound to an SSP
 // via the M:M relationship. Returns deduplicated control IDs across all profiles.
-// It first attempts a single batch query against the profile_controls pivot table;
-// if that returns no rows (e.g. the pivot table hasn't been populated yet) it falls
-// back to per-profile resolution which includes full OSCAL profile parsing.
+// It first attempts a single batch query against the profile_controls pivot table,
+// then falls back to per-profile resolution for any profile missing pivot rows.
 func (h *SystemSecurityPlanHandler) getControlIDsForAllProfiles(profiles []relational.Profile) ([]string, error) {
 	if len(profiles) == 0 {
 		return nil, nil
@@ -143,32 +142,51 @@ func (h *SystemSecurityPlanHandler) getControlIDsForAllProfiles(profiles []relat
 		return nil, nil
 	}
 
-	// Batch query: single round-trip for all profiles.
-	var allControlIDs []string
-	if err := h.db.Table("profile_controls").
-		Distinct("control_id").
+	seenControls := make(map[string]struct{})
+	seenProfiles := make(map[uuid.UUID]struct{})
+	allControlIDs := make([]string, 0)
+	appendControlIDs := func(controlIDs []string) {
+		for _, cid := range controlIDs {
+			if _, exists := seenControls[cid]; exists {
+				continue
+			}
+			seenControls[cid] = struct{}{}
+			allControlIDs = append(allControlIDs, cid)
+		}
+	}
+
+	type profileControlRow struct {
+		ProfileID uuid.UUID `gorm:"column:profile_id"`
+		ControlID string    `gorm:"column:control_id"`
+	}
+
+	var rows []profileControlRow
+	batchErr := h.db.Table("profile_controls").
+		Select("DISTINCT profile_id, control_id").
 		Where("profile_id IN ?", profileIDs).
-		Pluck("control_id", &allControlIDs).Error; err != nil {
-		h.sugar.Warnw("Batch query for profile controls failed, falling back to per-profile resolution", "error", err)
+		Find(&rows).Error
+	if batchErr != nil {
+		h.sugar.Warnw("Batch query for profile controls failed, falling back to per-profile resolution", "error", batchErr)
+	} else {
+		for _, row := range rows {
+			seenProfiles[row.ProfileID] = struct{}{}
+			appendControlIDs([]string{row.ControlID})
+		}
 	}
 
-	if len(allControlIDs) > 0 {
-		return allControlIDs, nil
-	}
-
-	// Fallback: per-profile resolution (handles OSCAL parsing when pivot table is empty).
-	seen := make(map[string]struct{})
+	// Fallback: per-profile resolution handles OSCAL parsing when the pivot
+	// table has not been populated yet for one or more bound profiles.
 	for _, pid := range profileIDs {
+		if batchErr == nil {
+			if _, exists := seenProfiles[pid]; exists {
+				continue
+			}
+		}
 		controlIDs, err := h.getControlIDsForProfile(pid)
 		if err != nil {
 			return nil, fmt.Errorf("resolve controls for profile %s: %w", pid, err)
 		}
-		for _, cid := range controlIDs {
-			if _, exists := seen[cid]; !exists {
-				seen[cid] = struct{}{}
-				allControlIDs = append(allControlIDs, cid)
-			}
-		}
+		appendControlIDs(controlIDs)
 	}
 
 	return allControlIDs, nil
