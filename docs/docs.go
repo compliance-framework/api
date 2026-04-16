@@ -15692,6 +15692,185 @@ const docTemplate = `{
                 }
             }
         },
+        "/oscal/system-security-plans/{id}/profiles": {
+            "get": {
+                "description": "Returns all profiles associated with a System Security Plan via the ssp_profiles join table.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "System Security Plans"
+                ],
+                "summary": "List Profiles bound to an SSP",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "SSP ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataListResponse-oscal_profileSummary"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            },
+            "post": {
+                "description": "Associates an additional Profile with a System Security Plan. Creates ImplementedRequirements for any new controls.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "System Security Plans"
+                ],
+                "summary": "Add a Profile binding to an SSP",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "SSP ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Profile ID to add",
+                        "name": "profileId",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataListResponse-oscal_profileSummary"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/oscal/system-security-plans/{id}/profiles/{profileId}": {
+            "delete": {
+                "description": "Removes a profile association from a System Security Plan. Enqueues orphaned risk cleanup.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "System Security Plans"
+                ],
+                "summary": "Remove a Profile binding from an SSP",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "SSP ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Profile ID to remove",
+                        "name": "profileId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataListResponse-oscal_profileSummary"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
         "/oscal/system-security-plans/{id}/system-characteristics": {
             "get": {
                 "description": "Retrieves the System Characteristics for a given System Security Plan.",
@@ -27424,6 +27603,18 @@ const docTemplate = `{
                 }
             }
         },
+        "handler.GenericDataListResponse-oscal_profileSummary": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscal.profileSummary"
+                    }
+                }
+            }
+        },
         "handler.GenericDataListResponse-oscal_resolvedWithCatalogsResponse": {
             "type": "object",
             "properties": {
@@ -30109,6 +30300,17 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "uuid": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscal.profileSummary": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "title": {
                     "type": "string"
                 }
             }
@@ -37377,7 +37579,15 @@ const docTemplate = `{
                     "$ref": "#/definitions/relational.Profile"
                 },
                 "profileID": {
+                    "description": "Deprecated: Use Profiles (M:M via ssp_profiles) instead.\nKept for backward-compatible migration; will be dropped in a future release.",
                     "type": "string"
+                },
+                "profiles": {
+                    "description": "Profiles holds the many-to-many relationship via the ssp_profiles join table.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/relational.Profile"
+                    }
                 },
                 "system-characteristics": {
                     "$ref": "#/definitions/relational.SystemCharacteristics"

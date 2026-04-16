@@ -54,10 +54,19 @@ func TestRiskOrphanedCleanupWorker_UsesCurrentSSPProfileForStaleJob(t *testing.T
 	staleProfileID := uuid.New()
 	currentProfileID := uuid.New()
 
+	// Create a profile row so GORM Preload("Profiles") can resolve the M:M join.
+	require.NoError(t, db.Exec(
+		`INSERT INTO profiles (id) VALUES (?)`, currentProfileID.String(),
+	).Error)
 	require.NoError(t, db.Create(&relational.SystemSecurityPlan{
 		UUIDModel: relational.UUIDModel{ID: &sspID},
 		ProfileID: &currentProfileID,
 	}).Error)
+	// Populate ssp_profiles join table for the M:M relationship.
+	require.NoError(t, db.Exec(
+		`INSERT INTO ssp_profiles (system_security_plan_id, profile_id) VALUES (?, ?)`,
+		sspID.String(), currentProfileID.String(),
+	).Error)
 	riskID := createOrphanedCleanupRisk(t, db, sspID, "AC-1")
 
 	resolver := &stubProfileControlResolver{

@@ -65,35 +65,28 @@ func (w *RiskOrphanedCleanupWorker) Work(ctx context.Context, job *river.Job[Ris
 	db := w.db.WithContext(ctx)
 
 	var ssp relational.SystemSecurityPlan
-	if err := db.Select("id", "profile_id").First(&ssp, "id = ?", args.SSPID).Error; err != nil {
+	if err := db.Preload("Profiles").Select("id", "profile_id").First(&ssp, "id = ?", args.SSPID).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			w.logger.Infow("risk orphaned cleanup: ssp not found, skipping",
 				"ssp_id", args.SSPID,
-				"old_profile_id", args.OldProfileID,
-				"new_profile_id", args.NewProfileID,
 			)
 			return nil
 		}
 		return fmt.Errorf("risk orphaned cleanup: load current ssp %s: %w", args.SSPID, err)
 	}
 
-	if !uuidPtrEqual(ssp.ProfileID, args.NewProfileID) {
-		w.logger.Infow("risk orphaned cleanup: job profile is stale, using current SSP profile",
-			"ssp_id", args.SSPID,
-			"job_new_profile_id", args.NewProfileID,
-			"current_profile_id", ssp.ProfileID,
-		)
-	}
-
-	// Build the current profile's control set.
-	// If ProfileID is nil the SSP's profile binding was cleared, so all auto-generated
-	// risks are orphaned by definition and we pass an empty set.
+	// Build the current control set by iterating all bound profiles.
+	// If no profiles are bound the SSP's profile binding was cleared, so all
+	// auto-generated risks are orphaned by definition and we pass an empty set.
 	newControlSet := make(map[riskrel.ControlKey]struct{})
 
-	if ssp.ProfileID != nil {
-		controlKeys, err := w.profileResolver.ResolveProfileControlKeys(ctx, *ssp.ProfileID)
+	for _, profile := range ssp.Profiles {
+		if profile.ID == nil {
+			continue
+		}
+		controlKeys, err := w.profileResolver.ResolveProfileControlKeys(ctx, *profile.ID)
 		if err != nil {
-			return fmt.Errorf("risk orphaned cleanup: resolve profile controls for ssp %s: %w", args.SSPID, err)
+			return fmt.Errorf("risk orphaned cleanup: resolve profile controls for ssp %s profile %s: %w", args.SSPID, *profile.ID, err)
 		}
 		for _, ck := range controlKeys {
 			newControlSet[ck] = struct{}{}
@@ -114,15 +107,4 @@ func (w *RiskOrphanedCleanupWorker) Work(ctx context.Context, job *river.Job[Ris
 		"remediated_count", remediated,
 	)
 	return nil
-}
-
-func uuidPtrEqual(a, b *uuid.UUID) bool {
-	switch {
-	case a == nil && b == nil:
-		return true
-	case a == nil || b == nil:
-		return false
-	default:
-		return *a == *b
-	}
 }
