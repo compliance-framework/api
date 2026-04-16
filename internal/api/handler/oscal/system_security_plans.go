@@ -2151,13 +2151,6 @@ func (h *SystemSecurityPlanHandler) AddProfile(ctx echo.Context) error {
 			return fmt.Errorf("failed to insert ssp_profiles row: %w", err)
 		}
 
-		// Keep legacy FK in sync: set to the most recently added profile
-		if err := tx.Model(&relational.SystemSecurityPlan{}).
-			Where("id = ?", sspID).
-			Update("profile_id", profileID).Error; err != nil {
-			return fmt.Errorf("failed to update legacy profile_id: %w", err)
-		}
-
 		// Ensure ControlImplementation exists
 		if ssp.ControlImplementation.ID == nil {
 			newID := uuid.New()
