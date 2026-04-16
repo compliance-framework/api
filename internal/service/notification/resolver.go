@@ -109,11 +109,17 @@ func (r *GORMUserRepository) FindUserByID(ctx context.Context, userID string) (U
 		})
 	}
 
+	identitiesByUserID, err := r.loadProviderIdentitiesByUserID(ctx, []string{record.ID.String()})
+	if err != nil {
+		return User{}, fmt.Errorf("failed to fetch notification identities for user %s: %w", userID, err)
+	}
+
 	return User{
 		ID:            record.ID.String(),
 		Email:         record.Email,
 		FirstName:     record.FirstName,
 		LastName:      record.LastName,
+		Identities:    identitiesByUserID[record.ID.String()],
 		Subscriptions: out,
 	}, nil
 }
@@ -163,6 +169,11 @@ func (r *GORMUserRepository) ListActiveUsersByNotificationType(ctx context.Conte
 		return nil, fmt.Errorf("failed to fetch subscribed users for type %s: %w", canonicalType, err)
 	}
 
+	identitiesByUserID, err := r.loadProviderIdentitiesByUserID(ctx, userIDs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch notification identities for type %s: %w", canonicalType, err)
+	}
+
 	subscriptionsByUserID := make(map[string][]UserSubscription, len(subscriptions))
 	for i := range subscriptions {
 		userID := strings.TrimSpace(subscriptions[i].UserID)
@@ -187,6 +198,7 @@ func (r *GORMUserRepository) ListActiveUsersByNotificationType(ctx context.Conte
 			Email:         record.Email,
 			FirstName:     record.FirstName,
 			LastName:      record.LastName,
+			Identities:    identitiesByUserID[userID],
 			Subscriptions: subscriptionsByUserID[userID],
 		})
 	}
@@ -196,6 +208,47 @@ func (r *GORMUserRepository) ListActiveUsersByNotificationType(ctx context.Conte
 	})
 
 	return users, nil
+}
+
+func (r *GORMUserRepository) loadProviderIdentitiesByUserID(ctx context.Context, userIDs []string) (map[string]map[string]map[string]string, error) {
+	identitiesByUserID := make(map[string]map[string]map[string]string)
+	if r == nil || r.db == nil || len(userIDs) == 0 {
+		return identitiesByUserID, nil
+	}
+
+	var slackLinks []relational.SlackUserLink
+	if err := r.db.WithContext(ctx).
+		Where("user_id IN ?", userIDs).
+		Find(&slackLinks).Error; err != nil {
+		return nil, err
+	}
+
+	for i := range slackLinks {
+		userID := strings.TrimSpace(slackLinks[i].UserID)
+		identity := slackDirectMessageIdentity(slackLinks[i].SlackUserID)
+		if userID == "" || len(identity) == 0 {
+			continue
+		}
+
+		if _, exists := identitiesByUserID[userID]; !exists {
+			identitiesByUserID[userID] = map[string]map[string]string{}
+		}
+		identitiesByUserID[userID][DeliveryChannelSlack] = identity
+	}
+
+	return identitiesByUserID, nil
+}
+
+func slackDirectMessageIdentity(slackUserID string) map[string]string {
+	trimmedSlackUserID := strings.TrimSpace(slackUserID)
+	if trimmedSlackUserID == "" {
+		return nil
+	}
+
+	return map[string]string{
+		"channel":     trimmedSlackUserID,
+		"target_type": "direct_message",
+	}
 }
 
 type ConfiguredDestinationResolver interface {
