@@ -8,12 +8,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/compliance-framework/api/internal/service/email/types"
 	"github.com/compliance-framework/api/internal/service/notification"
 	"github.com/compliance-framework/api/internal/service/relational"
 	riskrel "github.com/compliance-framework/api/internal/service/relational/risks"
-	slackformatters "github.com/compliance-framework/api/internal/service/slack/formatters"
-	slacktypes "github.com/compliance-framework/api/internal/service/slack/types"
 	"github.com/compliance-framework/api/internal/workflow"
 	"github.com/google/uuid"
 	"github.com/riverqueue/river"
@@ -31,18 +28,6 @@ type riskNotificationData struct {
 	ReviewDeadline string
 	LastSeenAt     string
 	RiskURL        string
-}
-
-func (d riskNotificationData) templateData() map[string]interface{} {
-	return map[string]interface{}{
-		"OwnerName":      d.OwnerName,
-		"RiskTitle":      d.RiskTitle,
-		"SSPName":        d.SSPName,
-		"RiskStatus":     d.RiskStatus,
-		"ReviewDeadline": d.ReviewDeadline,
-		"LastSeenAt":     d.LastSeenAt,
-		"RiskURL":        d.RiskURL,
-	}
 }
 
 type RiskReviewDeadlineReminderScannerWorker struct {
@@ -72,8 +57,7 @@ func (w *RiskReviewDeadlineReminderScannerWorker) Work(ctx context.Context, _ *r
 				return fmt.Errorf("risk deadline reminder scanner: resolve owners failed: %w", err)
 			}
 
-			channels := allWorkflowNotificationChannels()
-			params := make([]river.InsertManyParams, 0, len(risks)*len(channels))
+			params := make([]river.InsertManyParams, 0, len(risks))
 			for i := range risks {
 				risk := &risks[i]
 				if risk.ID == nil {
@@ -81,18 +65,15 @@ func (w *RiskReviewDeadlineReminderScannerWorker) Work(ctx context.Context, _ *r
 				}
 				ownerIDs := ownersByRiskID[*risk.ID]
 				for _, ownerID := range ownerIDs {
-					for _, channel := range channels {
-						params = append(params, river.InsertManyParams{
-							Args: RiskReviewDueReminderArgs{
-								RiskID:         *risk.ID,
-								OwnerUserID:    ownerID,
-								Channel:        channel,
-								ReviewDeadline: risk.ReviewDeadline.UTC().Format(time.RFC3339),
-								ReminderWindow: "30d",
-							},
-							InsertOpts: JobInsertOptionsForRiskNotification(24 * time.Hour),
-						})
-					}
+					params = append(params, river.InsertManyParams{
+						Args: RiskReviewDueReminderArgs{
+							RiskID:         *risk.ID,
+							OwnerUserID:    ownerID,
+							ReviewDeadline: risk.ReviewDeadline.UTC().Format(time.RFC3339),
+							ReminderWindow: "30d",
+						},
+						InsertOpts: JobInsertOptionsForRiskNotification(24 * time.Hour),
+					})
 				}
 			}
 
@@ -160,8 +141,7 @@ func (w *RiskReviewOverdueEscalationScannerWorker) Work(ctx context.Context, _ *
 				return fmt.Errorf("risk overdue escalation scanner: resolve owners failed: %w", err)
 			}
 
-			channels := allWorkflowNotificationChannels()
-			params := make([]river.InsertManyParams, 0, len(risks)*len(channels))
+			params := make([]river.InsertManyParams, 0, len(risks))
 			overdueWindow := now.Format("2006-01-02")
 			for i := range risks {
 				risk := &risks[i]
@@ -170,18 +150,15 @@ func (w *RiskReviewOverdueEscalationScannerWorker) Work(ctx context.Context, _ *
 				}
 				ownerIDs := ownersByRiskID[*risk.ID]
 				for _, ownerID := range ownerIDs {
-					for _, channel := range channels {
-						params = append(params, river.InsertManyParams{
-							Args: RiskReviewOverdueEscalationArgs{
-								RiskID:         *risk.ID,
-								OwnerUserID:    ownerID,
-								Channel:        channel,
-								ReviewDeadline: risk.ReviewDeadline.UTC().Format(time.RFC3339),
-								OverdueWindow:  overdueWindow,
-							},
-							InsertOpts: JobInsertOptionsForRiskNotification(24 * time.Hour),
-						})
-					}
+					params = append(params, river.InsertManyParams{
+						Args: RiskReviewOverdueEscalationArgs{
+							RiskID:         *risk.ID,
+							OwnerUserID:    ownerID,
+							ReviewDeadline: risk.ReviewDeadline.UTC().Format(time.RFC3339),
+							OverdueWindow:  overdueWindow,
+						},
+						InsertOpts: JobInsertOptionsForRiskNotification(24 * time.Hour),
+					})
 				}
 
 				if w.autoReopenEnabled && w.autoReopenThresholdDays > 0 {
@@ -256,8 +233,7 @@ func (w *RiskStaleRiskScannerWorker) Work(ctx context.Context, _ *river.Job[Risk
 				return fmt.Errorf("risk stale scanner: resolve owners failed: %w", err)
 			}
 
-			channels := allWorkflowNotificationChannels()
-			params := make([]river.InsertManyParams, 0, len(risks)*len(channels))
+			params := make([]river.InsertManyParams, 0, len(risks))
 			for i := range risks {
 				risk := &risks[i]
 				if risk.ID == nil {
@@ -265,18 +241,15 @@ func (w *RiskStaleRiskScannerWorker) Work(ctx context.Context, _ *river.Job[Risk
 				}
 				ownerIDs := ownersByRiskID[*risk.ID]
 				for _, ownerID := range ownerIDs {
-					for _, channel := range channels {
-						params = append(params, river.InsertManyParams{
-							Args: RiskStaleOpenReminderArgs{
-								RiskID:          *risk.ID,
-								OwnerUserID:     ownerID,
-								Channel:         channel,
-								LastSeenAt:      risk.LastSeenAt.UTC().Format(time.RFC3339),
-								StaleBucketDate: staleBucketDate,
-							},
-							InsertOpts: JobInsertOptionsForRiskNotification(7 * 24 * time.Hour),
-						})
-					}
+					params = append(params, river.InsertManyParams{
+						Args: RiskStaleOpenReminderArgs{
+							RiskID:          *risk.ID,
+							OwnerUserID:     ownerID,
+							LastSeenAt:      risk.LastSeenAt.UTC().Format(time.RFC3339),
+							StaleBucketDate: staleBucketDate,
+						},
+						InsertOpts: JobInsertOptionsForRiskNotification(7 * 24 * time.Hour),
+					})
 				}
 			}
 
@@ -347,80 +320,261 @@ func (w *RiskEvidenceReconciliationScannerWorker) Work(ctx context.Context, _ *r
 }
 
 type RiskReviewDueReminderWorker struct {
-	db           *gorm.DB
-	emailService EmailService
-	slackService SlackService
-	userRepo     UserRepository
-	webBaseURL   string
-	logger       *zap.SugaredLogger
+	db                          *gorm.DB
+	emailService                EmailService
+	userRepo                    UserRepository
+	notificationRuntimeProvider notification.RuntimeProvider
+	webBaseURL                  string
+	logger                      *zap.SugaredLogger
 }
 
 func NewRiskReviewDueReminderWorker(db *gorm.DB, emailService EmailService, slackService SlackService, userRepo UserRepository, webBaseURL string, logger *zap.SugaredLogger) *RiskReviewDueReminderWorker {
-	return &RiskReviewDueReminderWorker{db: db, emailService: emailService, slackService: slackService, userRepo: userRepo, webBaseURL: webBaseURL, logger: logger}
+	return NewRiskReviewDueReminderWorkerWithRuntimeProvider(
+		db,
+		emailService,
+		userRepo,
+		webBaseURL,
+		newWorkerNotificationRuntimeProvider(
+			emailService,
+			slackService,
+			func() notification.WorkerEnqueuer { return nil },
+		),
+		logger,
+	)
+}
+
+func NewRiskReviewDueReminderWorkerWithRuntimeProvider(
+	db *gorm.DB,
+	emailService EmailService,
+	userRepo UserRepository,
+	webBaseURL string,
+	runtimeProvider notification.RuntimeProvider,
+	logger *zap.SugaredLogger,
+) *RiskReviewDueReminderWorker {
+	worker := &RiskReviewDueReminderWorker{
+		db:                          db,
+		emailService:                emailService,
+		userRepo:                    userRepo,
+		notificationRuntimeProvider: runtimeProvider,
+		webBaseURL:                  webBaseURL,
+		logger:                      logger,
+	}
+	if worker.notificationRuntimeProvider == nil {
+		worker.notificationRuntimeProvider = newWorkerNotificationRuntimeProvider(
+			emailService,
+			nil,
+			func() notification.WorkerEnqueuer { return nil },
+		)
+	}
+
+	return worker
 }
 
 func (w *RiskReviewDueReminderWorker) Work(ctx context.Context, job *river.Job[RiskReviewDueReminderArgs]) error {
-	return w.sendRiskNotification(ctx, job.Args.RiskID, job.Args.OwnerUserID, job.Args.Channel, "risk-review-due-reminder", "Risk review due soon")
+	if _, ok := normalizeRequestedDeliveryChannel(job.Args.Channel); !ok {
+		w.logger.Warnw("RiskReviewDueReminderWorker: invalid delivery channel, skipping",
+			"risk_id", job.Args.RiskID,
+			"owner_user_id", job.Args.OwnerUserID,
+			"channel", job.Args.Channel,
+		)
+		return nil
+	}
+
+	return dispatchRiskReminderNotification(
+		ctx,
+		w.db,
+		w.emailService,
+		w.userRepo,
+		w.notificationRuntimeProvider,
+		w.webBaseURL,
+		w.logger,
+		job.Args.RiskID,
+		job.Args.OwnerUserID,
+		func(userName string, data riskNotificationData) notification.Request {
+			return buildRiskReviewDueReminderNotificationRequest(job.Args, userName, data)
+		},
+	)
 }
 
 type RiskReviewOverdueEscalationWorker struct {
-	db           *gorm.DB
-	emailService EmailService
-	slackService SlackService
-	userRepo     UserRepository
-	webBaseURL   string
-	logger       *zap.SugaredLogger
+	db                          *gorm.DB
+	emailService                EmailService
+	userRepo                    UserRepository
+	notificationRuntimeProvider notification.RuntimeProvider
+	webBaseURL                  string
+	logger                      *zap.SugaredLogger
 }
 
 func NewRiskReviewOverdueEscalationWorker(db *gorm.DB, emailService EmailService, slackService SlackService, userRepo UserRepository, webBaseURL string, logger *zap.SugaredLogger) *RiskReviewOverdueEscalationWorker {
-	return &RiskReviewOverdueEscalationWorker{db: db, emailService: emailService, slackService: slackService, userRepo: userRepo, webBaseURL: webBaseURL, logger: logger}
+	return NewRiskReviewOverdueEscalationWorkerWithRuntimeProvider(
+		db,
+		emailService,
+		userRepo,
+		webBaseURL,
+		newWorkerNotificationRuntimeProvider(
+			emailService,
+			slackService,
+			func() notification.WorkerEnqueuer { return nil },
+		),
+		logger,
+	)
+}
+
+func NewRiskReviewOverdueEscalationWorkerWithRuntimeProvider(
+	db *gorm.DB,
+	emailService EmailService,
+	userRepo UserRepository,
+	webBaseURL string,
+	runtimeProvider notification.RuntimeProvider,
+	logger *zap.SugaredLogger,
+) *RiskReviewOverdueEscalationWorker {
+	worker := &RiskReviewOverdueEscalationWorker{
+		db:                          db,
+		emailService:                emailService,
+		userRepo:                    userRepo,
+		notificationRuntimeProvider: runtimeProvider,
+		webBaseURL:                  webBaseURL,
+		logger:                      logger,
+	}
+	if worker.notificationRuntimeProvider == nil {
+		worker.notificationRuntimeProvider = newWorkerNotificationRuntimeProvider(
+			emailService,
+			nil,
+			func() notification.WorkerEnqueuer { return nil },
+		)
+	}
+
+	return worker
 }
 
 func (w *RiskReviewOverdueEscalationWorker) Work(ctx context.Context, job *river.Job[RiskReviewOverdueEscalationArgs]) error {
-	return w.sendRiskNotification(ctx, job.Args.RiskID, job.Args.OwnerUserID, job.Args.Channel, "risk-review-overdue-escalation", "Risk review overdue")
+	if _, ok := normalizeRequestedDeliveryChannel(job.Args.Channel); !ok {
+		w.logger.Warnw("RiskReviewOverdueEscalationWorker: invalid delivery channel, skipping",
+			"risk_id", job.Args.RiskID,
+			"owner_user_id", job.Args.OwnerUserID,
+			"channel", job.Args.Channel,
+		)
+		return nil
+	}
+
+	return dispatchRiskReminderNotification(
+		ctx,
+		w.db,
+		w.emailService,
+		w.userRepo,
+		w.notificationRuntimeProvider,
+		w.webBaseURL,
+		w.logger,
+		job.Args.RiskID,
+		job.Args.OwnerUserID,
+		func(userName string, data riskNotificationData) notification.Request {
+			return buildRiskReviewOverdueEscalationNotificationRequest(job.Args, userName, data)
+		},
+	)
 }
 
 type RiskStaleOpenReminderWorker struct {
-	db           *gorm.DB
-	emailService EmailService
-	slackService SlackService
-	userRepo     UserRepository
-	webBaseURL   string
-	logger       *zap.SugaredLogger
+	db                          *gorm.DB
+	emailService                EmailService
+	userRepo                    UserRepository
+	notificationRuntimeProvider notification.RuntimeProvider
+	webBaseURL                  string
+	logger                      *zap.SugaredLogger
 }
 
 func NewRiskStaleOpenReminderWorker(db *gorm.DB, emailService EmailService, slackService SlackService, userRepo UserRepository, webBaseURL string, logger *zap.SugaredLogger) *RiskStaleOpenReminderWorker {
-	return &RiskStaleOpenReminderWorker{db: db, emailService: emailService, slackService: slackService, userRepo: userRepo, webBaseURL: webBaseURL, logger: logger}
+	return NewRiskStaleOpenReminderWorkerWithRuntimeProvider(
+		db,
+		emailService,
+		userRepo,
+		webBaseURL,
+		newWorkerNotificationRuntimeProvider(
+			emailService,
+			slackService,
+			func() notification.WorkerEnqueuer { return nil },
+		),
+		logger,
+	)
+}
+
+func NewRiskStaleOpenReminderWorkerWithRuntimeProvider(
+	db *gorm.DB,
+	emailService EmailService,
+	userRepo UserRepository,
+	webBaseURL string,
+	runtimeProvider notification.RuntimeProvider,
+	logger *zap.SugaredLogger,
+) *RiskStaleOpenReminderWorker {
+	worker := &RiskStaleOpenReminderWorker{
+		db:                          db,
+		emailService:                emailService,
+		userRepo:                    userRepo,
+		notificationRuntimeProvider: runtimeProvider,
+		webBaseURL:                  webBaseURL,
+		logger:                      logger,
+	}
+	if worker.notificationRuntimeProvider == nil {
+		worker.notificationRuntimeProvider = newWorkerNotificationRuntimeProvider(
+			emailService,
+			nil,
+			func() notification.WorkerEnqueuer { return nil },
+		)
+	}
+
+	return worker
 }
 
 func (w *RiskStaleOpenReminderWorker) Work(ctx context.Context, job *river.Job[RiskStaleOpenReminderArgs]) error {
-	return w.sendRiskNotification(ctx, job.Args.RiskID, job.Args.OwnerUserID, job.Args.Channel, "risk-stale-open-reminder", "Stale risk reminder")
+	if _, ok := normalizeRequestedDeliveryChannel(job.Args.Channel); !ok {
+		w.logger.Warnw("RiskStaleOpenReminderWorker: invalid delivery channel, skipping",
+			"risk_id", job.Args.RiskID,
+			"owner_user_id", job.Args.OwnerUserID,
+			"channel", job.Args.Channel,
+		)
+		return nil
+	}
+
+	return dispatchRiskReminderNotification(
+		ctx,
+		w.db,
+		w.emailService,
+		w.userRepo,
+		w.notificationRuntimeProvider,
+		w.webBaseURL,
+		w.logger,
+		job.Args.RiskID,
+		job.Args.OwnerUserID,
+		func(userName string, data riskNotificationData) notification.Request {
+			return buildRiskStaleOpenReminderNotificationRequest(job.Args, userName, data)
+		},
+	)
 }
 
-func (w *RiskReviewDueReminderWorker) sendRiskNotification(ctx context.Context, riskID, ownerUserID uuid.UUID, requestedChannel, templateName, subjectPrefix string) error {
-	return sendRiskNotification(ctx, w.db, w.emailService, w.slackService, w.userRepo, w.webBaseURL, w.logger, riskID, ownerUserID, requestedChannel, templateName, subjectPrefix)
-}
-
-func (w *RiskReviewOverdueEscalationWorker) sendRiskNotification(ctx context.Context, riskID, ownerUserID uuid.UUID, requestedChannel, templateName, subjectPrefix string) error {
-	return sendRiskNotification(ctx, w.db, w.emailService, w.slackService, w.userRepo, w.webBaseURL, w.logger, riskID, ownerUserID, requestedChannel, templateName, subjectPrefix)
-}
-
-func (w *RiskStaleOpenReminderWorker) sendRiskNotification(ctx context.Context, riskID, ownerUserID uuid.UUID, requestedChannel, templateName, subjectPrefix string) error {
-	return sendRiskNotification(ctx, w.db, w.emailService, w.slackService, w.userRepo, w.webBaseURL, w.logger, riskID, ownerUserID, requestedChannel, templateName, subjectPrefix)
-}
-
-func sendRiskNotification(
+func dispatchRiskReminderNotification(
 	ctx context.Context,
 	db *gorm.DB,
 	emailService EmailService,
-	slackService SlackService,
 	userRepo UserRepository,
+	runtimeProvider notification.RuntimeProvider,
 	webBaseURL string,
 	logger *zap.SugaredLogger,
 	riskID, ownerUserID uuid.UUID,
-	requestedChannel string,
-	templateName, subjectPrefix string,
+	buildRequest func(userName string, data riskNotificationData) notification.Request,
 ) error {
+	if db == nil {
+		return fmt.Errorf("risk notification worker: db is nil")
+	}
+	if userRepo == nil {
+		return fmt.Errorf("risk notification worker: user repository is nil")
+	}
+	if runtimeProvider == nil {
+		runtimeProvider = newWorkerNotificationRuntimeProvider(
+			emailService,
+			nil,
+			func() notification.WorkerEnqueuer { return nil },
+		)
+	}
+
 	var risk riskrel.Risk
 	if err := db.WithContext(ctx).First(&risk, "id = ?", riskID).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -438,16 +592,28 @@ func sendRiskNotification(
 		}
 		return fmt.Errorf("risk notification worker: load owner user failed: %w", err)
 	}
-	channels, ok := selectUserNotificationChannels(
-		user,
-		notification.NotificationTypeRiskNotifications,
-		requestedChannel,
+	notifier := newRiskNotificationServiceFromFactory(
+		runtimeProvider.NewRuntimeFactory(nil),
+		emailService,
+		newNotificationUserRepositoryAdapter(userRepo, user),
 	)
-	if !ok || len(channels) == 0 {
-		logger.Debugw("Risk notification worker: owner not subscribed to risk notifications, skipping", "risk_id", riskID, "owner_user_id", ownerUserID)
-		return nil
+	data := buildRiskNotificationData(ctx, db, webBaseURL, user, risk, riskID)
+	request := buildRequest(user.FullName(), data)
+	if err := notifier.Dispatch(ctx, request); err != nil {
+		return fmt.Errorf("dispatch %s notification: %w", request.Kind, err)
 	}
 
+	return nil
+}
+
+func buildRiskNotificationData(
+	ctx context.Context,
+	db *gorm.DB,
+	webBaseURL string,
+	user NotificationUser,
+	risk riskrel.Risk,
+	riskID uuid.UUID,
+) riskNotificationData {
 	riskTitle := strings.TrimSpace(risk.Title)
 	if riskTitle == "" {
 		riskTitle = riskID.String()
@@ -469,149 +635,7 @@ func sendRiskNotification(
 		RiskURL:        resolveRiskURL(webBaseURL, riskID),
 	}
 
-	for _, channel := range channels {
-		switch channel {
-		case notification.DeliveryChannelEmail:
-			if err := sendRiskNotificationEmail(ctx, emailService, logger, user, data, templateName, subjectPrefix, riskID, ownerUserID); err != nil {
-				return err
-			}
-		case notification.DeliveryChannelSlack:
-			if err := sendRiskNotificationSlack(ctx, slackService, logger, user, data, templateName, riskID, ownerUserID); err != nil {
-				return err
-			}
-		default:
-			logger.Debugw("Risk notification worker: unsupported channel, skipping",
-				"risk_id", riskID,
-				"owner_user_id", ownerUserID,
-				"channel", channel,
-			)
-		}
-	}
-	return nil
-}
-
-func sendRiskNotificationEmail(
-	ctx context.Context,
-	emailService EmailService,
-	logger *zap.SugaredLogger,
-	user NotificationUser,
-	data riskNotificationData,
-	templateName string,
-	subjectPrefix string,
-	riskID uuid.UUID,
-	ownerUserID uuid.UUID,
-) error {
-	htmlBody, textBody, err := emailService.UseTemplate(templateName, data.templateData())
-	if err != nil {
-		return fmt.Errorf("risk notification worker: render template %q failed: %w", templateName, err)
-	}
-
-	message := &types.Message{
-		From:     emailService.GetDefaultFromAddress(),
-		To:       []string{user.Email},
-		Subject:  fmt.Sprintf("%s: %s", subjectPrefix, data.RiskTitle),
-		HTMLBody: htmlBody,
-		TextBody: textBody,
-	}
-	result, err := emailService.Send(ctx, message)
-	if err != nil {
-		return fmt.Errorf("risk notification worker: send email failed: %w", err)
-	}
-	if !result.Success {
-		return fmt.Errorf("risk notification worker: email send failed: %s", result.Error)
-	}
-
-	logger.Infow("Risk notification worker: email sent",
-		"risk_id", riskID,
-		"owner_user_id", ownerUserID,
-		"template", templateName,
-		"message_id", result.MessageID,
-	)
-	return nil
-}
-
-func sendRiskNotificationSlack(
-	ctx context.Context,
-	slackService SlackService,
-	logger *zap.SugaredLogger,
-	user NotificationUser,
-	data riskNotificationData,
-	templateName string,
-	riskID uuid.UUID,
-	ownerUserID uuid.UUID,
-) error {
-	if slackService == nil || !slackService.IsEnabled() {
-		logger.Debugw("Risk notification worker: slack service not configured, skipping",
-			"risk_id", riskID,
-			"owner_user_id", ownerUserID,
-		)
-		return nil
-	}
-
-	slackUserID := strings.TrimSpace(user.SlackUserID)
-	if slackUserID == "" {
-		logger.Debugw("Risk notification worker: owner has no Slack link, skipping",
-			"risk_id", riskID,
-			"owner_user_id", ownerUserID,
-		)
-		return nil
-	}
-
-	message, err := formatRiskNotificationSlackMessage(templateName, data)
-	if err != nil {
-		return fmt.Errorf("risk notification worker: format slack message failed: %w", err)
-	}
-
-	result, err := slackService.SendMessage(ctx, slackUserID, message)
-	if err != nil {
-		return fmt.Errorf("risk notification worker: send slack message failed: %w", err)
-	}
-	if !result.Success {
-		return fmt.Errorf("risk notification worker: slack message send failed: %s", result.Error)
-	}
-
-	logger.Infow("Risk notification worker: slack message sent",
-		"risk_id", riskID,
-		"owner_user_id", ownerUserID,
-		"template", templateName,
-		"slack_user_id", slackUserID,
-		"delivery_id", result.DeliveryID,
-	)
-	return nil
-}
-
-func formatRiskNotificationSlackMessage(templateName string, data riskNotificationData) (*slacktypes.Message, error) {
-	switch templateName {
-	case "risk-review-due-reminder":
-		return slackformatters.FormatRiskReviewDueReminderMessage(
-			data.OwnerName,
-			data.RiskTitle,
-			data.SSPName,
-			data.RiskStatus,
-			data.ReviewDeadline,
-			data.RiskURL,
-		)
-	case "risk-review-overdue-escalation":
-		return slackformatters.FormatRiskReviewOverdueEscalationMessage(
-			data.OwnerName,
-			data.RiskTitle,
-			data.SSPName,
-			data.RiskStatus,
-			data.ReviewDeadline,
-			data.RiskURL,
-		)
-	case "risk-stale-open-reminder":
-		return slackformatters.FormatRiskStaleOpenReminderMessage(
-			data.OwnerName,
-			data.RiskTitle,
-			data.SSPName,
-			data.RiskStatus,
-			data.LastSeenAt,
-			data.RiskURL,
-		)
-	default:
-		return nil, fmt.Errorf("unsupported risk slack template %q", templateName)
-	}
+	return data
 }
 
 type RiskReconcileDuplicatesWorker struct {

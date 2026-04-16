@@ -118,25 +118,24 @@ func TestRiskOpenDigestSchedulerWorker_EnqueuesUniqueRecipients(t *testing.T) {
 
 	err := worker.Work(context.Background(), &river.Job[RiskOpenDigestSchedulerArgs]{})
 	require.NoError(t, err)
-	require.Len(t, client.params, 4)
+	require.Len(t, client.params, 2)
 
 	argsA, ok := client.params[0].Args.(RiskOpenDigestArgs)
 	require.True(t, ok)
 	assert.Equal(t, riskDigestWindowDaily, argsA.WindowKind)
 	assert.Equal(t, "2026-03-22T00:00:00Z", argsA.WindowStart)
 	assert.Equal(t, "2026-03-23T00:00:00Z", argsA.WindowEnd)
+	assert.Equal(t, "", argsA.Channel)
 	assert.Equal(t, "digest", client.params[0].InsertOpts.Queue)
 	assert.Equal(t, riskDigestDailyPeriod, client.params[0].InsertOpts.UniqueOpts.ByPeriod)
 
 	gotRecipients := make([]uuid.UUID, 0, len(client.params))
-	gotChannels := make([]string, 0, len(client.params))
 	for _, param := range client.params {
 		args := param.Args.(RiskOpenDigestArgs)
 		gotRecipients = append(gotRecipients, args.RecipientUserID)
-		gotChannels = append(gotChannels, args.Channel)
+		assert.Equal(t, "", args.Channel)
 	}
-	assert.ElementsMatch(t, []uuid.UUID{ownerA, ownerA, ownerB, ownerB}, gotRecipients)
-	assert.ElementsMatch(t, []string{notification.DeliveryChannelEmail, notification.DeliveryChannelSlack, notification.DeliveryChannelEmail, notification.DeliveryChannelSlack}, gotChannels)
+	assert.ElementsMatch(t, []uuid.UUID{ownerA, ownerB}, gotRecipients)
 }
 
 func TestRiskOpenDigestSchedulerWorker_WarnsOnInvalidRecipientUserID(t *testing.T) {
@@ -176,9 +175,10 @@ func TestRiskOpenDigestSchedulerWorker_WarnsOnInvalidRecipientUserID(t *testing.
 
 	err := worker.Work(context.Background(), &river.Job[RiskOpenDigestSchedulerArgs]{})
 	require.NoError(t, err)
-	require.Len(t, client.params, 2)
+	require.Len(t, client.params, 1)
 	for _, param := range client.params {
 		require.Equal(t, ownerID, param.Args.(RiskOpenDigestArgs).RecipientUserID)
+		require.Equal(t, "", param.Args.(RiskOpenDigestArgs).Channel)
 	}
 
 	logs := observed.FilterMessage("RiskOpenDigestSchedulerWorker: skipping invalid recipient user ID").All()
@@ -324,7 +324,6 @@ func TestRiskOpenDigestWorker_SendsGroupedDigest(t *testing.T) {
 	err := worker.Work(ctx, &river.Job[RiskOpenDigestArgs]{
 		Args: RiskOpenDigestArgs{
 			RecipientUserID: recipientID,
-			Channel:         notification.DeliveryChannelEmail,
 			WindowStart:     windowStart.Format(time.RFC3339),
 			WindowEnd:       windowEnd.Format(time.RFC3339),
 			WindowKind:      riskDigestWindowDaily,
@@ -352,7 +351,6 @@ func TestRiskOpenDigestWorker_UnsubscribedUser_Skips(t *testing.T) {
 	err := worker.Work(ctx, &river.Job[RiskOpenDigestArgs]{
 		Args: RiskOpenDigestArgs{
 			RecipientUserID: recipientID,
-			Channel:         notification.DeliveryChannelEmail,
 			WindowStart:     "2026-03-22T00:00:00Z",
 			WindowEnd:       "2026-03-23T00:00:00Z",
 			WindowKind:      riskDigestWindowDaily,
@@ -424,7 +422,6 @@ func TestRiskOpenDigestWorker_SlackSubscribed_SendsSlack(t *testing.T) {
 	err := worker.Work(ctx, &river.Job[RiskOpenDigestArgs]{
 		Args: RiskOpenDigestArgs{
 			RecipientUserID: recipientID,
-			Channel:         notification.DeliveryChannelSlack,
 			WindowStart:     windowStart.Format(time.RFC3339),
 			WindowEnd:       windowEnd.Format(time.RFC3339),
 			WindowKind:      riskDigestWindowDaily,

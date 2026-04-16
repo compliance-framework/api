@@ -667,6 +667,11 @@ func Workers(
 				slackService,
 				func() notification.WorkerEnqueuer { return nil },
 			)
+			riskNotificationRuntimeProvider := newWorkerNotificationRuntimeProvider(
+				emailService,
+				slackService,
+				func() notification.WorkerEnqueuer { return nil },
+			)
 			workflowTaskDigestWorker := NewWorkflowTaskDigestWorkerWithRuntimeProvider(
 				db,
 				emailService,
@@ -680,16 +685,16 @@ func Workers(
 			workflowExecutionFailedWorker := NewWorkflowExecutionFailedWorker(db, emailService, userRepo, webBaseURL, logger)
 			river.AddWorker(workers, river.WorkFunc(workflowExecutionFailedWorker.Work))
 
-			riskReviewDueReminderWorker := NewRiskReviewDueReminderWorker(db, emailService, slackService, userRepo, webBaseURL, logger)
+			riskReviewDueReminderWorker := NewRiskReviewDueReminderWorkerWithRuntimeProvider(db, emailService, userRepo, webBaseURL, riskNotificationRuntimeProvider, logger)
 			river.AddWorker(workers, river.WorkFunc(riskReviewDueReminderWorker.Work))
 
-			riskReviewOverdueEscalationWorker := NewRiskReviewOverdueEscalationWorker(db, emailService, slackService, userRepo, webBaseURL, logger)
+			riskReviewOverdueEscalationWorker := NewRiskReviewOverdueEscalationWorkerWithRuntimeProvider(db, emailService, userRepo, webBaseURL, riskNotificationRuntimeProvider, logger)
 			river.AddWorker(workers, river.WorkFunc(riskReviewOverdueEscalationWorker.Work))
 
-			riskStaleOpenReminderWorker := NewRiskStaleOpenReminderWorker(db, emailService, slackService, userRepo, webBaseURL, logger)
+			riskStaleOpenReminderWorker := NewRiskStaleOpenReminderWorkerWithRuntimeProvider(db, emailService, userRepo, webBaseURL, riskNotificationRuntimeProvider, logger)
 			river.AddWorker(workers, river.WorkFunc(riskStaleOpenReminderWorker.Work))
 
-			riskOpenDigestWorker := NewRiskOpenDigestWorker(db, emailService, slackService, userRepo, webBaseURL, logger)
+			riskOpenDigestWorker := NewRiskOpenDigestWorkerWithRuntimeProvider(db, emailService, userRepo, webBaseURL, riskNotificationRuntimeProvider, logger)
 			river.AddWorker(workers, river.WorkFunc(riskOpenDigestWorker.Work))
 
 			// Register POAM notification workers (BCH-1186 Phase 3)

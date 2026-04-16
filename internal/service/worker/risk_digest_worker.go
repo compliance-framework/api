@@ -7,7 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/compliance-framework/api/internal/service/email/types"
 	"github.com/compliance-framework/api/internal/service/notification"
 	"github.com/compliance-framework/api/internal/service/relational"
 	riskrel "github.com/compliance-framework/api/internal/service/relational/risks"
@@ -93,6 +92,7 @@ type riskDigestNotificationData struct {
 	HasStaleRisks       bool
 	HasOverdueReview    bool
 	HasDueForReview     bool
+	GeneratedAt         time.Time
 }
 
 func (d riskDigestNotificationData) templateData() map[string]interface{} {
@@ -149,21 +149,17 @@ func (w *RiskOpenDigestSchedulerWorker) Work(ctx context.Context, _ *river.Job[R
 		return nil
 	}
 
-	channels := allWorkflowNotificationChannels()
-	params := make([]river.InsertManyParams, 0, len(plan.RecipientUserIDs)*len(channels))
+	params := make([]river.InsertManyParams, 0, len(plan.RecipientUserIDs))
 	for _, recipientID := range plan.RecipientUserIDs {
-		for _, channel := range channels {
-			params = append(params, river.InsertManyParams{
-				Args: RiskOpenDigestArgs{
-					RecipientUserID: recipientID,
-					Channel:         channel,
-					WindowStart:     plan.WindowStart.Format(time.RFC3339),
-					WindowEnd:       plan.WindowEnd.Format(time.RFC3339),
-					WindowKind:      plan.WindowKind,
-				},
-				InsertOpts: JobInsertOptionsForRiskDigest(plan.WindowByPeriod),
-			})
-		}
+		params = append(params, river.InsertManyParams{
+			Args: RiskOpenDigestArgs{
+				RecipientUserID: recipientID,
+				WindowStart:     plan.WindowStart.Format(time.RFC3339),
+				WindowEnd:       plan.WindowEnd.Format(time.RFC3339),
+				WindowKind:      plan.WindowKind,
+			},
+			InsertOpts: JobInsertOptionsForRiskDigest(plan.WindowByPeriod),
+		})
 	}
 
 	if _, err := w.client.InsertMany(ctx, params); err != nil {
@@ -206,29 +202,67 @@ func BuildRiskOpenDigestPlan(
 }
 
 type RiskOpenDigestWorker struct {
-	db           *gorm.DB
-	emailService EmailService
-	slackService SlackService
-	userRepo     UserRepository
-	webBaseURL   string
-	logger       *zap.SugaredLogger
-	now          func() time.Time
+	db                          *gorm.DB
+	emailService                EmailService
+	userRepo                    UserRepository
+	webBaseURL                  string
+	notificationRuntimeProvider notification.RuntimeProvider
+	logger                      *zap.SugaredLogger
+	now                         func() time.Time
 }
 
 func NewRiskOpenDigestWorker(db *gorm.DB, emailService EmailService, slackService SlackService, userRepo UserRepository, webBaseURL string, logger *zap.SugaredLogger) *RiskOpenDigestWorker {
-	return &RiskOpenDigestWorker{
-		db:           db,
-		emailService: emailService,
-		slackService: slackService,
-		userRepo:     userRepo,
-		webBaseURL:   webBaseURL,
-		logger:       logger,
-		now:          time.Now,
+	return NewRiskOpenDigestWorkerWithRuntimeProvider(
+		db,
+		emailService,
+		userRepo,
+		webBaseURL,
+		newWorkerNotificationRuntimeProvider(
+			emailService,
+			slackService,
+			func() notification.WorkerEnqueuer { return nil },
+		),
+		logger,
+	)
+}
+
+func NewRiskOpenDigestWorkerWithRuntimeProvider(
+	db *gorm.DB,
+	emailService EmailService,
+	userRepo UserRepository,
+	webBaseURL string,
+	runtimeProvider notification.RuntimeProvider,
+	logger *zap.SugaredLogger,
+) *RiskOpenDigestWorker {
+	worker := &RiskOpenDigestWorker{
+		db:                          db,
+		emailService:                emailService,
+		userRepo:                    userRepo,
+		webBaseURL:                  webBaseURL,
+		notificationRuntimeProvider: runtimeProvider,
+		logger:                      logger,
+		now:                         time.Now,
 	}
+	if worker.notificationRuntimeProvider == nil {
+		worker.notificationRuntimeProvider = newWorkerNotificationRuntimeProvider(
+			emailService,
+			nil,
+			func() notification.WorkerEnqueuer { return nil },
+		)
+	}
+
+	return worker
 }
 
 func (w *RiskOpenDigestWorker) Work(ctx context.Context, job *river.Job[RiskOpenDigestArgs]) error {
 	args := job.Args
+	if _, ok := normalizeRequestedDeliveryChannel(args.Channel); !ok {
+		w.logger.Warnw("RiskOpenDigestWorker: invalid delivery channel, skipping",
+			"user_id", args.RecipientUserID,
+			"channel", args.Channel,
+		)
+		return nil
+	}
 
 	user, err := w.userRepo.FindUserByID(ctx, args.RecipientUserID.String())
 	if err != nil {
@@ -236,15 +270,6 @@ func (w *RiskOpenDigestWorker) Work(ctx context.Context, job *river.Job[RiskOpen
 			"user_id", args.RecipientUserID,
 			"error", err,
 		)
-		return nil
-	}
-	channels, ok := selectUserNotificationChannels(
-		user,
-		notification.NotificationTypeRiskNotifications,
-		args.Channel,
-	)
-	if !ok || len(channels) == 0 {
-		w.logger.Debugw("RiskOpenDigestWorker: user not subscribed to risk notifications, skipping", "user_id", args.RecipientUserID)
 		return nil
 	}
 	if w.db == nil {
@@ -288,99 +313,30 @@ func (w *RiskOpenDigestWorker) Work(ctx context.Context, job *river.Job[RiskOpen
 		HasStaleRisks:       len(classification.Stale) > 0,
 		HasOverdueReview:    len(classification.OverdueReview) > 0,
 		HasDueForReview:     len(classification.DueForReview) > 0,
+		GeneratedAt:         w.now().UTC(),
 	}
 
-	switch channels[0] {
-	case notification.DeliveryChannelEmail:
-		return w.sendEmail(ctx, user, data)
-	case notification.DeliveryChannelSlack:
-		return w.sendSlack(ctx, user, data)
-	default:
-		w.logger.Debugw("RiskOpenDigestWorker: unsupported channel, skipping",
-			"user_id", args.RecipientUserID,
-			"channel", channels[0],
-		)
-	}
-	return nil
-}
+	notificationService := newRiskNotificationServiceFromFactory(
+		w.notificationRuntimeProvider.NewRuntimeFactory(nil),
+		w.emailService,
+		newNotificationUserRepositoryAdapter(w.userRepo, user),
+	)
 
-func (w *RiskOpenDigestWorker) sendEmail(ctx context.Context, user NotificationUser, data riskDigestNotificationData) error {
-	htmlBody, textBody, err := w.emailService.UseTemplate("risk-open-digest", data.templateData())
-	if err != nil {
-		return fmt.Errorf("risk open digest: render template failed: %w", err)
+	if err := notificationService.Dispatch(
+		ctx,
+		buildRiskOpenDigestNotificationRequest(args, data),
+	); err != nil {
+		return fmt.Errorf("dispatch risk-open-digest notification: %w", err)
 	}
 
-	message := &types.Message{
-		From:     w.emailService.GetDefaultFromAddress(),
-		To:       []string{user.Email},
-		Subject:  fmt.Sprintf("Your risk digest — %s", formatDate(w.now().UTC())),
-		HTMLBody: htmlBody,
-		TextBody: textBody,
-	}
-
-	result, err := w.emailService.Send(ctx, message)
-	if err != nil {
-		return fmt.Errorf("risk open digest: send email failed: %w", err)
-	}
-	if !result.Success {
-		return fmt.Errorf("risk open digest: email send failed: %s", result.Error)
-	}
-
-	w.logger.Infow("RiskOpenDigestWorker: digest email sent",
+	w.logger.Infow("RiskOpenDigestWorker: digest notifications sent",
 		"user_id", user.ID,
 		"new_count", len(data.NewSinceLastDigest),
 		"overdue_count", len(data.OverdueForAction),
 		"stale_count", len(data.StaleRisks),
 		"overdue_review_count", len(data.OverdueReview),
 		"due_review_count", len(data.DueForReview),
-		"message_id", result.MessageID,
-	)
-	return nil
-}
-
-func (w *RiskOpenDigestWorker) sendSlack(ctx context.Context, user NotificationUser, data riskDigestNotificationData) error {
-	if w.slackService == nil || !w.slackService.IsEnabled() {
-		w.logger.Debugw("RiskOpenDigestWorker: slack service not configured, skipping", "user_id", user.ID)
-		return nil
-	}
-
-	slackUserID := strings.TrimSpace(user.SlackUserID)
-	if slackUserID == "" {
-		w.logger.Debugw("RiskOpenDigestWorker: user has no Slack link, skipping", "user_id", user.ID)
-		return nil
-	}
-
-	message, err := slackformatters.FormatRiskOpenDigestMessage(
-		user.FullName(),
-		data.PeriodLabel,
-		toSlackRiskDigestItems(data.NewSinceLastDigest),
-		toSlackRiskDigestItems(data.OverdueForAction),
-		toSlackRiskDigestItems(data.StaleRisks),
-		toSlackRiskDigestItems(data.OverdueReview),
-		toSlackRiskDigestItems(data.DueForReview),
-		data.RisksURL,
-	)
-	if err != nil {
-		return fmt.Errorf("risk open digest: format slack message failed: %w", err)
-	}
-
-	result, err := w.slackService.SendMessage(ctx, slackUserID, message)
-	if err != nil {
-		return fmt.Errorf("risk open digest: send slack message failed: %w", err)
-	}
-	if !result.Success {
-		return fmt.Errorf("risk open digest: slack message send failed: %s", result.Error)
-	}
-
-	w.logger.Infow("RiskOpenDigestWorker: digest Slack message sent",
-		"user_id", user.ID,
-		"slack_user_id", slackUserID,
-		"new_count", len(data.NewSinceLastDigest),
-		"overdue_count", len(data.OverdueForAction),
-		"stale_count", len(data.StaleRisks),
-		"overdue_review_count", len(data.OverdueReview),
-		"due_review_count", len(data.DueForReview),
-		"delivery_id", result.DeliveryID,
+		"requested_channel", args.Channel,
 	)
 	return nil
 }
