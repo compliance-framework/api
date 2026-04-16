@@ -15764,12 +15764,12 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "Profile ID to add",
-                        "name": "profileId",
+                        "description": "Profile binding request",
+                        "name": "request",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "type": "string"
+                            "$ref": "#/definitions/oscal.addProfileRequest"
                         }
                     }
                 ],
@@ -30300,6 +30300,14 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "uuid": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscal.addProfileRequest": {
+            "type": "object",
+            "properties": {
+                "profileId": {
                     "type": "string"
                 }
             }

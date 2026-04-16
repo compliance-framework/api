@@ -2520,6 +2520,11 @@ definitions:
       uuid:
         type: string
     type: object
+  oscal.addProfileRequest:
+    properties:
+      profileId:
+        type: string
+    type: object
   oscal.profileSummary:
     properties:
       id:
@@ -19332,12 +19337,12 @@ paths:
         name: id
         required: true
         type: string
-      - description: Profile ID to add
+      - description: Profile binding request
         in: body
-        name: profileId
+        name: request
         required: true
         schema:
-          type: string
+          $ref: '#/definitions/oscal.addProfileRequest'
       produces:
       - application/json
       responses:

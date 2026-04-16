@@ -22,6 +22,7 @@ import (
 	"go.uber.org/zap"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // SSPJobEnqueuer is a minimal interface for enqueueing SSP-related background jobs.
@@ -34,6 +35,11 @@ type SSPJobEnqueuer interface {
 type profileSummary struct {
 	ID    string `json:"id"`
 	Title string `json:"title,omitempty"`
+}
+
+// addProfileRequest is the request body for the AddProfile endpoint.
+type addProfileRequest struct {
+	ProfileID string `json:"profileId"`
 }
 
 type SystemSecurityPlanHandler struct {
@@ -119,21 +125,43 @@ func (h *SystemSecurityPlanHandler) getControlIDsForProfile(profileID uuid.UUID)
 
 // getControlIDsForAllProfiles resolves control IDs from all profiles bound to an SSP
 // via the M:M relationship. Returns deduplicated control IDs across all profiles.
+// It first attempts a single batch query against the profile_controls pivot table;
+// if that returns no rows (e.g. the pivot table hasn't been populated yet) it falls
+// back to per-profile resolution which includes full OSCAL profile parsing.
 func (h *SystemSecurityPlanHandler) getControlIDsForAllProfiles(profiles []relational.Profile) ([]string, error) {
 	if len(profiles) == 0 {
 		return nil, nil
 	}
 
-	seen := make(map[string]struct{})
-	var allControlIDs []string
-
+	profileIDs := make([]uuid.UUID, 0, len(profiles))
 	for _, p := range profiles {
-		if p.ID == nil {
-			continue
+		if p.ID != nil {
+			profileIDs = append(profileIDs, *p.ID)
 		}
-		controlIDs, err := h.getControlIDsForProfile(*p.ID)
+	}
+	if len(profileIDs) == 0 {
+		return nil, nil
+	}
+
+	// Batch query: single round-trip for all profiles.
+	var allControlIDs []string
+	if err := h.db.Table("profile_controls").
+		Distinct("control_id").
+		Where("profile_id IN ?", profileIDs).
+		Pluck("control_id", &allControlIDs).Error; err != nil {
+		h.sugar.Warnw("Batch query for profile controls failed, falling back to per-profile resolution", "error", err)
+	}
+
+	if len(allControlIDs) > 0 {
+		return allControlIDs, nil
+	}
+
+	// Fallback: per-profile resolution (handles OSCAL parsing when pivot table is empty).
+	seen := make(map[string]struct{})
+	for _, pid := range profileIDs {
+		controlIDs, err := h.getControlIDsForProfile(pid)
 		if err != nil {
-			return nil, fmt.Errorf("resolve controls for profile %s: %w", *p.ID, err)
+			return nil, fmt.Errorf("resolve controls for profile %s: %w", pid, err)
 		}
 		for _, cid := range controlIDs {
 			if _, exists := seen[cid]; !exists {
@@ -1867,7 +1895,12 @@ func (h *SystemSecurityPlanHandler) GetProfile(ctx echo.Context) error {
 		return ctx.JSON(http.StatusNotFound, api.NewError(errors.New("no profile attached")))
 	}
 
-	// Backward compat: return the first bound profile.
+	if len(ssp.Profiles) > 1 {
+		err := errors.New("multiple profiles attached; use the profiles endpoint or detach extra profiles")
+		h.sugar.Warnw("Ambiguous profile lookup for legacy single-profile endpoint", "ssp_id", sspID, "profile_count", len(ssp.Profiles))
+		return ctx.JSON(http.StatusConflict, api.NewError(err))
+	}
+
 	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[*oscalTypes_1_1_3.Profile]{Data: ssp.Profiles[0].MarshalOscal()})
 }
 
@@ -2079,13 +2112,13 @@ func (h *SystemSecurityPlanHandler) ListProfiles(ctx echo.Context) error {
 //	@Tags			System Security Plans
 //	@Accept			json
 //	@Produce		json
-//	@Param			id			path		string	true	"SSP ID"
-//	@Param			profileId	body		string	true	"Profile ID to add"
-//	@Success		200			{object}	handler.GenericDataListResponse[profileSummary]
-//	@Failure		400			{object}	api.Error
-//	@Failure		404			{object}	api.Error
-//	@Failure		409			{object}	api.Error
-//	@Failure		500			{object}	api.Error
+//	@Param			id		path		string				true	"SSP ID"
+//	@Param			request	body		addProfileRequest	true	"Profile binding request"
+//	@Success		200		{object}	handler.GenericDataListResponse[profileSummary]
+//	@Failure		400		{object}	api.Error
+//	@Failure		404		{object}	api.Error
+//	@Failure		409		{object}	api.Error
+//	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/profiles [post]
 func (h *SystemSecurityPlanHandler) AddProfile(ctx echo.Context) error {
@@ -2096,9 +2129,7 @@ func (h *SystemSecurityPlanHandler) AddProfile(ctx echo.Context) error {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 
-	var input struct {
-		ProfileID string `json:"profileId"`
-	}
+	var input addProfileRequest
 	if err := ctx.Bind(&input); err != nil {
 		h.sugar.Warnw("Invalid profile ID input", "error", err)
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
@@ -2121,18 +2152,6 @@ func (h *SystemSecurityPlanHandler) AddProfile(ctx echo.Context) error {
 		return ctx.JSON(http.StatusNotFound, api.NewError(errors.New("profile not found")))
 	}
 
-	// Check for duplicate binding
-	var existing int64
-	if err := h.db.Model(&relational.SSPProfile{}).
-		Where("system_security_plan_id = ? AND profile_id = ?", sspID, profileID).
-		Count(&existing).Error; err != nil {
-		h.sugar.Errorf("Failed to check existing binding: %v", err)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
-	}
-	if existing > 0 {
-		return ctx.JSON(http.StatusConflict, api.NewError(fmt.Errorf("profile %s is already bound to this SSP", profileID)))
-	}
-
 	controlIDs, err := h.getControlIDsForProfile(profileID)
 	if err != nil {
 		h.sugar.Warnw("Failed to resolve control IDs for profile", "profileId", profileID, "error", err)
@@ -2142,13 +2161,19 @@ func (h *SystemSecurityPlanHandler) AddProfile(ctx echo.Context) error {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(errors.New("no controls were resolved from the selected profile")))
 	}
 
+	var duplicateBinding bool
 	err = h.db.Transaction(func(tx *gorm.DB) error {
-		// Insert join-table row
-		if err := tx.Create(&relational.SSPProfile{
+		// Insert join-table row idempotently; ON CONFLICT DO NOTHING avoids a TOCTOU race.
+		result := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&relational.SSPProfile{
 			SystemSecurityPlanID: sspID,
 			ProfileID:            profileID,
-		}).Error; err != nil {
-			return fmt.Errorf("failed to insert ssp_profiles row: %w", err)
+		})
+		if result.Error != nil {
+			return fmt.Errorf("failed to insert ssp_profiles row: %w", result.Error)
+		}
+		if result.RowsAffected == 0 {
+			duplicateBinding = true
+			return nil
 		}
 
 		// Ensure ControlImplementation exists
@@ -2200,6 +2225,9 @@ func (h *SystemSecurityPlanHandler) AddProfile(ctx echo.Context) error {
 	if err != nil {
 		h.sugar.Errorf("Failed to add profile to SSP: %v", err)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+	if duplicateBinding {
+		return ctx.JSON(http.StatusConflict, api.NewError(fmt.Errorf("profile %s is already bound to this SSP", profileID)))
 	}
 
 	// Enqueue orphaned risk cleanup
