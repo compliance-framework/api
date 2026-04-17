@@ -603,6 +603,14 @@ definitions:
           $ref: '#/definitions/oscal.ProfileHandler'
         type: array
     type: object
+  handler.GenericDataListResponse-oscal_profileSummary:
+    properties:
+      data:
+        description: Items from the list response
+        items:
+          $ref: '#/definitions/oscal.profileSummary'
+        type: array
+    type: object
   handler.GenericDataListResponse-oscal_resolvedWithCatalogsResponse:
     properties:
       data:
@@ -2510,6 +2518,18 @@ definitions:
       type:
         type: string
       uuid:
+        type: string
+    type: object
+  oscal.addProfileRequest:
+    properties:
+      profileId:
+        type: string
+    type: object
+  oscal.profileSummary:
+    properties:
+      id:
+        type: string
+      title:
         type: string
     type: object
   oscal.resolvedWithCatalogsResponse:
@@ -7314,7 +7334,16 @@ definitions:
       profile:
         $ref: '#/definitions/relational.Profile'
       profileID:
+        description: |-
+          Deprecated: Use Profiles (M:M via ssp_profiles) instead.
+          Kept for backward-compatible migration; will be dropped in a future release.
         type: string
+      profiles:
+        description: Profiles holds the many-to-many relationship via the ssp_profiles
+          join table.
+        items:
+          $ref: '#/definitions/relational.Profile'
+        type: array
       system-characteristics:
         $ref: '#/definitions/relational.SystemCharacteristics'
       system-implementation:
@@ -19235,12 +19264,12 @@ paths:
         name: id
         required: true
         type: string
-      - description: Profile ID to attach
+      - description: Profile binding request
         in: body
-        name: profileId
+        name: request
         required: true
         schema:
-          type: string
+          $ref: '#/definitions/oscal.addProfileRequest'
       produces:
       - application/json
       responses:
@@ -19261,6 +19290,124 @@ paths:
           schema:
             $ref: '#/definitions/api.Error'
       summary: Attach a Profile to a System Security Plan
+      tags:
+      - System Security Plans
+  /oscal/system-security-plans/{id}/profiles:
+    get:
+      description: Returns all profiles associated with a System Security Plan via
+        the ssp_profiles join table.
+      parameters:
+      - description: SSP ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-oscal_profileSummary'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: List Profiles bound to an SSP
+      tags:
+      - System Security Plans
+    post:
+      consumes:
+      - application/json
+      description: Associates an additional Profile with a System Security Plan. Creates
+        ImplementedRequirements for any new controls.
+      parameters:
+      - description: SSP ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Profile binding request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/oscal.addProfileRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-oscal_profileSummary'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Add a Profile binding to an SSP
+      tags:
+      - System Security Plans
+  /oscal/system-security-plans/{id}/profiles/{profileId}:
+    delete:
+      description: Removes a profile association from a System Security Plan. Enqueues
+        orphaned risk cleanup.
+      parameters:
+      - description: SSP ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Profile ID to remove
+        in: path
+        name: profileId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-oscal_profileSummary'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Remove a Profile binding from an SSP
       tags:
       - System Security Plans
   /oscal/system-security-plans/{id}/system-characteristics:

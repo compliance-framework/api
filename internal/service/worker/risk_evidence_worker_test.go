@@ -88,6 +88,12 @@ func newRiskEvidenceWorkerTestDB(t *testing.T) *gorm.DB {
 		control_id TEXT
 	)`).Error)
 
+	require.NoError(t, db.Exec(`CREATE TABLE IF NOT EXISTS ssp_profiles (
+		system_security_plan_id TEXT,
+		profile_id TEXT,
+		PRIMARY KEY (system_security_plan_id, profile_id)
+	)`).Error)
+
 	return db
 }
 
@@ -214,6 +220,12 @@ func createTestSSPWithControl(t *testing.T, db *gorm.DB, catalogID uuid.UUID, co
 		ProfileID: &profileID,
 	}
 	require.NoError(t, db.Create(ssp).Error)
+
+	// Also populate ssp_profiles join table for the M:M relationship.
+	require.NoError(t, db.Exec(
+		`INSERT INTO ssp_profiles (system_security_plan_id, profile_id) VALUES (?, ?)`,
+		sspID.String(), profileID.String(),
+	).Error)
 
 	ciID := uuid.New()
 	ci := &relational.ControlImplementation{
