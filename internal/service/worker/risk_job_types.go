@@ -69,13 +69,13 @@ type RiskReviewOverdueReopenArgs struct {
 // transitions any non-terminal auto-generated risks whose controls are no longer present
 // to remediated.
 //
-// Deduplication uses river:"unique" tags on ssp_id and new_profile_id only. OldProfileID
-// is kept for observability/logging but excluded from the uniqueness hash. This means:
-//   - Two rapid changes to the same target profile → one job (correct: second is a no-op)
-//   - Two rapid changes to different target profiles → two independent jobs (correct)
+// Deduplication uses river:"unique" tags on ssp_id, old_profile_id, and new_profile_id.
+// This means:
+//   - Two rapid equivalent changes → one job (correct: second is a no-op)
+//   - Two rapid changes involving different profiles → two independent jobs (correct)
 type RiskOrphanedCleanupArgs struct {
 	SSPID        uuid.UUID  `json:"ssp_id"                  river:"unique"`
-	OldProfileID *uuid.UUID `json:"old_profile_id,omitempty"`
+	OldProfileID *uuid.UUID `json:"old_profile_id,omitempty" river:"unique"`
 	NewProfileID *uuid.UUID `json:"new_profile_id,omitempty" river:"unique"`
 }
 
@@ -154,8 +154,8 @@ func JobInsertOptionsForRiskDigest(byPeriod time.Duration) *river.InsertOpts {
 
 // JobInsertOptionsForRiskOrphanedCleanup returns insert options for the orphaned risk cleanup job.
 // ByArgs deduplication uses the river:"unique" fields on RiskOrphanedCleanupArgs, so active
-// jobs are unique by (ssp_id, new_profile_id). Repeated changes to the same target profile are
-// collapsed while an equivalent job is active; changes to different target profiles can enqueue
+// jobs are unique by (ssp_id, old_profile_id, new_profile_id). Repeated equivalent changes are
+// collapsed while an equivalent job is active; changes involving different profiles can enqueue
 // independent jobs.
 //
 // ByState is explicitly set to exclude JobStateCompleted and JobStateCancelled so that a second

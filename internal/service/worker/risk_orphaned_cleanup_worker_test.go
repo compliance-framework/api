@@ -2,6 +2,7 @@ package worker
 
 import (
 	"context"
+	"reflect"
 	"testing"
 
 	"github.com/compliance-framework/api/internal/service/relational"
@@ -12,6 +13,22 @@ import (
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
+
+func TestRiskOrphanedCleanupArgsUniqueTagsIncludeOldAndNewProfiles(t *testing.T) {
+	argsType := reflect.TypeOf(RiskOrphanedCleanupArgs{})
+
+	sspField, ok := argsType.FieldByName("SSPID")
+	require.True(t, ok)
+	assert.Equal(t, "unique", sspField.Tag.Get("river"))
+
+	oldField, ok := argsType.FieldByName("OldProfileID")
+	require.True(t, ok)
+	assert.Equal(t, "unique", oldField.Tag.Get("river"))
+
+	newField, ok := argsType.FieldByName("NewProfileID")
+	require.True(t, ok)
+	assert.Equal(t, "unique", newField.Tag.Get("river"))
+}
 
 type stubProfileControlResolver struct {
 	controls map[uuid.UUID][]riskrel.ControlKey

@@ -29,9 +29,9 @@ type ProfileControlResolver interface {
 // Design rationale:
 //   - The handler enqueues a job rather than calling RemediateOrphanedRisks inline so that
 //     the HTTP response is not blocked by potentially expensive profile resolution.
-//   - River's ByArgs deduplication is scoped to ssp_id + new_profile_id. Active jobs for
-//     repeated changes to the same target profile are collapsed, while changes to different
-//     targets can enqueue independent jobs.
+//   - River's ByArgs deduplication is scoped to ssp_id + old_profile_id + new_profile_id.
+//     Active jobs for repeated equivalent changes are collapsed, while changes involving
+//     different profiles can enqueue independent jobs.
 //   - The worker reloads the current SSP profile at execution time so stale jobs remediate
 //     against the latest committed binding.
 type RiskOrphanedCleanupWorker struct {
