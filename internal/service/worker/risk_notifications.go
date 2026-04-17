@@ -56,7 +56,48 @@ func NewRiskNotificationServiceFactory(
 ) *RiskNotificationServiceFactory {
 	return &RiskNotificationServiceFactory{
 		notificationRuntime: notificationRuntime,
-		definitions:         riskNotificationDefinitions(),
+		definitions: []notification.Definition{
+			notification.NewDefinition(
+				riskReviewDueReminderNotificationKind,
+				notification.NotificationTypeRiskNotifications,
+				emailprovider.TemplateChannel(func(ctx context.Context, model any) (emailprovider.TemplateContent, error) {
+					return renderRiskReviewDueReminderEmail(ctx, model)
+				}),
+				slackprovider.MessageChannel(func(ctx context.Context, model any) (*slackprovider.Message, error) {
+					return renderRiskReviewDueReminderSlack(ctx, model)
+				}),
+			),
+			notification.NewDefinition(
+				riskReviewOverdueEscalationNotificationKind,
+				notification.NotificationTypeRiskNotifications,
+				emailprovider.TemplateChannel(func(ctx context.Context, model any) (emailprovider.TemplateContent, error) {
+					return renderRiskReviewOverdueEscalationEmail(ctx, model)
+				}),
+				slackprovider.MessageChannel(func(ctx context.Context, model any) (*slackprovider.Message, error) {
+					return renderRiskReviewOverdueEscalationSlack(ctx, model)
+				}),
+			),
+			notification.NewDefinition(
+				riskStaleOpenReminderNotificationKind,
+				notification.NotificationTypeRiskNotifications,
+				emailprovider.TemplateChannel(func(ctx context.Context, model any) (emailprovider.TemplateContent, error) {
+					return renderRiskStaleOpenReminderEmail(ctx, model)
+				}),
+				slackprovider.MessageChannel(func(ctx context.Context, model any) (*slackprovider.Message, error) {
+					return renderRiskStaleOpenReminderSlack(ctx, model)
+				}),
+			),
+			notification.NewDefinition(
+				riskOpenDigestNotificationKind,
+				notification.NotificationTypeRiskNotifications,
+				emailprovider.TemplateChannel(func(ctx context.Context, model any) (emailprovider.TemplateContent, error) {
+					return renderRiskOpenDigestEmail(ctx, model)
+				}),
+				slackprovider.MessageChannel(func(ctx context.Context, model any) (*slackprovider.Message, error) {
+					return renderRiskOpenDigestSlack(ctx, model)
+				}),
+			),
+		},
 	}
 }
 
@@ -69,67 +110,6 @@ func (f *RiskNotificationServiceFactory) New(users notification.UserRepository) 
 	}
 
 	return f.notificationRuntime.NewRuntimeFactory(nil).MustNewService(users, f.definitions...), nil
-}
-
-func riskNotificationDefinitions() []notification.Definition {
-	return []notification.Definition{
-		riskReviewDueReminderNotificationDefinition(),
-		riskReviewOverdueEscalationNotificationDefinition(),
-		riskStaleOpenReminderNotificationDefinition(),
-		riskOpenDigestNotificationDefinition(),
-	}
-}
-
-func riskReviewDueReminderNotificationDefinition() notification.Definition {
-	return notification.NewDefinition(
-		riskReviewDueReminderNotificationKind,
-		notification.NotificationTypeRiskNotifications,
-		emailprovider.TemplateChannel(func(ctx context.Context, model any) (emailprovider.TemplateContent, error) {
-			return renderRiskReviewDueReminderEmail(ctx, model)
-		}),
-		slackprovider.MessageChannel(func(ctx context.Context, model any) (*slackprovider.Message, error) {
-			return renderRiskReviewDueReminderSlack(ctx, model)
-		}),
-	)
-}
-
-func riskReviewOverdueEscalationNotificationDefinition() notification.Definition {
-	return notification.NewDefinition(
-		riskReviewOverdueEscalationNotificationKind,
-		notification.NotificationTypeRiskNotifications,
-		emailprovider.TemplateChannel(func(ctx context.Context, model any) (emailprovider.TemplateContent, error) {
-			return renderRiskReviewOverdueEscalationEmail(ctx, model)
-		}),
-		slackprovider.MessageChannel(func(ctx context.Context, model any) (*slackprovider.Message, error) {
-			return renderRiskReviewOverdueEscalationSlack(ctx, model)
-		}),
-	)
-}
-
-func riskStaleOpenReminderNotificationDefinition() notification.Definition {
-	return notification.NewDefinition(
-		riskStaleOpenReminderNotificationKind,
-		notification.NotificationTypeRiskNotifications,
-		emailprovider.TemplateChannel(func(ctx context.Context, model any) (emailprovider.TemplateContent, error) {
-			return renderRiskStaleOpenReminderEmail(ctx, model)
-		}),
-		slackprovider.MessageChannel(func(ctx context.Context, model any) (*slackprovider.Message, error) {
-			return renderRiskStaleOpenReminderSlack(ctx, model)
-		}),
-	)
-}
-
-func riskOpenDigestNotificationDefinition() notification.Definition {
-	return notification.NewDefinition(
-		riskOpenDigestNotificationKind,
-		notification.NotificationTypeRiskNotifications,
-		emailprovider.TemplateChannel(func(ctx context.Context, model any) (emailprovider.TemplateContent, error) {
-			return renderRiskOpenDigestEmail(ctx, model)
-		}),
-		slackprovider.MessageChannel(func(ctx context.Context, model any) (*slackprovider.Message, error) {
-			return renderRiskOpenDigestSlack(ctx, model)
-		}),
-	)
 }
 
 func buildRiskReviewDueReminderNotificationRequest(

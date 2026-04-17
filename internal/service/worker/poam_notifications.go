@@ -37,17 +37,13 @@ func newPoamNotificationServiceFromFactory(
 ) *notification.Service {
 	return runtimeFactory.MustNewService(
 		users,
-		poamOpenDigestNotificationDefinition(),
-	)
-}
-
-func poamOpenDigestNotificationDefinition() notification.Definition {
-	return notification.NewDefinition(
-		poamOpenDigestNotificationKind,
-		notification.NotificationTypeRiskNotifications,
-		emailprovider.TemplateChannel(func(ctx context.Context, model any) (emailprovider.TemplateContent, error) {
-			return renderPoamOpenDigestEmail(ctx, model)
-		}),
+		notification.NewDefinition(
+			poamOpenDigestNotificationKind,
+			notification.NotificationTypeRiskNotifications,
+			emailprovider.TemplateChannel(func(ctx context.Context, model any) (emailprovider.TemplateContent, error) {
+				return renderPoamOpenDigestEmail(ctx, model)
+			}),
+		),
 	)
 }
 

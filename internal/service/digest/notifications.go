@@ -55,19 +55,6 @@ func (m evidenceDigestNotificationModel) summary() *EvidenceSummary {
 	return m.Summary
 }
 
-func evidenceDigestDefinition() notification.Definition {
-	return notification.NewDefinition(
-		evidenceDigestKind,
-		notification.NotificationTypeEvidenceDigest,
-		emailprovider.TemplateChannel(func(ctx context.Context, model any) (emailprovider.TemplateContent, error) {
-			return renderEvidenceDigestEmail(ctx, model)
-		}),
-		slackprovider.MessageChannel(func(ctx context.Context, model any) (*slackprovider.Message, error) {
-			return renderEvidenceDigestSlack(ctx, model)
-		}),
-	)
-}
-
 type digestSlackEnqueuer interface {
 	IsStarted() bool
 	EnqueueNotificationSlack(ctx context.Context, delivery slackprovider.Delivery) error
@@ -84,7 +71,16 @@ func NewNotificationService(
 
 	return notificationRuntime.NewRuntimeFactory(newDigestConfiguredDestinationResolver(cfg)).MustNewService(
 		notification.NewGORMUserRepository(db),
-		evidenceDigestDefinition(),
+		notification.NewDefinition(
+			evidenceDigestKind,
+			notification.NotificationTypeEvidenceDigest,
+			emailprovider.TemplateChannel(func(ctx context.Context, model any) (emailprovider.TemplateContent, error) {
+				return renderEvidenceDigestEmail(ctx, model)
+			}),
+			slackprovider.MessageChannel(func(ctx context.Context, model any) (*slackprovider.Message, error) {
+				return renderEvidenceDigestSlack(ctx, model)
+			}),
+		),
 	)
 }
 

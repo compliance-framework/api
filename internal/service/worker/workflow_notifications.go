@@ -57,48 +57,36 @@ func newWorkflowNotificationServiceFromFactory(
 ) *notification.Service {
 	return runtimeFactory.MustNewService(
 		users,
-		workflowTaskAssignedNotificationDefinition(),
-		workflowTaskDueSoonNotificationDefinition(),
-		workflowTaskDigestNotificationDefinition(),
-	)
-}
-
-func workflowTaskAssignedNotificationDefinition() notification.Definition {
-	return notification.NewDefinition(
-		workflowTaskAssignedNotificationKind,
-		notification.NotificationTypeTaskAvailable,
-		emailprovider.TemplateChannel(func(ctx context.Context, model any) (emailprovider.TemplateContent, error) {
-			return renderWorkflowTaskAssignedEmail(ctx, model)
-		}),
-		slackprovider.MessageChannel(func(ctx context.Context, model any) (*slackprovider.Message, error) {
-			return renderWorkflowTaskAssignedSlack(ctx, model)
-		}),
-	)
-}
-
-func workflowTaskDueSoonNotificationDefinition() notification.Definition {
-	return notification.NewDefinition(
-		workflowTaskDueSoonNotificationKind,
-		notification.NotificationTypeTaskAvailable,
-		emailprovider.TemplateChannel(func(ctx context.Context, model any) (emailprovider.TemplateContent, error) {
-			return renderWorkflowTaskDueSoonEmail(ctx, model)
-		}),
-		slackprovider.MessageChannel(func(ctx context.Context, model any) (*slackprovider.Message, error) {
-			return renderWorkflowTaskDueSoonSlack(ctx, model)
-		}),
-	)
-}
-
-func workflowTaskDigestNotificationDefinition() notification.Definition {
-	return notification.NewDefinition(
-		workflowTaskDigestNotificationKind,
-		notification.NotificationTypeTaskDailyDigest,
-		emailprovider.TemplateChannel(func(ctx context.Context, model any) (emailprovider.TemplateContent, error) {
-			return renderWorkflowTaskDigestEmail(ctx, model)
-		}),
-		slackprovider.MessageChannel(func(ctx context.Context, model any) (*slackprovider.Message, error) {
-			return renderWorkflowTaskDigestSlack(ctx, model)
-		}),
+		notification.NewDefinition(
+			workflowTaskAssignedNotificationKind,
+			notification.NotificationTypeTaskAvailable,
+			emailprovider.TemplateChannel(func(ctx context.Context, model any) (emailprovider.TemplateContent, error) {
+				return renderWorkflowTaskAssignedEmail(ctx, model)
+			}),
+			slackprovider.MessageChannel(func(ctx context.Context, model any) (*slackprovider.Message, error) {
+				return renderWorkflowTaskAssignedSlack(ctx, model)
+			}),
+		),
+		notification.NewDefinition(
+			workflowTaskDueSoonNotificationKind,
+			notification.NotificationTypeTaskAvailable,
+			emailprovider.TemplateChannel(func(ctx context.Context, model any) (emailprovider.TemplateContent, error) {
+				return renderWorkflowTaskDueSoonEmail(ctx, model)
+			}),
+			slackprovider.MessageChannel(func(ctx context.Context, model any) (*slackprovider.Message, error) {
+				return renderWorkflowTaskDueSoonSlack(ctx, model)
+			}),
+		),
+		notification.NewDefinition(
+			workflowTaskDigestNotificationKind,
+			notification.NotificationTypeTaskDailyDigest,
+			emailprovider.TemplateChannel(func(ctx context.Context, model any) (emailprovider.TemplateContent, error) {
+				return renderWorkflowTaskDigestEmail(ctx, model)
+			}),
+			slackprovider.MessageChannel(func(ctx context.Context, model any) (*slackprovider.Message, error) {
+				return renderWorkflowTaskDigestSlack(ctx, model)
+			}),
+		),
 	)
 }
 
