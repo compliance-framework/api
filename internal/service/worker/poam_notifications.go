@@ -13,6 +13,7 @@ import (
 
 const (
 	poamDeadlineReminderNotificationKind = notification.Kind(JobTypePoamDeadlineReminder)
+	poamMilestoneOverdueNotificationKind = notification.Kind(JobTypeMilestoneOverdueReminder)
 	poamOverdueNotificationKind          = notification.Kind(JobTypePoamOverdueNotification)
 	poamOpenDigestNotificationKind       = notification.Kind(JobTypePoamOpenDigest)
 )
@@ -52,6 +53,15 @@ type poamOverdueNotificationModel struct {
 	PoamURL       string
 }
 
+type poamMilestoneOverdueNotificationModel struct {
+	RecipientName  string
+	MilestoneTitle string
+	PoamTitle      string
+	SSPName        string
+	DueDate        string
+	PoamURL        string
+}
+
 type PoamNotificationServiceFactory struct {
 	notificationRuntime notification.RuntimeProvider
 	definitions         []notification.Definition
@@ -74,6 +84,16 @@ func NewPoamNotificationServiceFactory(
 				}),
 			),
 			notification.NewDefinition(
+				poamMilestoneOverdueNotificationKind,
+				notification.NotificationTypeRiskNotifications,
+				emailprovider.TemplateChannel(func(ctx context.Context, model any) (emailprovider.TemplateContent, error) {
+					return renderPoamMilestoneOverdueNotificationEmail(ctx, model)
+				}),
+				slackprovider.MessageChannel(func(ctx context.Context, model any) (*slackprovider.Message, error) {
+					return renderPoamMilestoneOverdueNotificationSlack(ctx, model)
+				}),
+			),
+			notification.NewDefinition(
 				poamOverdueNotificationKind,
 				notification.NotificationTypeRiskNotifications,
 				emailprovider.TemplateChannel(func(ctx context.Context, model any) (emailprovider.TemplateContent, error) {
@@ -90,6 +110,30 @@ func NewPoamNotificationServiceFactory(
 					return renderPoamOpenDigestEmail(ctx, model)
 				}),
 			),
+		},
+	}
+}
+
+func buildPoamMilestoneOverdueNotificationRequest(
+	args MilestoneOverdueReminderArgs,
+	recipientName string,
+) notification.Request {
+	return notification.Request{
+		Kind: poamMilestoneOverdueNotificationKind,
+		Audiences: []notification.Audience{
+			{
+				User: &notification.UserAudience{UserID: args.RecipientUserID.String()},
+			},
+		},
+		Model: newPoamMilestoneOverdueNotificationModel(args, recipientName),
+		Options: notification.DispatchOptions{
+			CorrelationID: strings.Join([]string{
+				JobTypeMilestoneOverdueReminder,
+				strings.TrimSpace(args.MilestoneID.String()),
+				strings.TrimSpace(args.RecipientUserID.String()),
+				strings.TrimSpace(args.WeeklyBucket),
+			}, ":"),
+			SourceJobKind: JobTypeMilestoneOverdueReminder,
 		},
 	}
 }
@@ -214,6 +258,20 @@ func newPoamOverdueNotificationModel(
 	}
 }
 
+func newPoamMilestoneOverdueNotificationModel(
+	args MilestoneOverdueReminderArgs,
+	recipientName string,
+) poamMilestoneOverdueNotificationModel {
+	return poamMilestoneOverdueNotificationModel{
+		RecipientName:  strings.TrimSpace(recipientName),
+		MilestoneTitle: strings.TrimSpace(args.MilestoneTitle),
+		PoamTitle:      strings.TrimSpace(args.PoamTitle),
+		SSPName:        strings.TrimSpace(args.SspDisplayName),
+		DueDate:        strings.TrimSpace(args.DueDate),
+		PoamURL:        strings.TrimSpace(args.PoamURL),
+	}
+}
+
 func (m poamOpenDigestNotificationModel) templateData() map[string]interface{} {
 	return map[string]interface{}{
 		"RecipientName":          m.RecipientName,
@@ -251,6 +309,17 @@ func (m poamOverdueNotificationModel) templateData() map[string]interface{} {
 		"SSPName":       m.SSPName,
 		"Deadline":      m.Deadline,
 		"PoamURL":       m.PoamURL,
+	}
+}
+
+func (m poamMilestoneOverdueNotificationModel) templateData() map[string]interface{} {
+	return map[string]interface{}{
+		"RecipientName":  m.RecipientName,
+		"MilestoneTitle": m.MilestoneTitle,
+		"PoamTitle":      m.PoamTitle,
+		"SSPName":        m.SSPName,
+		"DueDate":        m.DueDate,
+		"PoamURL":        m.PoamURL,
 	}
 }
 
@@ -293,6 +362,20 @@ func poamOverdueNotificationModelFromAny(model any) (poamOverdueNotificationMode
 		return *typed, nil
 	default:
 		return poamOverdueNotificationModel{}, fmt.Errorf("unexpected poam overdue notification model type %T", model)
+	}
+}
+
+func poamMilestoneOverdueNotificationModelFromAny(model any) (poamMilestoneOverdueNotificationModel, error) {
+	switch typed := model.(type) {
+	case poamMilestoneOverdueNotificationModel:
+		return typed, nil
+	case *poamMilestoneOverdueNotificationModel:
+		if typed == nil {
+			return poamMilestoneOverdueNotificationModel{}, fmt.Errorf("poam milestone overdue notification model is required")
+		}
+		return *typed, nil
+	default:
+		return poamMilestoneOverdueNotificationModel{}, fmt.Errorf("unexpected poam milestone overdue notification model type %T", model)
 	}
 }
 
@@ -360,6 +443,41 @@ func renderPoamOverdueNotificationSlack(_ context.Context, model any) (*slackpro
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to format poam-overdue-notification slack message: %w", err)
+	}
+
+	return message, nil
+}
+
+func renderPoamMilestoneOverdueNotificationEmail(_ context.Context, model any) (emailprovider.TemplateContent, error) {
+	milestoneModel, err := poamMilestoneOverdueNotificationModelFromAny(model)
+	if err != nil {
+		return emailprovider.TemplateContent{}, err
+	}
+
+	return emailprovider.TemplateContent{
+		TemplateName: "poam-milestone-overdue-reminder",
+		TemplateData: milestoneModel.templateData(),
+		Subject:      fmt.Sprintf("POAM Milestone Overdue: %s", milestoneModel.MilestoneTitle),
+		TextBody:     fmt.Sprintf("Milestone %s is overdue. Open: %s", milestoneModel.MilestoneTitle, milestoneModel.PoamURL),
+	}, nil
+}
+
+func renderPoamMilestoneOverdueNotificationSlack(_ context.Context, model any) (*slackprovider.Message, error) {
+	milestoneModel, err := poamMilestoneOverdueNotificationModelFromAny(model)
+	if err != nil {
+		return nil, err
+	}
+
+	message, err := slackprovider.FormatPoamMilestoneOverdueReminderMessage(
+		milestoneModel.RecipientName,
+		milestoneModel.MilestoneTitle,
+		milestoneModel.PoamTitle,
+		milestoneModel.SSPName,
+		milestoneModel.DueDate,
+		milestoneModel.PoamURL,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to format poam-milestone-overdue-reminder slack message: %w", err)
 	}
 
 	return message, nil

@@ -696,7 +696,12 @@ func Workers(
 			)
 			river.AddWorker(workers, river.WorkFunc(poamOverdueNotificationWorker.Work))
 
-			milestoneOverdueReminderWorker := NewMilestoneOverdueReminderWorker(emailService, userRepo, webBaseURL, logger)
+			milestoneOverdueReminderWorker := NewMilestoneOverdueReminderWorker(
+				userRepo,
+				webBaseURL,
+				poamNotificationServiceFactory,
+				logger,
+			)
 			river.AddWorker(workers, river.WorkFunc(milestoneOverdueReminderWorker.Work))
 
 			// Register POAM digest worker (BCH-1186 Phase 4)

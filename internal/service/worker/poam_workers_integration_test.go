@@ -347,7 +347,12 @@ func (suite *PoamWorkersIntegrationSuite) TestMilestoneOverdueScanner_EnqueuesAn
 		return len(msg.To) == 1 && msg.To[0] == "milestone-owner@example.com"
 	})).Return(&types.SendResult{Success: true, MessageID: "msg-milestone-1"}, nil)
 
-	notifier := NewMilestoneOverdueReminderWorker(mockEmail, NewGORMUserRepository(suite.DB), suite.Config.WebBaseURL, suite.logger)
+	notifier := NewMilestoneOverdueReminderWorker(
+		NewGORMUserRepository(suite.DB),
+		suite.Config.WebBaseURL,
+		newTestPoamNotificationServiceFactory(mockEmail, nil),
+		suite.logger,
+	)
 	suite.Require().NoError(notifier.Work(ctx, &river.Job[MilestoneOverdueReminderArgs]{Args: reminderArgs}))
 	mockEmail.AssertExpectations(suite.T())
 }
