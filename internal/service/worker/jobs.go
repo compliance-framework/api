@@ -662,7 +662,13 @@ func Workers(
 			)
 			river.AddWorker(workers, river.WorkFunc(workflowTaskDigestWorker.Work))
 
-			workflowExecutionFailedWorker := NewWorkflowExecutionFailedWorker(db, emailService, userRepo, webBaseURL, logger)
+			workflowExecutionFailedWorker := NewWorkflowExecutionFailedWorker(
+				db,
+				userRepo,
+				webBaseURL,
+				sharedNotificationRuntimeProvider,
+				logger,
+			)
 			river.AddWorker(workers, river.WorkFunc(workflowExecutionFailedWorker.Work))
 
 			poamNotificationServiceFactory := NewPoamNotificationServiceFactory(sharedNotificationRuntimeProvider)

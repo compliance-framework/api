@@ -12,9 +12,10 @@ import (
 )
 
 const (
-	workflowTaskAssignedNotificationKind = notification.Kind(JobTypeWorkflowTaskAssigned)
-	workflowTaskDueSoonNotificationKind  = notification.Kind(JobTypeWorkflowTaskDueSoon)
-	workflowTaskDigestNotificationKind   = notification.Kind(JobTypeWorkflowTaskDigest)
+	workflowTaskAssignedNotificationKind    = notification.Kind(JobTypeWorkflowTaskAssigned)
+	workflowTaskDueSoonNotificationKind     = notification.Kind(JobTypeWorkflowTaskDueSoon)
+	workflowTaskDigestNotificationKind      = notification.Kind(JobTypeWorkflowTaskDigest)
+	workflowExecutionFailedNotificationKind = notification.Kind(JobTypeWorkflowExecutionFailed)
 )
 
 type workflowTaskAssignedNotificationModel struct {
@@ -44,6 +45,20 @@ type workflowTaskDigestNotificationModel struct {
 	OverdueTasks []DigestTask
 	MyTasksURL   string
 	GeneratedAt  time.Time
+}
+
+type workflowExecutionFailedNotificationModel struct {
+	RecipientName        string
+	WorkflowTitle        string
+	WorkflowInstanceName string
+	ExecutionID          string
+	FailureReason        string
+	FailedAt             string
+	FailedSteps          int
+	CompletedSteps       int
+	TotalSteps           int
+	WorkflowURL          string
+	MyTasksURL           string
 }
 
 type notificationUserRepositoryAdapter struct {
@@ -87,6 +102,16 @@ func newWorkflowNotificationServiceFromFactory(
 				return renderWorkflowTaskDigestSlack(ctx, model)
 			}),
 		),
+		notification.NewDefinition(
+			workflowExecutionFailedNotificationKind,
+			notification.NotificationTypeUngated,
+			emailprovider.TemplateChannel(func(ctx context.Context, model any) (emailprovider.TemplateContent, error) {
+				return renderWorkflowExecutionFailedEmail(ctx, model)
+			}),
+			slackprovider.MessageChannel(func(ctx context.Context, model any) (*slackprovider.Message, error) {
+				return renderWorkflowExecutionFailedSlack(ctx, model)
+			}),
+		),
 	)
 }
 
@@ -122,6 +147,22 @@ func newWorkflowTaskDigestNotificationModel(data digestNotificationData) workflo
 		OverdueTasks: data.OverdueTasks,
 		MyTasksURL:   strings.TrimSpace(data.MyTasksURL),
 		GeneratedAt:  data.GeneratedAt,
+	}
+}
+
+func newWorkflowExecutionFailedNotificationModel(data workflowExecutionFailedNotificationModel) workflowExecutionFailedNotificationModel {
+	return workflowExecutionFailedNotificationModel{
+		RecipientName:        strings.TrimSpace(data.RecipientName),
+		WorkflowTitle:        strings.TrimSpace(data.WorkflowTitle),
+		WorkflowInstanceName: strings.TrimSpace(data.WorkflowInstanceName),
+		ExecutionID:          strings.TrimSpace(data.ExecutionID),
+		FailureReason:        strings.TrimSpace(data.FailureReason),
+		FailedAt:             strings.TrimSpace(data.FailedAt),
+		FailedSteps:          data.FailedSteps,
+		CompletedSteps:       data.CompletedSteps,
+		TotalSteps:           data.TotalSteps,
+		WorkflowURL:          strings.TrimSpace(data.WorkflowURL),
+		MyTasksURL:           strings.TrimSpace(data.MyTasksURL),
 	}
 }
 
@@ -187,6 +228,24 @@ func buildWorkflowTaskDigestNotificationRequest(args WorkflowTaskDigestArgs, dat
 	}
 }
 
+func buildWorkflowExecutionFailedNotificationRequest(
+	args WorkflowExecutionFailedArgs,
+	recipientUserID string,
+	data workflowExecutionFailedNotificationModel,
+) notification.Request {
+	return notification.Request{
+		Kind: workflowExecutionFailedNotificationKind,
+		Audiences: []notification.Audience{
+			{User: &notification.UserAudience{UserID: strings.TrimSpace(recipientUserID)}},
+		},
+		Model: newWorkflowExecutionFailedNotificationModel(data),
+		Options: notification.DispatchOptions{
+			CorrelationID: JobTypeWorkflowExecutionFailed + ":" + strings.TrimSpace(args.WorkflowExecutionID),
+			SourceJobKind: JobTypeWorkflowExecutionFailed,
+		},
+	}
+}
+
 func workflowTaskAssignedNotificationModelFromAny(model any) (workflowTaskAssignedNotificationModel, error) {
 	switch typed := model.(type) {
 	case workflowTaskAssignedNotificationModel:
@@ -225,6 +284,22 @@ func (m workflowTaskDigestNotificationModel) templateData() map[string]interface
 	}
 }
 
+func (m workflowExecutionFailedNotificationModel) templateData() map[string]interface{} {
+	return map[string]interface{}{
+		"RecipientName":        m.RecipientName,
+		"WorkflowTitle":        m.WorkflowTitle,
+		"WorkflowInstanceName": m.WorkflowInstanceName,
+		"ExecutionID":          m.ExecutionID,
+		"FailureReason":        m.FailureReason,
+		"FailedAt":             m.FailedAt,
+		"FailedSteps":          m.FailedSteps,
+		"CompletedSteps":       m.CompletedSteps,
+		"TotalSteps":           m.TotalSteps,
+		"WorkflowURL":          m.WorkflowURL,
+		"MyTasksURL":           m.MyTasksURL,
+	}
+}
+
 func workflowTaskDigestNotificationModelFromAny(model any) (workflowTaskDigestNotificationModel, error) {
 	switch typed := model.(type) {
 	case workflowTaskDigestNotificationModel:
@@ -236,6 +311,20 @@ func workflowTaskDigestNotificationModelFromAny(model any) (workflowTaskDigestNo
 		return *typed, nil
 	default:
 		return workflowTaskDigestNotificationModel{}, fmt.Errorf("unexpected workflow task digest model type %T", model)
+	}
+}
+
+func workflowExecutionFailedNotificationModelFromAny(model any) (workflowExecutionFailedNotificationModel, error) {
+	switch typed := model.(type) {
+	case workflowExecutionFailedNotificationModel:
+		return typed, nil
+	case *workflowExecutionFailedNotificationModel:
+		if typed == nil {
+			return workflowExecutionFailedNotificationModel{}, fmt.Errorf("workflow execution failed model is required")
+		}
+		return *typed, nil
+	default:
+		return workflowExecutionFailedNotificationModel{}, fmt.Errorf("unexpected workflow execution failed model type %T", model)
 	}
 }
 
@@ -371,6 +460,25 @@ func renderWorkflowTaskDigestEmail(_ context.Context, model any) (emailprovider.
 	}, nil
 }
 
+func renderWorkflowExecutionFailedEmail(_ context.Context, model any) (emailprovider.TemplateContent, error) {
+	failedModel, err := workflowExecutionFailedNotificationModelFromAny(model)
+	if err != nil {
+		return emailprovider.TemplateContent{}, err
+	}
+
+	instanceName := failedModel.WorkflowInstanceName
+	if instanceName == "" {
+		instanceName = failedModel.WorkflowTitle
+	}
+
+	return emailprovider.TemplateContent{
+		TemplateName: "workflow-execution-failed",
+		TemplateData: failedModel.templateData(),
+		Subject:      fmt.Sprintf("Workflow execution failed: %s", instanceName),
+		TextBody:     fmt.Sprintf("Workflow execution failed for %s. Open: %s", instanceName, failedModel.WorkflowURL),
+	}, nil
+}
+
 func renderWorkflowTaskAssignedSlack(_ context.Context, model any) (*slackprovider.Message, error) {
 	assignedModel, err := workflowTaskAssignedNotificationModelFromAny(model)
 	if err != nil {
@@ -428,6 +536,32 @@ func renderWorkflowTaskDigestSlack(_ context.Context, model any) (*slackprovider
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to format workflow-task-digest slack message: %w", err)
+	}
+
+	return message, nil
+}
+
+func renderWorkflowExecutionFailedSlack(_ context.Context, model any) (*slackprovider.Message, error) {
+	failedModel, err := workflowExecutionFailedNotificationModelFromAny(model)
+	if err != nil {
+		return nil, err
+	}
+
+	message, err := slackprovider.FormatWorkflowExecutionFailedMessage(
+		failedModel.RecipientName,
+		failedModel.WorkflowTitle,
+		failedModel.WorkflowInstanceName,
+		failedModel.ExecutionID,
+		failedModel.FailureReason,
+		failedModel.FailedAt,
+		failedModel.FailedSteps,
+		failedModel.CompletedSteps,
+		failedModel.TotalSteps,
+		failedModel.WorkflowURL,
+		failedModel.MyTasksURL,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to format workflow-execution-failed slack message: %w", err)
 	}
 
 	return message, nil

@@ -6,6 +6,8 @@ import (
 )
 
 const (
+	NotificationTypeUngated = ""
+
 	NotificationTypeEvidenceDigest    = "evidence_digest"
 	NotificationTypeTaskAvailable     = "task_available"
 	NotificationTypeTaskDailyDigest   = "task_daily_digest"

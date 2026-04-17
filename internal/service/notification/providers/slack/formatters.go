@@ -29,6 +29,7 @@ var (
 	FormatRiskReviewOverdueEscalationMessage  = slackformatters.FormatRiskReviewOverdueEscalationMessage
 	FormatRiskStaleOpenReminderMessage        = slackformatters.FormatRiskStaleOpenReminderMessage
 	FormatRiskOpenDigestMessage               = slackformatters.FormatRiskOpenDigestMessage
+	FormatWorkflowExecutionFailedMessage      = slackformatters.FormatWorkflowExecutionFailedMessage
 	FormatWorkflowTaskAssignedMessage         = slackformatters.FormatWorkflowTaskAssignedMessage
 	FormatWorkflowTaskDueSoonMessage          = slackformatters.FormatWorkflowTaskDueSoonMessage
 	FormatWorkflowTaskDigestMessage           = slackformatters.FormatWorkflowTaskDigestMessage
