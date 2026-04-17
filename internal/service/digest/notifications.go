@@ -55,20 +55,17 @@ func (m evidenceDigestNotificationModel) summary() *EvidenceSummary {
 	return m.Summary
 }
 
-func evidenceDigestDefinition(emailService *email.Service) notification.Definition {
-	return notification.Definition{
-		Kind:              evidenceDigestKind,
-		SubscriptionType:  notification.NotificationTypeEvidenceDigest,
-		SupportedChannels: []string{notification.DeliveryChannelEmail, notification.DeliveryChannelSlack},
-		Renderers: map[string]notification.ChannelRenderer{
-			notification.DeliveryChannelEmail: emailprovider.Renderer(func(ctx context.Context, model any) (emailprovider.Content, error) {
-				return renderEvidenceDigestEmail(ctx, emailService, model)
-			}),
-			notification.DeliveryChannelSlack: slackprovider.Renderer(func(ctx context.Context, model any) (slackprovider.Content, error) {
-				return renderEvidenceDigestSlack(ctx, model)
-			}),
-		},
-	}
+func evidenceDigestDefinition() notification.Definition {
+	return notification.NewDefinition(
+		evidenceDigestKind,
+		notification.NotificationTypeEvidenceDigest,
+		emailprovider.TemplateChannel(func(ctx context.Context, model any) (emailprovider.TemplateContent, error) {
+			return renderEvidenceDigestEmail(ctx, model)
+		}),
+		slackprovider.Channel(func(ctx context.Context, model any) (slackprovider.Content, error) {
+			return renderEvidenceDigestSlack(ctx, model)
+		}),
+	)
 }
 
 type digestSlackEnqueuer interface {
@@ -78,17 +75,16 @@ type digestSlackEnqueuer interface {
 
 func NewNotificationService(
 	db *gorm.DB,
-	emailService *email.Service,
 	cfg *config.Config,
-	runtimeProvider notification.RuntimeProvider,
+	notificationRuntime notification.RuntimeProvider,
 ) *notification.Service {
-	if db == nil || runtimeProvider == nil {
+	if db == nil || notificationRuntime == nil {
 		return notification.NewService(nil, nil, nil)
 	}
 
-	return runtimeProvider.NewRuntimeFactory(newDigestConfiguredDestinationResolver(cfg)).MustNewService(
+	return notificationRuntime.NewRuntimeFactory(newDigestConfiguredDestinationResolver(cfg)).MustNewService(
 		notification.NewGORMUserRepository(db),
-		evidenceDigestDefinition(emailService),
+		evidenceDigestDefinition(),
 	)
 }
 
@@ -106,7 +102,7 @@ func NewRuntimeProvider(
 	}
 
 	transport := notification.NewDeliveryTransport(
-		notification.WithProvider(emailprovider.NewProvider(
+		notification.WithProvider(emailprovider.NewProviderWithTemplateRenderer(
 			func() emailprovider.Sender {
 				if emailService == nil {
 					return nil
@@ -129,6 +125,12 @@ func NewRuntimeProvider(
 				}
 
 				return enqueuer
+			},
+			func() emailprovider.ContentRenderer {
+				if emailService == nil {
+					return nil
+				}
+				return newDigestNotificationEmailTemplateRenderer(emailService)
 			},
 		)),
 		notification.WithProvider(slackprovider.NewProvider(
@@ -179,29 +181,6 @@ func (r digestConfiguredDestinationResolver) ResolveConfiguredDestination(_ cont
 			slackprovider.AddressKeyChannel:    channel,
 			slackprovider.AddressKeyTargetType: slackprovider.TargetTypeChannel,
 		},
-	}, nil
-}
-
-func renderEvidenceDigestEmail(_ context.Context, emailService *email.Service, model any) (emailprovider.Content, error) {
-	if emailService == nil {
-		return emailprovider.Content{}, fmt.Errorf("email service is not configured")
-	}
-
-	digestModel, err := evidenceDigestModelFromAny(model)
-	if err != nil {
-		return emailprovider.Content{}, err
-	}
-
-	htmlContent, textContent, err := emailService.UseTemplate("evidence-digest", digestModel.templateData())
-	if err != nil {
-		return emailprovider.Content{}, fmt.Errorf("failed to render digest template: %w", err)
-	}
-
-	return emailprovider.Content{
-		From:     emailService.GetDefaultFromAddress(),
-		Subject:  "Evidence Compliance Digest",
-		HTMLBody: htmlContent,
-		TextBody: textContent,
 	}, nil
 }
 

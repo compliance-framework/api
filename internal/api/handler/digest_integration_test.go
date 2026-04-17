@@ -54,7 +54,6 @@ func (suite *DigestApiIntegrationSuite) SetupSuite() {
 	// Create digest handler
 	notifier := digest.NewNotificationService(
 		suite.DB,
-		suite.emailService,
 		suite.Config,
 		runtimeProvider,
 	)

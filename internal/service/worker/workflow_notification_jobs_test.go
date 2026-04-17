@@ -69,9 +69,8 @@ func TestWorkflowTaskAssignedArgs_JSONOmitsHydratedFieldsWhenEmpty(t *testing.T)
 func TestDueSoonCheckerWorker_EnqueuesOneJobPerChannel(t *testing.T) {
 	db := newWorkflowNotificationJobsTestDB(t)
 	client := &stubRiverClient{}
-	worker := NewDueSoonCheckerWorkerWithRuntimeProvider(
+	worker := NewDueSoonCheckerWorker(
 		db,
-		nil,
 		"http://localhost:8000",
 		newWorkerNotificationRuntimeProvider(nil, nil, func() notification.WorkerEnqueuer {
 			return newWorkerNotificationEnqueuer(client, "email", 5)

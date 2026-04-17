@@ -70,6 +70,14 @@ func (m *MockDigestService) SendGlobalDigest(ctx context.Context) error {
 	return args.Error(0)
 }
 
+func newTestNotificationRuntimeProvider(email EmailService, slack SlackService) notification.RuntimeProvider {
+	return newWorkerNotificationRuntimeProvider(email, slack, func() notification.WorkerEnqueuer { return nil })
+}
+
+func newTestRiskNotificationServiceFactory(email EmailService, slack SlackService) *RiskNotificationServiceFactory {
+	return NewRiskNotificationServiceFactory(newTestNotificationRuntimeProvider(email, slack))
+}
+
 func makeWorkerJob[T river.JobArgs](args T) *river.Job[T] {
 	return &river.Job[T]{
 		JobRow: &rivertype.JobRow{ID: 1},

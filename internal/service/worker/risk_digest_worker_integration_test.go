@@ -159,7 +159,7 @@ func (suite *RiskOpenDigestIntegrationSuite) TestRiskOpenDigestSchedulerAndWorke
 		return len(msg.To) == 1 && msg.To[0] == "recipient@example.com"
 	})).Return(&types.SendResult{Success: true, MessageID: "msg-1"}, nil)
 
-	worker := NewRiskOpenDigestWorker(suite.DB, mockEmail, nil, NewGORMUserRepository(suite.DB), suite.Config.WebBaseURL, suite.logger)
+	worker := NewRiskOpenDigestWorker(suite.DB, NewGORMUserRepository(suite.DB), suite.Config.WebBaseURL, newTestRiskNotificationServiceFactory(mockEmail, nil), suite.logger)
 	worker.now = func() time.Time { return now }
 
 	err = worker.Work(ctx, &river.Job[RiskOpenDigestArgs]{Args: jobArgs})

@@ -198,13 +198,6 @@ func (u NotificationUser) NotificationChannels(notificationType string) []string
 	return channels
 }
 
-func allWorkflowNotificationChannels() []string {
-	return []string{
-		notification.DeliveryChannelEmail,
-		notification.DeliveryChannelSlack,
-	}
-}
-
 func normalizeRequestedDeliveryChannel(channel string) (string, bool) {
 	if strings.TrimSpace(channel) == "" {
 		return "", true
@@ -641,19 +634,16 @@ func Workers(
 			func() notification.WorkerEnqueuer { return nil },
 		)
 
-		workflowTaskAssignedWorker := NewWorkflowTaskAssignedWorkerWithRuntimeProvider(
-			emailService,
+		workflowTaskAssignedWorker := NewWorkflowTaskAssignedWorker(
 			userRepo,
 			webBaseURL,
 			workflowAssignedRuntimeProvider,
 			logger,
 		)
 		workflowTaskAssignedWorker.db = db
-		workflowTaskAssignedWorker.notificationWorkerEnqueuer = notificationWorkerEnqueuer
 		river.AddWorker(workers, river.WorkFunc(workflowTaskAssignedWorker.Work))
 
-		workflowTaskDueSoonWorker := NewWorkflowTaskDueSoonWorkerWithRuntimeProvider(
-			emailService,
+		workflowTaskDueSoonWorker := NewWorkflowTaskDueSoonWorker(
 			userRepo,
 			webBaseURL,
 			workflowDueSoonRuntimeProvider,
@@ -672,9 +662,9 @@ func Workers(
 				slackService,
 				func() notification.WorkerEnqueuer { return nil },
 			)
-			workflowTaskDigestWorker := NewWorkflowTaskDigestWorkerWithRuntimeProvider(
+			riskNotificationServiceFactory := NewRiskNotificationServiceFactory(riskNotificationRuntimeProvider)
+			workflowTaskDigestWorker := NewWorkflowTaskDigestWorker(
 				db,
-				emailService,
 				userRepo,
 				webBaseURL,
 				workflowDigestRuntimeProvider,
@@ -685,16 +675,16 @@ func Workers(
 			workflowExecutionFailedWorker := NewWorkflowExecutionFailedWorker(db, emailService, userRepo, webBaseURL, logger)
 			river.AddWorker(workers, river.WorkFunc(workflowExecutionFailedWorker.Work))
 
-			riskReviewDueReminderWorker := NewRiskReviewDueReminderWorkerWithRuntimeProvider(db, emailService, userRepo, webBaseURL, riskNotificationRuntimeProvider, logger)
+			riskReviewDueReminderWorker := NewRiskReviewDueReminderWorker(db, userRepo, webBaseURL, riskNotificationServiceFactory, logger)
 			river.AddWorker(workers, river.WorkFunc(riskReviewDueReminderWorker.Work))
 
-			riskReviewOverdueEscalationWorker := NewRiskReviewOverdueEscalationWorkerWithRuntimeProvider(db, emailService, userRepo, webBaseURL, riskNotificationRuntimeProvider, logger)
+			riskReviewOverdueEscalationWorker := NewRiskReviewOverdueEscalationWorker(db, userRepo, webBaseURL, riskNotificationServiceFactory, logger)
 			river.AddWorker(workers, river.WorkFunc(riskReviewOverdueEscalationWorker.Work))
 
-			riskStaleOpenReminderWorker := NewRiskStaleOpenReminderWorkerWithRuntimeProvider(db, emailService, userRepo, webBaseURL, riskNotificationRuntimeProvider, logger)
+			riskStaleOpenReminderWorker := NewRiskStaleOpenReminderWorker(db, userRepo, webBaseURL, riskNotificationServiceFactory, logger)
 			river.AddWorker(workers, river.WorkFunc(riskStaleOpenReminderWorker.Work))
 
-			riskOpenDigestWorker := NewRiskOpenDigestWorkerWithRuntimeProvider(db, emailService, userRepo, webBaseURL, riskNotificationRuntimeProvider, logger)
+			riskOpenDigestWorker := NewRiskOpenDigestWorker(db, userRepo, webBaseURL, riskNotificationServiceFactory, logger)
 			river.AddWorker(workers, river.WorkFunc(riskOpenDigestWorker.Work))
 
 			// Register POAM notification workers (BCH-1186 Phase 3)
@@ -709,9 +699,8 @@ func Workers(
 
 			// Register POAM digest worker (BCH-1186 Phase 4)
 			// Note: PoamOpenDigestSchedulerWorker is registered in service.go (needs clientProxy).
-			poamOpenDigestWorker := NewPoamOpenDigestWorkerWithRuntimeProvider(
+			poamOpenDigestWorker := NewPoamOpenDigestWorker(
 				db,
-				emailService,
 				userRepo,
 				webBaseURL,
 				newWorkerNotificationRuntimeProvider(emailService, nil, func() notification.WorkerEnqueuer { return nil }),

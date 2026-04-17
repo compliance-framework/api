@@ -19,6 +19,10 @@ func Renderer(renderer func(ctx context.Context, model any) (Content, error)) no
 	})
 }
 
+func Channel(renderer func(ctx context.Context, model any) (Content, error)) notification.RendererBinding {
+	return notification.BindRenderer(ChannelID, Renderer(renderer))
+}
+
 func DirectMessageIdentity(channel string) map[string]string {
 	trimmedChannel := strings.TrimSpace(channel)
 	if trimmedChannel == "" {

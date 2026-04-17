@@ -320,53 +320,27 @@ func (w *RiskEvidenceReconciliationScannerWorker) Work(ctx context.Context, _ *r
 }
 
 type RiskReviewDueReminderWorker struct {
-	db                          *gorm.DB
-	emailService                EmailService
-	userRepo                    UserRepository
-	notificationRuntimeProvider notification.RuntimeProvider
-	webBaseURL                  string
-	logger                      *zap.SugaredLogger
+	db                         *gorm.DB
+	userRepo                   UserRepository
+	notificationServiceFactory *RiskNotificationServiceFactory
+	webBaseURL                 string
+	logger                     *zap.SugaredLogger
 }
 
-func NewRiskReviewDueReminderWorker(db *gorm.DB, emailService EmailService, slackService SlackService, userRepo UserRepository, webBaseURL string, logger *zap.SugaredLogger) *RiskReviewDueReminderWorker {
-	return NewRiskReviewDueReminderWorkerWithRuntimeProvider(
-		db,
-		emailService,
-		userRepo,
-		webBaseURL,
-		newWorkerNotificationRuntimeProvider(
-			emailService,
-			slackService,
-			func() notification.WorkerEnqueuer { return nil },
-		),
-		logger,
-	)
-}
-
-func NewRiskReviewDueReminderWorkerWithRuntimeProvider(
+func NewRiskReviewDueReminderWorker(
 	db *gorm.DB,
-	emailService EmailService,
 	userRepo UserRepository,
 	webBaseURL string,
-	runtimeProvider notification.RuntimeProvider,
+	notificationServiceFactory *RiskNotificationServiceFactory,
 	logger *zap.SugaredLogger,
 ) *RiskReviewDueReminderWorker {
 	worker := &RiskReviewDueReminderWorker{
-		db:                          db,
-		emailService:                emailService,
-		userRepo:                    userRepo,
-		notificationRuntimeProvider: runtimeProvider,
-		webBaseURL:                  webBaseURL,
-		logger:                      logger,
+		db:                         db,
+		userRepo:                   userRepo,
+		notificationServiceFactory: notificationServiceFactory,
+		webBaseURL:                 webBaseURL,
+		logger:                     logger,
 	}
-	if worker.notificationRuntimeProvider == nil {
-		worker.notificationRuntimeProvider = newWorkerNotificationRuntimeProvider(
-			emailService,
-			nil,
-			func() notification.WorkerEnqueuer { return nil },
-		)
-	}
-
 	return worker
 }
 
@@ -383,9 +357,8 @@ func (w *RiskReviewDueReminderWorker) Work(ctx context.Context, job *river.Job[R
 	return dispatchRiskReminderNotification(
 		ctx,
 		w.db,
-		w.emailService,
 		w.userRepo,
-		w.notificationRuntimeProvider,
+		w.notificationServiceFactory,
 		w.webBaseURL,
 		w.logger,
 		job.Args.RiskID,
@@ -397,53 +370,27 @@ func (w *RiskReviewDueReminderWorker) Work(ctx context.Context, job *river.Job[R
 }
 
 type RiskReviewOverdueEscalationWorker struct {
-	db                          *gorm.DB
-	emailService                EmailService
-	userRepo                    UserRepository
-	notificationRuntimeProvider notification.RuntimeProvider
-	webBaseURL                  string
-	logger                      *zap.SugaredLogger
+	db                         *gorm.DB
+	userRepo                   UserRepository
+	notificationServiceFactory *RiskNotificationServiceFactory
+	webBaseURL                 string
+	logger                     *zap.SugaredLogger
 }
 
-func NewRiskReviewOverdueEscalationWorker(db *gorm.DB, emailService EmailService, slackService SlackService, userRepo UserRepository, webBaseURL string, logger *zap.SugaredLogger) *RiskReviewOverdueEscalationWorker {
-	return NewRiskReviewOverdueEscalationWorkerWithRuntimeProvider(
-		db,
-		emailService,
-		userRepo,
-		webBaseURL,
-		newWorkerNotificationRuntimeProvider(
-			emailService,
-			slackService,
-			func() notification.WorkerEnqueuer { return nil },
-		),
-		logger,
-	)
-}
-
-func NewRiskReviewOverdueEscalationWorkerWithRuntimeProvider(
+func NewRiskReviewOverdueEscalationWorker(
 	db *gorm.DB,
-	emailService EmailService,
 	userRepo UserRepository,
 	webBaseURL string,
-	runtimeProvider notification.RuntimeProvider,
+	notificationServiceFactory *RiskNotificationServiceFactory,
 	logger *zap.SugaredLogger,
 ) *RiskReviewOverdueEscalationWorker {
 	worker := &RiskReviewOverdueEscalationWorker{
-		db:                          db,
-		emailService:                emailService,
-		userRepo:                    userRepo,
-		notificationRuntimeProvider: runtimeProvider,
-		webBaseURL:                  webBaseURL,
-		logger:                      logger,
+		db:                         db,
+		userRepo:                   userRepo,
+		notificationServiceFactory: notificationServiceFactory,
+		webBaseURL:                 webBaseURL,
+		logger:                     logger,
 	}
-	if worker.notificationRuntimeProvider == nil {
-		worker.notificationRuntimeProvider = newWorkerNotificationRuntimeProvider(
-			emailService,
-			nil,
-			func() notification.WorkerEnqueuer { return nil },
-		)
-	}
-
 	return worker
 }
 
@@ -460,9 +407,8 @@ func (w *RiskReviewOverdueEscalationWorker) Work(ctx context.Context, job *river
 	return dispatchRiskReminderNotification(
 		ctx,
 		w.db,
-		w.emailService,
 		w.userRepo,
-		w.notificationRuntimeProvider,
+		w.notificationServiceFactory,
 		w.webBaseURL,
 		w.logger,
 		job.Args.RiskID,
@@ -474,53 +420,27 @@ func (w *RiskReviewOverdueEscalationWorker) Work(ctx context.Context, job *river
 }
 
 type RiskStaleOpenReminderWorker struct {
-	db                          *gorm.DB
-	emailService                EmailService
-	userRepo                    UserRepository
-	notificationRuntimeProvider notification.RuntimeProvider
-	webBaseURL                  string
-	logger                      *zap.SugaredLogger
+	db                         *gorm.DB
+	userRepo                   UserRepository
+	notificationServiceFactory *RiskNotificationServiceFactory
+	webBaseURL                 string
+	logger                     *zap.SugaredLogger
 }
 
-func NewRiskStaleOpenReminderWorker(db *gorm.DB, emailService EmailService, slackService SlackService, userRepo UserRepository, webBaseURL string, logger *zap.SugaredLogger) *RiskStaleOpenReminderWorker {
-	return NewRiskStaleOpenReminderWorkerWithRuntimeProvider(
-		db,
-		emailService,
-		userRepo,
-		webBaseURL,
-		newWorkerNotificationRuntimeProvider(
-			emailService,
-			slackService,
-			func() notification.WorkerEnqueuer { return nil },
-		),
-		logger,
-	)
-}
-
-func NewRiskStaleOpenReminderWorkerWithRuntimeProvider(
+func NewRiskStaleOpenReminderWorker(
 	db *gorm.DB,
-	emailService EmailService,
 	userRepo UserRepository,
 	webBaseURL string,
-	runtimeProvider notification.RuntimeProvider,
+	notificationServiceFactory *RiskNotificationServiceFactory,
 	logger *zap.SugaredLogger,
 ) *RiskStaleOpenReminderWorker {
 	worker := &RiskStaleOpenReminderWorker{
-		db:                          db,
-		emailService:                emailService,
-		userRepo:                    userRepo,
-		notificationRuntimeProvider: runtimeProvider,
-		webBaseURL:                  webBaseURL,
-		logger:                      logger,
+		db:                         db,
+		userRepo:                   userRepo,
+		notificationServiceFactory: notificationServiceFactory,
+		webBaseURL:                 webBaseURL,
+		logger:                     logger,
 	}
-	if worker.notificationRuntimeProvider == nil {
-		worker.notificationRuntimeProvider = newWorkerNotificationRuntimeProvider(
-			emailService,
-			nil,
-			func() notification.WorkerEnqueuer { return nil },
-		)
-	}
-
 	return worker
 }
 
@@ -537,9 +457,8 @@ func (w *RiskStaleOpenReminderWorker) Work(ctx context.Context, job *river.Job[R
 	return dispatchRiskReminderNotification(
 		ctx,
 		w.db,
-		w.emailService,
 		w.userRepo,
-		w.notificationRuntimeProvider,
+		w.notificationServiceFactory,
 		w.webBaseURL,
 		w.logger,
 		job.Args.RiskID,
@@ -553,9 +472,8 @@ func (w *RiskStaleOpenReminderWorker) Work(ctx context.Context, job *river.Job[R
 func dispatchRiskReminderNotification(
 	ctx context.Context,
 	db *gorm.DB,
-	emailService EmailService,
 	userRepo UserRepository,
-	runtimeProvider notification.RuntimeProvider,
+	notificationServiceFactory *RiskNotificationServiceFactory,
 	webBaseURL string,
 	logger *zap.SugaredLogger,
 	riskID, ownerUserID uuid.UUID,
@@ -567,12 +485,8 @@ func dispatchRiskReminderNotification(
 	if userRepo == nil {
 		return fmt.Errorf("risk notification worker: user repository is nil")
 	}
-	if runtimeProvider == nil {
-		runtimeProvider = newWorkerNotificationRuntimeProvider(
-			emailService,
-			nil,
-			func() notification.WorkerEnqueuer { return nil },
-		)
+	if notificationServiceFactory == nil {
+		return fmt.Errorf("risk notification worker: notification service factory is nil")
 	}
 
 	var risk riskrel.Risk
@@ -592,11 +506,10 @@ func dispatchRiskReminderNotification(
 		}
 		return fmt.Errorf("risk notification worker: load owner user failed: %w", err)
 	}
-	notifier := newRiskNotificationServiceFromFactory(
-		runtimeProvider.NewRuntimeFactory(nil),
-		emailService,
-		newNotificationUserRepositoryAdapter(userRepo, user),
-	)
+	notifier, err := notificationServiceFactory.New(newNotificationUserRepositoryAdapter(userRepo, user))
+	if err != nil {
+		return fmt.Errorf("risk notification worker: create notification service failed: %w", err)
+	}
 	data := buildRiskNotificationData(ctx, db, webBaseURL, user, risk, riskID)
 	request := buildRequest(user.FullName(), data)
 	if err := notifier.Dispatch(ctx, request); err != nil {

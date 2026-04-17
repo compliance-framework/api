@@ -44,40 +44,25 @@ func (d digestNotificationData) templateData() map[string]interface{} {
 // WorkflowTaskDigestWorker sends a per-user digest of pending and overdue workflow tasks
 type WorkflowTaskDigestWorker struct {
 	db                          *gorm.DB
-	emailService                EmailService
 	userRepo                    UserRepository
 	webBaseURL                  string
 	notificationRuntimeProvider notification.RuntimeProvider
 	logger                      *zap.SugaredLogger
 }
 
-// NewWorkflowTaskDigestWorker creates a new WorkflowTaskDigestWorker
-func NewWorkflowTaskDigestWorker(db *gorm.DB, emailService EmailService, slackService SlackService, userRepo UserRepository, webBaseURL string, logger *zap.SugaredLogger) *WorkflowTaskDigestWorker {
-	return NewWorkflowTaskDigestWorkerWithRuntimeProvider(
-		db,
-		emailService,
-		userRepo,
-		webBaseURL,
-		newWorkerNotificationRuntimeProvider(emailService, slackService, func() notification.WorkerEnqueuer { return nil }),
-		logger,
-	)
-}
-
-// NewWorkflowTaskDigestWorkerWithRuntimeProvider creates a new WorkflowTaskDigestWorker with an injected runtime provider.
-func NewWorkflowTaskDigestWorkerWithRuntimeProvider(
+// NewWorkflowTaskDigestWorker creates a new WorkflowTaskDigestWorker with an injected runtime provider.
+func NewWorkflowTaskDigestWorker(
 	db *gorm.DB,
-	emailService EmailService,
 	userRepo UserRepository,
 	webBaseURL string,
-	runtimeProvider notification.RuntimeProvider,
+	notificationRuntime notification.RuntimeProvider,
 	logger *zap.SugaredLogger,
 ) *WorkflowTaskDigestWorker {
 	return &WorkflowTaskDigestWorker{
 		db:                          db,
-		emailService:                emailService,
 		userRepo:                    userRepo,
 		webBaseURL:                  webBaseURL,
-		notificationRuntimeProvider: runtimeProvider,
+		notificationRuntimeProvider: notificationRuntime,
 		logger:                      logger,
 	}
 }
@@ -149,9 +134,9 @@ func (w *WorkflowTaskDigestWorker) Work(ctx context.Context, job *river.Job[Work
 		GeneratedAt:  now,
 	}
 
-	notificationService := w.notificationRuntimeProvider.NewRuntimeFactory(nil).MustNewService(
+	notificationService := newWorkflowNotificationServiceFromFactory(
+		w.notificationRuntimeProvider.NewRuntimeFactory(nil),
 		newNotificationUserRepositoryAdapter(w.userRepo, user),
-		workflowTaskDigestNotificationDefinition(w.emailService),
 	)
 
 	if err := notificationService.Dispatch(

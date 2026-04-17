@@ -318,7 +318,7 @@ func TestRiskOpenDigestWorker_SendsGroupedDigest(t *testing.T) {
 		return len(msg.To) == 1 && msg.To[0] == "recipient@example.com" && strings.Contains(msg.Subject, "risk digest")
 	})).Return(&types.SendResult{Success: true, MessageID: "msg-1"}, nil)
 
-	worker := NewRiskOpenDigestWorker(db, mockEmail, nil, mockRepo, "https://app.example.com", logger)
+	worker := NewRiskOpenDigestWorker(db, mockRepo, "https://app.example.com", newTestRiskNotificationServiceFactory(mockEmail, nil), logger)
 	worker.now = func() time.Time { return now }
 
 	err := worker.Work(ctx, &river.Job[RiskOpenDigestArgs]{
@@ -347,7 +347,7 @@ func TestRiskOpenDigestWorker_UnsubscribedUser_Skips(t *testing.T) {
 		FirstName: "Recipient",
 	}, nil)
 
-	worker := NewRiskOpenDigestWorker(newRiskWorkersTestDB(t), mockEmail, nil, mockRepo, "https://app.example.com", logger)
+	worker := NewRiskOpenDigestWorker(newRiskWorkersTestDB(t), mockRepo, "https://app.example.com", newTestRiskNotificationServiceFactory(mockEmail, nil), logger)
 	err := worker.Work(ctx, &river.Job[RiskOpenDigestArgs]{
 		Args: RiskOpenDigestArgs{
 			RecipientUserID: recipientID,
@@ -416,7 +416,7 @@ func TestRiskOpenDigestWorker_SlackSubscribed_SendsSlack(t *testing.T) {
 			len(msg.Blocks) > 0
 	})).Return(&slacktypes.SendResult{Success: true, DeliveryID: "slack-digest-1"}, nil).Once()
 
-	worker := NewRiskOpenDigestWorker(db, mockEmail, mockSlack, mockRepo, "https://app.example.com", logger)
+	worker := NewRiskOpenDigestWorker(db, mockRepo, "https://app.example.com", newTestRiskNotificationServiceFactory(mockEmail, mockSlack), logger)
 	worker.now = func() time.Time { return now }
 
 	err := worker.Work(ctx, &river.Job[RiskOpenDigestArgs]{

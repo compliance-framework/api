@@ -93,41 +93,26 @@ func workflowTaskAssignedInsertParams(args WorkflowTaskAssignedArgs) []river.Ins
 
 // WorkflowTaskAssignedWorker handles new-task-assigned notification jobs.
 type WorkflowTaskAssignedWorker struct {
-	emailService                EmailService
 	userRepo                    UserRepository
 	db                          *gorm.DB
 	webBaseURL                  string
-	notificationWorkerEnqueuer  notification.WorkerEnqueuer
 	notificationRuntimeProvider notification.RuntimeProvider
 	logger                      *zap.SugaredLogger
 }
 
-// NewWorkflowTaskAssignedWorkerWithRuntimeProvider creates a new WorkflowTaskAssignedWorker with an injected runtime provider.
-func NewWorkflowTaskAssignedWorkerWithRuntimeProvider(
-	emailService EmailService,
+// NewWorkflowTaskAssignedWorker creates a new WorkflowTaskAssignedWorker with an injected runtime provider.
+func NewWorkflowTaskAssignedWorker(
 	userRepo UserRepository,
 	webBaseURL string,
-	runtimeProvider notification.RuntimeProvider,
+	notificationRuntime notification.RuntimeProvider,
 	logger *zap.SugaredLogger,
 ) *WorkflowTaskAssignedWorker {
-	worker := &WorkflowTaskAssignedWorker{
-		emailService:                emailService,
+	return &WorkflowTaskAssignedWorker{
 		userRepo:                    userRepo,
 		webBaseURL:                  webBaseURL,
-		notificationRuntimeProvider: runtimeProvider,
+		notificationRuntimeProvider: notificationRuntime,
 		logger:                      logger,
 	}
-	if worker.notificationRuntimeProvider == nil {
-		worker.notificationRuntimeProvider = newWorkerNotificationRuntimeProvider(
-			emailService,
-			nil,
-			func() notification.WorkerEnqueuer {
-				return worker.notificationWorkerEnqueuer
-			},
-		)
-	}
-
-	return worker
 }
 
 // Work is the River work function for sending new-task-assigned notifications.
@@ -170,7 +155,6 @@ func (w *WorkflowTaskAssignedWorker) dispatchToUser(ctx context.Context, args Wo
 
 	notifier := newWorkflowNotificationServiceFromFactory(
 		w.notificationRuntimeProvider.NewRuntimeFactory(nil),
-		w.emailService,
 		newNotificationUserRepositoryAdapter(w.userRepo, user),
 	)
 
@@ -195,7 +179,6 @@ func (w *WorkflowTaskAssignedWorker) dispatchToEmailAddress(ctx context.Context,
 
 	notifier := newWorkflowNotificationServiceFromFactory(
 		w.notificationRuntimeProvider.NewRuntimeFactory(nil),
-		w.emailService,
 		nil,
 	)
 
@@ -255,37 +238,25 @@ func hasWorkflowTaskAssignedRenderData(args WorkflowTaskAssignedArgs) bool {
 
 // WorkflowTaskDueSoonWorker handles task-due-soon reminder notification jobs.
 type WorkflowTaskDueSoonWorker struct {
-	emailService                EmailService
 	userRepo                    UserRepository
 	notificationRuntimeProvider notification.RuntimeProvider
 	webBaseURL                  string
 	logger                      *zap.SugaredLogger
 }
 
-// NewWorkflowTaskDueSoonWorkerWithRuntimeProvider creates a new WorkflowTaskDueSoonWorker with an injected runtime provider.
-func NewWorkflowTaskDueSoonWorkerWithRuntimeProvider(
-	emailService EmailService,
+// NewWorkflowTaskDueSoonWorker creates a new WorkflowTaskDueSoonWorker with an injected runtime provider.
+func NewWorkflowTaskDueSoonWorker(
 	userRepo UserRepository,
 	webBaseURL string,
-	runtimeProvider notification.RuntimeProvider,
+	notificationRuntime notification.RuntimeProvider,
 	logger *zap.SugaredLogger,
 ) *WorkflowTaskDueSoonWorker {
-	worker := &WorkflowTaskDueSoonWorker{
-		emailService:                emailService,
+	return &WorkflowTaskDueSoonWorker{
 		userRepo:                    userRepo,
-		notificationRuntimeProvider: runtimeProvider,
+		notificationRuntimeProvider: notificationRuntime,
 		webBaseURL:                  webBaseURL,
 		logger:                      logger,
 	}
-	if worker.notificationRuntimeProvider == nil {
-		worker.notificationRuntimeProvider = newWorkerNotificationRuntimeProvider(
-			emailService,
-			nil,
-			func() notification.WorkerEnqueuer { return nil },
-		)
-	}
-
-	return worker
 }
 
 // Work is the River work function for sending task-due-soon reminder notifications.
@@ -313,7 +284,6 @@ func (w *WorkflowTaskDueSoonWorker) Work(ctx context.Context, job *river.Job[Wor
 
 	notifier := newWorkflowNotificationServiceFromFactory(
 		w.notificationRuntimeProvider.NewRuntimeFactory(nil),
-		w.emailService,
 		newNotificationUserRepositoryAdapter(w.userRepo, user),
 	)
 

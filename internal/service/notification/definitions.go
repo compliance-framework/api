@@ -8,6 +8,11 @@ import (
 
 type ChannelRenderer func(ctx context.Context, model any) (Content, error)
 
+type RendererBinding struct {
+	Provider string
+	Renderer ChannelRenderer
+}
+
 func ProviderRenderer(provider string, renderer func(ctx context.Context, model any) (any, error)) ChannelRenderer {
 	return func(ctx context.Context, model any) (Content, error) {
 		payload, err := renderer(ctx, model)
@@ -15,6 +20,31 @@ func ProviderRenderer(provider string, renderer func(ctx context.Context, model 
 			return Content{}, err
 		}
 		return Content{Provider: provider, Payload: payload}, nil
+	}
+}
+
+func BindRenderer(provider string, renderer ChannelRenderer) RendererBinding {
+	return RendererBinding{
+		Provider: strings.TrimSpace(provider),
+		Renderer: renderer,
+	}
+}
+
+func NewDefinition(kind Kind, subscriptionType string, bindings ...RendererBinding) Definition {
+	supportedChannels := make([]string, 0, len(bindings))
+	renderers := make(map[string]ChannelRenderer, len(bindings))
+
+	for _, binding := range bindings {
+		provider := strings.TrimSpace(binding.Provider)
+		supportedChannels = append(supportedChannels, provider)
+		renderers[provider] = binding.Renderer
+	}
+
+	return Definition{
+		Kind:              kind,
+		SubscriptionType:  subscriptionType,
+		SupportedChannels: supportedChannels,
+		Renderers:         renderers,
 	}
 }
 

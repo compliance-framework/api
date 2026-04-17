@@ -45,6 +45,18 @@ func (e *stubEnqueuer) EnqueueNotificationEmail(_ context.Context, delivery Deli
 	return e.err
 }
 
+type stubTemplateRenderer struct {
+	content Content
+	err     error
+}
+
+func (r *stubTemplateRenderer) RenderTemplate(_ context.Context, _ TemplateContent) (Content, error) {
+	if r.err != nil {
+		return Content{}, r.err
+	}
+	return r.content, nil
+}
+
 func TestResolveUserTargetFallsBackToUserEmail(t *testing.T) {
 	provider := NewProvider(nil, nil)
 
@@ -119,4 +131,59 @@ func TestDeliverReturnsSendError(t *testing.T) {
 	})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "send email delivery")
+}
+
+func TestDeliverRendersTemplatePayload(t *testing.T) {
+	sender := &stubSender{enabled: true}
+	renderer := &stubTemplateRenderer{content: Content{
+		From:     "from@example.com",
+		Subject:  "Rendered subject",
+		TextBody: "Rendered body",
+	}}
+	provider := NewProviderWithTemplateRenderer(
+		func() Sender { return sender },
+		nil,
+		func() ContentRenderer { return renderer },
+	)
+
+	err := provider.Deliver(context.Background(), notification.Delivery{
+		Provider: ChannelID,
+		Target: notification.Target{
+			Provider: ChannelID,
+			Address:  map[string]string{AddressKeyEmail: "alice@example.com"},
+		},
+		Content: notification.Content{Provider: ChannelID, Payload: TemplateContent{
+			TemplateName: "workflow-task-assigned",
+			TemplateData: map[string]any{"UserName": "Alice"},
+			Subject:      "Rendered subject",
+			TextBody:     "Fallback body",
+		}},
+	})
+	require.NoError(t, err)
+	require.Len(t, sender.messages, 1)
+	assert.Equal(t, "Rendered subject", sender.messages[0].Subject)
+	assert.Equal(t, "Rendered body", sender.messages[0].TextBody)
+}
+
+func TestDeliverFallsBackForTemplatePayloadWithoutRenderer(t *testing.T) {
+	sender := &stubSender{enabled: true}
+	provider := NewProvider(func() Sender { return sender }, nil)
+
+	err := provider.Deliver(context.Background(), notification.Delivery{
+		Provider: ChannelID,
+		Target: notification.Target{
+			Provider: ChannelID,
+			Address:  map[string]string{AddressKeyEmail: "alice@example.com"},
+		},
+		Content: notification.Content{Provider: ChannelID, Payload: TemplateContent{
+			TemplateName: "workflow-task-assigned",
+			Subject:      "Fallback subject",
+			TextBody:     "Fallback body",
+		}},
+	})
+	require.NoError(t, err)
+	require.Len(t, sender.messages, 1)
+	assert.Equal(t, "noreply@localhost", sender.messages[0].From)
+	assert.Equal(t, "Fallback subject", sender.messages[0].Subject)
+	assert.Equal(t, "Fallback body", sender.messages[0].TextBody)
 }

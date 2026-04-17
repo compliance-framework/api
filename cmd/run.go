@@ -108,7 +108,6 @@ func RunServer(cmd *cobra.Command, args []string) {
 	)
 	digestNotifier := digest.NewNotificationService(
 		db,
-		emailService,
 		cfg,
 		digestRuntimeProvider,
 	)

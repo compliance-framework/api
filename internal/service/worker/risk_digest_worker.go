@@ -7,7 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/compliance-framework/api/internal/service/notification"
 	"github.com/compliance-framework/api/internal/service/relational"
 	riskrel "github.com/compliance-framework/api/internal/service/relational/risks"
 	slackformatters "github.com/compliance-framework/api/internal/service/slack/formatters"
@@ -202,55 +201,29 @@ func BuildRiskOpenDigestPlan(
 }
 
 type RiskOpenDigestWorker struct {
-	db                          *gorm.DB
-	emailService                EmailService
-	userRepo                    UserRepository
-	webBaseURL                  string
-	notificationRuntimeProvider notification.RuntimeProvider
-	logger                      *zap.SugaredLogger
-	now                         func() time.Time
+	db                         *gorm.DB
+	userRepo                   UserRepository
+	webBaseURL                 string
+	notificationServiceFactory *RiskNotificationServiceFactory
+	logger                     *zap.SugaredLogger
+	now                        func() time.Time
 }
 
-func NewRiskOpenDigestWorker(db *gorm.DB, emailService EmailService, slackService SlackService, userRepo UserRepository, webBaseURL string, logger *zap.SugaredLogger) *RiskOpenDigestWorker {
-	return NewRiskOpenDigestWorkerWithRuntimeProvider(
-		db,
-		emailService,
-		userRepo,
-		webBaseURL,
-		newWorkerNotificationRuntimeProvider(
-			emailService,
-			slackService,
-			func() notification.WorkerEnqueuer { return nil },
-		),
-		logger,
-	)
-}
-
-func NewRiskOpenDigestWorkerWithRuntimeProvider(
+func NewRiskOpenDigestWorker(
 	db *gorm.DB,
-	emailService EmailService,
 	userRepo UserRepository,
 	webBaseURL string,
-	runtimeProvider notification.RuntimeProvider,
+	notificationServiceFactory *RiskNotificationServiceFactory,
 	logger *zap.SugaredLogger,
 ) *RiskOpenDigestWorker {
 	worker := &RiskOpenDigestWorker{
-		db:                          db,
-		emailService:                emailService,
-		userRepo:                    userRepo,
-		webBaseURL:                  webBaseURL,
-		notificationRuntimeProvider: runtimeProvider,
-		logger:                      logger,
-		now:                         time.Now,
+		db:                         db,
+		userRepo:                   userRepo,
+		webBaseURL:                 webBaseURL,
+		notificationServiceFactory: notificationServiceFactory,
+		logger:                     logger,
+		now:                        time.Now,
 	}
-	if worker.notificationRuntimeProvider == nil {
-		worker.notificationRuntimeProvider = newWorkerNotificationRuntimeProvider(
-			emailService,
-			nil,
-			func() notification.WorkerEnqueuer { return nil },
-		)
-	}
-
 	return worker
 }
 
@@ -316,11 +289,10 @@ func (w *RiskOpenDigestWorker) Work(ctx context.Context, job *river.Job[RiskOpen
 		GeneratedAt:         w.now().UTC(),
 	}
 
-	notificationService := newRiskNotificationServiceFromFactory(
-		w.notificationRuntimeProvider.NewRuntimeFactory(nil),
-		w.emailService,
-		newNotificationUserRepositoryAdapter(w.userRepo, user),
-	)
+	notificationService, err := w.notificationServiceFactory.New(newNotificationUserRepositoryAdapter(w.userRepo, user))
+	if err != nil {
+		return fmt.Errorf("risk open digest: create notification service failed: %w", err)
+	}
 
 	if err := notificationService.Dispatch(
 		ctx,

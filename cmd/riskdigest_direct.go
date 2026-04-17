@@ -73,7 +73,8 @@ func sendRiskOpenDigestAtTime(
 		return result, nil
 	}
 
-	digestWorker := worker.NewRiskOpenDigestWorker(db, emailService, slackService, userRepo, webBaseURL, logger)
+	riskNotificationServiceFactory := worker.NewDirectRiskNotificationServiceFactory(emailService, slackService)
+	digestWorker := worker.NewRiskOpenDigestWorker(db, userRepo, webBaseURL, riskNotificationServiceFactory, logger)
 
 	var runErrors []error
 	for _, recipientID := range plan.RecipientUserIDs {

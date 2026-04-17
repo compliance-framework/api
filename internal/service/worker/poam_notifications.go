@@ -33,26 +33,22 @@ type poamOpenDigestNotificationModel struct {
 
 func newPoamNotificationServiceFromFactory(
 	runtimeFactory *notification.RuntimeFactory,
-	emailService EmailService,
 	users notification.UserRepository,
 ) *notification.Service {
 	return runtimeFactory.MustNewService(
 		users,
-		poamOpenDigestNotificationDefinition(emailService),
+		poamOpenDigestNotificationDefinition(),
 	)
 }
 
-func poamOpenDigestNotificationDefinition(emailService EmailService) notification.Definition {
-	return notification.Definition{
-		Kind:              poamOpenDigestNotificationKind,
-		SubscriptionType:  notification.NotificationTypeRiskNotifications,
-		SupportedChannels: []string{notification.DeliveryChannelEmail},
-		Renderers: map[string]notification.ChannelRenderer{
-			notification.DeliveryChannelEmail: emailprovider.Renderer(func(ctx context.Context, model any) (emailprovider.Content, error) {
-				return renderPoamOpenDigestEmail(ctx, emailService, model)
-			}),
-		},
-	}
+func poamOpenDigestNotificationDefinition() notification.Definition {
+	return notification.NewDefinition(
+		poamOpenDigestNotificationKind,
+		notification.NotificationTypeRiskNotifications,
+		emailprovider.TemplateChannel(func(ctx context.Context, model any) (emailprovider.TemplateContent, error) {
+			return renderPoamOpenDigestEmail(ctx, model)
+		}),
+	)
 }
 
 func buildPoamOpenDigestNotificationRequest(args PoamOpenDigestArgs, data poamOpenDigestNotificationData) notification.Request {
@@ -86,33 +82,6 @@ func newPoamOpenDigestNotificationModel(data poamOpenDigestNotificationData) poa
 		HasStale:               data.HasStale,
 		GeneratedAt:            data.GeneratedAt,
 	}
-}
-
-func renderPoamOpenDigestEmail(_ context.Context, emailService EmailService, model any) (emailprovider.Content, error) {
-	digestModel, err := poamOpenDigestNotificationModelFromAny(model)
-	if err != nil {
-		return emailprovider.Content{}, err
-	}
-
-	if emailService == nil {
-		return emailprovider.Content{
-			From:     "noreply@localhost",
-			Subject:  fmt.Sprintf("Your POAM digest - %s", formatDate(digestModel.GeneratedAt)),
-			TextBody: "Your POAM digest is ready.",
-		}, nil
-	}
-
-	htmlBody, textBody, err := emailService.UseTemplate("poam-open-digest", digestModel.templateData())
-	if err != nil {
-		return emailprovider.Content{}, fmt.Errorf("failed to render poam-open-digest template: %w", err)
-	}
-
-	return emailprovider.Content{
-		From:     emailService.GetDefaultFromAddress(),
-		Subject:  fmt.Sprintf("Your POAM digest — %s", formatDate(digestModel.GeneratedAt)),
-		HTMLBody: htmlBody,
-		TextBody: textBody,
-	}, nil
 }
 
 func (m poamOpenDigestNotificationModel) templateData() map[string]interface{} {

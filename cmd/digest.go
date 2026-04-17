@@ -101,7 +101,6 @@ func runDigestTest(cmd *cobra.Command, args []string) {
 
 	notifier := digest.NewNotificationService(
 		db,
-		emailService,
 		cfg,
 		runtimeProvider,
 	)
@@ -178,7 +177,6 @@ func runDigestPreview(cmd *cobra.Command, args []string) {
 
 	notifier := digest.NewNotificationService(
 		db,
-		emailService,
 		cfg,
 		runtimeProvider,
 	)

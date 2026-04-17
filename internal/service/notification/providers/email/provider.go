@@ -19,17 +19,36 @@ type Enqueuer interface {
 	EnqueueNotificationEmail(ctx context.Context, delivery Delivery) error
 }
 
+type ContentRenderer interface {
+	RenderTemplate(ctx context.Context, content TemplateContent) (Content, error)
+}
+
 type SenderProvider func() Sender
 
 type EnqueuerProvider func() Enqueuer
 
+type ContentRendererProvider func() ContentRenderer
+
 type Provider struct {
-	senderProvider   SenderProvider
-	enqueuerProvider EnqueuerProvider
+	senderProvider          SenderProvider
+	enqueuerProvider        EnqueuerProvider
+	contentRendererProvider ContentRendererProvider
 }
 
 func NewProvider(senderProvider SenderProvider, enqueuerProvider EnqueuerProvider) *Provider {
 	return &Provider{senderProvider: senderProvider, enqueuerProvider: enqueuerProvider}
+}
+
+func NewProviderWithTemplateRenderer(
+	senderProvider SenderProvider,
+	enqueuerProvider EnqueuerProvider,
+	contentRendererProvider ContentRendererProvider,
+) *Provider {
+	return &Provider{
+		senderProvider:          senderProvider,
+		enqueuerProvider:        enqueuerProvider,
+		contentRendererProvider: contentRendererProvider,
+	}
 }
 
 func (p *Provider) ID() string { return ChannelID }
@@ -74,7 +93,7 @@ func (p *Provider) ValidateTarget(target notification.Target) error {
 }
 
 func (p *Provider) Deliver(ctx context.Context, delivery notification.Delivery) error {
-	emailContent, err := extractContent(delivery.Content.Payload)
+	emailContent, err := p.extractContent(ctx, delivery.Content.Payload)
 	if err != nil {
 		return err
 	}
@@ -135,7 +154,14 @@ func (p *Provider) enqueuer() Enqueuer {
 	return p.enqueuerProvider()
 }
 
-func extractContent(payload any) (Content, error) {
+func (p *Provider) contentRenderer() ContentRenderer {
+	if p == nil || p.contentRendererProvider == nil {
+		return nil
+	}
+	return p.contentRendererProvider()
+}
+
+func (p *Provider) extractContent(ctx context.Context, payload any) (Content, error) {
 	switch typed := payload.(type) {
 	case Content:
 		return typed.Clone(), nil
@@ -144,9 +170,28 @@ func extractContent(payload any) (Content, error) {
 			return Content{}, fmt.Errorf("missing email content")
 		}
 		return typed.Clone(), nil
+	case TemplateContent:
+		return p.renderTemplateContent(ctx, typed.Clone())
+	case *TemplateContent:
+		if typed == nil {
+			return Content{}, fmt.Errorf("missing email template content")
+		}
+		return p.renderTemplateContent(ctx, typed.Clone())
 	default:
-		return Content{}, fmt.Errorf("email provider expects email.Content payload, got %T", payload)
+		return Content{}, fmt.Errorf("email provider expects email.Content or email.TemplateContent payload, got %T", payload)
 	}
+}
+
+func (p *Provider) renderTemplateContent(ctx context.Context, content TemplateContent) (Content, error) {
+	if renderer := p.contentRenderer(); renderer != nil {
+		rendered, err := renderer.RenderTemplate(ctx, content)
+		if err != nil {
+			return Content{}, err
+		}
+		return rendered, nil
+	}
+
+	return content.FallbackContent()
 }
 
 func cloneHeaders(headers map[string]string) map[string]string {

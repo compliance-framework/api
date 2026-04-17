@@ -30,26 +30,21 @@ type DueSoonCheckerWorker struct {
 	logger     *zap.SugaredLogger
 }
 
-// NewDueSoonCheckerWorkerWithRuntimeProvider creates a new DueSoonCheckerWorker with an injected runtime provider.
-func NewDueSoonCheckerWorkerWithRuntimeProvider(
+// NewDueSoonCheckerWorker creates a new DueSoonCheckerWorker with an injected runtime provider.
+func NewDueSoonCheckerWorker(
 	db *gorm.DB,
-	emailService EmailService,
 	webBaseURL string,
-	runtimeProvider notification.RuntimeProvider,
+	notificationRuntime notification.RuntimeProvider,
 	logger *zap.SugaredLogger,
 ) *DueSoonCheckerWorker {
 	userRepo := NewGORMUserRepository(db)
-	if runtimeProvider == nil {
-		runtimeProvider = notification.NewStaticRuntimeProvider(nil)
-	}
 
 	return &DueSoonCheckerWorker{
 		db:         db,
 		userRepo:   userRepo,
 		webBaseURL: webBaseURL,
 		notifier: newWorkflowNotificationServiceFromFactory(
-			runtimeProvider.NewRuntimeFactory(nil),
-			emailService,
+			notificationRuntime.NewRuntimeFactory(nil),
 			newNotificationUserRepositoryAdapter(userRepo),
 		),
 		logger: logger,

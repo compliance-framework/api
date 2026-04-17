@@ -36,12 +36,11 @@ func TestWorkflowTaskDigestWorker_DBRequiredAfterUserLookup(t *testing.T) {
 	}
 	mockRepo.On("FindUserByID", ctx, "user-1").Return(user, nil)
 
-	w := NewWorkflowTaskDigestWorkerWithRuntimeProvider(
+	w := NewWorkflowTaskDigestWorker(
 		nil,
-		mockEmail,
 		mockRepo,
 		"",
-		newWorkerNotificationRuntimeProvider(mockEmail, mockSlack, func() notification.WorkerEnqueuer { return nil }),
+		newTestNotificationRuntimeProvider(mockEmail, mockSlack),
 		mockLog,
 	)
 
@@ -62,12 +61,11 @@ func TestWorkflowTaskDigestWorker_UserNotFound_Skips(t *testing.T) {
 
 	mockRepo.On("FindUserByID", ctx, "missing").Return(NotificationUser{}, errors.New("not found"))
 
-	w := NewWorkflowTaskDigestWorkerWithRuntimeProvider(
+	w := NewWorkflowTaskDigestWorker(
 		nil,
-		mockEmail,
 		mockRepo,
 		"",
-		newWorkerNotificationRuntimeProvider(mockEmail, mockSlack, func() notification.WorkerEnqueuer { return nil }),
+		newTestNotificationRuntimeProvider(mockEmail, mockSlack),
 		mockLog,
 	)
 

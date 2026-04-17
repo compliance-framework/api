@@ -435,7 +435,6 @@ func (w *PoamOpenDigestSchedulerWorker) Work(ctx context.Context, _ *river.Job[P
 // single recipient.
 type PoamOpenDigestWorker struct {
 	db                          *gorm.DB
-	emailService                EmailService
 	userRepo                    UserRepository
 	webBaseURL                  string
 	notificationRuntimeProvider notification.RuntimeProvider
@@ -445,46 +444,19 @@ type PoamOpenDigestWorker struct {
 
 func NewPoamOpenDigestWorker(
 	db *gorm.DB,
-	emailService EmailService,
 	userRepo UserRepository,
 	webBaseURL string,
-	logger *zap.SugaredLogger,
-) *PoamOpenDigestWorker {
-	return NewPoamOpenDigestWorkerWithRuntimeProvider(
-		db,
-		emailService,
-		userRepo,
-		webBaseURL,
-		newWorkerNotificationRuntimeProvider(emailService, nil, func() notification.WorkerEnqueuer { return nil }),
-		logger,
-	)
-}
-
-func NewPoamOpenDigestWorkerWithRuntimeProvider(
-	db *gorm.DB,
-	emailService EmailService,
-	userRepo UserRepository,
-	webBaseURL string,
-	runtimeProvider notification.RuntimeProvider,
+	notificationRuntime notification.RuntimeProvider,
 	logger *zap.SugaredLogger,
 ) *PoamOpenDigestWorker {
 	worker := &PoamOpenDigestWorker{
 		db:                          db,
-		emailService:                emailService,
 		userRepo:                    userRepo,
 		webBaseURL:                  webBaseURL,
-		notificationRuntimeProvider: runtimeProvider,
+		notificationRuntimeProvider: notificationRuntime,
 		logger:                      logger,
 		now:                         time.Now,
 	}
-	if worker.notificationRuntimeProvider == nil {
-		worker.notificationRuntimeProvider = newWorkerNotificationRuntimeProvider(
-			emailService,
-			nil,
-			func() notification.WorkerEnqueuer { return nil },
-		)
-	}
-
 	return worker
 }
 
@@ -565,7 +537,6 @@ func (w *PoamOpenDigestWorker) Work(ctx context.Context, job *river.Job[PoamOpen
 
 	notificationService := newPoamNotificationServiceFromFactory(
 		w.notificationRuntimeProvider.NewRuntimeFactory(nil),
-		w.emailService,
 		newNotificationUserRepositoryAdapter(w.userRepo, user),
 	)
 

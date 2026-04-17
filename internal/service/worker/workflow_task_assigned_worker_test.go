@@ -58,11 +58,10 @@ func TestWorkflowTaskAssignedWorker_SubscribedUser_SendsEmail(t *testing.T) {
 		return msg.To[0] == "alice@example.com"
 	})).Return(&types.SendResult{Success: true, MessageID: "msg-1"}, nil)
 
-	w := NewWorkflowTaskAssignedWorkerWithRuntimeProvider(
-		mockEmail,
+	w := NewWorkflowTaskAssignedWorker(
 		mockRepo,
 		"http://localhost:8000",
-		newWorkerNotificationRuntimeProvider(mockEmail, nil, func() notification.WorkerEnqueuer { return nil }),
+		newTestNotificationRuntimeProvider(mockEmail, nil),
 		mockLog,
 	)
 
@@ -99,11 +98,10 @@ func TestWorkflowTaskAssignedWorker_UnsubscribedUser_Skips(t *testing.T) {
 	}
 	mockRepo.On("FindUserByID", ctx, "user-2").Return(user, nil)
 
-	w := NewWorkflowTaskAssignedWorkerWithRuntimeProvider(
-		mockEmail,
+	w := NewWorkflowTaskAssignedWorker(
 		mockRepo,
 		"http://localhost:8000",
-		newWorkerNotificationRuntimeProvider(mockEmail, nil, func() notification.WorkerEnqueuer { return nil }),
+		newTestNotificationRuntimeProvider(mockEmail, nil),
 		mockLog,
 	)
 
@@ -129,11 +127,10 @@ func TestWorkflowTaskAssignedWorker_UserNotFound_Skips(t *testing.T) {
 
 	mockRepo.On("FindUserByID", ctx, "missing-user").Return(NotificationUser{}, errors.New("not found"))
 
-	w := NewWorkflowTaskAssignedWorkerWithRuntimeProvider(
-		mockEmail,
+	w := NewWorkflowTaskAssignedWorker(
 		mockRepo,
 		"http://localhost:8000",
-		newWorkerNotificationRuntimeProvider(mockEmail, nil, func() notification.WorkerEnqueuer { return nil }),
+		newTestNotificationRuntimeProvider(mockEmail, nil),
 		mockLog,
 	)
 
@@ -167,11 +164,10 @@ func TestWorkflowTaskAssignedWorker_TemplateError_ReturnsError(t *testing.T) {
 	mockEmail.On("UseTemplate", "workflow-task-assigned", mock.Anything).Return("", "", errors.New("template broken"))
 	mockEmail.On("GetDefaultFromAddress").Return("noreply@example.com")
 
-	w := NewWorkflowTaskAssignedWorkerWithRuntimeProvider(
-		mockEmail,
+	w := NewWorkflowTaskAssignedWorker(
 		mockRepo,
 		"http://localhost:8000",
-		newWorkerNotificationRuntimeProvider(mockEmail, nil, func() notification.WorkerEnqueuer { return nil }),
+		newTestNotificationRuntimeProvider(mockEmail, nil),
 		mockLog,
 	)
 
@@ -212,11 +208,10 @@ func TestWorkflowTaskAssignedWorker_MultiChannel_EmailChannelJob_SendsOnlyEmail(
 		return msg.To[0] == "dora@example.com"
 	})).Return(&types.SendResult{Success: true, MessageID: "msg-4"}, nil).Once()
 
-	w := NewWorkflowTaskAssignedWorkerWithRuntimeProvider(
-		mockEmail,
+	w := NewWorkflowTaskAssignedWorker(
 		mockRepo,
 		"http://localhost:8000",
-		newWorkerNotificationRuntimeProvider(mockEmail, mockSlack, func() notification.WorkerEnqueuer { return nil }),
+		newTestNotificationRuntimeProvider(mockEmail, mockSlack),
 		mockLog,
 	)
 
@@ -263,11 +258,10 @@ func TestWorkflowTaskAssignedWorker_MultiChannel_SlackChannelJob_SendsOnlySlack(
 		return msg != nil && msg.Text != ""
 	})).Return(&slacktypes.SendResult{Success: true, DeliveryID: "slack-msg-5"}, nil).Once()
 
-	w := NewWorkflowTaskAssignedWorkerWithRuntimeProvider(
-		mockEmail,
+	w := NewWorkflowTaskAssignedWorker(
 		mockRepo,
 		"http://localhost:8000",
-		newWorkerNotificationRuntimeProvider(mockEmail, mockSlack, func() notification.WorkerEnqueuer { return nil }),
+		newTestNotificationRuntimeProvider(mockEmail, mockSlack),
 		mockLog,
 	)
 
@@ -304,11 +298,10 @@ func TestWorkflowTaskAssignedWorker_EmailAssignee_SendsDirectEmailWithoutUserLoo
 		return len(msg.To) == 1 && msg.To[0] == "external@example.com"
 	})).Return(&types.SendResult{Success: true, MessageID: "msg-external"}, nil).Once()
 
-	w := NewWorkflowTaskAssignedWorkerWithRuntimeProvider(
-		mockEmail,
+	w := NewWorkflowTaskAssignedWorker(
 		mockRepo,
 		"http://localhost:8000",
-		newWorkerNotificationRuntimeProvider(mockEmail, nil, func() notification.WorkerEnqueuer { return nil }),
+		newTestNotificationRuntimeProvider(mockEmail, nil),
 		mockLog,
 	)
 
@@ -350,8 +343,7 @@ func TestWorkflowTaskAssignedWorker_WithNotificationEnqueuer_EnqueuesSubscribedC
 	mockEmail.On("UseTemplate", "workflow-task-assigned", mock.Anything).Return("<html>Task</html>", "Task text", nil)
 	mockEmail.On("GetDefaultFromAddress").Return("noreply@example.com")
 
-	w := NewWorkflowTaskAssignedWorkerWithRuntimeProvider(
-		mockEmail,
+	w := NewWorkflowTaskAssignedWorker(
 		mockRepo,
 		"http://localhost:8000",
 		newWorkerNotificationRuntimeProvider(mockEmail, nil, func() notification.WorkerEnqueuer {

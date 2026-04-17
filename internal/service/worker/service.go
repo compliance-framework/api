@@ -251,9 +251,8 @@ func NewServiceWithDigest(
 	river.AddWorker(workers, river.WorkFunc(schedulerWorker.Work))
 
 	// Add due-soon checker worker (uses clientProxy which is wired to the real client after construction)
-	dueSoonCheckerWorker := NewDueSoonCheckerWorkerWithRuntimeProvider(
+	dueSoonCheckerWorker := NewDueSoonCheckerWorker(
 		db,
-		emailSvc,
 		webBaseURL,
 		dueSoonRuntimeProvider,
 		logger,

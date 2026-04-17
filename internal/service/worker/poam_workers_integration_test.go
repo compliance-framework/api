@@ -442,7 +442,7 @@ func (suite *PoamWorkersIntegrationSuite) TestPoamOpenDigest_CorrectGroupingPerR
 		return len(msg.To) == 1 && msg.To[0] == "digest-owner@example.com"
 	})).Return(&types.SendResult{Success: true, MessageID: "msg-digest-1"}, nil)
 
-	digestWorker := NewPoamOpenDigestWorker(suite.DB, mockEmail, NewGORMUserRepository(suite.DB), suite.Config.WebBaseURL, suite.logger)
+	digestWorker := NewPoamOpenDigestWorker(suite.DB, NewGORMUserRepository(suite.DB), suite.Config.WebBaseURL, newTestNotificationRuntimeProvider(mockEmail, nil), suite.logger)
 	suite.Require().NoError(digestWorker.Work(ctx, &river.Job[PoamOpenDigestArgs]{Args: digestArgs}))
 	mockEmail.AssertExpectations(suite.T())
 }

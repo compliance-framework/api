@@ -22,6 +22,10 @@ type workerNotificationEmailSender struct {
 	service EmailService
 }
 
+type workerNotificationEmailTemplateRenderer struct {
+	service EmailService
+}
+
 type workerNotificationEnqueuer struct {
 	client      workflow.RiverClient
 	emailQueue  string
@@ -39,7 +43,7 @@ func newWorkerNotificationTransport(
 	workerEnqueuerProvider notification.WorkerEnqueuerProvider,
 ) *notification.DeliveryTransport {
 	return notification.NewDeliveryTransport(
-		notification.WithProvider(emailprovider.NewProvider(
+		notification.WithProvider(emailprovider.NewProviderWithTemplateRenderer(
 			func() emailprovider.Sender {
 				if emailService == nil {
 					return nil
@@ -62,6 +66,12 @@ func newWorkerNotificationTransport(
 				}
 
 				return enqueuer
+			},
+			func() emailprovider.ContentRenderer {
+				if emailService == nil {
+					return nil
+				}
+				return &workerNotificationEmailTemplateRenderer{service: emailService}
 			},
 		)),
 		notification.WithProvider(slackprovider.NewProvider(
@@ -160,6 +170,43 @@ func (s *workerNotificationEmailSender) Send(ctx context.Context, message *email
 		return nil, fmt.Errorf("email service is not configured")
 	}
 	return s.service.Send(ctx, message)
+}
+
+func (r *workerNotificationEmailTemplateRenderer) RenderTemplate(_ context.Context, content emailprovider.TemplateContent) (emailprovider.Content, error) {
+	if r == nil || r.service == nil {
+		return content.FallbackContent()
+	}
+
+	htmlBody, textBody, err := r.service.UseTemplate(content.TemplateName, content.TemplateData)
+	if err != nil {
+		return emailprovider.Content{}, fmt.Errorf("failed to render %s template: %w", content.TemplateName, err)
+	}
+
+	from := strings.TrimSpace(content.From)
+	if from == "" {
+		from = strings.TrimSpace(r.service.GetDefaultFromAddress())
+	}
+
+	return emailprovider.Content{
+		From:        from,
+		Subject:     strings.TrimSpace(content.Subject),
+		HTMLBody:    htmlBody,
+		TextBody:    textBody,
+		Attachments: append([]emailtypes.Attachment(nil), content.Attachments...),
+		Headers:     cloneNotificationEmailHeaders(content.Headers),
+	}, nil
+}
+
+func cloneNotificationEmailHeaders(headers map[string]string) map[string]string {
+	if len(headers) == 0 {
+		return nil
+	}
+
+	cloned := make(map[string]string, len(headers))
+	for key, value := range headers {
+		cloned[key] = value
+	}
+	return cloned
 }
 
 func normalizedNotificationEmailQueue(queue string) string {
