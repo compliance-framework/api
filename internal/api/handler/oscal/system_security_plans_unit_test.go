@@ -48,6 +48,26 @@ func TestGetControlIDsForAllProfilesFallsBackForProfilesMissingPivotRows(t *test
 	require.ElementsMatch(t, []string{"ac-1", "ac-2"}, controlIDs)
 }
 
+func TestBuildProfileSummariesRejectsNilProfileID(t *testing.T) {
+	summaries, err := buildProfileSummaries([]relational.Profile{{}})
+
+	require.Error(t, err)
+	require.Nil(t, summaries)
+}
+
+func TestBuildProfileSummariesIncludesIDAndTitle(t *testing.T) {
+	profileID := uuid.New()
+	summaries, err := buildProfileSummaries([]relational.Profile{
+		{
+			UUIDModel: relational.UUIDModel{ID: &profileID},
+			Metadata:  relational.Metadata{Title: "Profile A"},
+		},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, []profileSummary{{ID: profileID.String(), Title: "Profile A"}}, summaries)
+}
+
 func TestAttachProfileReturnsInternalServerErrorForUnexpectedSSPLoadError(t *testing.T) {
 	handler := NewSystemSecurityPlanHandler(zap.NewNop().Sugar(), closedSQLiteDB(t), nil, nil)
 	sspID := uuid.New()

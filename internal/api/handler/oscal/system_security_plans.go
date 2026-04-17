@@ -42,6 +42,22 @@ type addProfileRequest struct {
 	ProfileID string `json:"profileId"`
 }
 
+func buildProfileSummaries(profiles []relational.Profile) ([]profileSummary, error) {
+	summaries := make([]profileSummary, 0, len(profiles))
+	for _, p := range profiles {
+		if p.ID == nil {
+			return nil, errors.New("profile is missing ID")
+		}
+
+		ps := profileSummary{ID: p.ID.String()}
+		if p.Metadata.Title != "" {
+			ps.Title = p.Metadata.Title
+		}
+		summaries = append(summaries, ps)
+	}
+	return summaries, nil
+}
+
 type SystemSecurityPlanHandler struct {
 	sugar             *zap.SugaredLogger
 	db                *gorm.DB
@@ -1929,12 +1945,12 @@ func (h *SystemSecurityPlanHandler) GetProfile(ctx echo.Context) error {
 //	@Tags			System Security Plans
 //	@Accept			json
 //	@Produce		json
-//	@Param			id			path		string	true	"SSP ID"
-//	@Param			profileId	body		string	true	"Profile ID to attach"
-//	@Success		200			{object}	handler.GenericDataResponse[oscalTypes_1_1_3.SystemSecurityPlan]
-//	@Failure		400			{object}	api.Error
-//	@Failure		404			{object}	api.Error
-//	@Failure		500			{object}	api.Error
+//	@Param			id		path		string				true	"SSP ID"
+//	@Param			request	body		addProfileRequest	true	"Profile binding request"
+//	@Success		200		{object}	handler.GenericDataResponse[oscalTypes_1_1_3.SystemSecurityPlan]
+//	@Failure		400		{object}	api.Error
+//	@Failure		404		{object}	api.Error
+//	@Failure		500		{object}	api.Error
 //	@Router			/oscal/system-security-plans/{id}/profile [put]
 func (h *SystemSecurityPlanHandler) AttachProfile(ctx echo.Context) error {
 	idParam := ctx.Param("id")
@@ -1944,9 +1960,7 @@ func (h *SystemSecurityPlanHandler) AttachProfile(ctx echo.Context) error {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 
-	var input struct {
-		ProfileID string `json:"profileId"`
-	}
+	var input addProfileRequest
 	if err := ctx.Bind(&input); err != nil {
 		h.sugar.Warnw("Invalid profile ID input", "error", err)
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
@@ -1965,14 +1979,6 @@ func (h *SystemSecurityPlanHandler) AttachProfile(ctx echo.Context) error {
 		}
 		h.sugar.Errorw("Failed to load SSP", "sspID", sspID, "error", err)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
-	}
-
-	// Capture the old profile IDs for orphaned risk cleanup.
-	oldProfileIDs := make([]uuid.UUID, 0, len(ssp.Profiles))
-	for _, p := range ssp.Profiles {
-		if p.ID != nil {
-			oldProfileIDs = append(oldProfileIDs, *p.ID)
-		}
 	}
 
 	// Load the profile basic info
@@ -2067,12 +2073,10 @@ func (h *SystemSecurityPlanHandler) AttachProfile(ctx echo.Context) error {
 	if h.jobEnqueuer != nil {
 		enqueueCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx.Request().Context()), 10*time.Second)
 		defer cancel()
-		// Use the first old profile ID for backward-compatible cleanup signature.
-		var oldProfileID *uuid.UUID
-		if len(oldProfileIDs) > 0 {
-			oldProfileID = &oldProfileIDs[0]
-		}
-		if err := h.jobEnqueuer.EnqueueOrphanedRiskCleanup(enqueueCtx, sspID, oldProfileID, &profileID); err != nil {
+		// Replacement cleanup resolves the current bound profiles at execution time.
+		// Keep oldProfileID nil so equivalent replacements dedupe consistently even
+		// when the previous M:M profile order is nondeterministic.
+		if err := h.jobEnqueuer.EnqueueOrphanedRiskCleanup(enqueueCtx, sspID, nil, &profileID); err != nil {
 			h.sugar.Warnw("Failed to enqueue orphaned risk cleanup job", "sspId", sspID, "error", err)
 		}
 	}
@@ -2119,13 +2123,10 @@ func (h *SystemSecurityPlanHandler) ListProfiles(ctx echo.Context) error {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
-	summaries := make([]profileSummary, 0, len(ssp.Profiles))
-	for _, p := range ssp.Profiles {
-		ps := profileSummary{ID: p.ID.String()}
-		if p.Metadata.Title != "" {
-			ps.Title = p.Metadata.Title
-		}
-		summaries = append(summaries, ps)
+	summaries, err := buildProfileSummaries(ssp.Profiles)
+	if err != nil {
+		h.sugar.Errorw("Failed to build profile summaries", "sspId", sspID, "error", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
 	return ctx.JSON(http.StatusOK, handler.GenericDataListResponse[profileSummary]{Data: summaries})
@@ -2280,13 +2281,10 @@ func (h *SystemSecurityPlanHandler) AddProfile(ctx echo.Context) error {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
-	summaries := make([]profileSummary, 0, len(updated.Profiles))
-	for _, p := range updated.Profiles {
-		ps := profileSummary{ID: p.ID.String()}
-		if p.Metadata.Title != "" {
-			ps.Title = p.Metadata.Title
-		}
-		summaries = append(summaries, ps)
+	summaries, err := buildProfileSummaries(updated.Profiles)
+	if err != nil {
+		h.sugar.Errorw("Failed to build profile summaries after adding profile", "sspId", sspID, "error", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
 	return ctx.JSON(http.StatusOK, handler.GenericDataListResponse[profileSummary]{Data: summaries})
@@ -2357,13 +2355,10 @@ func (h *SystemSecurityPlanHandler) RemoveProfile(ctx echo.Context) error {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
-	summaries := make([]profileSummary, 0, len(updated.Profiles))
-	for _, p := range updated.Profiles {
-		ps := profileSummary{ID: p.ID.String()}
-		if p.Metadata.Title != "" {
-			ps.Title = p.Metadata.Title
-		}
-		summaries = append(summaries, ps)
+	summaries, err := buildProfileSummaries(updated.Profiles)
+	if err != nil {
+		h.sugar.Errorw("Failed to build profile summaries after removing profile", "sspId", sspID, "error", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
 	return ctx.JSON(http.StatusOK, handler.GenericDataListResponse[profileSummary]{Data: summaries})

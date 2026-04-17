@@ -19264,12 +19264,12 @@ paths:
         name: id
         required: true
         type: string
-      - description: Profile ID to attach
+      - description: Profile binding request
         in: body
-        name: profileId
+        name: request
         required: true
         schema:
-          type: string
+          $ref: '#/definitions/oscal.addProfileRequest'
       produces:
       - application/json
       responses:

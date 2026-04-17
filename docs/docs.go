@@ -15655,12 +15655,12 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "Profile ID to attach",
-                        "name": "profileId",
+                        "description": "Profile binding request",
+                        "name": "request",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "type": "string"
+                            "$ref": "#/definitions/oscal.addProfileRequest"
                         }
                     }
                 ],
