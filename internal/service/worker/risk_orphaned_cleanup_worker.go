@@ -65,10 +65,12 @@ func (w *RiskOrphanedCleanupWorker) Work(ctx context.Context, job *river.Job[Ris
 	db := w.db.WithContext(ctx)
 
 	var ssp relational.SystemSecurityPlan
-	if err := db.Preload("Profiles").Select("id", "profile_id").First(&ssp, "id = ?", args.SSPID).Error; err != nil {
+	if err := db.Preload("Profiles").Select("id").First(&ssp, "id = ?", args.SSPID).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			w.logger.Infow("risk orphaned cleanup: ssp not found, skipping",
 				"ssp_id", args.SSPID,
+				"old_profile_id", args.OldProfileID,
+				"new_profile_id", args.NewProfileID,
 			)
 			return nil
 		}
