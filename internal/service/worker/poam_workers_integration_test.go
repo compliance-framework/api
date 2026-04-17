@@ -175,7 +175,12 @@ func (suite *PoamWorkersIntegrationSuite) TestPoamDeadlineReminderScanner_Enqueu
 		return len(msg.To) == 1 && msg.To[0] == "owner@example.com"
 	})).Return(&types.SendResult{Success: true, MessageID: "msg-reminder-1"}, nil)
 
-	notifier := NewPoamDeadlineReminderWorker(mockEmail, NewGORMUserRepository(suite.DB), suite.Config.WebBaseURL, suite.logger)
+	notifier := NewPoamDeadlineReminderWorker(
+		NewGORMUserRepository(suite.DB),
+		suite.Config.WebBaseURL,
+		newTestPoamNotificationServiceFactory(mockEmail, nil),
+		suite.logger,
+	)
 	suite.Require().NoError(notifier.Work(ctx, &river.Job[PoamDeadlineReminderArgs]{Args: reminderArgs}))
 	mockEmail.AssertExpectations(suite.T())
 }
@@ -442,7 +447,7 @@ func (suite *PoamWorkersIntegrationSuite) TestPoamOpenDigest_CorrectGroupingPerR
 		return len(msg.To) == 1 && msg.To[0] == "digest-owner@example.com"
 	})).Return(&types.SendResult{Success: true, MessageID: "msg-digest-1"}, nil)
 
-	digestWorker := NewPoamOpenDigestWorker(suite.DB, NewGORMUserRepository(suite.DB), suite.Config.WebBaseURL, newTestNotificationRuntimeProvider(mockEmail, nil), suite.logger)
+	digestWorker := NewPoamOpenDigestWorker(suite.DB, NewGORMUserRepository(suite.DB), suite.Config.WebBaseURL, newTestPoamNotificationServiceFactory(mockEmail, nil), suite.logger)
 	suite.Require().NoError(digestWorker.Work(ctx, &river.Job[PoamOpenDigestArgs]{Args: digestArgs}))
 	mockEmail.AssertExpectations(suite.T())
 }

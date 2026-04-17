@@ -26,7 +26,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/compliance-framework/api/internal/service/notification"
 	poamsvc "github.com/compliance-framework/api/internal/service/relational/poam"
 	"github.com/compliance-framework/api/internal/workflow"
 	"github.com/google/uuid"
@@ -434,28 +433,28 @@ func (w *PoamOpenDigestSchedulerWorker) Work(ctx context.Context, _ *river.Job[P
 // PoamOpenDigestWorker builds and dispatches the grouped POAM digest notification for a
 // single recipient.
 type PoamOpenDigestWorker struct {
-	db                          *gorm.DB
-	userRepo                    UserRepository
-	webBaseURL                  string
-	notificationRuntimeProvider notification.RuntimeProvider
-	logger                      *zap.SugaredLogger
-	now                         func() time.Time
+	db                         *gorm.DB
+	userRepo                   UserRepository
+	webBaseURL                 string
+	notificationServiceFactory *PoamNotificationServiceFactory
+	logger                     *zap.SugaredLogger
+	now                        func() time.Time
 }
 
 func NewPoamOpenDigestWorker(
 	db *gorm.DB,
 	userRepo UserRepository,
 	webBaseURL string,
-	notificationRuntime notification.RuntimeProvider,
+	notificationServiceFactory *PoamNotificationServiceFactory,
 	logger *zap.SugaredLogger,
 ) *PoamOpenDigestWorker {
 	worker := &PoamOpenDigestWorker{
-		db:                          db,
-		userRepo:                    userRepo,
-		webBaseURL:                  webBaseURL,
-		notificationRuntimeProvider: notificationRuntime,
-		logger:                      logger,
-		now:                         time.Now,
+		db:                         db,
+		userRepo:                   userRepo,
+		webBaseURL:                 webBaseURL,
+		notificationServiceFactory: notificationServiceFactory,
+		logger:                     logger,
+		now:                        time.Now,
 	}
 	return worker
 }
@@ -535,10 +534,12 @@ func (w *PoamOpenDigestWorker) Work(ctx context.Context, job *river.Job[PoamOpen
 		GeneratedAt:            w.now().UTC(),
 	}
 
-	notificationService := newPoamNotificationServiceFromFactory(
-		w.notificationRuntimeProvider.NewRuntimeFactory(nil),
+	notificationService, err := w.notificationServiceFactory.New(
 		newNotificationUserRepositoryAdapter(w.userRepo, user),
 	)
+	if err != nil {
+		return fmt.Errorf("create poam notification service: %w", err)
+	}
 
 	if err := notificationService.Dispatch(
 		ctx,

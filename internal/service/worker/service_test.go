@@ -78,6 +78,10 @@ func newTestRiskNotificationServiceFactory(email EmailService, slack SlackServic
 	return NewRiskNotificationServiceFactory(newTestNotificationRuntimeProvider(email, slack))
 }
 
+func newTestPoamNotificationServiceFactory(email EmailService, slack SlackService) *PoamNotificationServiceFactory {
+	return NewPoamNotificationServiceFactory(newTestNotificationRuntimeProvider(email, slack))
+}
+
 func makeWorkerJob[T river.JobArgs](args T) *river.Job[T] {
 	return &river.Job[T]{
 		JobRow: &rivertype.JobRow{ID: 1},

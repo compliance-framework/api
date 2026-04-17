@@ -628,7 +628,7 @@ func Workers(
 			slackService,
 			func() notification.WorkerEnqueuer { return notificationWorkerEnqueuer },
 		)
-		workflowDueSoonRuntimeProvider := newWorkerNotificationRuntimeProvider(
+		sharedNotificationRuntimeProvider := newWorkerNotificationRuntimeProvider(
 			emailService,
 			slackService,
 			func() notification.WorkerEnqueuer { return nil },
@@ -646,34 +646,26 @@ func Workers(
 		workflowTaskDueSoonWorker := NewWorkflowTaskDueSoonWorker(
 			userRepo,
 			webBaseURL,
-			workflowDueSoonRuntimeProvider,
+			sharedNotificationRuntimeProvider,
 			logger,
 		)
 		river.AddWorker(workers, river.WorkFunc(workflowTaskDueSoonWorker.Work))
 
 		if db != nil {
-			workflowDigestRuntimeProvider := newWorkerNotificationRuntimeProvider(
-				emailService,
-				slackService,
-				func() notification.WorkerEnqueuer { return nil },
-			)
-			riskNotificationRuntimeProvider := newWorkerNotificationRuntimeProvider(
-				emailService,
-				slackService,
-				func() notification.WorkerEnqueuer { return nil },
-			)
-			riskNotificationServiceFactory := NewRiskNotificationServiceFactory(riskNotificationRuntimeProvider)
+			riskNotificationServiceFactory := NewRiskNotificationServiceFactory(sharedNotificationRuntimeProvider)
 			workflowTaskDigestWorker := NewWorkflowTaskDigestWorker(
 				db,
 				userRepo,
 				webBaseURL,
-				workflowDigestRuntimeProvider,
+				sharedNotificationRuntimeProvider,
 				logger,
 			)
 			river.AddWorker(workers, river.WorkFunc(workflowTaskDigestWorker.Work))
 
 			workflowExecutionFailedWorker := NewWorkflowExecutionFailedWorker(db, emailService, userRepo, webBaseURL, logger)
 			river.AddWorker(workers, river.WorkFunc(workflowExecutionFailedWorker.Work))
+
+			poamNotificationServiceFactory := NewPoamNotificationServiceFactory(sharedNotificationRuntimeProvider)
 
 			riskReviewDueReminderWorker := NewRiskReviewDueReminderWorker(db, userRepo, webBaseURL, riskNotificationServiceFactory, logger)
 			river.AddWorker(workers, river.WorkFunc(riskReviewDueReminderWorker.Work))
@@ -688,7 +680,12 @@ func Workers(
 			river.AddWorker(workers, river.WorkFunc(riskOpenDigestWorker.Work))
 
 			// Register POAM notification workers (BCH-1186 Phase 3)
-			poamDeadlineReminderWorker := NewPoamDeadlineReminderWorker(emailService, userRepo, webBaseURL, logger)
+			poamDeadlineReminderWorker := NewPoamDeadlineReminderWorker(
+				userRepo,
+				webBaseURL,
+				poamNotificationServiceFactory,
+				logger,
+			)
 			river.AddWorker(workers, river.WorkFunc(poamDeadlineReminderWorker.Work))
 
 			poamOverdueNotificationWorker := NewPoamOverdueNotificationWorker(emailService, userRepo, webBaseURL, logger)
@@ -703,7 +700,7 @@ func Workers(
 				db,
 				userRepo,
 				webBaseURL,
-				newWorkerNotificationRuntimeProvider(emailService, nil, func() notification.WorkerEnqueuer { return nil }),
+				poamNotificationServiceFactory,
 				logger,
 			)
 			river.AddWorker(workers, river.WorkFunc(poamOpenDigestWorker.Work))
