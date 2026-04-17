@@ -273,7 +273,12 @@ func (suite *PoamWorkersIntegrationSuite) TestPoamOverdueTransitionScanner_Trans
 		return len(msg.To) == 1 && msg.To[0] == "overdue-owner@example.com"
 	})).Return(&types.SendResult{Success: true, MessageID: "msg-overdue-1"}, nil)
 
-	notifier := NewPoamOverdueNotificationWorker(mockEmail, NewGORMUserRepository(suite.DB), suite.Config.WebBaseURL, suite.logger)
+	notifier := NewPoamOverdueNotificationWorker(
+		NewGORMUserRepository(suite.DB),
+		suite.Config.WebBaseURL,
+		newTestPoamNotificationServiceFactory(mockEmail, nil),
+		suite.logger,
+	)
 	suite.Require().NoError(notifier.Work(ctx, &river.Job[PoamOverdueNotificationArgs]{Args: notifArgs}))
 	mockEmail.AssertExpectations(suite.T())
 }

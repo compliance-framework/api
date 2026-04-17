@@ -688,7 +688,12 @@ func Workers(
 			)
 			river.AddWorker(workers, river.WorkFunc(poamDeadlineReminderWorker.Work))
 
-			poamOverdueNotificationWorker := NewPoamOverdueNotificationWorker(emailService, userRepo, webBaseURL, logger)
+			poamOverdueNotificationWorker := NewPoamOverdueNotificationWorker(
+				userRepo,
+				webBaseURL,
+				poamNotificationServiceFactory,
+				logger,
+			)
 			river.AddWorker(workers, river.WorkFunc(poamOverdueNotificationWorker.Work))
 
 			milestoneOverdueReminderWorker := NewMilestoneOverdueReminderWorker(emailService, userRepo, webBaseURL, logger)

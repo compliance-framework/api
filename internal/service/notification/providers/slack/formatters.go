@@ -23,6 +23,7 @@ type WorkflowTaskDigestItem = slackformatters.WorkflowTaskDigestItem
 var (
 	FormatDigestMessage                      = slackformatters.FormatDigestMessage
 	FormatPoamDeadlineReminderMessage        = slackformatters.FormatPoamDeadlineReminderMessage
+	FormatPoamOverdueNotificationMessage     = slackformatters.FormatPoamOverdueNotificationMessage
 	FormatRiskReviewDueReminderMessage       = slackformatters.FormatRiskReviewDueReminderMessage
 	FormatRiskReviewOverdueEscalationMessage = slackformatters.FormatRiskReviewOverdueEscalationMessage
 	FormatRiskStaleOpenReminderMessage       = slackformatters.FormatRiskStaleOpenReminderMessage

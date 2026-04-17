@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/compliance-framework/api/internal/service/email/types"
 	"github.com/compliance-framework/api/internal/service/relational/poam"
 	"github.com/compliance-framework/api/internal/workflow"
 	"github.com/riverqueue/river"
@@ -153,31 +152,31 @@ func (w *PoamOverdueTransitionScannerWorker) Work(
 
 // ─── Notification worker ─────────────────────────────────────────────────────
 
-// PoamOverdueNotificationWorker sends a single POAM overdue notification email
+// PoamOverdueNotificationWorker sends a single POAM overdue notification
 // to one recipient.
 type PoamOverdueNotificationWorker struct {
-	emailService EmailService
-	userRepo     UserRepository
-	webBaseURL   string
-	logger       *zap.SugaredLogger
+	userRepo                   UserRepository
+	webBaseURL                 string
+	notificationServiceFactory *PoamNotificationServiceFactory
+	logger                     *zap.SugaredLogger
 }
 
 // NewPoamOverdueNotificationWorker constructs a PoamOverdueNotificationWorker.
 func NewPoamOverdueNotificationWorker(
-	emailService EmailService,
 	userRepo UserRepository,
 	webBaseURL string,
+	notificationServiceFactory *PoamNotificationServiceFactory,
 	logger *zap.SugaredLogger,
 ) *PoamOverdueNotificationWorker {
 	return &PoamOverdueNotificationWorker{
-		emailService: emailService,
-		userRepo:     userRepo,
-		webBaseURL:   webBaseURL,
-		logger:       logger,
+		userRepo:                   userRepo,
+		webBaseURL:                 webBaseURL,
+		notificationServiceFactory: notificationServiceFactory,
+		logger:                     logger,
 	}
 }
 
-// Work sends the POAM overdue notification email for a single item × recipient.
+// Work sends the POAM overdue notification for a single item × recipient.
 func (w *PoamOverdueNotificationWorker) Work(
 	ctx context.Context,
 	job *river.Job[PoamOverdueNotificationArgs],
@@ -192,43 +191,24 @@ func (w *PoamOverdueNotificationWorker) Work(
 		)
 		return nil
 	}
-	if user.Email == "" {
-		return nil
-	}
 
-	templateData := map[string]interface{}{
-		"RecipientName": user.FullName(),
-		"PoamTitle":     args.PoamTitle,
-		"SSPName":       args.SspDisplayName,
-		"Deadline":      args.Deadline,
-		"PoamURL":       args.PoamURL,
-	}
-
-	htmlBody, textBody, err := w.emailService.UseTemplate("poam-overdue-notification", templateData)
+	notificationService, err := w.notificationServiceFactory.New(
+		newNotificationUserRepositoryAdapter(w.userRepo, user),
+	)
 	if err != nil {
-		return fmt.Errorf("poam overdue notification: render template failed: %w", err)
+		return fmt.Errorf("create poam notification service: %w", err)
 	}
 
-	message := &types.Message{
-		From:     w.emailService.GetDefaultFromAddress(),
-		To:       []string{user.Email},
-		Subject:  fmt.Sprintf("POAM Item Overdue: %s", args.PoamTitle),
-		HTMLBody: htmlBody,
-		TextBody: textBody,
+	if err := notificationService.Dispatch(
+		ctx,
+		buildPoamOverdueNotificationRequest(args, user.FullName()),
+	); err != nil {
+		return fmt.Errorf("dispatch poam-overdue-notification notification: %w", err)
 	}
 
-	result, err := w.emailService.Send(ctx, message)
-	if err != nil {
-		return fmt.Errorf("poam overdue notification: send email failed: %w", err)
-	}
-	if !result.Success {
-		return fmt.Errorf("poam overdue notification: email send reported failure: %s", result.Error)
-	}
-
-	w.logger.Infow("PoamOverdueNotificationWorker: email sent",
+	w.logger.Infow("PoamOverdueNotificationWorker: overdue notification sent",
 		"poam_item_id", args.PoamItemID,
 		"recipient_user_id", args.RecipientUserID,
-		"message_id", result.MessageID,
 	)
 	return nil
 }
