@@ -406,6 +406,12 @@ func (h *StepExecutionHandler) CanTransition(ctx echo.Context) error {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(echo.NewHTTPError(http.StatusBadRequest, "user_id and user_type are required")))
 	}
 
+	// "password" is an auth method, not an assignment type — password-authenticated
+	// users are always of assignment type "user".
+	if userType == "password" {
+		userType = workflows.AssignmentTypeUser.String()
+	}
+
 	canTransition, err := h.transitionService.CanUserTransitionStep(id, userID, userType)
 	if err != nil {
 		return h.HandleServiceError(ctx, err, "check", "transition permission")
