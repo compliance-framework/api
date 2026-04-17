@@ -18,8 +18,20 @@ type SystemSecurityPlan struct {
 	SystemImplementation  SystemImplementation              `json:"system-implementation"`
 	ControlImplementation ControlImplementation             `json:"control-implementation"`
 
+	// Deprecated: Use Profiles (M:M via ssp_profiles) instead.
+	// Kept for backward-compatible migration; will be dropped in a future release.
 	ProfileID *uuid.UUID
 	Profile   *Profile
+
+	// Profiles holds the many-to-many relationship via the ssp_profiles join table.
+	Profiles []Profile `json:"profiles" gorm:"many2many:ssp_profiles;"`
+}
+
+// SSPProfile is the join-table model for the many-to-many relationship between
+// SystemSecurityPlan and Profile.
+type SSPProfile struct {
+	SystemSecurityPlanID uuid.UUID `gorm:"primaryKey;type:uuid" json:"system_security_plan_id"`
+	ProfileID            uuid.UUID `gorm:"primaryKey;type:uuid;index" json:"profile_id"`
 }
 
 func (s *SystemSecurityPlan) UnmarshalOscal(os oscalTypes_1_1_3.SystemSecurityPlan) *SystemSecurityPlan {

@@ -67,6 +67,7 @@ func MigrateUp(db *gorm.DB) error {
 		&relational.ImplementedRequirement{},
 		&relational.ControlImplementation{},
 		&relational.SystemSecurityPlan{},
+		&relational.SSPProfile{},
 		&relational.AuthorizationBoundary{},
 		&relational.NetworkArchitecture{},
 		&relational.DataFlow{},
@@ -190,6 +191,9 @@ func MigrateUp(db *gorm.DB) error {
 		return err
 	}
 	if err := migrateLegacyRiskNotificationSubscriptions(db); err != nil {
+		return err
+	}
+	if err := migrateSSPProfileIDToJoinTable(db); err != nil {
 		return err
 	}
 
@@ -348,6 +352,24 @@ func backfillLegacyNotificationSubscriptions(db *gorm.DB, legacyColumn string, n
 		}).Error
 }
 
+// migrateSSPProfileIDToJoinTable copies the legacy single profile_id FK from
+// system_security_plans into the new ssp_profiles join table. Rows that already
+// exist (ON CONFLICT DO NOTHING) are skipped, making the migration idempotent.
+func migrateSSPProfileIDToJoinTable(db *gorm.DB) error {
+	if !db.Migrator().HasTable("ssp_profiles") {
+		return nil
+	}
+	if !db.Migrator().HasColumn(&relational.SystemSecurityPlan{}, "profile_id") {
+		return nil
+	}
+	return db.Exec(`
+		INSERT INTO ssp_profiles (system_security_plan_id, profile_id)
+		SELECT id, profile_id FROM system_security_plans
+		WHERE profile_id IS NOT NULL
+		ON CONFLICT DO NOTHING
+	`).Error
+}
+
 func MigrateDown(db *gorm.DB) error {
 	err := db.Migrator().DropTable(
 		&relational.Location{},
@@ -395,6 +417,7 @@ func MigrateDown(db *gorm.DB) error {
 		&relational.ImplementedRequirement{},
 		&relational.ControlImplementation{},
 		&relational.SystemSecurityPlan{},
+		&relational.SSPProfile{},
 		"metadata_responsible_parties",
 		"party_locations",
 		"party_member_of_organisations",

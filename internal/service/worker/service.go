@@ -917,9 +917,9 @@ func (s *Service) EnqueueRiskProcessEvidence(ctx context.Context, evidenceID uui
 }
 
 // EnqueueOrphanedRiskCleanup enqueues a job to remediate orphaned risks when an SSP's
-// profile binding changes. Active jobs are deduped by (ssp_id, new_profile_id): repeated
-// changes to the same target profile collapse to one job, while changes to different
-// target profiles can produce independent jobs.
+// profile binding changes. Active jobs are deduped by (ssp_id, old_profile_id, new_profile_id):
+// repeated equivalent changes collapse to one job, while changes involving different profiles
+// can produce independent jobs.
 func (s *Service) EnqueueOrphanedRiskCleanup(ctx context.Context, sspID uuid.UUID, oldProfileID, newProfileID *uuid.UUID) error {
 	if !s.config.Enabled || s.client == nil {
 		return nil
