@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -40,6 +41,24 @@ type profileSummary struct {
 // addProfileRequest is the request body for the AddProfile endpoint.
 type addProfileRequest struct {
 	ProfileID string `json:"profileId"`
+}
+
+func normalizeControlID(controlID string) string {
+	return strings.ToLower(controlID)
+}
+
+func normalizeControlIDs(controlIDs []string) []string {
+	seen := make(map[string]struct{}, len(controlIDs))
+	normalized := make([]string, 0, len(controlIDs))
+	for _, controlID := range controlIDs {
+		canonicalID := normalizeControlID(controlID)
+		if _, exists := seen[canonicalID]; exists {
+			continue
+		}
+		seen[canonicalID] = struct{}{}
+		normalized = append(normalized, canonicalID)
+	}
+	return normalized
 }
 
 func buildProfileSummaries(profiles []relational.Profile) ([]profileSummary, error) {
@@ -103,7 +122,9 @@ func (h *SystemSecurityPlanHandler) getControlIDsForProfile(profileID uuid.UUID)
 	// 1. Check in-memory cache first
 	if val, ok := h.profileCache.Load(profileID); ok {
 		if cachedControlIDs, ok := val.([]string); ok {
-			return cachedControlIDs, nil
+			normalizedControlIDs := normalizeControlIDs(cachedControlIDs)
+			h.profileCache.Store(profileID, normalizedControlIDs)
+			return normalizedControlIDs, nil
 		}
 		h.sugar.Warnw("profileCache contains value of unexpected type", "profileId", profileID, "actualType", fmt.Sprintf("%T", val))
 		h.profileCache.Delete(profileID)
@@ -131,11 +152,10 @@ func (h *SystemSecurityPlanHandler) getControlIDsForProfile(profileID uuid.UUID)
 		if err != nil {
 			return nil, err
 		}
-	} else {
-		// Update cache if we found them in the pivot table
-		h.profileCache.Store(profileID, controlIDs)
 	}
 
+	controlIDs = normalizeControlIDs(controlIDs)
+	h.profileCache.Store(profileID, controlIDs)
 	return controlIDs, nil
 }
 
@@ -163,11 +183,12 @@ func (h *SystemSecurityPlanHandler) getControlIDsForAllProfiles(profiles []relat
 	allControlIDs := make([]string, 0)
 	appendControlIDs := func(controlIDs []string) {
 		for _, cid := range controlIDs {
-			if _, exists := seenControls[cid]; exists {
+			normalizedID := normalizeControlID(cid)
+			if _, exists := seenControls[normalizedID]; exists {
 				continue
 			}
-			seenControls[cid] = struct{}{}
-			allControlIDs = append(allControlIDs, cid)
+			seenControls[normalizedID] = struct{}{}
+			allControlIDs = append(allControlIDs, normalizedID)
 		}
 	}
 
@@ -1567,7 +1588,7 @@ func (h *SystemSecurityPlanHandler) GetControlImplementation(ctx echo.Context) e
 	query := h.db.Model(&ssp.ControlImplementation).
 		Preload("ImplementedRequirements", func(db *gorm.DB) *gorm.DB {
 			if len(controlIDs) > 0 {
-				return db.Where("control_id IN ?", controlIDs)
+				return db.Where("LOWER(control_id) IN ?", controlIDs)
 			}
 			return db
 		}).
@@ -1640,7 +1661,7 @@ func (h *SystemSecurityPlanHandler) Full(ctx echo.Context) error {
 		Preload("ControlImplementation").
 		Preload("ControlImplementation.ImplementedRequirements", func(db *gorm.DB) *gorm.DB {
 			if len(controlIDs) > 0 {
-				return db.Where("control_id IN ?", controlIDs)
+				return db.Where("LOWER(control_id) IN ?", controlIDs)
 			}
 			return db
 		}).
@@ -2041,17 +2062,18 @@ func (h *SystemSecurityPlanHandler) AttachProfile(ctx echo.Context) error {
 
 		existingMap := make(map[string]bool)
 		for _, id := range existingControlIDs {
-			existingMap[id] = true
+			existingMap[normalizeControlID(id)] = true
 		}
 
 		var newReqs []relational.ImplementedRequirement
 		for _, controlID := range controlIDs {
-			if !existingMap[controlID] {
+			normalizedControlID := normalizeControlID(controlID)
+			if !existingMap[normalizedControlID] {
 				newUUID := uuid.New()
 				newReqs = append(newReqs, relational.ImplementedRequirement{
 					UUIDModel:               relational.UUIDModel{ID: &newUUID},
 					ControlImplementationId: *ssp.ControlImplementation.ID,
-					ControlId:               controlID,
+					ControlId:               normalizedControlID,
 				})
 			}
 		}
@@ -2234,17 +2256,18 @@ func (h *SystemSecurityPlanHandler) AddProfile(ctx echo.Context) error {
 
 		existingMap := make(map[string]bool, len(existingControlIDs))
 		for _, id := range existingControlIDs {
-			existingMap[id] = true
+			existingMap[normalizeControlID(id)] = true
 		}
 
 		var newReqs []relational.ImplementedRequirement
 		for _, controlID := range controlIDs {
-			if !existingMap[controlID] {
+			normalizedControlID := normalizeControlID(controlID)
+			if !existingMap[normalizedControlID] {
 				newUUID := uuid.New()
 				newReqs = append(newReqs, relational.ImplementedRequirement{
 					UUIDModel:               relational.UUIDModel{ID: &newUUID},
 					ControlImplementationId: *ssp.ControlImplementation.ID,
-					ControlId:               controlID,
+					ControlId:               normalizedControlID,
 				})
 			}
 		}
@@ -3403,7 +3426,7 @@ func (h *SystemSecurityPlanHandler) GetImplementedRequirements(ctx echo.Context)
 	var implementedRequirements []relational.ImplementedRequirement
 	query := h.db.Where("control_implementation_id = ?", ssp.ControlImplementation.ID)
 	if len(controlIDs) > 0 {
-		query = query.Where("control_id IN ?", controlIDs)
+		query = query.Where("LOWER(control_id) IN ?", controlIDs)
 	}
 
 	if err := query.Find(&implementedRequirements).Error; err != nil {
@@ -4462,6 +4485,7 @@ func (h *SystemSecurityPlanHandler) extractControlIDsFromProfile(profile *relati
 	for id := range idsMap {
 		controlIDs = append(controlIDs, id)
 	}
+	controlIDs = normalizeControlIDs(controlIDs)
 
 	if profile.ID != nil {
 		h.profileCache.Store(*profile.ID, controlIDs)

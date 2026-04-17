@@ -37,7 +37,7 @@ func TestGetControlIDsForAllProfilesFallsBackForProfilesMissingPivotRows(t *test
 	).Error)
 
 	handler := NewSystemSecurityPlanHandler(zap.NewNop().Sugar(), db, nil, nil)
-	handler.profileCache.Store(profileWithoutPivot, []string{"ac-2"})
+	handler.profileCache.Store(profileWithoutPivot, []string{"AC-1", "ac-2"})
 
 	controlIDs, err := handler.getControlIDsForAllProfiles([]relational.Profile{
 		{UUIDModel: relational.UUIDModel{ID: &profileWithPivot}},
@@ -46,6 +46,10 @@ func TestGetControlIDsForAllProfilesFallsBackForProfilesMissingPivotRows(t *test
 
 	require.NoError(t, err)
 	require.ElementsMatch(t, []string{"ac-1", "ac-2"}, controlIDs)
+}
+
+func TestNormalizeControlIDsDeduplicatesMixedCase(t *testing.T) {
+	require.ElementsMatch(t, []string{"ac-1", "au-2"}, normalizeControlIDs([]string{"ac-1", "AC-1", "Au-2"}))
 }
 
 func TestBuildProfileSummariesRejectsNilProfileID(t *testing.T) {
