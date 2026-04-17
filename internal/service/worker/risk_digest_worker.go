@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
+	slackprovider "github.com/compliance-framework/api/internal/service/notification/providers/slack"
 	"github.com/compliance-framework/api/internal/service/relational"
 	riskrel "github.com/compliance-framework/api/internal/service/relational/risks"
-	slackformatters "github.com/compliance-framework/api/internal/service/slack/formatters"
 	"github.com/compliance-framework/api/internal/workflow"
 	"github.com/google/uuid"
 	"github.com/riverqueue/river"
@@ -313,14 +313,14 @@ func (w *RiskOpenDigestWorker) Work(ctx context.Context, job *river.Job[RiskOpen
 	return nil
 }
 
-func toSlackRiskDigestItems(items []RiskDigestEmailItem) []slackformatters.RiskDigestItem {
+func toSlackRiskDigestItems(items []RiskDigestEmailItem) []slackprovider.RiskDigestItem {
 	if len(items) == 0 {
 		return nil
 	}
 
-	out := make([]slackformatters.RiskDigestItem, 0, len(items))
+	out := make([]slackprovider.RiskDigestItem, 0, len(items))
 	for i := range items {
-		out = append(out, slackformatters.RiskDigestItem{
+		out = append(out, slackprovider.RiskDigestItem{
 			Title:          items[i].Title,
 			SSPName:        items[i].SSPName,
 			Status:         items[i].Status,

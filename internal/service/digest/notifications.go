@@ -62,7 +62,7 @@ func evidenceDigestDefinition() notification.Definition {
 		emailprovider.TemplateChannel(func(ctx context.Context, model any) (emailprovider.TemplateContent, error) {
 			return renderEvidenceDigestEmail(ctx, model)
 		}),
-		slackprovider.Channel(func(ctx context.Context, model any) (slackprovider.Content, error) {
+		slackprovider.MessageChannel(func(ctx context.Context, model any) (*slackprovider.Message, error) {
 			return renderEvidenceDigestSlack(ctx, model)
 		}),
 	)
@@ -196,6 +196,51 @@ func evidenceDigestModelFromAny(model any) (evidenceDigestNotificationModel, err
 	default:
 		return evidenceDigestNotificationModel{}, fmt.Errorf("unexpected evidence digest model type %T", model)
 	}
+}
+
+func (m evidenceDigestNotificationModel) slackSummary() *slackprovider.DigestSummary {
+	summary := m.summary()
+	return &slackprovider.DigestSummary{
+		TotalCount:        summary.TotalCount,
+		SatisfiedCount:    summary.SatisfiedCount,
+		NotSatisfiedCount: summary.NotSatisfiedCount,
+		ExpiredCount:      summary.ExpiredCount,
+		TopExpired:        toSlackDigestEvidence(summary.TopExpired),
+		TopNotSatisfied:   toSlackDigestEvidence(summary.TopNotSatisfied),
+		BaseURL:           m.WebBaseURL,
+	}
+}
+
+func toSlackDigestEvidence(items []EvidenceItem) []slackprovider.DigestSummaryEvidence {
+	if len(items) == 0 {
+		return nil
+	}
+
+	out := make([]slackprovider.DigestSummaryEvidence, 0, len(items))
+	for i := range items {
+		out = append(out, slackprovider.DigestSummaryEvidence{
+			ID:          items[i].ID,
+			Title:       items[i].Title,
+			Description: items[i].Description,
+			ExpiresAt:   items[i].ExpiresAt,
+		})
+	}
+
+	return out
+}
+
+func renderEvidenceDigestSlack(_ context.Context, model any) (*slackprovider.Message, error) {
+	digestModel, err := evidenceDigestModelFromAny(model)
+	if err != nil {
+		return nil, err
+	}
+
+	message, err := slackprovider.FormatDigestMessage(digestModel.slackSummary())
+	if err != nil {
+		return nil, fmt.Errorf("failed to format slack message for digest: %w", err)
+	}
+
+	return message, nil
 }
 
 func (s *Service) dispatchEvidenceDigestNotifications(

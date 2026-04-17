@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"github.com/compliance-framework/api/internal/service/notification"
+	slackprovider "github.com/compliance-framework/api/internal/service/notification/providers/slack"
 	"github.com/compliance-framework/api/internal/service/relational/workflows"
-	slackformatters "github.com/compliance-framework/api/internal/service/slack/formatters"
 	"github.com/riverqueue/river"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
@@ -155,18 +155,18 @@ func (w *WorkflowTaskDigestWorker) Work(ctx context.Context, job *river.Job[Work
 
 	return nil
 }
-func toSlackDigestTasks(tasks []DigestTask) []slackformatters.WorkflowTaskDigestItem {
+func toSlackDigestTasks(tasks []DigestTask) []slackprovider.WorkflowTaskDigestItem {
 	if len(tasks) == 0 {
 		return nil
 	}
 
-	out := make([]slackformatters.WorkflowTaskDigestItem, 0, len(tasks))
+	out := make([]slackprovider.WorkflowTaskDigestItem, 0, len(tasks))
 	for _, task := range tasks {
 		dueDate := ""
 		if task.DueDate != nil {
 			dueDate = *task.DueDate
 		}
-		out = append(out, slackformatters.WorkflowTaskDigestItem{
+		out = append(out, slackprovider.WorkflowTaskDigestItem{
 			StepTitle:             task.StepTitle,
 			WorkflowTitle:         task.WorkflowTitle,
 			WorkflowInstanceTitle: task.WorkflowInstanceTitle,

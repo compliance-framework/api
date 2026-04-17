@@ -70,7 +70,7 @@ func workflowTaskAssignedNotificationDefinition() notification.Definition {
 		emailprovider.TemplateChannel(func(ctx context.Context, model any) (emailprovider.TemplateContent, error) {
 			return renderWorkflowTaskAssignedEmail(ctx, model)
 		}),
-		slackprovider.Channel(func(ctx context.Context, model any) (slackprovider.Content, error) {
+		slackprovider.MessageChannel(func(ctx context.Context, model any) (*slackprovider.Message, error) {
 			return renderWorkflowTaskAssignedSlack(ctx, model)
 		}),
 	)
@@ -83,7 +83,7 @@ func workflowTaskDueSoonNotificationDefinition() notification.Definition {
 		emailprovider.TemplateChannel(func(ctx context.Context, model any) (emailprovider.TemplateContent, error) {
 			return renderWorkflowTaskDueSoonEmail(ctx, model)
 		}),
-		slackprovider.Channel(func(ctx context.Context, model any) (slackprovider.Content, error) {
+		slackprovider.MessageChannel(func(ctx context.Context, model any) (*slackprovider.Message, error) {
 			return renderWorkflowTaskDueSoonSlack(ctx, model)
 		}),
 	)
@@ -96,7 +96,7 @@ func workflowTaskDigestNotificationDefinition() notification.Definition {
 		emailprovider.TemplateChannel(func(ctx context.Context, model any) (emailprovider.TemplateContent, error) {
 			return renderWorkflowTaskDigestEmail(ctx, model)
 		}),
-		slackprovider.Channel(func(ctx context.Context, model any) (slackprovider.Content, error) {
+		slackprovider.MessageChannel(func(ctx context.Context, model any) (*slackprovider.Message, error) {
 			return renderWorkflowTaskDigestSlack(ctx, model)
 		}),
 	)
@@ -323,4 +323,124 @@ func convertNotificationUser(user NotificationUser) notification.User {
 		Identities:    identities,
 		Subscriptions: subscriptions,
 	}
+}
+
+func renderWorkflowTaskAssignedEmail(_ context.Context, model any) (emailprovider.TemplateContent, error) {
+	assignedModel, err := workflowTaskAssignedNotificationModelFromAny(model)
+	if err != nil {
+		return emailprovider.TemplateContent{}, err
+	}
+
+	return emailprovider.TemplateContent{
+		TemplateName: "workflow-task-assigned",
+		TemplateData: map[string]any{
+			"UserName":              assignedModel.UserName,
+			"StepTitle":             assignedModel.StepTitle,
+			"WorkflowTitle":         assignedModel.WorkflowTitle,
+			"WorkflowInstanceTitle": assignedModel.WorkflowInstanceTitle,
+			"StepURL":               assignedModel.StepURL,
+			"MyTasksURL":            assignedModel.MyTasksURL,
+			"DueDate":               assignedModel.DueDate,
+		},
+		Subject:  fmt.Sprintf("Task ready for you: %s — %s", assignedModel.StepTitle, assignedModel.WorkflowTitle),
+		TextBody: fmt.Sprintf("%s is assigned to you and due %s. Open: %s", assignedModel.StepTitle, assignedModel.DueDate, assignedModel.StepURL),
+	}, nil
+}
+
+func renderWorkflowTaskDueSoonEmail(_ context.Context, model any) (emailprovider.TemplateContent, error) {
+	dueSoonModel, err := workflowTaskDueSoonNotificationModelFromAny(model)
+	if err != nil {
+		return emailprovider.TemplateContent{}, err
+	}
+
+	return emailprovider.TemplateContent{
+		TemplateName: "workflow-task-due-soon",
+		TemplateData: map[string]any{
+			"UserName":              dueSoonModel.UserName,
+			"StepTitle":             dueSoonModel.StepTitle,
+			"WorkflowTitle":         dueSoonModel.WorkflowTitle,
+			"WorkflowInstanceTitle": dueSoonModel.WorkflowInstanceTitle,
+			"StepURL":               dueSoonModel.StepURL,
+			"MyTasksURL":            dueSoonModel.MyTasksURL,
+			"DueDate":               dueSoonModel.DueDate,
+		},
+		Subject:  fmt.Sprintf("Reminder: %s is due soon — %s", dueSoonModel.StepTitle, dueSoonModel.WorkflowTitle),
+		TextBody: fmt.Sprintf("%s is due on %s. Open: %s", dueSoonModel.StepTitle, dueSoonModel.DueDate, dueSoonModel.StepURL),
+	}, nil
+}
+
+func renderWorkflowTaskDigestEmail(_ context.Context, model any) (emailprovider.TemplateContent, error) {
+	digestModel, err := workflowTaskDigestNotificationModelFromAny(model)
+	if err != nil {
+		return emailprovider.TemplateContent{}, err
+	}
+
+	return emailprovider.TemplateContent{
+		TemplateName: "workflow-task-digest",
+		TemplateData: digestModel.templateData(),
+		Subject:      fmt.Sprintf("Your workflow task summary — %s", formatDate(digestModel.GeneratedAt)),
+		TextBody:     "Your workflow task digest is ready.",
+	}, nil
+}
+
+func renderWorkflowTaskAssignedSlack(_ context.Context, model any) (*slackprovider.Message, error) {
+	assignedModel, err := workflowTaskAssignedNotificationModelFromAny(model)
+	if err != nil {
+		return nil, err
+	}
+
+	message, err := slackprovider.FormatWorkflowTaskAssignedMessage(
+		assignedModel.UserName,
+		assignedModel.StepTitle,
+		assignedModel.WorkflowTitle,
+		assignedModel.WorkflowInstanceTitle,
+		assignedModel.StepURL,
+		assignedModel.DueDate,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to format workflow-task-assigned slack message: %w", err)
+	}
+
+	return message, nil
+}
+
+func renderWorkflowTaskDueSoonSlack(_ context.Context, model any) (*slackprovider.Message, error) {
+	dueSoonModel, err := workflowTaskDueSoonNotificationModelFromAny(model)
+	if err != nil {
+		return nil, err
+	}
+
+	message, err := slackprovider.FormatWorkflowTaskDueSoonMessage(
+		dueSoonModel.UserName,
+		dueSoonModel.StepTitle,
+		dueSoonModel.WorkflowTitle,
+		dueSoonModel.WorkflowInstanceTitle,
+		dueSoonModel.StepURL,
+		dueSoonModel.DueDate,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to format workflow-task-due-soon slack message: %w", err)
+	}
+
+	return message, nil
+}
+
+func renderWorkflowTaskDigestSlack(_ context.Context, model any) (*slackprovider.Message, error) {
+	digestModel, err := workflowTaskDigestNotificationModelFromAny(model)
+	if err != nil {
+		return nil, err
+	}
+
+	message, err := slackprovider.FormatWorkflowTaskDigestMessage(
+		digestModel.UserName,
+		digestModel.PeriodLabel,
+		toSlackDigestTasks(digestModel.PendingTasks),
+		toSlackDigestTasks(digestModel.OverdueTasks),
+		digestModel.MyTasksURL,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to format workflow-task-digest slack message: %w", err)
+	}
+
+	return message, nil
 }
