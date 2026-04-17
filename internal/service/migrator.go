@@ -418,7 +418,6 @@ func MigrateDown(db *gorm.DB) error {
 		&relational.ControlImplementation{},
 		&relational.SystemSecurityPlan{},
 		&relational.SSPProfile{},
-		"ssp_profiles",
 		"metadata_responsible_parties",
 		"party_locations",
 		"party_member_of_organisations",

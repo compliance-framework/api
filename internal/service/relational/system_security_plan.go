@@ -31,7 +31,7 @@ type SystemSecurityPlan struct {
 // SystemSecurityPlan and Profile.
 type SSPProfile struct {
 	SystemSecurityPlanID uuid.UUID `gorm:"primaryKey;type:uuid" json:"system_security_plan_id"`
-	ProfileID            uuid.UUID `gorm:"primaryKey;type:uuid" json:"profile_id"`
+	ProfileID            uuid.UUID `gorm:"primaryKey;type:uuid;index" json:"profile_id"`
 }
 
 func (s *SystemSecurityPlan) UnmarshalOscal(os oscalTypes_1_1_3.SystemSecurityPlan) *SystemSecurityPlan {

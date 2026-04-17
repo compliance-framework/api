@@ -105,6 +105,35 @@ func TestAddProfileReturnsInternalServerErrorForUnexpectedProfileLoadError(t *te
 	require.Equal(t, http.StatusInternalServerError, rec.Code)
 }
 
+func TestAddProfileDuplicateBindingSkipsControlResolution(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	require.NoError(t, db.Exec(`CREATE TABLE system_security_plans (id TEXT PRIMARY KEY)`).Error)
+	require.NoError(t, db.Exec(`CREATE TABLE profiles (id TEXT PRIMARY KEY)`).Error)
+	require.NoError(t, db.Exec(`CREATE TABLE control_implementations (id TEXT PRIMARY KEY, system_security_plan_id TEXT)`).Error)
+	require.NoError(t, db.Exec(`CREATE TABLE ssp_profiles (
+		system_security_plan_id TEXT NOT NULL,
+		profile_id TEXT NOT NULL,
+		PRIMARY KEY (system_security_plan_id, profile_id)
+	)`).Error)
+
+	sspID := uuid.New()
+	profileID := uuid.New()
+	require.NoError(t, db.Exec("INSERT INTO system_security_plans (id) VALUES (?)", sspID.String()).Error)
+	require.NoError(t, db.Exec("INSERT INTO profiles (id) VALUES (?)", profileID.String()).Error)
+	require.NoError(t, db.Exec(
+		"INSERT INTO ssp_profiles (system_security_plan_id, profile_id) VALUES (?, ?)",
+		sspID.String(),
+		profileID.String(),
+	).Error)
+
+	handler := NewSystemSecurityPlanHandler(zap.NewNop().Sugar(), db, nil, nil)
+	ctx, rec := newSSPProfileRequestContext(http.MethodPost, sspID, profileID)
+
+	require.NoError(t, handler.AddProfile(ctx))
+	require.Equal(t, http.StatusConflict, rec.Code)
+}
+
 func closedSQLiteDB(t *testing.T) *gorm.DB {
 	t.Helper()
 

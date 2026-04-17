@@ -2187,16 +2187,8 @@ func (h *SystemSecurityPlanHandler) AddProfile(ctx echo.Context) error {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
-	controlIDs, err := h.getControlIDsForProfile(profileID)
-	if err != nil {
-		h.sugar.Warnw("Failed to resolve control IDs for profile", "profileId", profileID, "error", err)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(fmt.Errorf("failed to resolve control IDs for profile: %w", err)))
-	}
-	if len(controlIDs) == 0 {
-		return ctx.JSON(http.StatusBadRequest, api.NewError(errors.New("no controls were resolved from the selected profile")))
-	}
-
 	var duplicateBinding bool
+	errNoResolvedControls := errors.New("no controls were resolved from the selected profile")
 	err = h.db.Transaction(func(tx *gorm.DB) error {
 		// Insert join-table row idempotently; ON CONFLICT DO NOTHING avoids a TOCTOU race.
 		result := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&relational.SSPProfile{
@@ -2209,6 +2201,14 @@ func (h *SystemSecurityPlanHandler) AddProfile(ctx echo.Context) error {
 		if result.RowsAffected == 0 {
 			duplicateBinding = true
 			return nil
+		}
+
+		controlIDs, err := h.getControlIDsForProfile(profileID)
+		if err != nil {
+			return fmt.Errorf("failed to resolve control IDs for profile: %w", err)
+		}
+		if len(controlIDs) == 0 {
+			return errNoResolvedControls
 		}
 
 		// Ensure ControlImplementation exists
@@ -2258,6 +2258,9 @@ func (h *SystemSecurityPlanHandler) AddProfile(ctx echo.Context) error {
 		return nil
 	})
 	if err != nil {
+		if errors.Is(err, errNoResolvedControls) {
+			return ctx.JSON(http.StatusBadRequest, api.NewError(errNoResolvedControls))
+		}
 		h.sugar.Errorf("Failed to add profile to SSP: %v", err)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
