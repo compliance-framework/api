@@ -4781,11 +4781,13 @@ func parseSSPReqIDs(ctx echo.Context) (uuid.UUID, uuid.UUID, error) {
 }
 
 // validateByComponentImplementationStatus validates the implementation status
-// state on a ByComponent, if one is provided. An empty/omitted status is allowed.
+// state on a ByComponent. When the implementation-status field is entirely
+// absent (zero JSONType) validation is skipped. When the object is present,
+// a valid, non-empty state is required.
 func validateByComponentImplementationStatus(bc *relational.ByComponent) error {
-	is := bc.ImplementationStatus.Data()
-	if is.State == "" {
+	if bc.ImplementationStatus == (datatypes.JSONType[relational.ImplementationStatus]{}) {
 		return nil
 	}
+	is := bc.ImplementationStatus.Data()
 	return is.Validate()
 }

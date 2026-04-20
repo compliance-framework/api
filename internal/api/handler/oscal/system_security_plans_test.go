@@ -1086,6 +1086,103 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) TestCreateImplementedRequire
 	suite.NoError(err)
 }
 
+// Test that creating a by-component with an invalid implementation status state returns 400
+func (suite *SystemSecurityPlanApiIntegrationSuite) TestCreateByComponentInvalidImplementationStatus() {
+	logConf := zap.NewDevelopmentConfig()
+	logConf.Level = zap.NewAtomicLevelAt(zap.ErrorLevel)
+	logger, _ := logConf.Build()
+
+	err := suite.Migrator.Refresh()
+	suite.Require().NoError(err)
+
+	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
+	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
+
+	ssp := suite.loadTestSSP()
+	componentUuid := ssp.SystemImplementation.Components[0].UUID
+	ssp.ControlImplementation.ImplementedRequirements[0].Statements = nil
+
+	req := suite.createRequest("POST", "/api/oscal/system-security-plans", ssp)
+	resp := httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Equal(http.StatusCreated, resp.Code)
+
+	implementedReq := oscalTypes_1_1_3.ImplementedRequirement{
+		UUID:      uuid.New().String(),
+		ControlId: "ac-1",
+		Statements: &[]oscalTypes_1_1_3.Statement{
+			{
+				UUID:        uuid.New().String(),
+				StatementId: "ac-1_stmt.a",
+				ByComponents: &[]oscalTypes_1_1_3.ByComponent{
+					{
+						UUID:          uuid.New().String(),
+						Description:   "Test By Component",
+						ComponentUuid: componentUuid,
+					},
+				},
+			},
+		},
+	}
+
+	req = suite.createRequest("POST", fmt.Sprintf("/api/oscal/system-security-plans/%s/control-implementation/implemented-requirements", ssp.UUID), implementedReq)
+	resp = httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Equal(http.StatusCreated, resp.Code)
+
+	var createIRResponse handler.GenericDataResponse[oscalTypes_1_1_3.ImplementedRequirement]
+	err = json.Unmarshal(resp.Body.Bytes(), &createIRResponse)
+	suite.NoError(err)
+
+	requirement := createIRResponse.Data
+	suite.Require().NotNil(requirement.Statements)
+	suite.Require().NotEmpty(*requirement.Statements)
+	statement := (*requirement.Statements)[0]
+
+	// Invalid state should be rejected
+	invalidBC := oscalTypes_1_1_3.ByComponent{
+		ComponentUuid: componentUuid,
+		UUID:          uuid.New().String(),
+		Description:   "Invalid status BC",
+		ImplementationStatus: &oscalTypes_1_1_3.ImplementationStatus{
+			State: "Implemented",
+		},
+	}
+	req = suite.createRequest("POST", fmt.Sprintf("/api/oscal/system-security-plans/%s/control-implementation/implemented-requirements/%s/statements/%s/by-components",
+		ssp.UUID, requirement.UUID, statement.UUID), invalidBC)
+	resp = httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Equal(http.StatusBadRequest, resp.Code)
+
+	// Empty state with present implementation-status object should be rejected
+	emptyStateBC := oscalTypes_1_1_3.ByComponent{
+		ComponentUuid: componentUuid,
+		UUID:          uuid.New().String(),
+		Description:   "Empty status state BC",
+		ImplementationStatus: &oscalTypes_1_1_3.ImplementationStatus{
+			State:   "",
+			Remarks: "Has remarks but no state",
+		},
+	}
+	req = suite.createRequest("POST", fmt.Sprintf("/api/oscal/system-security-plans/%s/control-implementation/implemented-requirements/%s/statements/%s/by-components",
+		ssp.UUID, requirement.UUID, statement.UUID), emptyStateBC)
+	resp = httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Equal(http.StatusBadRequest, resp.Code)
+
+	// Omitted implementation-status should be accepted
+	noStatusBC := oscalTypes_1_1_3.ByComponent{
+		ComponentUuid: componentUuid,
+		UUID:          uuid.New().String(),
+		Description:   "No status BC",
+	}
+	req = suite.createRequest("POST", fmt.Sprintf("/api/oscal/system-security-plans/%s/control-implementation/implemented-requirements/%s/statements/%s/by-components",
+		ssp.UUID, requirement.UUID, statement.UUID), noStatusBC)
+	resp = httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Equal(http.StatusCreated, resp.Code)
+}
+
 // Test updating a statement with invalid IDs
 func (suite *SystemSecurityPlanApiIntegrationSuite) TestUpdateImplementedRequirementStatementInvalidIDs() {
 	logConf := zap.NewDevelopmentConfig()
