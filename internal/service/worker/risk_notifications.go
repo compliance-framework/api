@@ -1,7 +1,6 @@
 package worker
 
 import (
-	"context"
 	"fmt"
 	"strings"
 	"time"
@@ -57,45 +56,33 @@ func NewRiskNotificationServiceFactory(
 	return &RiskNotificationServiceFactory{
 		notificationRuntime: notificationRuntime,
 		definitions: []notification.Definition{
-			notification.NewDefinition(
+			newTypedNotificationDefinition(
 				riskReviewDueReminderNotificationKind,
 				notification.NotificationTypeRiskNotifications,
-				emailprovider.TemplateChannel(func(ctx context.Context, model any) (emailprovider.TemplateContent, error) {
-					return renderRiskReviewDueReminderEmail(ctx, model)
-				}),
-				slackprovider.MessageChannel(func(ctx context.Context, model any) (*slackprovider.Message, error) {
-					return renderRiskReviewDueReminderSlack(ctx, model)
-				}),
+				newNotificationModelDecoder[riskReminderNotificationModel]("risk reminder model"),
+				renderRiskReviewDueReminderEmail,
+				renderRiskReviewDueReminderSlack,
 			),
-			notification.NewDefinition(
+			newTypedNotificationDefinition(
 				riskReviewOverdueEscalationNotificationKind,
 				notification.NotificationTypeRiskNotifications,
-				emailprovider.TemplateChannel(func(ctx context.Context, model any) (emailprovider.TemplateContent, error) {
-					return renderRiskReviewOverdueEscalationEmail(ctx, model)
-				}),
-				slackprovider.MessageChannel(func(ctx context.Context, model any) (*slackprovider.Message, error) {
-					return renderRiskReviewOverdueEscalationSlack(ctx, model)
-				}),
+				newNotificationModelDecoder[riskReminderNotificationModel]("risk reminder model"),
+				renderRiskReviewOverdueEscalationEmail,
+				renderRiskReviewOverdueEscalationSlack,
 			),
-			notification.NewDefinition(
+			newTypedNotificationDefinition(
 				riskStaleOpenReminderNotificationKind,
 				notification.NotificationTypeRiskNotifications,
-				emailprovider.TemplateChannel(func(ctx context.Context, model any) (emailprovider.TemplateContent, error) {
-					return renderRiskStaleOpenReminderEmail(ctx, model)
-				}),
-				slackprovider.MessageChannel(func(ctx context.Context, model any) (*slackprovider.Message, error) {
-					return renderRiskStaleOpenReminderSlack(ctx, model)
-				}),
+				newNotificationModelDecoder[riskReminderNotificationModel]("risk reminder model"),
+				renderRiskStaleOpenReminderEmail,
+				renderRiskStaleOpenReminderSlack,
 			),
-			notification.NewDefinition(
+			newTypedNotificationDefinition(
 				riskOpenDigestNotificationKind,
 				notification.NotificationTypeRiskNotifications,
-				emailprovider.TemplateChannel(func(ctx context.Context, model any) (emailprovider.TemplateContent, error) {
-					return renderRiskOpenDigestEmail(ctx, model)
-				}),
-				slackprovider.MessageChannel(func(ctx context.Context, model any) (*slackprovider.Message, error) {
-					return renderRiskOpenDigestSlack(ctx, model)
-				}),
+				newNotificationModelDecoder[riskOpenDigestNotificationModel]("risk open digest model"),
+				renderRiskOpenDigestEmail,
+				renderRiskOpenDigestSlack,
 			),
 		},
 	}
@@ -117,14 +104,12 @@ func buildRiskReviewDueReminderNotificationRequest(
 	userName string,
 	data riskNotificationData,
 ) notification.Request {
-	return notification.Request{
-		Kind: riskReviewDueReminderNotificationKind,
-		Audiences: []notification.Audience{
-			{User: &notification.UserAudience{UserID: args.OwnerUserID.String()}},
-		},
-		Model:   newRiskReminderNotificationModel(userName, data),
-		Options: riskReminderDispatchOptions(JobTypeRiskReviewDueReminder, args.Channel, args.RiskID, args.OwnerUserID),
-	}
+	return newUserNotificationRequest(
+		riskReviewDueReminderNotificationKind,
+		args.OwnerUserID.String(),
+		newRiskReminderNotificationModel(userName, data),
+		riskReminderDispatchOptions(JobTypeRiskReviewDueReminder, args.Channel, args.RiskID, args.OwnerUserID),
+	)
 }
 
 func buildRiskReviewOverdueEscalationNotificationRequest(
@@ -132,14 +117,12 @@ func buildRiskReviewOverdueEscalationNotificationRequest(
 	userName string,
 	data riskNotificationData,
 ) notification.Request {
-	return notification.Request{
-		Kind: riskReviewOverdueEscalationNotificationKind,
-		Audiences: []notification.Audience{
-			{User: &notification.UserAudience{UserID: args.OwnerUserID.String()}},
-		},
-		Model:   newRiskReminderNotificationModel(userName, data),
-		Options: riskReminderDispatchOptions(JobTypeRiskReviewOverdueEscalation, args.Channel, args.RiskID, args.OwnerUserID),
-	}
+	return newUserNotificationRequest(
+		riskReviewOverdueEscalationNotificationKind,
+		args.OwnerUserID.String(),
+		newRiskReminderNotificationModel(userName, data),
+		riskReminderDispatchOptions(JobTypeRiskReviewOverdueEscalation, args.Channel, args.RiskID, args.OwnerUserID),
+	)
 }
 
 func buildRiskStaleOpenReminderNotificationRequest(
@@ -147,29 +130,21 @@ func buildRiskStaleOpenReminderNotificationRequest(
 	userName string,
 	data riskNotificationData,
 ) notification.Request {
-	return notification.Request{
-		Kind: riskStaleOpenReminderNotificationKind,
-		Audiences: []notification.Audience{
-			{User: &notification.UserAudience{UserID: args.OwnerUserID.String()}},
-		},
-		Model:   newRiskReminderNotificationModel(userName, data),
-		Options: riskReminderDispatchOptions(JobTypeRiskStaleOpenReminder, args.Channel, args.RiskID, args.OwnerUserID),
-	}
+	return newUserNotificationRequest(
+		riskStaleOpenReminderNotificationKind,
+		args.OwnerUserID.String(),
+		newRiskReminderNotificationModel(userName, data),
+		riskReminderDispatchOptions(JobTypeRiskStaleOpenReminder, args.Channel, args.RiskID, args.OwnerUserID),
+	)
 }
 
 func buildRiskOpenDigestNotificationRequest(args RiskOpenDigestArgs, data riskDigestNotificationData) notification.Request {
-	return notification.Request{
-		Kind: riskOpenDigestNotificationKind,
-		Audiences: []notification.Audience{
-			{User: &notification.UserAudience{UserID: args.RecipientUserID.String()}},
-		},
-		Model: newRiskOpenDigestNotificationModel(data),
-		Options: notification.DispatchOptions{
-			RequestedChannel: strings.TrimSpace(args.Channel),
-			CorrelationID:    JobTypeRiskOpenDigest + ":" + strings.TrimSpace(args.RecipientUserID.String()),
-			SourceJobKind:    JobTypeRiskOpenDigest,
-		},
-	}
+	return newUserNotificationRequest(
+		riskOpenDigestNotificationKind,
+		args.RecipientUserID.String(),
+		newRiskOpenDigestNotificationModel(data),
+		newJobDispatchOptions(JobTypeRiskOpenDigest, args.Channel, args.RecipientUserID.String()),
+	)
 }
 
 func newRiskReminderNotificationModel(userName string, data riskNotificationData) riskReminderNotificationModel {
@@ -217,11 +192,11 @@ func riskReminderDispatchOptions(jobKind, requestedChannel string, riskID, owner
 		parts = append(parts, ownerUserID.String())
 	}
 
-	return notification.DispatchOptions{
-		RequestedChannel: strings.TrimSpace(requestedChannel),
-		CorrelationID:    strings.Join(parts, ":"),
-		SourceJobKind:    strings.TrimSpace(jobKind),
+	if len(parts) > 0 {
+		parts = parts[1:]
 	}
+
+	return newJobDispatchOptions(jobKind, requestedChannel, parts...)
 }
 
 func (m riskReminderNotificationModel) templateData() map[string]interface{} {
@@ -254,67 +229,19 @@ func (m riskOpenDigestNotificationModel) templateData() map[string]interface{} {
 	}
 }
 
-func riskReminderNotificationModelFromAny(model any) (riskReminderNotificationModel, error) {
-	switch typed := model.(type) {
-	case riskReminderNotificationModel:
-		return typed, nil
-	case *riskReminderNotificationModel:
-		if typed == nil {
-			return riskReminderNotificationModel{}, fmt.Errorf("risk reminder model is required")
-		}
-		return *typed, nil
-	default:
-		return riskReminderNotificationModel{}, fmt.Errorf("unexpected risk reminder model type %T", model)
-	}
+func renderRiskReviewDueReminderEmail(model riskReminderNotificationModel) (emailprovider.TemplateContent, error) {
+	return renderRiskReminderTemplateContent(model, "risk-review-due-reminder", "Risk review due soon"), nil
 }
 
-func riskOpenDigestNotificationModelFromAny(model any) (riskOpenDigestNotificationModel, error) {
-	switch typed := model.(type) {
-	case riskOpenDigestNotificationModel:
-		return typed, nil
-	case *riskOpenDigestNotificationModel:
-		if typed == nil {
-			return riskOpenDigestNotificationModel{}, fmt.Errorf("risk open digest model is required")
-		}
-		return *typed, nil
-	default:
-		return riskOpenDigestNotificationModel{}, fmt.Errorf("unexpected risk open digest model type %T", model)
-	}
+func renderRiskReviewOverdueEscalationEmail(model riskReminderNotificationModel) (emailprovider.TemplateContent, error) {
+	return renderRiskReminderTemplateContent(model, "risk-review-overdue-escalation", "Risk review overdue"), nil
 }
 
-func renderRiskReviewDueReminderEmail(_ context.Context, model any) (emailprovider.TemplateContent, error) {
-	reminderModel, err := riskReminderNotificationModelFromAny(model)
-	if err != nil {
-		return emailprovider.TemplateContent{}, err
-	}
-
-	return renderRiskReminderTemplateContent(reminderModel, "risk-review-due-reminder", "Risk review due soon"), nil
+func renderRiskStaleOpenReminderEmail(model riskReminderNotificationModel) (emailprovider.TemplateContent, error) {
+	return renderRiskReminderTemplateContent(model, "risk-stale-open-reminder", "Stale risk reminder"), nil
 }
 
-func renderRiskReviewOverdueEscalationEmail(_ context.Context, model any) (emailprovider.TemplateContent, error) {
-	reminderModel, err := riskReminderNotificationModelFromAny(model)
-	if err != nil {
-		return emailprovider.TemplateContent{}, err
-	}
-
-	return renderRiskReminderTemplateContent(reminderModel, "risk-review-overdue-escalation", "Risk review overdue"), nil
-}
-
-func renderRiskStaleOpenReminderEmail(_ context.Context, model any) (emailprovider.TemplateContent, error) {
-	reminderModel, err := riskReminderNotificationModelFromAny(model)
-	if err != nil {
-		return emailprovider.TemplateContent{}, err
-	}
-
-	return renderRiskReminderTemplateContent(reminderModel, "risk-stale-open-reminder", "Stale risk reminder"), nil
-}
-
-func renderRiskOpenDigestEmail(_ context.Context, model any) (emailprovider.TemplateContent, error) {
-	digestModel, err := riskOpenDigestNotificationModelFromAny(model)
-	if err != nil {
-		return emailprovider.TemplateContent{}, err
-	}
-
+func renderRiskOpenDigestEmail(digestModel riskOpenDigestNotificationModel) (emailprovider.TemplateContent, error) {
 	return emailprovider.TemplateContent{
 		TemplateName: "risk-open-digest",
 		TemplateData: digestModel.templateData(),
@@ -351,12 +278,7 @@ func riskReminderFallbackText(model riskReminderNotificationModel) string {
 	return strings.Join(parts, "; ")
 }
 
-func renderRiskReviewDueReminderSlack(_ context.Context, model any) (*slackprovider.Message, error) {
-	reminderModel, err := riskReminderNotificationModelFromAny(model)
-	if err != nil {
-		return nil, err
-	}
-
+func renderRiskReviewDueReminderSlack(reminderModel riskReminderNotificationModel) (*slackprovider.Message, error) {
 	message, err := slackprovider.FormatRiskReviewDueReminderMessage(
 		reminderModel.OwnerName,
 		reminderModel.RiskTitle,
@@ -372,12 +294,7 @@ func renderRiskReviewDueReminderSlack(_ context.Context, model any) (*slackprovi
 	return message, nil
 }
 
-func renderRiskReviewOverdueEscalationSlack(_ context.Context, model any) (*slackprovider.Message, error) {
-	reminderModel, err := riskReminderNotificationModelFromAny(model)
-	if err != nil {
-		return nil, err
-	}
-
+func renderRiskReviewOverdueEscalationSlack(reminderModel riskReminderNotificationModel) (*slackprovider.Message, error) {
 	message, err := slackprovider.FormatRiskReviewOverdueEscalationMessage(
 		reminderModel.OwnerName,
 		reminderModel.RiskTitle,
@@ -393,12 +310,7 @@ func renderRiskReviewOverdueEscalationSlack(_ context.Context, model any) (*slac
 	return message, nil
 }
 
-func renderRiskStaleOpenReminderSlack(_ context.Context, model any) (*slackprovider.Message, error) {
-	reminderModel, err := riskReminderNotificationModelFromAny(model)
-	if err != nil {
-		return nil, err
-	}
-
+func renderRiskStaleOpenReminderSlack(reminderModel riskReminderNotificationModel) (*slackprovider.Message, error) {
 	message, err := slackprovider.FormatRiskStaleOpenReminderMessage(
 		reminderModel.OwnerName,
 		reminderModel.RiskTitle,
@@ -414,12 +326,7 @@ func renderRiskStaleOpenReminderSlack(_ context.Context, model any) (*slackprovi
 	return message, nil
 }
 
-func renderRiskOpenDigestSlack(_ context.Context, model any) (*slackprovider.Message, error) {
-	digestModel, err := riskOpenDigestNotificationModelFromAny(model)
-	if err != nil {
-		return nil, err
-	}
-
+func renderRiskOpenDigestSlack(digestModel riskOpenDigestNotificationModel) (*slackprovider.Message, error) {
 	message, err := slackprovider.FormatRiskOpenDigestMessage(
 		digestModel.RecipientName,
 		digestModel.PeriodLabel,

@@ -72,45 +72,33 @@ func newWorkflowNotificationServiceFromFactory(
 ) *notification.Service {
 	return runtimeFactory.MustNewService(
 		users,
-		notification.NewDefinition(
+		newTypedNotificationDefinition(
 			workflowTaskAssignedNotificationKind,
 			notification.NotificationTypeTaskAvailable,
-			emailprovider.TemplateChannel(func(ctx context.Context, model any) (emailprovider.TemplateContent, error) {
-				return renderWorkflowTaskAssignedEmail(ctx, model)
-			}),
-			slackprovider.MessageChannel(func(ctx context.Context, model any) (*slackprovider.Message, error) {
-				return renderWorkflowTaskAssignedSlack(ctx, model)
-			}),
+			newNotificationModelDecoder[workflowTaskAssignedNotificationModel]("workflow task assigned model"),
+			renderWorkflowTaskAssignedEmail,
+			renderWorkflowTaskAssignedSlack,
 		),
-		notification.NewDefinition(
+		newTypedNotificationDefinition(
 			workflowTaskDueSoonNotificationKind,
 			notification.NotificationTypeTaskAvailable,
-			emailprovider.TemplateChannel(func(ctx context.Context, model any) (emailprovider.TemplateContent, error) {
-				return renderWorkflowTaskDueSoonEmail(ctx, model)
-			}),
-			slackprovider.MessageChannel(func(ctx context.Context, model any) (*slackprovider.Message, error) {
-				return renderWorkflowTaskDueSoonSlack(ctx, model)
-			}),
+			newNotificationModelDecoder[workflowTaskDueSoonNotificationModel]("workflow task due soon model"),
+			renderWorkflowTaskDueSoonEmail,
+			renderWorkflowTaskDueSoonSlack,
 		),
-		notification.NewDefinition(
+		newTypedNotificationDefinition(
 			workflowTaskDigestNotificationKind,
 			notification.NotificationTypeTaskDailyDigest,
-			emailprovider.TemplateChannel(func(ctx context.Context, model any) (emailprovider.TemplateContent, error) {
-				return renderWorkflowTaskDigestEmail(ctx, model)
-			}),
-			slackprovider.MessageChannel(func(ctx context.Context, model any) (*slackprovider.Message, error) {
-				return renderWorkflowTaskDigestSlack(ctx, model)
-			}),
+			newNotificationModelDecoder[workflowTaskDigestNotificationModel]("workflow task digest model"),
+			renderWorkflowTaskDigestEmail,
+			renderWorkflowTaskDigestSlack,
 		),
-		notification.NewDefinition(
+		newTypedNotificationDefinition(
 			workflowExecutionFailedNotificationKind,
 			notification.NotificationTypeUngated,
-			emailprovider.TemplateChannel(func(ctx context.Context, model any) (emailprovider.TemplateContent, error) {
-				return renderWorkflowExecutionFailedEmail(ctx, model)
-			}),
-			slackprovider.MessageChannel(func(ctx context.Context, model any) (*slackprovider.Message, error) {
-				return renderWorkflowExecutionFailedSlack(ctx, model)
-			}),
+			newNotificationModelDecoder[workflowExecutionFailedNotificationModel]("workflow execution failed model"),
+			renderWorkflowExecutionFailedEmail,
+			renderWorkflowExecutionFailedSlack,
 		),
 	)
 }
@@ -167,65 +155,40 @@ func newWorkflowExecutionFailedNotificationModel(data workflowExecutionFailedNot
 }
 
 func taskAvailableDispatchOptions(jobKind, requestedChannel, stepExecutionID string) notification.DispatchOptions {
-	correlationID := ""
-	if trimmedStepExecutionID := strings.TrimSpace(stepExecutionID); trimmedStepExecutionID != "" {
-		correlationID = jobKind + ":" + trimmedStepExecutionID
-	}
-
-	return notification.DispatchOptions{
-		RequestedChannel: strings.TrimSpace(requestedChannel),
-		CorrelationID:    correlationID,
-		SourceJobKind:    jobKind,
-	}
+	return newJobDispatchOptions(jobKind, requestedChannel, stepExecutionID)
 }
 
 func buildWorkflowTaskAssignedNotificationRequest(args WorkflowTaskAssignedArgs, userName, webBaseURL string) notification.Request {
-	audience := notification.Audience{
-		User: &notification.UserAudience{UserID: args.UserID},
-	}
+	model := newWorkflowTaskAssignedNotificationModel(args, userName, webBaseURL)
+	options := taskAvailableDispatchOptions(JobTypeWorkflowTaskAssigned, args.Channel, args.StepExecutionID)
 	if args.AssignedToType == notification.DeliveryChannelEmail {
-		audience = notification.Audience{
-			Direct: &notification.DirectAudience{
-				Provider: emailprovider.ChannelID,
-				Address:  emailprovider.Identity(args.UserID),
-			},
-		}
+		return newDirectEmailNotificationRequest(
+			workflowTaskAssignedNotificationKind,
+			args.UserID,
+			model,
+			options,
+		)
 	}
 
-	return notification.Request{
-		Kind: workflowTaskAssignedNotificationKind,
-		Audiences: []notification.Audience{
-			audience,
-		},
-		Model:   newWorkflowTaskAssignedNotificationModel(args, userName, webBaseURL),
-		Options: taskAvailableDispatchOptions(JobTypeWorkflowTaskAssigned, args.Channel, args.StepExecutionID),
-	}
+	return newUserNotificationRequest(workflowTaskAssignedNotificationKind, args.UserID, model, options)
 }
 
 func buildWorkflowTaskDueSoonNotificationRequest(args WorkflowTaskDueSoonArgs, userName, webBaseURL string) notification.Request {
-	return notification.Request{
-		Kind: workflowTaskDueSoonNotificationKind,
-		Audiences: []notification.Audience{
-			{User: &notification.UserAudience{UserID: args.UserID}},
-		},
-		Model:   newWorkflowTaskDueSoonNotificationModel(args, userName, webBaseURL),
-		Options: taskAvailableDispatchOptions(JobTypeWorkflowTaskDueSoon, args.Channel, args.StepExecutionID),
-	}
+	return newUserNotificationRequest(
+		workflowTaskDueSoonNotificationKind,
+		args.UserID,
+		newWorkflowTaskDueSoonNotificationModel(args, userName, webBaseURL),
+		taskAvailableDispatchOptions(JobTypeWorkflowTaskDueSoon, args.Channel, args.StepExecutionID),
+	)
 }
 
 func buildWorkflowTaskDigestNotificationRequest(args WorkflowTaskDigestArgs, data digestNotificationData) notification.Request {
-	return notification.Request{
-		Kind: workflowTaskDigestNotificationKind,
-		Audiences: []notification.Audience{
-			{User: &notification.UserAudience{UserID: args.UserID}},
-		},
-		Model: newWorkflowTaskDigestNotificationModel(data),
-		Options: notification.DispatchOptions{
-			RequestedChannel: strings.TrimSpace(args.Channel),
-			CorrelationID:    JobTypeWorkflowTaskDigest + ":" + strings.TrimSpace(args.UserID),
-			SourceJobKind:    JobTypeWorkflowTaskDigest,
-		},
-	}
+	return newUserNotificationRequest(
+		workflowTaskDigestNotificationKind,
+		args.UserID,
+		newWorkflowTaskDigestNotificationModel(data),
+		newJobDispatchOptions(JobTypeWorkflowTaskDigest, args.Channel, args.UserID),
+	)
 }
 
 func buildWorkflowExecutionFailedNotificationRequest(
@@ -233,45 +196,12 @@ func buildWorkflowExecutionFailedNotificationRequest(
 	recipientUserID string,
 	data workflowExecutionFailedNotificationModel,
 ) notification.Request {
-	return notification.Request{
-		Kind: workflowExecutionFailedNotificationKind,
-		Audiences: []notification.Audience{
-			{User: &notification.UserAudience{UserID: strings.TrimSpace(recipientUserID)}},
-		},
-		Model: newWorkflowExecutionFailedNotificationModel(data),
-		Options: notification.DispatchOptions{
-			CorrelationID: JobTypeWorkflowExecutionFailed + ":" + strings.TrimSpace(args.WorkflowExecutionID),
-			SourceJobKind: JobTypeWorkflowExecutionFailed,
-		},
-	}
-}
-
-func workflowTaskAssignedNotificationModelFromAny(model any) (workflowTaskAssignedNotificationModel, error) {
-	switch typed := model.(type) {
-	case workflowTaskAssignedNotificationModel:
-		return typed, nil
-	case *workflowTaskAssignedNotificationModel:
-		if typed == nil {
-			return workflowTaskAssignedNotificationModel{}, fmt.Errorf("workflow task assigned model is required")
-		}
-		return *typed, nil
-	default:
-		return workflowTaskAssignedNotificationModel{}, fmt.Errorf("unexpected workflow task assigned model type %T", model)
-	}
-}
-
-func workflowTaskDueSoonNotificationModelFromAny(model any) (workflowTaskDueSoonNotificationModel, error) {
-	switch typed := model.(type) {
-	case workflowTaskDueSoonNotificationModel:
-		return typed, nil
-	case *workflowTaskDueSoonNotificationModel:
-		if typed == nil {
-			return workflowTaskDueSoonNotificationModel{}, fmt.Errorf("workflow task due soon model is required")
-		}
-		return *typed, nil
-	default:
-		return workflowTaskDueSoonNotificationModel{}, fmt.Errorf("unexpected workflow task due soon model type %T", model)
-	}
+	return newUserNotificationRequest(
+		workflowExecutionFailedNotificationKind,
+		recipientUserID,
+		newWorkflowExecutionFailedNotificationModel(data),
+		newJobDispatchOptions(JobTypeWorkflowExecutionFailed, "", args.WorkflowExecutionID),
+	)
 }
 
 func (m workflowTaskDigestNotificationModel) templateData() map[string]interface{} {
@@ -297,34 +227,6 @@ func (m workflowExecutionFailedNotificationModel) templateData() map[string]inte
 		"TotalSteps":           m.TotalSteps,
 		"WorkflowURL":          m.WorkflowURL,
 		"MyTasksURL":           m.MyTasksURL,
-	}
-}
-
-func workflowTaskDigestNotificationModelFromAny(model any) (workflowTaskDigestNotificationModel, error) {
-	switch typed := model.(type) {
-	case workflowTaskDigestNotificationModel:
-		return typed, nil
-	case *workflowTaskDigestNotificationModel:
-		if typed == nil {
-			return workflowTaskDigestNotificationModel{}, fmt.Errorf("workflow task digest model is required")
-		}
-		return *typed, nil
-	default:
-		return workflowTaskDigestNotificationModel{}, fmt.Errorf("unexpected workflow task digest model type %T", model)
-	}
-}
-
-func workflowExecutionFailedNotificationModelFromAny(model any) (workflowExecutionFailedNotificationModel, error) {
-	switch typed := model.(type) {
-	case workflowExecutionFailedNotificationModel:
-		return typed, nil
-	case *workflowExecutionFailedNotificationModel:
-		if typed == nil {
-			return workflowExecutionFailedNotificationModel{}, fmt.Errorf("workflow execution failed model is required")
-		}
-		return *typed, nil
-	default:
-		return workflowExecutionFailedNotificationModel{}, fmt.Errorf("unexpected workflow execution failed model type %T", model)
 	}
 }
 
@@ -415,12 +317,7 @@ func convertNotificationUser(user NotificationUser) notification.User {
 	}
 }
 
-func renderWorkflowTaskAssignedEmail(_ context.Context, model any) (emailprovider.TemplateContent, error) {
-	assignedModel, err := workflowTaskAssignedNotificationModelFromAny(model)
-	if err != nil {
-		return emailprovider.TemplateContent{}, err
-	}
-
+func renderWorkflowTaskAssignedEmail(assignedModel workflowTaskAssignedNotificationModel) (emailprovider.TemplateContent, error) {
 	return emailprovider.TemplateContent{
 		TemplateName: "workflow-task-assigned",
 		TemplateData: map[string]any{
@@ -437,12 +334,7 @@ func renderWorkflowTaskAssignedEmail(_ context.Context, model any) (emailprovide
 	}, nil
 }
 
-func renderWorkflowTaskDueSoonEmail(_ context.Context, model any) (emailprovider.TemplateContent, error) {
-	dueSoonModel, err := workflowTaskDueSoonNotificationModelFromAny(model)
-	if err != nil {
-		return emailprovider.TemplateContent{}, err
-	}
-
+func renderWorkflowTaskDueSoonEmail(dueSoonModel workflowTaskDueSoonNotificationModel) (emailprovider.TemplateContent, error) {
 	return emailprovider.TemplateContent{
 		TemplateName: "workflow-task-due-soon",
 		TemplateData: map[string]any{
@@ -459,12 +351,7 @@ func renderWorkflowTaskDueSoonEmail(_ context.Context, model any) (emailprovider
 	}, nil
 }
 
-func renderWorkflowTaskDigestEmail(_ context.Context, model any) (emailprovider.TemplateContent, error) {
-	digestModel, err := workflowTaskDigestNotificationModelFromAny(model)
-	if err != nil {
-		return emailprovider.TemplateContent{}, err
-	}
-
+func renderWorkflowTaskDigestEmail(digestModel workflowTaskDigestNotificationModel) (emailprovider.TemplateContent, error) {
 	return emailprovider.TemplateContent{
 		TemplateName: "workflow-task-digest",
 		TemplateData: digestModel.templateData(),
@@ -473,12 +360,7 @@ func renderWorkflowTaskDigestEmail(_ context.Context, model any) (emailprovider.
 	}, nil
 }
 
-func renderWorkflowExecutionFailedEmail(_ context.Context, model any) (emailprovider.TemplateContent, error) {
-	failedModel, err := workflowExecutionFailedNotificationModelFromAny(model)
-	if err != nil {
-		return emailprovider.TemplateContent{}, err
-	}
-
+func renderWorkflowExecutionFailedEmail(failedModel workflowExecutionFailedNotificationModel) (emailprovider.TemplateContent, error) {
 	instanceName := failedModel.WorkflowInstanceName
 	if instanceName == "" {
 		instanceName = failedModel.WorkflowTitle
@@ -492,12 +374,7 @@ func renderWorkflowExecutionFailedEmail(_ context.Context, model any) (emailprov
 	}, nil
 }
 
-func renderWorkflowTaskAssignedSlack(_ context.Context, model any) (*slackprovider.Message, error) {
-	assignedModel, err := workflowTaskAssignedNotificationModelFromAny(model)
-	if err != nil {
-		return nil, err
-	}
-
+func renderWorkflowTaskAssignedSlack(assignedModel workflowTaskAssignedNotificationModel) (*slackprovider.Message, error) {
 	message, err := slackprovider.FormatWorkflowTaskAssignedMessage(
 		assignedModel.UserName,
 		assignedModel.StepTitle,
@@ -513,12 +390,7 @@ func renderWorkflowTaskAssignedSlack(_ context.Context, model any) (*slackprovid
 	return message, nil
 }
 
-func renderWorkflowTaskDueSoonSlack(_ context.Context, model any) (*slackprovider.Message, error) {
-	dueSoonModel, err := workflowTaskDueSoonNotificationModelFromAny(model)
-	if err != nil {
-		return nil, err
-	}
-
+func renderWorkflowTaskDueSoonSlack(dueSoonModel workflowTaskDueSoonNotificationModel) (*slackprovider.Message, error) {
 	message, err := slackprovider.FormatWorkflowTaskDueSoonMessage(
 		dueSoonModel.UserName,
 		dueSoonModel.StepTitle,
@@ -534,12 +406,7 @@ func renderWorkflowTaskDueSoonSlack(_ context.Context, model any) (*slackprovide
 	return message, nil
 }
 
-func renderWorkflowTaskDigestSlack(_ context.Context, model any) (*slackprovider.Message, error) {
-	digestModel, err := workflowTaskDigestNotificationModelFromAny(model)
-	if err != nil {
-		return nil, err
-	}
-
+func renderWorkflowTaskDigestSlack(digestModel workflowTaskDigestNotificationModel) (*slackprovider.Message, error) {
 	message, err := slackprovider.FormatWorkflowTaskDigestMessage(
 		digestModel.UserName,
 		digestModel.PeriodLabel,
@@ -554,12 +421,7 @@ func renderWorkflowTaskDigestSlack(_ context.Context, model any) (*slackprovider
 	return message, nil
 }
 
-func renderWorkflowExecutionFailedSlack(_ context.Context, model any) (*slackprovider.Message, error) {
-	failedModel, err := workflowExecutionFailedNotificationModelFromAny(model)
-	if err != nil {
-		return nil, err
-	}
-
+func renderWorkflowExecutionFailedSlack(failedModel workflowExecutionFailedNotificationModel) (*slackprovider.Message, error) {
 	message, err := slackprovider.FormatWorkflowExecutionFailedMessage(
 		failedModel.RecipientName,
 		failedModel.WorkflowTitle,
