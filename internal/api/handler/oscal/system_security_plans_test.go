@@ -1097,8 +1097,10 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) TestCreateByComponentInvalid
 
 	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
 	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
+	evidenceSvc := evidencesvc.NewEvidenceService(suite.DB, logger.Sugar(), suite.Config, nil)
+	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, evidenceSvc, nil)
 
-	ssp := suite.loadTestSSP()
+	ssp := suite.createBasicSSP()
 	componentUuid := ssp.SystemImplementation.Components[0].UUID
 	ssp.ControlImplementation.ImplementedRequirements[0].Statements = nil
 
