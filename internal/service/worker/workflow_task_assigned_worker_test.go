@@ -306,7 +306,7 @@ func TestWorkflowTaskAssignedWorker_EmailAssignee_SendsDirectEmailWithoutUserLoo
 	)
 
 	args := WorkflowTaskAssignedArgs{
-		AssignedToType:        "email",
+		AssignedToType:        workflows.AssignmentTypeEmail.String(),
 		UserID:                "external@example.com",
 		StepExecutionID:       "step-external",
 		StepTitle:             "Submit Policy",

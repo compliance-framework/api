@@ -9,6 +9,7 @@ import (
 	"github.com/compliance-framework/api/internal/service/notification"
 	emailprovider "github.com/compliance-framework/api/internal/service/notification/providers/email"
 	slackprovider "github.com/compliance-framework/api/internal/service/notification/providers/slack"
+	"github.com/compliance-framework/api/internal/service/relational/workflows"
 )
 
 const (
@@ -161,7 +162,7 @@ func taskAvailableDispatchOptions(jobKind, requestedChannel, stepExecutionID str
 func buildWorkflowTaskAssignedNotificationRequest(args WorkflowTaskAssignedArgs, userName, webBaseURL string) notification.Request {
 	model := newWorkflowTaskAssignedNotificationModel(args, userName, webBaseURL)
 	options := taskAvailableDispatchOptions(JobTypeWorkflowTaskAssigned, args.Channel, args.StepExecutionID)
-	if args.AssignedToType == notification.DeliveryChannelEmail {
+	if args.AssignedToType == workflows.AssignmentTypeEmail.String() {
 		return newDirectEmailNotificationRequest(
 			workflowTaskAssignedNotificationKind,
 			args.UserID,
@@ -246,10 +247,8 @@ func newNotificationUserRepositoryAdapter(base UserRepository, cachedUsers ...No
 }
 
 func (a *notificationUserRepositoryAdapter) FindUserByID(ctx context.Context, userID string) (notification.User, error) {
-	if a != nil {
-		if cached, ok := a.cached[strings.TrimSpace(userID)]; ok {
-			return convertNotificationUser(cached), nil
-		}
+	if cached, ok := a.cachedUser(userID); ok {
+		return convertNotificationUser(cached), nil
 	}
 	if a == nil || a.base == nil {
 		return notification.User{}, fmt.Errorf("notification user repository is not configured")
@@ -260,7 +259,32 @@ func (a *notificationUserRepositoryAdapter) FindUserByID(ctx context.Context, us
 		return notification.User{}, err
 	}
 
+	a.cacheUsers(user)
 	return convertNotificationUser(user), nil
+}
+
+func (a *notificationUserRepositoryAdapter) cachedUser(userID string) (NotificationUser, bool) {
+	if a == nil {
+		return NotificationUser{}, false
+	}
+
+	cached, ok := a.cached[strings.TrimSpace(userID)]
+	return cached, ok
+}
+
+func (a *notificationUserRepositoryAdapter) cacheUsers(users ...NotificationUser) {
+	if a == nil || len(users) == 0 {
+		return
+	}
+	if a.cached == nil {
+		a.cached = make(map[string]NotificationUser, len(users))
+	}
+
+	for _, user := range users {
+		if trimmedID := strings.TrimSpace(user.ID); trimmedID != "" {
+			a.cached[trimmedID] = user
+		}
+	}
 }
 
 func (a *notificationUserRepositoryAdapter) ListActiveUsersByNotificationType(_ context.Context, notificationType string) ([]notification.User, error) {

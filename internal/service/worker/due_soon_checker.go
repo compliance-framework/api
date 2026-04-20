@@ -21,13 +21,13 @@ func (DueSoonCheckerArgs) Kind() string { return "workflow_due_soon_checker" }
 // Timeout returns the timeout for the due-soon checker job
 func (DueSoonCheckerArgs) Timeout() time.Duration { return 5 * time.Minute }
 
-// DueSoonCheckerWorker scans for step executions due in a week and enqueues reminder notifications.
+// DueSoonCheckerWorker scans for step executions due in a week and dispatches reminder notifications.
 type DueSoonCheckerWorker struct {
-	db         *gorm.DB
-	notifier   *notification.Service
-	userRepo   UserRepository
-	webBaseURL string
-	logger     *zap.SugaredLogger
+	db                          *gorm.DB
+	notificationRuntimeProvider notification.RuntimeProvider
+	userRepo                    UserRepository
+	webBaseURL                  string
+	logger                      *zap.SugaredLogger
 }
 
 // NewDueSoonCheckerWorker creates a new DueSoonCheckerWorker with an injected runtime provider.
@@ -40,14 +40,11 @@ func NewDueSoonCheckerWorker(
 	userRepo := NewGORMUserRepository(db)
 
 	return &DueSoonCheckerWorker{
-		db:         db,
-		userRepo:   userRepo,
-		webBaseURL: webBaseURL,
-		notifier: newWorkflowNotificationServiceFromFactory(
-			notificationRuntime.NewRuntimeFactory(nil),
-			newNotificationUserRepositoryAdapter(userRepo),
-		),
-		logger: logger,
+		db:                          db,
+		notificationRuntimeProvider: notificationRuntime,
+		userRepo:                    userRepo,
+		webBaseURL:                  webBaseURL,
+		logger:                      logger,
 	}
 }
 
@@ -83,6 +80,12 @@ func (w *DueSoonCheckerWorker) Work(ctx context.Context, job *river.Job[DueSoonC
 		return nil
 	}
 
+	userAdapter := newNotificationUserRepositoryAdapter(w.userRepo)
+	notifier := newWorkflowNotificationServiceFromFactory(
+		w.notificationRuntimeProvider.NewRuntimeFactory(nil),
+		userAdapter,
+	)
+
 	dispatched := 0
 	for i := range steps {
 		step := &steps[i]
@@ -104,7 +107,7 @@ func (w *DueSoonCheckerWorker) Work(ctx context.Context, job *river.Job[DueSoonC
 
 		userName := ""
 		if w.userRepo != nil {
-			user, err := w.userRepo.FindUserByID(ctx, step.AssignedToID)
+			user, err := userAdapter.FindUserByID(ctx, step.AssignedToID)
 			if err != nil {
 				w.logger.Warnw("DueSoonCheckerWorker: user not found, skipping",
 					"step_execution_id", step.ID.String(),
@@ -116,7 +119,7 @@ func (w *DueSoonCheckerWorker) Work(ctx context.Context, job *river.Job[DueSoonC
 			userName = user.FullName()
 		}
 
-		if err := w.notifier.Dispatch(
+		if err := notifier.Dispatch(
 			ctx,
 			buildWorkflowTaskDueSoonNotificationRequest(baseArgs, userName, w.webBaseURL),
 		); err != nil {

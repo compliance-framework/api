@@ -128,7 +128,7 @@ func (w *WorkflowTaskAssignedWorker) Work(ctx context.Context, job *river.Job[Wo
 		return nil
 	}
 
-	if args.AssignedToType == notification.DeliveryChannelEmail {
+	if args.AssignedToType == workflows.AssignmentTypeEmail.String() {
 		return w.dispatchToEmailAddress(ctx, args)
 	}
 	return w.dispatchToUser(ctx, args)

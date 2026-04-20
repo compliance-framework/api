@@ -3,6 +3,7 @@ package worker
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"testing"
 	"time"
 
@@ -19,6 +20,22 @@ import (
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
+
+type countingNotificationUserRepository struct {
+	users       map[string]NotificationUser
+	lookupCount int
+}
+
+func (r *countingNotificationUserRepository) FindUserByID(_ context.Context, userID string) (NotificationUser, error) {
+	r.lookupCount++
+
+	user, ok := r.users[userID]
+	if !ok {
+		return NotificationUser{}, fmt.Errorf("user %s not found", userID)
+	}
+
+	return user, nil
+}
 
 func TestWorkflowTaskAssignedInsertParams_EnqueuesSingleWrapperJob(t *testing.T) {
 	params := workflowTaskAssignedInsertParams(WorkflowTaskAssignedArgs{
@@ -161,6 +178,86 @@ func TestDueSoonCheckerWorker_EnqueuesOneJobPerChannel(t *testing.T) {
 
 	assert.Equal(t, 1, emailJobs)
 	assert.Equal(t, 1, slackJobs)
+}
+
+func TestDueSoonCheckerWorker_CachesFetchedUsersAcrossDispatches(t *testing.T) {
+	db := newWorkflowNotificationJobsTestDB(t)
+	client := &stubRiverClient{}
+
+	userID := uuid.New().String()
+	repo := &countingNotificationUserRepository{
+		users: map[string]NotificationUser{
+			userID: {
+				ID:        userID,
+				Email:     "alice@example.com",
+				FirstName: "Alice",
+				LastName:  "User",
+				NotificationSubscriptions: []NotificationSubscription{
+					{
+						NotificationType: notification.NotificationTypeTaskAvailable,
+						Channels:         []string{notification.DeliveryChannelEmail},
+					},
+				},
+			},
+		},
+	}
+
+	worker := &DueSoonCheckerWorker{
+		db: db,
+		notificationRuntimeProvider: newWorkerNotificationRuntimeProvider(nil, nil, func() notification.WorkerEnqueuer {
+			return newWorkerNotificationEnqueuer(client, "email", 5)
+		}),
+		userRepo:   repo,
+		webBaseURL: "http://localhost:8000",
+		logger:     zap.NewNop().Sugar(),
+	}
+
+	sspID := uuid.New()
+	require.NoError(t, db.Model(&relational.SystemSecurityPlan{}).Create(map[string]interface{}{
+		"id": sspID,
+	}).Error)
+
+	definition := workflows.WorkflowDefinition{Name: "Quarterly Review"}
+	require.NoError(t, db.Create(&definition).Error)
+
+	instance := workflows.WorkflowInstance{
+		Name:                 "Q2 2026",
+		WorkflowDefinitionID: definition.ID,
+		SystemSecurityPlanID: &sspID,
+	}
+	require.NoError(t, db.Create(&instance).Error)
+
+	execution := workflows.WorkflowExecution{
+		Status:             workflows.WorkflowStatusPending.String(),
+		TriggeredBy:        workflows.TriggerManual.String(),
+		WorkflowInstanceID: instance.ID,
+	}
+	require.NoError(t, db.Create(&execution).Error)
+
+	dueDate := time.Now().Add(3 * 24 * time.Hour)
+	for i := range 2 {
+		stepDefinition := workflows.WorkflowStepDefinition{
+			Name:                 fmt.Sprintf("Submit Evidence %d", i+1),
+			ResponsibleRole:      "owner",
+			WorkflowDefinitionID: definition.ID,
+		}
+		require.NoError(t, db.Create(&stepDefinition).Error)
+
+		stepExecution := workflows.StepExecution{
+			Status:                   workflows.StepStatusPending.String(),
+			AssignedToType:           workflows.AssignmentTypeUser.String(),
+			AssignedToID:             userID,
+			DueDate:                  &dueDate,
+			WorkflowExecutionID:      execution.ID,
+			WorkflowStepDefinitionID: stepDefinition.ID,
+		}
+		require.NoError(t, db.Create(&stepExecution).Error)
+	}
+
+	err := worker.Work(context.Background(), &river.Job[DueSoonCheckerArgs]{Args: DueSoonCheckerArgs{}})
+	require.NoError(t, err)
+	assert.Equal(t, 1, repo.lookupCount)
+	require.Len(t, client.params, 2)
 }
 
 func TestWorkflowTaskDigestCheckerWorker_EnqueuesOneJobPerSubscribedUser(t *testing.T) {
