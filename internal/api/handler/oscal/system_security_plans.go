@@ -3642,6 +3642,11 @@ func (h *SystemSecurityPlanHandler) UpdateImplementedRequirementByComponent(ctx 
 
 	relBC := &relational.ByComponent{}
 	relBC.UnmarshalOscal(oscalBC)
+
+	if err := validateByComponentImplementationStatus(relBC); err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
 	relBC.ID = &byComponentID
 	relBC.ParentID = req.ID
 	parentType := "implemented_requirements"
@@ -4255,6 +4260,11 @@ func (h *SystemSecurityPlanHandler) UpdateImplementedRequirementStatementByCompo
 	// Step 6: Map and update
 	relBC := &relational.ByComponent{}
 	relBC.UnmarshalOscal(oscalBC)
+
+	if err := validateByComponentImplementationStatus(relBC); err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
 	relBC.ID = &byComponentID
 	relBC.ParentID = stmt.ID
 	parentType := "statements"
@@ -4438,9 +4448,14 @@ func (h *SystemSecurityPlanHandler) CreateImplementedRequirementStatementByCompo
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 
-	// Step 6: Map and update
+	// Step 6: Map and create
 	relBC := &relational.ByComponent{}
 	relBC.UnmarshalOscal(oscalBC)
+
+	if err := validateByComponentImplementationStatus(relBC); err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
 	relBC.ParentID = stmt.ID
 	parentType := "statements"
 	relBC.ParentType = &parentType
@@ -4449,7 +4464,7 @@ func (h *SystemSecurityPlanHandler) CreateImplementedRequirementStatementByCompo
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
-	// Step 7: Return updated
+	// Step 7: Return created
 	return ctx.JSON(http.StatusCreated, handler.GenericDataResponse[oscalTypes_1_1_3.ByComponent]{Data: *relBC.MarshalOscal()})
 }
 
@@ -4763,4 +4778,16 @@ func parseSSPReqIDs(ctx echo.Context) (uuid.UUID, uuid.UUID, error) {
 		return uuid.Nil, uuid.Nil, err
 	}
 	return sspID, reqID, nil
+}
+
+// validateByComponentImplementationStatus validates the implementation status
+// state on a ByComponent. When the implementation-status field is entirely
+// absent (zero JSONType) validation is skipped. When the object is present,
+// a valid, non-empty state is required.
+func validateByComponentImplementationStatus(bc *relational.ByComponent) error {
+	if bc.ImplementationStatus == (datatypes.JSONType[relational.ImplementationStatus]{}) {
+		return nil
+	}
+	is := bc.ImplementationStatus.Data()
+	return is.Validate()
 }
