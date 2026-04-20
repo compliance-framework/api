@@ -1583,12 +1583,12 @@ const docTemplate = `{
                 "summary": "Search Evidence",
                 "parameters": [
                     {
-                        "description": "Label filter",
-                        "name": "filter",
+                        "description": "Evidence search request",
+                        "name": "request",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/labelfilter.Filter"
+                            "$ref": "#/definitions/handler.filteredSearchRequest"
                         }
                     },
                     {
@@ -1602,6 +1602,24 @@ const docTemplate = `{
                         "description": "Page size",
                         "name": "limit",
                         "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Sort field: lastSeenAt, name, status",
+                        "name": "sortBy",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Sort direction: asc, desc",
+                        "name": "sortDirection",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Case-insensitive evidence name search",
+                        "name": "name",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -1609,6 +1627,12 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/service.ListResponse-handler_PublicEvidenceResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
                         }
                     },
                     "422": {
@@ -15631,12 +15655,12 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "Profile ID to attach",
-                        "name": "profileId",
+                        "description": "Profile binding request",
+                        "name": "request",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "type": "string"
+                            "$ref": "#/definitions/oscal.addProfileRequest"
                         }
                     }
                 ],
@@ -15666,6 +15690,185 @@ const docTemplate = `{
                         }
                     }
                 }
+            }
+        },
+        "/oscal/system-security-plans/{id}/profiles": {
+            "get": {
+                "description": "Returns all profiles associated with a System Security Plan via the ssp_profiles join table.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "System Security Plans"
+                ],
+                "summary": "List Profiles bound to an SSP",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "SSP ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataListResponse-oscal_profileSummary"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            },
+            "post": {
+                "description": "Associates an additional Profile with a System Security Plan. Creates ImplementedRequirements for any new controls.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "System Security Plans"
+                ],
+                "summary": "Add a Profile binding to an SSP",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "SSP ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Profile binding request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/oscal.addProfileRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataListResponse-oscal_profileSummary"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/oscal/system-security-plans/{id}/profiles/{profileId}": {
+            "delete": {
+                "description": "Removes a profile association from a System Security Plan. Enqueues orphaned risk cleanup.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "System Security Plans"
+                ],
+                "summary": "Remove a Profile binding from an SSP",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "SSP ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Profile ID to remove",
+                        "name": "profileId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataListResponse-oscal_profileSummary"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
             }
         },
         "/oscal/system-security-plans/{id}/system-characteristics": {
@@ -17878,6 +18081,76 @@ const docTemplate = `{
                 ]
             }
         },
+        "/oscal/system-security-plans/{sspId}/risks/score-timeseries": {
+            "get": {
+                "description": "Returns aggregate open baseline and residual score time series for an SSP.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Risks"
+                ],
+                "summary": "Get risk score timeseries for SSP",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "SSP ID",
+                        "name": "sspId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Start timestamp (RFC3339)",
+                        "name": "from",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "End timestamp (RFC3339)",
+                        "name": "to",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Bucket size; only day is supported",
+                        "name": "bucket",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataListResponse-handler_riskScoreTimeseriesResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
         "/oscal/system-security-plans/{sspId}/risks/{id}": {
             "get": {
                 "description": "Retrieves a risk register entry by ID scoped to an SSP.",
@@ -19253,6 +19526,77 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/service.ListResponse-risks_RiskReview"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/oscal/system-security-plans/{sspId}/risks/{id}/score-history": {
+            "get": {
+                "description": "Lists score snapshots for a risk scoped to an SSP.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Risks"
+                ],
+                "summary": "List risk score history for SSP",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "SSP ID",
+                        "name": "sspId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Risk ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page number",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page size",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/service.ListResponse-handler_riskScoreResponse"
                         }
                     },
                     "400": {
@@ -20980,6 +21324,69 @@ const docTemplate = `{
                 ]
             }
         },
+        "/risks/score-timeseries": {
+            "get": {
+                "description": "Returns aggregate open baseline and residual score time series.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Risks"
+                ],
+                "summary": "Get risk score timeseries",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "SSP ID",
+                        "name": "sspId",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Start timestamp (RFC3339)",
+                        "name": "from",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "End timestamp (RFC3339)",
+                        "name": "to",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Bucket size; only day is supported",
+                        "name": "bucket",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataListResponse-handler_riskScoreTimeseriesResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
         "/risks/{id}": {
             "get": {
                 "description": "Retrieves a risk register entry by ID.",
@@ -22208,6 +22615,70 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/service.ListResponse-risks_RiskReview"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/risks/{id}/score-history": {
+            "get": {
+                "description": "Lists score snapshots for a risk.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Risks"
+                ],
+                "summary": "List risk score history",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Risk ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page number",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page size",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/service.ListResponse-handler_riskScoreResponse"
                         }
                     },
                     "400": {
@@ -26712,6 +27183,18 @@ const docTemplate = `{
                 }
             }
         },
+        "handler.GenericDataListResponse-handler_riskScoreTimeseriesResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handler.riskScoreTimeseriesResponse"
+                    }
+                }
+            }
+        },
         "handler.GenericDataListResponse-handler_selectableUserResponse": {
             "type": "object",
             "properties": {
@@ -27116,6 +27599,18 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/oscal.ProfileHandler"
+                    }
+                }
+            }
+        },
+        "handler.GenericDataListResponse-oscal_profileSummary": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscal.profileSummary"
                     }
                 }
             }
@@ -28699,6 +29194,17 @@ const docTemplate = `{
                 }
             }
         },
+        "handler.filteredSearchRequest": {
+            "type": "object",
+            "required": [
+                "filter"
+            ],
+            "properties": {
+                "filter": {
+                    "$ref": "#/definitions/labelfilter.Filter"
+                }
+            }
+        },
         "handler.findingLinkResponse": {
             "type": "object",
             "properties": {
@@ -29118,6 +29624,67 @@ const docTemplate = `{
                 },
                 "updated-at": {
                     "type": "string"
+                }
+            }
+        },
+        "handler.riskScoreResponse": {
+            "type": "object",
+            "properties": {
+                "actor-user-id": {
+                    "type": "string"
+                },
+                "baseline-score": {
+                    "type": "integer"
+                },
+                "created-at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "impact": {
+                    "type": "string"
+                },
+                "likelihood": {
+                    "type": "string"
+                },
+                "occurred-at": {
+                    "type": "string"
+                },
+                "open-baseline-score": {
+                    "type": "integer"
+                },
+                "open-residual-score": {
+                    "type": "integer"
+                },
+                "residual-score": {
+                    "type": "integer"
+                },
+                "risk-id": {
+                    "type": "string"
+                },
+                "source-event-type": {
+                    "type": "string"
+                },
+                "ssp-id": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
+        "handler.riskScoreTimeseriesResponse": {
+            "type": "object",
+            "properties": {
+                "bucket-start": {
+                    "type": "string"
+                },
+                "open-baseline-score": {
+                    "type": "integer"
+                },
+                "open-residual-score": {
+                    "type": "integer"
                 }
             }
         },
@@ -29733,6 +30300,25 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "uuid": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscal.addProfileRequest": {
+            "type": "object",
+            "properties": {
+                "profileId": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscal.profileSummary": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "title": {
                     "type": "string"
                 }
             }
@@ -37001,7 +37587,15 @@ const docTemplate = `{
                     "$ref": "#/definitions/relational.Profile"
                 },
                 "profileID": {
+                    "description": "Deprecated: Use Profiles (M:M via ssp_profiles) instead.\nKept for backward-compatible migration; will be dropped in a future release.",
                     "type": "string"
+                },
+                "profiles": {
+                    "description": "Profiles holds the many-to-many relationship via the ssp_profiles join table.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/relational.Profile"
+                    }
                 },
                 "system-characteristics": {
                     "$ref": "#/definitions/relational.SystemCharacteristics"
@@ -37303,6 +37897,29 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/handler.riskResponse"
+                    }
+                },
+                "limit": {
+                    "type": "integer"
+                },
+                "page": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
+                },
+                "totalPages": {
+                    "type": "integer"
+                }
+            }
+        },
+        "service.ListResponse-handler_riskScoreResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handler.riskScoreResponse"
                     }
                 },
                 "limit": {

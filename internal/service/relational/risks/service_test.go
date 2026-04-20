@@ -401,7 +401,7 @@ func TestRiskServiceUpdateStatusAndReviewUsesSingleRiskSnapshotLoad(t *testing.T
 		ReviewJustification: &reviewJustification,
 	})
 	require.NoError(t, err)
-	require.Equal(t, 2, riskQueryCount, fmt.Sprintf("expected one risk snapshot load plus final GetByID, got %d", riskQueryCount))
+	require.Equal(t, 3, riskQueryCount, fmt.Sprintf("expected risk snapshot load, score snapshot load, and final GetByID, got %d", riskQueryCount))
 }
 
 func TestRiskServiceResolveUserIDAndPrimaryValidation(t *testing.T) {
@@ -1356,6 +1356,7 @@ func newRiskServiceTestDB(t *testing.T) *gorm.DB {
 	require.NoError(t, err)
 	require.NoError(t, db.AutoMigrate(
 		&Risk{},
+		&RiskScore{},
 		&RiskEvent{},
 		&RiskReview{},
 		&RiskEvidenceLink{},

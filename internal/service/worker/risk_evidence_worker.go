@@ -203,7 +203,8 @@ func (w *RiskEvidenceWorker) resolveSSPsViaFilters(ctx context.Context, evidence
 		Table("filter_controls fc").
 		Select("DISTINCT ssp.id AS system_security_plan_id, fc.control_catalog_id, fc.control_id").
 		Joins("JOIN profile_controls pc ON CAST(pc.control_catalog_id AS uuid) = CAST(fc.control_catalog_id AS uuid) AND UPPER(pc.control_id) = UPPER(fc.control_id)").
-		Joins("JOIN system_security_plans ssp ON CAST(ssp.profile_id AS uuid) = CAST(pc.profile_id AS uuid)").
+		Joins("JOIN ssp_profiles sp ON CAST(sp.profile_id AS uuid) = CAST(pc.profile_id AS uuid)").
+		Joins("JOIN system_security_plans ssp ON CAST(ssp.id AS uuid) = CAST(sp.system_security_plan_id AS uuid)").
 		Joins("JOIN control_implementations ci ON CAST(ci.system_security_plan_id AS uuid) = CAST(ssp.id AS uuid)").
 		Joins("JOIN implemented_requirements ir ON CAST(ir.control_implementation_id AS uuid) = CAST(ci.id AS uuid) AND UPPER(ir.control_id) = UPPER(fc.control_id)").
 		Where("fc.filter_id IN ?", matchingFilterIDs).
@@ -473,13 +474,16 @@ func (w *RiskEvidenceWorker) updateExistingRisk(ctx context.Context, existingRis
 		}
 
 		if reopened {
-			if err := w.emitRiskEvent(ctx, tx, *existingRisk.ID, string(risks.RiskEventTypeStatusChange), map[string]interface{}{
+			if err := w.emitRiskEventAt(ctx, tx, *existingRisk.ID, string(risks.RiskEventTypeStatusChange), map[string]interface{}{
 				"from":        oldStatus,
 				"to":          string(risks.RiskStatusOpen),
 				"evidence_id": evidence.UUID,
 				"reason":      "new_failing_evidence",
-			}); err != nil {
+			}, now); err != nil {
 				return fmt.Errorf("failed to emit reopen status change event: %w", err)
+			}
+			if err := risks.NewRiskService(w.db).RecordRiskScoreSnapshot(tx, *existingRisk.ID, risks.RiskEventTypeStatusChange, nil, now); err != nil {
+				return fmt.Errorf("failed to record reopened risk score snapshot: %w", err)
 			}
 		}
 
@@ -547,13 +551,16 @@ func (w *RiskEvidenceWorker) createNewRiskForSSP(ctx context.Context, riskTempla
 			return err
 		}
 		// Emit a risk_event(created) using the typed constant
-		if err := w.emitRiskEvent(ctx, tx, *newRisk.ID, string(risks.RiskEventTypeCreated), map[string]interface{}{
+		if err := w.emitRiskEventAt(ctx, tx, *newRisk.ID, string(risks.RiskEventTypeCreated), map[string]interface{}{
 			"evidence_id": evidence.UUID,
 			"template_id": riskTemplate.ID,
 			"dedupe_key":  dedupeKey,
 			"ssp_id":      sspID,
-		}); err != nil {
+		}, now); err != nil {
 			return fmt.Errorf("failed to emit created risk event: %w", err)
+		}
+		if err := risks.NewRiskService(w.db).RecordRiskScoreSnapshot(tx, *newRisk.ID, risks.RiskEventTypeCreated, nil, now); err != nil {
+			return fmt.Errorf("failed to record created risk score snapshot: %w", err)
 		}
 		return nil
 	})
@@ -887,15 +894,19 @@ func (w *RiskEvidenceWorker) resolveRiskEvidenceLink(ctx context.Context, risk *
 
 		// Transition to remediated.
 		oldStatus := risk.Status
+		occurredAt := time.Now().UTC()
 		if err := tx.Model(risk).Update("status", string(risks.RiskStatusRemediated)).Error; err != nil {
 			return fmt.Errorf("failed to transition risk to remediated: %w", err)
 		}
-		if err := w.emitRiskEvent(ctx, tx, *risk.ID, string(risks.RiskEventTypeStatusChange), map[string]interface{}{
+		if err := w.emitRiskEventAt(ctx, tx, *risk.ID, string(risks.RiskEventTypeStatusChange), map[string]interface{}{
 			"from":   oldStatus,
 			"to":     string(risks.RiskStatusRemediated),
 			"reason": "all_evidence_resolved",
-		}); err != nil {
+		}, occurredAt); err != nil {
 			return fmt.Errorf("failed to emit status change event: %w", err)
+		}
+		if err := risks.NewRiskService(w.db).RecordRiskScoreSnapshot(tx, *risk.ID, risks.RiskEventTypeStatusChange, nil, occurredAt); err != nil {
+			return fmt.Errorf("failed to record remediated risk score snapshot: %w", err)
 		}
 
 		w.logger.Infow("Risk transitioned to remediated",
@@ -1025,6 +1036,15 @@ func normalizeRenderedRiskLevel(level *string) *string {
 // Accepts a *gorm.DB so the caller can pass a transaction handle.
 func (w *RiskEvidenceWorker) emitRiskEvent(ctx context.Context, db *gorm.DB, riskID uuid.UUID, eventType string, payload map[string]interface{}) error {
 	occurredAt := time.Now().UTC()
+	return w.emitRiskEventAt(ctx, db, riskID, eventType, payload, occurredAt)
+}
+
+func (w *RiskEvidenceWorker) emitRiskEventAt(ctx context.Context, db *gorm.DB, riskID uuid.UUID, eventType string, payload map[string]interface{}, occurredAt time.Time) error {
+	if occurredAt.IsZero() {
+		occurredAt = time.Now().UTC()
+	} else {
+		occurredAt = occurredAt.UTC()
+	}
 	payloadMap := datatypes.JSONMap(payload)
 	details := risks.BuildRiskEventDetails(eventType, payloadMap, occurredAt)
 

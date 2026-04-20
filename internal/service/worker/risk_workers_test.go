@@ -64,6 +64,7 @@ func newRiskWorkersTestDB(t *testing.T) *gorm.DB {
 		&relational.SystemComponent{},
 		&relational.InventoryItem{},
 		&riskrel.Risk{},
+		&riskrel.RiskScore{},
 		&riskrel.RiskOwnerAssignment{},
 		&riskrel.RiskControlLink{},
 		&riskrel.RiskEvidenceLink{},
@@ -74,6 +75,20 @@ func newRiskWorkersTestDB(t *testing.T) *gorm.DB {
 		&riskrel.RiskEvent{},
 		&riskrel.RiskReview{},
 	))
+
+	require.NoError(t, db.Exec(`CREATE TABLE IF NOT EXISTS ssp_profiles (
+		system_security_plan_id TEXT,
+		profile_id TEXT,
+		PRIMARY KEY (system_security_plan_id, profile_id)
+	)`).Error)
+
+	require.NoError(t, db.Exec(`CREATE TABLE IF NOT EXISTS profiles (
+		id TEXT PRIMARY KEY,
+		created_at DATETIME,
+		updated_at DATETIME,
+		deleted_at DATETIME
+	)`).Error)
+
 	return db
 }
 

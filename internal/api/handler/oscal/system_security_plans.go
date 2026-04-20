@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -22,12 +23,58 @@ import (
 	"go.uber.org/zap"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // SSPJobEnqueuer is a minimal interface for enqueueing SSP-related background jobs.
 // Defined here to avoid a circular import between the oscal handler and worker packages.
 type SSPJobEnqueuer interface {
 	EnqueueOrphanedRiskCleanup(ctx context.Context, sspID uuid.UUID, oldProfileID, newProfileID *uuid.UUID) error
+}
+
+// profileSummary is a lightweight DTO returned by the multi-profile list endpoint.
+type profileSummary struct {
+	ID    string `json:"id"`
+	Title string `json:"title,omitempty"`
+}
+
+// addProfileRequest is the request body for the AddProfile endpoint.
+type addProfileRequest struct {
+	ProfileID string `json:"profileId"`
+}
+
+func normalizeControlID(controlID string) string {
+	return strings.ToLower(controlID)
+}
+
+func normalizeControlIDs(controlIDs []string) []string {
+	seen := make(map[string]struct{}, len(controlIDs))
+	normalized := make([]string, 0, len(controlIDs))
+	for _, controlID := range controlIDs {
+		canonicalID := normalizeControlID(controlID)
+		if _, exists := seen[canonicalID]; exists {
+			continue
+		}
+		seen[canonicalID] = struct{}{}
+		normalized = append(normalized, canonicalID)
+	}
+	return normalized
+}
+
+func buildProfileSummaries(profiles []relational.Profile) ([]profileSummary, error) {
+	summaries := make([]profileSummary, 0, len(profiles))
+	for _, p := range profiles {
+		if p.ID == nil {
+			return nil, errors.New("profile is missing ID")
+		}
+
+		ps := profileSummary{ID: p.ID.String()}
+		if p.Metadata.Title != "" {
+			ps.Title = p.Metadata.Title
+		}
+		summaries = append(summaries, ps)
+	}
+	return summaries, nil
 }
 
 type SystemSecurityPlanHandler struct {
@@ -75,7 +122,9 @@ func (h *SystemSecurityPlanHandler) getControlIDsForProfile(profileID uuid.UUID)
 	// 1. Check in-memory cache first
 	if val, ok := h.profileCache.Load(profileID); ok {
 		if cachedControlIDs, ok := val.([]string); ok {
-			return cachedControlIDs, nil
+			normalizedControlIDs := normalizeControlIDs(cachedControlIDs)
+			h.profileCache.Store(profileID, normalizedControlIDs)
+			return normalizedControlIDs, nil
 		}
 		h.sugar.Warnw("profileCache contains value of unexpected type", "profileId", profileID, "actualType", fmt.Sprintf("%T", val))
 		h.profileCache.Delete(profileID)
@@ -103,12 +152,81 @@ func (h *SystemSecurityPlanHandler) getControlIDsForProfile(profileID uuid.UUID)
 		if err != nil {
 			return nil, err
 		}
-	} else {
-		// Update cache if we found them in the pivot table
-		h.profileCache.Store(profileID, controlIDs)
 	}
 
+	controlIDs = normalizeControlIDs(controlIDs)
+	h.profileCache.Store(profileID, controlIDs)
 	return controlIDs, nil
+}
+
+// getControlIDsForAllProfiles resolves control IDs from all profiles bound to an SSP
+// via the M:M relationship. Returns deduplicated control IDs across all profiles.
+// It first attempts a single batch query against the profile_controls pivot table,
+// then falls back to per-profile resolution for any profile missing pivot rows.
+func (h *SystemSecurityPlanHandler) getControlIDsForAllProfiles(profiles []relational.Profile) ([]string, error) {
+	if len(profiles) == 0 {
+		return nil, nil
+	}
+
+	profileIDs := make([]uuid.UUID, 0, len(profiles))
+	for _, p := range profiles {
+		if p.ID != nil {
+			profileIDs = append(profileIDs, *p.ID)
+		}
+	}
+	if len(profileIDs) == 0 {
+		return nil, nil
+	}
+
+	seenControls := make(map[string]struct{})
+	seenProfiles := make(map[uuid.UUID]struct{})
+	allControlIDs := make([]string, 0)
+	appendControlIDs := func(controlIDs []string) {
+		for _, cid := range controlIDs {
+			normalizedID := normalizeControlID(cid)
+			if _, exists := seenControls[normalizedID]; exists {
+				continue
+			}
+			seenControls[normalizedID] = struct{}{}
+			allControlIDs = append(allControlIDs, normalizedID)
+		}
+	}
+
+	type profileControlRow struct {
+		ProfileID uuid.UUID `gorm:"column:profile_id"`
+		ControlID string    `gorm:"column:control_id"`
+	}
+
+	var rows []profileControlRow
+	batchErr := h.db.Table("profile_controls").
+		Select("DISTINCT profile_id, control_id").
+		Where("profile_id IN ?", profileIDs).
+		Find(&rows).Error
+	if batchErr != nil {
+		h.sugar.Warnw("Batch query for profile controls failed, falling back to per-profile resolution", "error", batchErr)
+	} else {
+		for _, row := range rows {
+			seenProfiles[row.ProfileID] = struct{}{}
+			appendControlIDs([]string{row.ControlID})
+		}
+	}
+
+	// Fallback: per-profile resolution handles OSCAL parsing when the pivot
+	// table has not been populated yet for one or more bound profiles.
+	for _, pid := range profileIDs {
+		if batchErr == nil {
+			if _, exists := seenProfiles[pid]; exists {
+				continue
+			}
+		}
+		controlIDs, err := h.getControlIDsForProfile(pid)
+		if err != nil {
+			return nil, fmt.Errorf("resolve controls for profile %s: %w", pid, err)
+		}
+		appendControlIDs(controlIDs)
+	}
+
+	return allControlIDs, nil
 }
 
 // validateSSPInput validates SSP input following OSCAL requirements
@@ -191,6 +309,9 @@ func (h *SystemSecurityPlanHandler) Register(api *echo.Group) {
 	api.PUT("/:id", h.Update)
 	api.GET("/:id/profile", h.GetProfile)
 	api.PUT("/:id/profile", h.AttachProfile)
+	api.GET("/:id/profiles", h.ListProfiles)
+	api.POST("/:id/profiles", h.AddProfile)
+	api.DELETE("/:id/profiles/:profileId", h.RemoveProfile)
 	api.DELETE("/:id", h.Delete)
 	api.GET("/:id/full", h.Full)
 	api.GET("/:id/metadata", h.GetMetadata)
@@ -1448,6 +1569,7 @@ func (h *SystemSecurityPlanHandler) GetControlImplementation(ctx echo.Context) e
 	var ssp relational.SystemSecurityPlan
 	if err := h.db.
 		Preload("ControlImplementation").
+		Preload("Profiles").
 		First(&ssp, "id = ?", id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return ctx.JSON(http.StatusNotFound, api.NewError(err))
@@ -1456,21 +1578,17 @@ func (h *SystemSecurityPlanHandler) GetControlImplementation(ctx echo.Context) e
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 
-	// Determine if we need to filter by profile
-	var controlIDs []string
-	if ssp.ProfileID != nil {
-		var err error
-		controlIDs, err = h.getControlIDsForProfile(*ssp.ProfileID)
-		if err != nil {
-			h.sugar.Warnw("Failed to resolve profile controls", "profileID", ssp.ProfileID, "error", err)
-			return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
-		}
+	// Determine if we need to filter by bound profiles
+	controlIDs, err := h.getControlIDsForAllProfiles(ssp.Profiles)
+	if err != nil {
+		h.sugar.Warnw("Failed to resolve profile controls", "sspID", id, "error", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
 	query := h.db.Model(&ssp.ControlImplementation).
 		Preload("ImplementedRequirements", func(db *gorm.DB) *gorm.DB {
 			if len(controlIDs) > 0 {
-				return db.Where("control_id IN ?", controlIDs)
+				return db.Where("LOWER(control_id) IN ?", controlIDs)
 			}
 			return db
 		}).
@@ -1506,6 +1624,7 @@ func (h *SystemSecurityPlanHandler) Full(ctx echo.Context) error {
 
 	var ssp relational.SystemSecurityPlan
 	if err := h.db.
+		Preload("Profiles").
 		First(&ssp, "id = ?", id.String()).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return ctx.JSON(http.StatusNotFound, api.NewError(err))
@@ -1514,18 +1633,14 @@ func (h *SystemSecurityPlanHandler) Full(ctx echo.Context) error {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 
-	// Determine if we need to filter by profile
-	var controlIDs []string
-	if ssp.ProfileID != nil {
-		var err error
-		controlIDs, err = h.getControlIDsForProfile(*ssp.ProfileID)
-		if err != nil {
-			h.sugar.Warnw(
-				"Failed to get control IDs for profile; returning unfiltered control implementation",
-				"profile_id", *ssp.ProfileID,
-				"error", err,
-			)
-		}
+	// Determine if we need to filter by bound profiles
+	controlIDs, err := h.getControlIDsForAllProfiles(ssp.Profiles)
+	if err != nil {
+		h.sugar.Warnw(
+			"Failed to get control IDs for profiles; returning unfiltered control implementation",
+			"sspID", id,
+			"error", err,
+		)
 	}
 
 	if err := h.db.
@@ -1546,7 +1661,7 @@ func (h *SystemSecurityPlanHandler) Full(ctx echo.Context) error {
 		Preload("ControlImplementation").
 		Preload("ControlImplementation.ImplementedRequirements", func(db *gorm.DB) *gorm.DB {
 			if len(controlIDs) > 0 {
-				return db.Where("control_id IN ?", controlIDs)
+				return db.Where("LOWER(control_id) IN ?", controlIDs)
 			}
 			return db
 		}).
@@ -1821,8 +1936,8 @@ func (h *SystemSecurityPlanHandler) GetProfile(ctx echo.Context) error {
 
 	var ssp relational.SystemSecurityPlan
 	if err := h.db.
-		Preload("Profile").
-		Preload("Profile.Metadata").
+		Preload("Profiles").
+		Preload("Profiles.Metadata").
 		First(&ssp, "id = ?", sspID).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("SSP not found")))
@@ -1831,11 +1946,17 @@ func (h *SystemSecurityPlanHandler) GetProfile(ctx echo.Context) error {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
-	if ssp.Profile == nil {
+	if len(ssp.Profiles) == 0 {
 		return ctx.JSON(http.StatusNotFound, api.NewError(errors.New("no profile attached")))
 	}
 
-	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[*oscalTypes_1_1_3.Profile]{Data: ssp.Profile.MarshalOscal()})
+	if len(ssp.Profiles) > 1 {
+		err := errors.New("multiple profiles attached; use the profiles endpoint or detach extra profiles")
+		h.sugar.Warnw("Ambiguous profile lookup for legacy single-profile endpoint", "ssp_id", sspID, "profile_count", len(ssp.Profiles))
+		return ctx.JSON(http.StatusConflict, api.NewError(err))
+	}
+
+	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[*oscalTypes_1_1_3.Profile]{Data: ssp.Profiles[0].MarshalOscal()})
 }
 
 // AttachProfile godoc
@@ -1845,12 +1966,12 @@ func (h *SystemSecurityPlanHandler) GetProfile(ctx echo.Context) error {
 //	@Tags			System Security Plans
 //	@Accept			json
 //	@Produce		json
-//	@Param			id			path		string	true	"SSP ID"
-//	@Param			profileId	body		string	true	"Profile ID to attach"
-//	@Success		200			{object}	handler.GenericDataResponse[oscalTypes_1_1_3.SystemSecurityPlan]
-//	@Failure		400			{object}	api.Error
-//	@Failure		404			{object}	api.Error
-//	@Failure		500			{object}	api.Error
+//	@Param			id		path		string				true	"SSP ID"
+//	@Param			request	body		addProfileRequest	true	"Profile binding request"
+//	@Success		200		{object}	handler.GenericDataResponse[oscalTypes_1_1_3.SystemSecurityPlan]
+//	@Failure		400		{object}	api.Error
+//	@Failure		404		{object}	api.Error
+//	@Failure		500		{object}	api.Error
 //	@Router			/oscal/system-security-plans/{id}/profile [put]
 func (h *SystemSecurityPlanHandler) AttachProfile(ctx echo.Context) error {
 	idParam := ctx.Param("id")
@@ -1860,9 +1981,7 @@ func (h *SystemSecurityPlanHandler) AttachProfile(ctx echo.Context) error {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 
-	var input struct {
-		ProfileID string `json:"profileId"`
-	}
+	var input addProfileRequest
 	if err := ctx.Bind(&input); err != nil {
 		h.sugar.Warnw("Invalid profile ID input", "error", err)
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
@@ -1875,19 +1994,22 @@ func (h *SystemSecurityPlanHandler) AttachProfile(ctx echo.Context) error {
 	}
 
 	var ssp relational.SystemSecurityPlan
-	if err := h.db.Preload("ControlImplementation").First(&ssp, "id = ?", sspID).Error; err != nil {
-		return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("SSP not found")))
+	if err := h.db.Preload("ControlImplementation").Preload("Profiles").First(&ssp, "id = ?", sspID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("SSP not found")))
+		}
+		h.sugar.Errorw("Failed to load SSP", "sspID", sspID, "error", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
-
-	// Capture the old profile ID before the transaction mutates ssp.ProfileID via GORM Save.
-	// After tx.Save(&ssp) with ssp.Profile set, GORM updates ssp.ProfileID in memory to the
-	// new profile's ID, so we must snapshot the old value here.
-	oldProfileID := ssp.ProfileID
 
 	// Load the profile basic info
 	var profile relational.Profile
 	if err := h.db.First(&profile, "id = ?", profileID).Error; err != nil {
-		return ctx.JSON(http.StatusNotFound, api.NewError(errors.New("profile not found")))
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(errors.New("profile not found")))
+		}
+		h.sugar.Errorw("Failed to load profile", "profileId", profileID, "error", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
 	// Use the optimized resolution path
@@ -1898,9 +2020,17 @@ func (h *SystemSecurityPlanHandler) AttachProfile(ctx echo.Context) error {
 	}
 
 	err = h.db.Transaction(func(tx *gorm.DB) error {
-		ssp.Profile = &profile
-		if err := tx.Save(&ssp).Error; err != nil {
-			return err
+		// Sync the join table: clear existing rows and insert the new profile.
+		// This keeps the legacy single-profile PUT semantics (replace, not append).
+		if err := tx.Where("system_security_plan_id = ?", sspID).
+			Delete(&relational.SSPProfile{}).Error; err != nil {
+			return fmt.Errorf("failed to clear ssp_profiles: %w", err)
+		}
+		if err := tx.Create(&relational.SSPProfile{
+			SystemSecurityPlanID: sspID,
+			ProfileID:            profileID,
+		}).Error; err != nil {
+			return fmt.Errorf("failed to insert ssp_profiles row: %w", err)
 		}
 
 		// Ensure ControlImplementation exists for the SSP
@@ -1922,36 +2052,35 @@ func (h *SystemSecurityPlanHandler) AttachProfile(ctx echo.Context) error {
 			return errors.New("no controls were resolved from the selected profile; rolling back SSP update")
 		}
 
-		if len(controlIDs) > 0 {
-			// Bulk operations for ImplementedRequirements
-			var existingControlIDs []string
-			if err := tx.Model(&relational.ImplementedRequirement{}).
-				Where("control_implementation_id = ?", ssp.ControlImplementation.ID).
-				Pluck("control_id", &existingControlIDs).Error; err != nil {
+		// Bulk operations for ImplementedRequirements
+		var existingControlIDs []string
+		if err := tx.Model(&relational.ImplementedRequirement{}).
+			Where("control_implementation_id = ?", ssp.ControlImplementation.ID).
+			Pluck("control_id", &existingControlIDs).Error; err != nil {
+			return err
+		}
+
+		existingMap := make(map[string]bool)
+		for _, id := range existingControlIDs {
+			existingMap[normalizeControlID(id)] = true
+		}
+
+		var newReqs []relational.ImplementedRequirement
+		for _, controlID := range controlIDs {
+			normalizedControlID := normalizeControlID(controlID)
+			if !existingMap[normalizedControlID] {
+				newUUID := uuid.New()
+				newReqs = append(newReqs, relational.ImplementedRequirement{
+					UUIDModel:               relational.UUIDModel{ID: &newUUID},
+					ControlImplementationId: *ssp.ControlImplementation.ID,
+					ControlId:               normalizedControlID,
+				})
+			}
+		}
+
+		if len(newReqs) > 0 {
+			if err := tx.Create(&newReqs).Error; err != nil {
 				return err
-			}
-
-			existingMap := make(map[string]bool)
-			for _, id := range existingControlIDs {
-				existingMap[id] = true
-			}
-
-			var newReqs []relational.ImplementedRequirement
-			for _, controlID := range controlIDs {
-				if !existingMap[controlID] {
-					newUUID := uuid.New()
-					newReqs = append(newReqs, relational.ImplementedRequirement{
-						UUIDModel:               relational.UUIDModel{ID: &newUUID},
-						ControlImplementationId: *ssp.ControlImplementation.ID,
-						ControlId:               controlID,
-					})
-				}
-			}
-
-			if len(newReqs) > 0 {
-				if err := tx.Create(&newReqs).Error; err != nil {
-					return err
-				}
 			}
 		}
 
@@ -1961,14 +2090,15 @@ func (h *SystemSecurityPlanHandler) AttachProfile(ctx echo.Context) error {
 		h.sugar.Errorf("Failed to attach profile to SSP: %v", err)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
+
 	// Enqueue orphaned risk cleanup after the transaction commits successfully.
-	// oldProfileID was captured before the transaction so it reflects the pre-change binding.
 	if h.jobEnqueuer != nil {
 		enqueueCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx.Request().Context()), 10*time.Second)
 		defer cancel()
-		if err := h.jobEnqueuer.EnqueueOrphanedRiskCleanup(enqueueCtx, sspID, oldProfileID, &profileID); err != nil {
-			// Non-fatal: log and continue — the job can be retried or the next
-			// reconciliation pass will catch any orphans.
+		// Replacement cleanup resolves the current bound profiles at execution time.
+		// Keep oldProfileID nil so equivalent replacements dedupe consistently even
+		// when the previous M:M profile order is nondeterministic.
+		if err := h.jobEnqueuer.EnqueueOrphanedRiskCleanup(enqueueCtx, sspID, nil, &profileID); err != nil {
 			h.sugar.Warnw("Failed to enqueue orphaned risk cleanup job", "sspId", sspID, "error", err)
 		}
 	}
@@ -1980,6 +2110,284 @@ func (h *SystemSecurityPlanHandler) AttachProfile(ctx echo.Context) error {
 	}
 
 	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[oscalTypes_1_1_3.SystemSecurityPlan]{Data: *ssp.MarshalOscal()})
+}
+
+// ListProfiles godoc
+//
+//	@Summary		List Profiles bound to an SSP
+//	@Description	Returns all profiles associated with a System Security Plan via the ssp_profiles join table.
+//	@Tags			System Security Plans
+//	@Produce		json
+//	@Param			id	path		string	true	"SSP ID"
+//	@Success		200	{object}	handler.GenericDataListResponse[profileSummary]
+//	@Failure		400	{object}	api.Error
+//	@Failure		404	{object}	api.Error
+//	@Failure		500	{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/oscal/system-security-plans/{id}/profiles [get]
+func (h *SystemSecurityPlanHandler) ListProfiles(ctx echo.Context) error {
+	idParam := ctx.Param("id")
+	sspID, err := uuid.Parse(idParam)
+	if err != nil {
+		h.sugar.Warnw("Invalid SSP ID", "id", idParam, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	var ssp relational.SystemSecurityPlan
+	if err := h.db.
+		Preload("Profiles").
+		Preload("Profiles.Metadata").
+		First(&ssp, "id = ?", sspID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("SSP not found")))
+		}
+		h.sugar.Errorf("Failed to fetch SSP: %v", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	summaries, err := buildProfileSummaries(ssp.Profiles)
+	if err != nil {
+		h.sugar.Errorw("Failed to build profile summaries", "sspId", sspID, "error", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	return ctx.JSON(http.StatusOK, handler.GenericDataListResponse[profileSummary]{Data: summaries})
+}
+
+// AddProfile godoc
+//
+//	@Summary		Add a Profile binding to an SSP
+//	@Description	Associates an additional Profile with a System Security Plan. Creates ImplementedRequirements for any new controls.
+//	@Tags			System Security Plans
+//	@Accept			json
+//	@Produce		json
+//	@Param			id		path		string				true	"SSP ID"
+//	@Param			request	body		addProfileRequest	true	"Profile binding request"
+//	@Success		200		{object}	handler.GenericDataListResponse[profileSummary]
+//	@Failure		400		{object}	api.Error
+//	@Failure		404		{object}	api.Error
+//	@Failure		409		{object}	api.Error
+//	@Failure		500		{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/oscal/system-security-plans/{id}/profiles [post]
+func (h *SystemSecurityPlanHandler) AddProfile(ctx echo.Context) error {
+	idParam := ctx.Param("id")
+	sspID, err := uuid.Parse(idParam)
+	if err != nil {
+		h.sugar.Warnw("Invalid SSP ID", "id", idParam, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	var input addProfileRequest
+	if err := ctx.Bind(&input); err != nil {
+		h.sugar.Warnw("Invalid profile ID input", "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	profileID, err := uuid.Parse(input.ProfileID)
+	if err != nil {
+		h.sugar.Warnw("Invalid profile ID format", "profileId", input.ProfileID, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	var ssp relational.SystemSecurityPlan
+	if err := h.db.Preload("ControlImplementation").First(&ssp, "id = ?", sspID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("SSP not found")))
+		}
+		h.sugar.Errorw("Failed to load SSP", "sspID", sspID, "error", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	// Check profile exists
+	var profile relational.Profile
+	if err := h.db.First(&profile, "id = ?", profileID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(errors.New("profile not found")))
+		}
+		h.sugar.Errorw("Failed to load profile", "profileId", profileID, "error", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	var duplicateBinding bool
+	errNoResolvedControls := errors.New("no controls were resolved from the selected profile")
+	err = h.db.Transaction(func(tx *gorm.DB) error {
+		// Insert join-table row idempotently; ON CONFLICT DO NOTHING avoids a TOCTOU race.
+		result := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&relational.SSPProfile{
+			SystemSecurityPlanID: sspID,
+			ProfileID:            profileID,
+		})
+		if result.Error != nil {
+			return fmt.Errorf("failed to insert ssp_profiles row: %w", result.Error)
+		}
+		if result.RowsAffected == 0 {
+			duplicateBinding = true
+			return nil
+		}
+
+		controlIDs, err := h.getControlIDsForProfile(profileID)
+		if err != nil {
+			return fmt.Errorf("failed to resolve control IDs for profile: %w", err)
+		}
+		if len(controlIDs) == 0 {
+			return errNoResolvedControls
+		}
+
+		// Ensure ControlImplementation exists
+		if ssp.ControlImplementation.ID == nil {
+			newID := uuid.New()
+			ssp.ControlImplementation = relational.ControlImplementation{
+				UUIDModel:            relational.UUIDModel{ID: &newID},
+				Description:          "Control implementation",
+				SystemSecurityPlanId: *ssp.ID,
+			}
+			if err := tx.Create(&ssp.ControlImplementation).Error; err != nil {
+				return err
+			}
+		}
+
+		// Add any new ImplementedRequirements for the profile's controls
+		var existingControlIDs []string
+		if err := tx.Model(&relational.ImplementedRequirement{}).
+			Where("control_implementation_id = ?", ssp.ControlImplementation.ID).
+			Pluck("control_id", &existingControlIDs).Error; err != nil {
+			return err
+		}
+
+		existingMap := make(map[string]bool, len(existingControlIDs))
+		for _, id := range existingControlIDs {
+			existingMap[normalizeControlID(id)] = true
+		}
+
+		var newReqs []relational.ImplementedRequirement
+		for _, controlID := range controlIDs {
+			normalizedControlID := normalizeControlID(controlID)
+			if !existingMap[normalizedControlID] {
+				newUUID := uuid.New()
+				newReqs = append(newReqs, relational.ImplementedRequirement{
+					UUIDModel:               relational.UUIDModel{ID: &newUUID},
+					ControlImplementationId: *ssp.ControlImplementation.ID,
+					ControlId:               normalizedControlID,
+				})
+			}
+		}
+
+		if len(newReqs) > 0 {
+			if err := tx.Create(&newReqs).Error; err != nil {
+				return err
+			}
+		}
+
+		return nil
+	})
+	if err != nil {
+		if errors.Is(err, errNoResolvedControls) {
+			return ctx.JSON(http.StatusBadRequest, api.NewError(errNoResolvedControls))
+		}
+		h.sugar.Errorf("Failed to add profile to SSP: %v", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+	if duplicateBinding {
+		return ctx.JSON(http.StatusConflict, api.NewError(fmt.Errorf("profile %s is already bound to this SSP", profileID)))
+	}
+
+	// Enqueue orphaned risk cleanup
+	if h.jobEnqueuer != nil {
+		enqueueCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx.Request().Context()), 10*time.Second)
+		defer cancel()
+		if err := h.jobEnqueuer.EnqueueOrphanedRiskCleanup(enqueueCtx, sspID, nil, &profileID); err != nil {
+			h.sugar.Warnw("Failed to enqueue orphaned risk cleanup job", "sspId", sspID, "error", err)
+		}
+	}
+
+	// Return updated profile list
+	var updated relational.SystemSecurityPlan
+	if err := h.db.Preload("Profiles").Preload("Profiles.Metadata").First(&updated, "id = ?", sspID).Error; err != nil {
+		h.sugar.Errorw("Failed to reload SSP after adding profile", "id", sspID, "error", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	summaries, err := buildProfileSummaries(updated.Profiles)
+	if err != nil {
+		h.sugar.Errorw("Failed to build profile summaries after adding profile", "sspId", sspID, "error", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	return ctx.JSON(http.StatusOK, handler.GenericDataListResponse[profileSummary]{Data: summaries})
+}
+
+// RemoveProfile godoc
+//
+//	@Summary		Remove a Profile binding from an SSP
+//	@Description	Removes a profile association from a System Security Plan. Enqueues orphaned risk cleanup.
+//	@Tags			System Security Plans
+//	@Produce		json
+//	@Param			id			path		string	true	"SSP ID"
+//	@Param			profileId	path		string	true	"Profile ID to remove"
+//	@Success		200			{object}	handler.GenericDataListResponse[profileSummary]
+//	@Failure		400			{object}	api.Error
+//	@Failure		404			{object}	api.Error
+//	@Failure		500			{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/oscal/system-security-plans/{id}/profiles/{profileId} [delete]
+func (h *SystemSecurityPlanHandler) RemoveProfile(ctx echo.Context) error {
+	idParam := ctx.Param("id")
+	sspID, err := uuid.Parse(idParam)
+	if err != nil {
+		h.sugar.Warnw("Invalid SSP ID", "id", idParam, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	profileIDParam := ctx.Param("profileId")
+	profileID, err := uuid.Parse(profileIDParam)
+	if err != nil {
+		h.sugar.Warnw("Invalid profile ID", "profileId", profileIDParam, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	// Verify SSP exists
+	var ssp relational.SystemSecurityPlan
+	if err := h.db.First(&ssp, "id = ?", sspID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("SSP not found")))
+		}
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	// Delete the join-table row
+	result := h.db.Where("system_security_plan_id = ? AND profile_id = ?", sspID, profileID).
+		Delete(&relational.SSPProfile{})
+	if result.Error != nil {
+		h.sugar.Errorf("Failed to remove profile from SSP: %v", result.Error)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(result.Error))
+	}
+	if result.RowsAffected == 0 {
+		return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("profile %s is not bound to this SSP", profileID)))
+	}
+
+	// Enqueue orphaned risk cleanup
+	if h.jobEnqueuer != nil {
+		enqueueCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx.Request().Context()), 10*time.Second)
+		defer cancel()
+		if err := h.jobEnqueuer.EnqueueOrphanedRiskCleanup(enqueueCtx, sspID, &profileID, nil); err != nil {
+			h.sugar.Warnw("Failed to enqueue orphaned risk cleanup job", "sspId", sspID, "error", err)
+		}
+	}
+
+	// Return updated profile list
+	var updated relational.SystemSecurityPlan
+	if err := h.db.Preload("Profiles").Preload("Profiles.Metadata").First(&updated, "id = ?", sspID).Error; err != nil {
+		h.sugar.Errorw("Failed to reload SSP after removing profile", "id", sspID, "error", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	summaries, err := buildProfileSummaries(updated.Profiles)
+	if err != nil {
+		h.sugar.Errorw("Failed to build profile summaries after removing profile", "sspId", sspID, "error", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	return ctx.JSON(http.StatusOK, handler.GenericDataListResponse[profileSummary]{Data: summaries})
 }
 
 // GetImportProfile godoc
@@ -3000,7 +3408,7 @@ func (h *SystemSecurityPlanHandler) GetImplementedRequirements(ctx echo.Context)
 	}
 
 	var ssp relational.SystemSecurityPlan
-	if err := h.db.Preload("ControlImplementation").First(&ssp, "id = ?", id).Error; err != nil {
+	if err := h.db.Preload("ControlImplementation").Preload("Profiles").First(&ssp, "id = ?", id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return ctx.JSON(http.StatusNotFound, api.NewError(err))
 		}
@@ -3008,21 +3416,17 @@ func (h *SystemSecurityPlanHandler) GetImplementedRequirements(ctx echo.Context)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
-	// Determine if we need to filter by profile
-	var controlIDs []string
-	if ssp.ProfileID != nil {
-		var err error
-		controlIDs, err = h.getControlIDsForProfile(*ssp.ProfileID)
-		if err != nil {
-			h.sugar.Errorw("failed to resolve control IDs for profile", "profileID", *ssp.ProfileID, "error", err)
-			return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
-		}
+	// Resolve control IDs from all bound profiles
+	controlIDs, err := h.getControlIDsForAllProfiles(ssp.Profiles)
+	if err != nil {
+		h.sugar.Errorw("failed to resolve control IDs for profiles", "sspID", id, "error", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
 	var implementedRequirements []relational.ImplementedRequirement
 	query := h.db.Where("control_implementation_id = ?", ssp.ControlImplementation.ID)
 	if len(controlIDs) > 0 {
-		query = query.Where("control_id IN ?", controlIDs)
+		query = query.Where("LOWER(control_id) IN ?", controlIDs)
 	}
 
 	if err := query.Find(&implementedRequirements).Error; err != nil {
@@ -4081,6 +4485,7 @@ func (h *SystemSecurityPlanHandler) extractControlIDsFromProfile(profile *relati
 	for id := range idsMap {
 		controlIDs = append(controlIDs, id)
 	}
+	controlIDs = normalizeControlIDs(controlIDs)
 
 	if profile.ID != nil {
 		h.profileCache.Store(*profile.ID, controlIDs)

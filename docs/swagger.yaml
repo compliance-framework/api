@@ -571,6 +571,14 @@ definitions:
           $ref: '#/definitions/handler.poamItemResponse'
         type: array
     type: object
+  handler.GenericDataListResponse-handler_riskScoreTimeseriesResponse:
+    properties:
+      data:
+        description: Items from the list response
+        items:
+          $ref: '#/definitions/handler.riskScoreTimeseriesResponse'
+        type: array
+    type: object
   handler.GenericDataListResponse-handler_selectableUserResponse:
     properties:
       data:
@@ -593,6 +601,14 @@ definitions:
         description: Items from the list response
         items:
           $ref: '#/definitions/oscal.ProfileHandler'
+        type: array
+    type: object
+  handler.GenericDataListResponse-oscal_profileSummary:
+    properties:
+      data:
+        description: Items from the list response
+        items:
+          $ref: '#/definitions/oscal.profileSummary'
         type: array
     type: object
   handler.GenericDataListResponse-oscal_resolvedWithCatalogsResponse:
@@ -1766,6 +1782,13 @@ definitions:
       poam-item-id:
         type: string
     type: object
+  handler.filteredSearchRequest:
+    properties:
+      filter:
+        $ref: '#/definitions/labelfilter.Filter'
+    required:
+    - filter
+    type: object
   handler.findingLinkResponse:
     properties:
       created-at:
@@ -2050,6 +2073,46 @@ definitions:
         type: string
       updated-at:
         type: string
+    type: object
+  handler.riskScoreResponse:
+    properties:
+      actor-user-id:
+        type: string
+      baseline-score:
+        type: integer
+      created-at:
+        type: string
+      id:
+        type: string
+      impact:
+        type: string
+      likelihood:
+        type: string
+      occurred-at:
+        type: string
+      open-baseline-score:
+        type: integer
+      open-residual-score:
+        type: integer
+      residual-score:
+        type: integer
+      risk-id:
+        type: string
+      source-event-type:
+        type: string
+      ssp-id:
+        type: string
+      status:
+        type: string
+    type: object
+  handler.riskScoreTimeseriesResponse:
+    properties:
+      bucket-start:
+        type: string
+      open-baseline-score:
+        type: integer
+      open-residual-score:
+        type: integer
     type: object
   handler.selectableUserResponse:
     properties:
@@ -2455,6 +2518,18 @@ definitions:
       type:
         type: string
       uuid:
+        type: string
+    type: object
+  oscal.addProfileRequest:
+    properties:
+      profileId:
+        type: string
+    type: object
+  oscal.profileSummary:
+    properties:
+      id:
+        type: string
+      title:
         type: string
     type: object
   oscal.resolvedWithCatalogsResponse:
@@ -7259,7 +7334,16 @@ definitions:
       profile:
         $ref: '#/definitions/relational.Profile'
       profileID:
+        description: |-
+          Deprecated: Use Profiles (M:M via ssp_profiles) instead.
+          Kept for backward-compatible migration; will be dropped in a future release.
         type: string
+      profiles:
+        description: Profiles holds the many-to-many relationship via the ssp_profiles
+          join table.
+        items:
+          $ref: '#/definitions/relational.Profile'
+        type: array
       system-characteristics:
         $ref: '#/definitions/relational.SystemCharacteristics'
       system-implementation:
@@ -7458,6 +7542,21 @@ definitions:
       data:
         items:
           $ref: '#/definitions/handler.riskResponse'
+        type: array
+      limit:
+        type: integer
+      page:
+        type: integer
+      total:
+        type: integer
+      totalPages:
+        type: integer
+    type: object
+  service.ListResponse-handler_riskScoreResponse:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/handler.riskScoreResponse'
         type: array
       limit:
         type: integer
@@ -10069,12 +10168,12 @@ paths:
       - application/json
       description: Searches Evidence records by label filters.
       parameters:
-      - description: Label filter
+      - description: Evidence search request
         in: body
-        name: filter
+        name: request
         required: true
         schema:
-          $ref: '#/definitions/labelfilter.Filter'
+          $ref: '#/definitions/handler.filteredSearchRequest'
       - description: Page number
         in: query
         name: page
@@ -10083,6 +10182,18 @@ paths:
         in: query
         name: limit
         type: integer
+      - description: 'Sort field: lastSeenAt, name, status'
+        in: query
+        name: sortBy
+        type: string
+      - description: 'Sort direction: asc, desc'
+        in: query
+        name: sortDirection
+        type: string
+      - description: Case-insensitive evidence name search
+        in: query
+        name: name
+        type: string
       produces:
       - application/json
       responses:
@@ -10090,6 +10201,10 @@ paths:
           description: OK
           schema:
             $ref: '#/definitions/service.ListResponse-handler_PublicEvidenceResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
         "422":
           description: Unprocessable Entity
           schema:
@@ -19149,12 +19264,12 @@ paths:
         name: id
         required: true
         type: string
-      - description: Profile ID to attach
+      - description: Profile binding request
         in: body
-        name: profileId
+        name: request
         required: true
         schema:
-          type: string
+          $ref: '#/definitions/oscal.addProfileRequest'
       produces:
       - application/json
       responses:
@@ -19175,6 +19290,124 @@ paths:
           schema:
             $ref: '#/definitions/api.Error'
       summary: Attach a Profile to a System Security Plan
+      tags:
+      - System Security Plans
+  /oscal/system-security-plans/{id}/profiles:
+    get:
+      description: Returns all profiles associated with a System Security Plan via
+        the ssp_profiles join table.
+      parameters:
+      - description: SSP ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-oscal_profileSummary'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: List Profiles bound to an SSP
+      tags:
+      - System Security Plans
+    post:
+      consumes:
+      - application/json
+      description: Associates an additional Profile with a System Security Plan. Creates
+        ImplementedRequirements for any new controls.
+      parameters:
+      - description: SSP ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Profile binding request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/oscal.addProfileRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-oscal_profileSummary'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Add a Profile binding to an SSP
+      tags:
+      - System Security Plans
+  /oscal/system-security-plans/{id}/profiles/{profileId}:
+    delete:
+      description: Removes a profile association from a System Security Plan. Enqueues
+        orphaned risk cleanup.
+      parameters:
+      - description: SSP ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Profile ID to remove
+        in: path
+        name: profileId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-oscal_profileSummary'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Remove a Profile binding from an SSP
       tags:
       - System Security Plans
   /oscal/system-security-plans/{id}/system-characteristics:
@@ -21559,6 +21792,52 @@ paths:
       summary: List risk audit trail for SSP
       tags:
       - Risks
+  /oscal/system-security-plans/{sspId}/risks/{id}/score-history:
+    get:
+      description: Lists score snapshots for a risk scoped to an SSP.
+      parameters:
+      - description: SSP ID
+        in: path
+        name: sspId
+        required: true
+        type: string
+      - description: Risk ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Page number
+        in: query
+        name: page
+        type: integer
+      - description: Page size
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/service.ListResponse-handler_riskScoreResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: List risk score history for SSP
+      tags:
+      - Risks
   /oscal/system-security-plans/{sspId}/risks/{id}/threat-ids:
     get:
       description: Lists threat references linked to a risk scoped to an SSP.
@@ -21781,6 +22060,52 @@ paths:
       security:
       - OAuth2Password: []
       summary: Update risk threat reference for SSP
+      tags:
+      - Risks
+  /oscal/system-security-plans/{sspId}/risks/score-timeseries:
+    get:
+      description: Returns aggregate open baseline and residual score time series
+        for an SSP.
+      parameters:
+      - description: SSP ID
+        in: path
+        name: sspId
+        required: true
+        type: string
+      - description: Start timestamp (RFC3339)
+        in: query
+        name: from
+        type: string
+      - description: End timestamp (RFC3339)
+        in: query
+        name: to
+        type: string
+      - description: Bucket size; only day is supported
+        in: query
+        name: bucket
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-handler_riskScoreTimeseriesResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Get risk score timeseries for SSP
       tags:
       - Risks
   /poam-items:
@@ -23462,6 +23787,47 @@ paths:
       summary: List risk audit trail
       tags:
       - Risks
+  /risks/{id}/score-history:
+    get:
+      description: Lists score snapshots for a risk.
+      parameters:
+      - description: Risk ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Page number
+        in: query
+        name: page
+        type: integer
+      - description: Page size
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/service.ListResponse-handler_riskScoreResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: List risk score history
+      tags:
+      - Risks
   /risks/{id}/subjects:
     get:
       description: Lists subjects linked to a risk.
@@ -23740,6 +24106,46 @@ paths:
       security:
       - OAuth2Password: []
       summary: Update risk threat reference
+      tags:
+      - Risks
+  /risks/score-timeseries:
+    get:
+      description: Returns aggregate open baseline and residual score time series.
+      parameters:
+      - description: SSP ID
+        in: query
+        name: sspId
+        type: string
+      - description: Start timestamp (RFC3339)
+        in: query
+        name: from
+        type: string
+      - description: End timestamp (RFC3339)
+        in: query
+        name: to
+        type: string
+      - description: Bucket size; only day is supported
+        in: query
+        name: bucket
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-handler_riskScoreTimeseriesResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Get risk score timeseries
       tags:
       - Risks
   /users/{id}:

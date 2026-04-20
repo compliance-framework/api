@@ -1186,6 +1186,186 @@ func (suite *EvidenceApiIntegrationSuite) TestSearchPaginationRejectsInvalidPara
 	suite.Equal(http.StatusBadRequest, rec.Code)
 }
 
+func (suite *EvidenceApiIntegrationSuite) TestSearchSortingAndNameFiltering() {
+	err := suite.Migrator.Refresh()
+	suite.Require().NoError(err)
+
+	now := time.Now().UTC()
+	stream := uuid.MustParse("00000000-0000-0000-0000-000000000003")
+	evidences := []relational.Evidence{
+		{
+			UUID:  stream,
+			Title: "Zeta Evidence",
+			Start: now.Add(-2 * time.Minute),
+			End:   now.Add(-1 * time.Minute),
+			Status: datatypes.NewJSONType(oscalTypes_1_1_3.ObjectiveStatus{
+				State: "satisfied",
+			}),
+			Labels: []relational.Labels{
+				{Name: "provider", Value: "AWS"},
+			},
+		},
+		{
+			UUID:  uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+			Title: "Alpha Evidence",
+			Start: now.Add(-3 * time.Minute),
+			End:   now.Add(-2 * time.Minute),
+			Status: datatypes.NewJSONType(oscalTypes_1_1_3.ObjectiveStatus{
+				State: "not-satisfied",
+			}),
+			Labels: []relational.Labels{
+				{Name: "provider", Value: "AWS"},
+			},
+		},
+		{
+			UUID:  uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+			Title: "Beta Evidence",
+			Start: now.Add(-4 * time.Minute),
+			End:   now.Add(-3 * time.Minute),
+			Status: datatypes.NewJSONType(oscalTypes_1_1_3.ObjectiveStatus{
+				State: "satisfied",
+			}),
+			Labels: []relational.Labels{
+				{Name: "provider", Value: "GCP"},
+			},
+		},
+		{
+			UUID:  stream,
+			Title: "Old Zeta Evidence",
+			Start: now.Add(-11 * time.Minute),
+			End:   now.Add(-10 * time.Minute),
+			Status: datatypes.NewJSONType(oscalTypes_1_1_3.ObjectiveStatus{
+				State: "not-satisfied",
+			}),
+			Labels: []relational.Labels{
+				{Name: "provider", Value: "AWS"},
+			},
+		},
+	}
+	suite.Require().NoError(suite.DB.Create(&evidences).Error)
+
+	server := suite.setupServer()
+	reqBody, _ := json.Marshal(struct {
+		Filter labelfilter.Filter
+	}{})
+
+	search := func(path string) svc.ListResponse[PublicEvidenceResponse] {
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodPost, path, bytes.NewReader(reqBody))
+		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+		server.E().ServeHTTP(rec, req)
+		suite.Equal(http.StatusOK, rec.Code)
+
+		var response svc.ListResponse[PublicEvidenceResponse]
+		suite.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &response))
+		return response
+	}
+
+	response := search("/api/evidence/search")
+	suite.Equal(int64(3), response.Total)
+	suite.Equal([]string{"Zeta Evidence", "Alpha Evidence", "Beta Evidence"}, evidenceTitles(response.Data))
+
+	response = search("/api/evidence/search?sortBy=lastSeenAt&sortDirection=asc")
+	suite.Equal([]string{"Beta Evidence", "Alpha Evidence", "Zeta Evidence"}, evidenceTitles(response.Data))
+
+	response = search("/api/evidence/search?sortBy=name&sortDirection=asc")
+	suite.Equal([]string{"Alpha Evidence", "Beta Evidence", "Zeta Evidence"}, evidenceTitles(response.Data))
+
+	response = search("/api/evidence/search?sortBy=status&sortDirection=asc")
+	suite.Equal([]string{"Alpha Evidence", "Beta Evidence", "Zeta Evidence"}, evidenceTitles(response.Data))
+
+	response = search("/api/evidence/search?name=alpha")
+	suite.Equal(int64(1), response.Total)
+	suite.Equal([]string{"Alpha Evidence"}, evidenceTitles(response.Data))
+}
+
+func (suite *EvidenceApiIntegrationSuite) TestSearchCombinesLabelAndNameFilters() {
+	err := suite.Migrator.Refresh()
+	suite.Require().NoError(err)
+
+	now := time.Now().UTC()
+	evidences := []relational.Evidence{
+		{
+			UUID:  uuid.New(),
+			Title: "AWS Evidence",
+			Start: now.Add(-2 * time.Minute),
+			End:   now.Add(-1 * time.Minute),
+			Labels: []relational.Labels{
+				{Name: "provider", Value: "AWS"},
+			},
+		},
+		{
+			UUID:  uuid.New(),
+			Title: "AWS Evidence",
+			Start: now.Add(-3 * time.Minute),
+			End:   now.Add(-2 * time.Minute),
+			Labels: []relational.Labels{
+				{Name: "provider", Value: "GCP"},
+			},
+		},
+	}
+	suite.Require().NoError(suite.DB.Create(&evidences).Error)
+
+	server := suite.setupServer()
+	reqBody, _ := json.Marshal(struct {
+		Filter labelfilter.Filter
+	}{
+		Filter: labelfilter.Filter{
+			Scope: &labelfilter.Scope{
+				Condition: &labelfilter.Condition{
+					Label:    "provider",
+					Operator: "=",
+					Value:    "aws",
+				},
+			},
+		},
+	})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/evidence/search?name=aws", bytes.NewReader(reqBody))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	server.E().ServeHTTP(rec, req)
+	suite.Equal(http.StatusOK, rec.Code)
+
+	var response svc.ListResponse[PublicEvidenceResponse]
+	suite.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &response))
+	suite.Equal(int64(1), response.Total)
+	suite.Equal([]string{"AWS Evidence"}, evidenceTitles(response.Data))
+	suite.Equal("AWS", response.Data[0].Labels[0].Value)
+}
+
+func (suite *EvidenceApiIntegrationSuite) TestSearchRejectsInvalidSortParams() {
+	err := suite.Migrator.Refresh()
+	suite.Require().NoError(err)
+
+	server := suite.setupServer()
+	reqBody, _ := json.Marshal(struct {
+		Filter labelfilter.Filter
+	}{})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/evidence/search?sortBy=createdAt", bytes.NewReader(reqBody))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	server.E().ServeHTTP(rec, req)
+	suite.Equal(http.StatusBadRequest, rec.Code)
+	suite.Contains(rec.Body.String(), "supported values: lastSeenAt, name, status")
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/api/evidence/search?sortDirection=sideways", bytes.NewReader(reqBody))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	server.E().ServeHTTP(rec, req)
+	suite.Equal(http.StatusBadRequest, rec.Code)
+	suite.Contains(rec.Body.String(), "supported values: asc, desc")
+}
+
+func evidenceTitles(items []PublicEvidenceResponse) []string {
+	titles := make([]string, 0, len(items))
+	for _, item := range items {
+		titles = append(titles, item.Title)
+	}
+	return titles
+}
+
 func (suite *EvidenceApiIntegrationSuite) TestStatusOverTime() {
 	err := suite.Migrator.Refresh()
 	suite.Require().NoError(err)
@@ -1254,6 +1434,7 @@ func (suite *EvidenceApiIntegrationSuite) TestStatusOverTime() {
 	suite.Require().NoError(err)
 
 	suite.Len(response.Data, 7)
+	suite.NotContains(rec.Body.String(), `"statuses":null`)
 
 	// verify counts for each interval
 	toMap := func(in []struct {

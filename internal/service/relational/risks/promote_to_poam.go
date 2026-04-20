@@ -182,6 +182,10 @@ func (s *RiskService) PromoteToPoam(poamSvc *poamsvc.PoamService, params Promote
 		tx.Rollback()
 		return nil, err
 	}
+	if err := s.RecordRiskScoreSnapshot(tx, params.RiskID, RiskEventTypeStatusChange, params.ActorUserID, time.Now().UTC()); err != nil {
+		tx.Rollback()
+		return nil, err
+	}
 
 	// 11. Commit the transaction.
 	if err := tx.Commit().Error; err != nil {
