@@ -94,24 +94,6 @@ type riskDigestNotificationData struct {
 	GeneratedAt         time.Time
 }
 
-func (d riskDigestNotificationData) templateData() map[string]interface{} {
-	return map[string]interface{}{
-		"RecipientName":       d.RecipientName,
-		"PeriodLabel":         d.PeriodLabel,
-		"NewSinceLastDigest":  d.NewSinceLastDigest,
-		"OverdueForAction":    d.OverdueForAction,
-		"StaleRisks":          d.StaleRisks,
-		"OverdueReview":       d.OverdueReview,
-		"DueForReview":        d.DueForReview,
-		"RisksURL":            d.RisksURL,
-		"HasNewSinceLast":     d.HasNewSinceLast,
-		"HasOverdueForAction": d.HasOverdueForAction,
-		"HasStaleRisks":       d.HasStaleRisks,
-		"HasOverdueReview":    d.HasOverdueReview,
-		"HasDueForReview":     d.HasDueForReview,
-	}
-}
-
 func (c riskDigestClassification) Empty() bool {
 	return len(c.NewSinceLastDigest) == 0 &&
 		len(c.OverdueForAction) == 0 &&

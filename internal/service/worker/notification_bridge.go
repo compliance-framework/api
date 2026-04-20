@@ -102,14 +102,6 @@ func newWorkerNotificationTransport(
 	)
 }
 
-func newWorkerNotificationRuntimeFactory(
-	emailService EmailService,
-	slackService SlackService,
-	workerEnqueuerProvider notification.WorkerEnqueuerProvider,
-) *notification.RuntimeFactory {
-	return newWorkerNotificationRuntimeProvider(emailService, slackService, workerEnqueuerProvider).NewRuntimeFactory(nil)
-}
-
 func newWorkerNotificationRuntimeProvider(
 	emailService EmailService,
 	slackService SlackService,

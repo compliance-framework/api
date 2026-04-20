@@ -31,16 +31,6 @@ type digestNotificationData struct {
 	GeneratedAt  time.Time
 }
 
-func (d digestNotificationData) templateData() map[string]interface{} {
-	return map[string]interface{}{
-		"UserName":     d.UserName,
-		"PeriodLabel":  d.PeriodLabel,
-		"PendingTasks": d.PendingTasks,
-		"OverdueTasks": d.OverdueTasks,
-		"MyTasksURL":   d.MyTasksURL,
-	}
-}
-
 // WorkflowTaskDigestWorker sends a per-user digest of pending and overdue workflow tasks
 type WorkflowTaskDigestWorker struct {
 	db                          *gorm.DB
