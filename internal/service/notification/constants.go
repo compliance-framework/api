@@ -91,16 +91,6 @@ func NormalizeDeliveryChannel(channel string) (string, bool) {
 		return "", false
 	}
 
-	for _, r := range normalized {
-		switch {
-		case r >= 'a' && r <= 'z':
-		case r >= '0' && r <= '9':
-		case r == '_':
-		default:
-			return "", false
-		}
-	}
-
 	if _, ok := supportedDeliveryChannels[normalized]; !ok {
 		return "", false
 	}

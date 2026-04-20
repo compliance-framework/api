@@ -13,7 +13,8 @@ import (
 	"gorm.io/gorm"
 )
 
-// WorkflowExecutionFailedWorker sends a failure notification email to the workflow instance creator
+// WorkflowExecutionFailedWorker sends workflow execution failure notifications to the
+// workflow instance creator using supported delivery targets.
 type WorkflowExecutionFailedWorker struct {
 	db                          *gorm.DB
 	userRepo                    UserRepository
@@ -33,7 +34,8 @@ func NewWorkflowExecutionFailedWorker(db *gorm.DB, userRepo UserRepository, webB
 	}
 }
 
-// Work sends a failure notification email for the workflow execution identified by job.Args.WorkflowExecutionID
+// Work sends a workflow execution failure notification for the execution identified
+// by job.Args.WorkflowExecutionID.
 func (w *WorkflowExecutionFailedWorker) Work(ctx context.Context, job *river.Job[WorkflowExecutionFailedArgs]) error {
 	args := job.Args
 

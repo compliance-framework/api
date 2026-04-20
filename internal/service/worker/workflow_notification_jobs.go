@@ -53,7 +53,7 @@ type WorkflowTaskDigestArgs struct {
 	UserID  string `json:"user_id"`
 }
 
-// WorkflowExecutionFailedArgs represents the arguments for a workflow-execution-failed notification email.
+// WorkflowExecutionFailedArgs represents the arguments for a workflow-execution-failed notification.
 type WorkflowExecutionFailedArgs struct {
 	WorkflowExecutionID string `json:"workflow_execution_id"`
 }

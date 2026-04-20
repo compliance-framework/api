@@ -145,7 +145,7 @@ func (w *PoamDeadlineReminderScannerWorker) Work(
 // ─── Notification worker ─────────────────────────────────────────────────────
 
 // PoamDeadlineReminderWorker sends a single POAM deadline approaching reminder
-// email to one recipient.
+// notification to one recipient.
 type PoamDeadlineReminderWorker struct {
 	userRepo                   UserRepository
 	webBaseURL                 string
@@ -168,7 +168,7 @@ func NewPoamDeadlineReminderWorker(
 	}
 }
 
-// Work sends the POAM deadline reminder email for a single item × recipient.
+// Work sends the POAM deadline reminder notification for a single item × recipient.
 func (w *PoamDeadlineReminderWorker) Work(
 	ctx context.Context,
 	job *river.Job[PoamDeadlineReminderArgs],
