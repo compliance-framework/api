@@ -155,7 +155,7 @@ func buildPoamOpenDigestNotificationRequest(args PoamOpenDigestArgs, data poamOp
 		poamOpenDigestNotificationKind,
 		args.RecipientUserID.String(),
 		newPoamOpenDigestNotificationModel(data),
-		newJobDispatchOptions(JobTypePoamOpenDigest, "", args.RecipientUserID.String()),
+		newJobDispatchOptions(JobTypePoamOpenDigest, "", args.RecipientUserID.String(), args.WindowStart, args.WindowEnd, args.WindowKind),
 	)
 }
 

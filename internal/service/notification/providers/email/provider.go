@@ -92,6 +92,9 @@ func (p *Provider) ValidateTarget(target notification.Target) error {
 	return nil
 }
 
+// Deliver prefers enqueuing when a started enqueuer is available. If direct
+// sending is the only option and no sender is configured or enabled, delivery
+// is treated as a no-op so notifications can be optional in some environments.
 func (p *Provider) Deliver(ctx context.Context, delivery notification.Delivery) error {
 	emailContent, err := p.extractContent(ctx, delivery.Content.Payload)
 	if err != nil {
@@ -116,7 +119,7 @@ func (p *Provider) Deliver(ctx context.Context, delivery notification.Delivery) 
 
 	sender := p.sender()
 	if sender == nil || !sender.IsEnabled() {
-		return fmt.Errorf("email service is not enabled")
+		return nil
 	}
 
 	message := &emailtypes.Message{

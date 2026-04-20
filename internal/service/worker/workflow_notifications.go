@@ -188,7 +188,12 @@ func buildWorkflowTaskDigestNotificationRequest(args WorkflowTaskDigestArgs, dat
 		workflowTaskDigestNotificationKind,
 		args.UserID,
 		newWorkflowTaskDigestNotificationModel(data),
-		newJobDispatchOptions(JobTypeWorkflowTaskDigest, args.Channel, args.UserID),
+		newJobDispatchOptions(
+			JobTypeWorkflowTaskDigest,
+			args.Channel,
+			args.UserID,
+			data.GeneratedAt.UTC().Format("2006-01-02"),
+		),
 	)
 }
 

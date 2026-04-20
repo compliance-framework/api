@@ -511,6 +511,79 @@ func TestServiceEnqueueNotificationSlackMapsMetadata(t *testing.T) {
 	assert.False(t, params[0].InsertOpts.UniqueOpts.ByArgs)
 }
 
+func TestServiceEnqueueNotificationEmail_UsesCorrelationForWorkflowDueSoonUniqueness(t *testing.T) {
+	params := notificationEmailInsertParams(emailprovider.Delivery{
+		To: "alice@example.com",
+		Content: emailprovider.Content{
+			From:     "from@example.com",
+			Subject:  "Reminder",
+			TextBody: "body",
+		},
+		Metadata: notification.TransportMetadata{
+			NotificationKind: notification.Kind(JobTypeWorkflowTaskDueSoon),
+			RecipientUserID:  "user-1",
+			CorrelationID:    "workflow_task_due_soon:step-1",
+			SourceJobKind:    JobTypeWorkflowTaskDueSoon,
+		},
+	}, "email", 7)
+	require.Len(t, params, 1)
+
+	args, ok := params[0].Args.(*SendEmailArgs)
+	require.True(t, ok)
+	assert.Equal(t, "workflow_task_due_soon:step-1", args.CorrelationID)
+	assert.True(t, params[0].InsertOpts.UniqueOpts.ByArgs)
+	assert.Equal(t, 24*time.Hour, params[0].InsertOpts.UniqueOpts.ByPeriod)
+}
+
+func TestServiceEnqueueNotificationSlack_UsesCorrelationForWorkflowDueSoonUniqueness(t *testing.T) {
+	params, err := notificationSlackInsertParams(slackprovider.Delivery{
+		Channel:    "UALICE",
+		TargetType: slackprovider.TargetTypeDirectMessage,
+		Content: slackprovider.Content{
+			Text: "body",
+		},
+		Metadata: notification.TransportMetadata{
+			NotificationKind: notification.Kind(JobTypeWorkflowTaskDueSoon),
+			RecipientUserID:  "user-1",
+			CorrelationID:    "workflow_task_due_soon:step-1",
+			SourceJobKind:    JobTypeWorkflowTaskDueSoon,
+		},
+	}, "slack", 6)
+	require.NoError(t, err)
+	require.Len(t, params, 1)
+
+	args, ok := params[0].Args.(SendSlackDMArgs)
+	require.True(t, ok)
+	assert.Equal(t, "workflow_task_due_soon:step-1", args.CorrelationID)
+	assert.True(t, params[0].InsertOpts.UniqueOpts.ByArgs)
+	assert.Equal(t, 24*time.Hour, params[0].InsertOpts.UniqueOpts.ByPeriod)
+}
+
+func TestServiceEnqueueNotificationEmail_UsesCorrelationForWorkflowExecutionFailedUniqueness(t *testing.T) {
+	params := notificationEmailInsertParams(emailprovider.Delivery{
+		To: "alice@example.com",
+		Content: emailprovider.Content{
+			From:     "from@example.com",
+			Subject:  "Execution failed",
+			TextBody: "body",
+		},
+		Metadata: notification.TransportMetadata{
+			NotificationKind: notification.Kind(JobTypeWorkflowExecutionFailed),
+			RecipientUserID:  "user-1",
+			CorrelationID:    "workflow_execution_failed:exec-1",
+			SourceJobKind:    JobTypeWorkflowExecutionFailed,
+		},
+	}, "email", 7)
+	require.Len(t, params, 1)
+
+	args, ok := params[0].Args.(*SendEmailArgs)
+	require.True(t, ok)
+	assert.Equal(t, []string{"alice@example.com"}, args.To)
+	assert.Equal(t, "workflow_execution_failed:exec-1", args.CorrelationID)
+	assert.True(t, params[0].InsertOpts.UniqueOpts.ByArgs)
+	assert.Zero(t, params[0].InsertOpts.UniqueOpts.ByPeriod)
+}
+
 func TestNewSendGlobalDigestWorker(t *testing.T) {
 	mockDigestService := &MockDigestService{}
 	logger := zap.NewNop().Sugar()

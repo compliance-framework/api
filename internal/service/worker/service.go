@@ -881,8 +881,48 @@ func (s *Service) EnqueueNotificationSlack(ctx context.Context, delivery slackpr
 	return nil
 }
 
-func notificationInsertOpts(queue string, maxAttempts int) *river.InsertOpts {
-	return JobInsertOptionsWithRetry(queue, maxAttempts)
+func notificationInsertOpts(queue string, maxAttempts int, metadata notification.TransportMetadata) *river.InsertOpts {
+	opts := JobInsertOptionsWithRetry(queue, maxAttempts)
+
+	if uniqueOpts, ok := notificationDeliveryUniqueOpts(metadata); ok {
+		opts.UniqueOpts = uniqueOpts
+	}
+
+	return opts
+}
+
+func notificationDeliveryUniqueOpts(metadata notification.TransportMetadata) (river.UniqueOpts, bool) {
+	if metadata.CorrelationID == "" {
+		return river.UniqueOpts{}, false
+	}
+
+	switch metadata.SourceJobKind {
+	case JobTypeWorkflowTaskAssigned:
+		return river.UniqueOpts{
+			ByArgs:   true,
+			ByPeriod: 5 * time.Minute,
+		}, true
+	case JobTypeWorkflowTaskDueSoon:
+		return river.UniqueOpts{
+			ByArgs:   true,
+			ByPeriod: 24 * time.Hour,
+		}, true
+	case JobTypeWorkflowTaskDigest,
+		JobTypeWorkflowExecutionFailed,
+		JobTypeRiskReviewDueReminder,
+		JobTypeRiskReviewOverdueEscalation,
+		JobTypeRiskStaleOpenReminder,
+		JobTypeRiskOpenDigest,
+		JobTypePoamDeadlineReminder,
+		JobTypePoamOverdueNotification,
+		JobTypeMilestoneOverdueReminder,
+		JobTypePoamOpenDigest:
+		return river.UniqueOpts{
+			ByArgs: true,
+		}, true
+	}
+
+	return river.UniqueOpts{}, false
 }
 
 func notificationEmailInsertParams(delivery emailprovider.Delivery, queue string, maxAttempts int) []river.InsertManyParams {
@@ -904,7 +944,7 @@ func notificationEmailInsertParams(delivery emailprovider.Delivery, queue string
 	return []river.InsertManyParams{
 		{
 			Args:       args,
-			InsertOpts: notificationInsertOpts(queue, maxAttempts),
+			InsertOpts: notificationInsertOpts(queue, maxAttempts, delivery.Metadata),
 		},
 	}
 }
@@ -930,7 +970,7 @@ func notificationSlackInsertParams(delivery slackprovider.Delivery, queue string
 	return []river.InsertManyParams{
 		{
 			Args:       jobArgs,
-			InsertOpts: notificationInsertOpts(queue, maxAttempts),
+			InsertOpts: notificationInsertOpts(queue, maxAttempts, delivery.Metadata),
 		},
 	}, nil
 }

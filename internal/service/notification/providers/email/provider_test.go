@@ -113,6 +113,26 @@ func TestDeliverFallsBackToSender(t *testing.T) {
 	assert.Equal(t, "1", sender.messages[0].Headers["X-Test"])
 }
 
+func TestDeliverSkipsWhenSenderIsDisabled(t *testing.T) {
+	sender := &stubSender{enabled: false}
+	provider := NewProvider(func() Sender { return sender }, nil)
+
+	err := provider.Deliver(context.Background(), notification.Delivery{
+		Provider: ChannelID,
+		Target: notification.Target{
+			Provider: ChannelID,
+			Address:  map[string]string{AddressKeyEmail: "alice@example.com"},
+		},
+		Content: notification.Content{Provider: ChannelID, Payload: Content{
+			From:     "from@example.com",
+			Subject:  "Subject",
+			TextBody: "Body",
+		}},
+	})
+	require.NoError(t, err)
+	assert.Empty(t, sender.messages)
+}
+
 func TestDeliverReturnsSendError(t *testing.T) {
 	sender := &stubSender{enabled: true, err: errors.New("boom")}
 	provider := NewProvider(func() Sender { return sender }, nil)

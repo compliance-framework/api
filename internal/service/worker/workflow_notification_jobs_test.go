@@ -163,14 +163,22 @@ func TestDueSoonCheckerWorker_EnqueuesOneJobPerChannel(t *testing.T) {
 			assert.Equal(t, []string{"alice@example.com"}, args.To)
 			assert.Equal(t, JobTypeWorkflowTaskDueSoon, args.NotificationKind)
 			assert.Equal(t, userID.String(), args.RecipientUserID)
+			assert.Equal(t, JobTypeWorkflowTaskDueSoon, args.SourceJobKind)
+			assert.Equal(t, "workflow_task_due_soon:"+stepExecution.ID.String(), args.CorrelationID)
 			assert.Equal(t, "email", param.InsertOpts.Queue)
+			assert.True(t, param.InsertOpts.UniqueOpts.ByArgs)
+			assert.Equal(t, 24*time.Hour, param.InsertOpts.UniqueOpts.ByPeriod)
 		case SendSlackDMArgs:
 			slackJobs++
 			assert.Equal(t, "UALICE", args.Channel)
 			assert.Equal(t, slackprovider.TargetTypeDirectMessage, args.TargetType)
 			assert.Equal(t, JobTypeWorkflowTaskDueSoon, args.NotificationKind)
 			assert.Equal(t, userID.String(), args.RecipientUserID)
+			assert.Equal(t, JobTypeWorkflowTaskDueSoon, args.SourceJobKind)
+			assert.Equal(t, "workflow_task_due_soon:"+stepExecution.ID.String(), args.CorrelationID)
 			assert.Equal(t, "slack", param.InsertOpts.Queue)
+			assert.True(t, param.InsertOpts.UniqueOpts.ByArgs)
+			assert.Equal(t, 24*time.Hour, param.InsertOpts.UniqueOpts.ByPeriod)
 		default:
 			t.Fatalf("unexpected job args type %T", param.Args)
 		}

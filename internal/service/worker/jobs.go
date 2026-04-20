@@ -53,7 +53,7 @@ func (RiskProcessEvidenceArgs) Timeout() time.Duration { return 2 * time.Minute 
 type SendEmailArgs struct {
 	// Email message fields
 	From        string             `json:"from"`
-	To          []string           `json:"to"`
+	To          []string           `json:"to" river:"unique"`
 	Cc          []string           `json:"cc,omitempty"`
 	Bcc         []string           `json:"bcc,omitempty"`
 	Subject     string             `json:"subject"`
@@ -65,7 +65,7 @@ type SendEmailArgs struct {
 	// Optional notification metadata for generic notification dispatches.
 	NotificationKind string `json:"notification_kind,omitempty"`
 	RecipientUserID  string `json:"recipient_user_id,omitempty"`
-	CorrelationID    string `json:"correlation_id,omitempty"`
+	CorrelationID    string `json:"correlation_id,omitempty" river:"unique"`
 	SourceJobKind    string `json:"source_job_kind,omitempty"`
 	SourceJobID      string `json:"source_job_id,omitempty"`
 }
@@ -90,15 +90,15 @@ type SendEmailFromArgs struct {
 // SendSlackArgs represents a Slack message before it is routed to a specific
 // River job kind for channel or direct-message delivery.
 type SendSlackArgs struct {
-	Channel    string       `json:"channel"`
-	TargetType string       `json:"target_type"`
+	Channel    string       `json:"channel" river:"unique"`
+	TargetType string       `json:"target_type" river:"unique"`
 	Text       string       `json:"text"`
 	Blocks     slack.Blocks `json:"blocks,omitempty"`
 
 	// Optional notification metadata for generic notification dispatches.
 	NotificationKind string `json:"notification_kind,omitempty"`
 	RecipientUserID  string `json:"recipient_user_id,omitempty"`
-	CorrelationID    string `json:"correlation_id,omitempty"`
+	CorrelationID    string `json:"correlation_id,omitempty" river:"unique"`
 	SourceJobKind    string `json:"source_job_kind,omitempty"`
 	SourceJobID      string `json:"source_job_id,omitempty"`
 }

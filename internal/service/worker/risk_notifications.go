@@ -108,7 +108,7 @@ func buildRiskReviewDueReminderNotificationRequest(
 		riskReviewDueReminderNotificationKind,
 		args.OwnerUserID.String(),
 		newRiskReminderNotificationModel(userName, data),
-		riskReminderDispatchOptions(JobTypeRiskReviewDueReminder, args.Channel, args.RiskID, args.OwnerUserID),
+		riskReminderDispatchOptions(JobTypeRiskReviewDueReminder, args.Channel, args.RiskID, args.OwnerUserID, args.ReminderWindow),
 	)
 }
 
@@ -121,7 +121,7 @@ func buildRiskReviewOverdueEscalationNotificationRequest(
 		riskReviewOverdueEscalationNotificationKind,
 		args.OwnerUserID.String(),
 		newRiskReminderNotificationModel(userName, data),
-		riskReminderDispatchOptions(JobTypeRiskReviewOverdueEscalation, args.Channel, args.RiskID, args.OwnerUserID),
+		riskReminderDispatchOptions(JobTypeRiskReviewOverdueEscalation, args.Channel, args.RiskID, args.OwnerUserID, args.OverdueWindow),
 	)
 }
 
@@ -134,7 +134,7 @@ func buildRiskStaleOpenReminderNotificationRequest(
 		riskStaleOpenReminderNotificationKind,
 		args.OwnerUserID.String(),
 		newRiskReminderNotificationModel(userName, data),
-		riskReminderDispatchOptions(JobTypeRiskStaleOpenReminder, args.Channel, args.RiskID, args.OwnerUserID),
+		riskReminderDispatchOptions(JobTypeRiskStaleOpenReminder, args.Channel, args.RiskID, args.OwnerUserID, args.StaleBucketDate),
 	)
 }
 
@@ -143,7 +143,7 @@ func buildRiskOpenDigestNotificationRequest(args RiskOpenDigestArgs, data riskDi
 		riskOpenDigestNotificationKind,
 		args.RecipientUserID.String(),
 		newRiskOpenDigestNotificationModel(data),
-		newJobDispatchOptions(JobTypeRiskOpenDigest, args.Channel, args.RecipientUserID.String()),
+		newJobDispatchOptions(JobTypeRiskOpenDigest, args.Channel, args.RecipientUserID.String(), args.WindowStart, args.WindowEnd, args.WindowKind),
 	)
 }
 
@@ -183,13 +183,18 @@ func newRiskOpenDigestNotificationModel(data riskDigestNotificationData) riskOpe
 	}
 }
 
-func riskReminderDispatchOptions(jobKind, requestedChannel string, riskID, ownerUserID uuid.UUID) notification.DispatchOptions {
+func riskReminderDispatchOptions(jobKind, requestedChannel string, riskID, ownerUserID uuid.UUID, extraParts ...string) notification.DispatchOptions {
 	parts := []string{strings.TrimSpace(jobKind)}
 	if riskID != uuid.Nil {
 		parts = append(parts, riskID.String())
 	}
 	if ownerUserID != uuid.Nil {
 		parts = append(parts, ownerUserID.String())
+	}
+	for _, part := range extraParts {
+		if trimmed := strings.TrimSpace(part); trimmed != "" {
+			parts = append(parts, trimmed)
+		}
 	}
 
 	if len(parts) > 0 {
