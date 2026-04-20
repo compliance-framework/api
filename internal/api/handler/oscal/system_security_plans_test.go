@@ -1069,7 +1069,7 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) TestCreateImplementedRequire
 			},
 		},
 		ImplementationStatus: &oscalTypes_1_1_3.ImplementationStatus{
-			State:   "Implemented",
+			State:   "implemented",
 			Remarks: "Test Remarks",
 		},
 	}

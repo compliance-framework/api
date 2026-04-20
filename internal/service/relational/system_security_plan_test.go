@@ -9,6 +9,7 @@ import (
 	oscalTypes_1_1_3 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"gorm.io/datatypes"
 )
 
 func TestSatisfiedControlImplementationResponsibilityUnmarshal(t *testing.T) {
@@ -672,4 +673,190 @@ func TestSystemSecurityPlan_OscalMarshalling(t *testing.T) {
 		assert.NoError(t, err)
 		assert.JSONEq(t, string(inputJson), string(outputJson))
 	})
+}
+
+func TestImplementationStatusState_Valid(t *testing.T) {
+	validStates := []ImplementationStatusState{
+		ImplementationStatusImplemented,
+		ImplementationStatusPartial,
+		ImplementationStatusPlanned,
+		ImplementationStatusAlternative,
+		ImplementationStatusNotApplicable,
+	}
+	for _, state := range validStates {
+		t.Run(string(state), func(t *testing.T) {
+			assert.True(t, IsValidImplementationStatusState(state))
+		})
+	}
+}
+
+func TestImplementationStatusState_Invalid(t *testing.T) {
+	invalidStates := []ImplementationStatusState{
+		"invalid",
+		"IMPLEMENTED",
+		"Implemented",
+		"Partial",
+		"unknown",
+		"",
+	}
+	for _, state := range invalidStates {
+		name := string(state)
+		if name == "" {
+			name = "empty"
+		}
+		t.Run(name, func(t *testing.T) {
+			assert.False(t, IsValidImplementationStatusState(state))
+		})
+	}
+}
+
+func TestImplementationStatus_Validate(t *testing.T) {
+	t.Run("valid states pass validation", func(t *testing.T) {
+		for _, state := range ValidImplementationStatusStates() {
+			is := &ImplementationStatus{State: state}
+			assert.NoError(t, is.Validate(), "state %q should be valid", state)
+		}
+	})
+
+	t.Run("invalid state returns error", func(t *testing.T) {
+		is := &ImplementationStatus{State: "bogus"}
+		err := is.Validate()
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid implementation status state")
+		assert.Contains(t, err.Error(), "bogus")
+	})
+
+	t.Run("empty state returns error", func(t *testing.T) {
+		is := &ImplementationStatus{State: ""}
+		err := is.Validate()
+		assert.Error(t, err)
+	})
+}
+
+func TestImplementationStatus_UnmarshalOscal(t *testing.T) {
+	oscalIS := oscalTypes_1_1_3.ImplementationStatus{
+		State:   "partial",
+		Remarks: "Partial implementation in progress",
+	}
+	is := &ImplementationStatus{}
+	is.UnmarshalOscal(oscalIS)
+
+	assert.Equal(t, ImplementationStatusPartial, is.State)
+	assert.Equal(t, "Partial implementation in progress", is.Remarks)
+}
+
+func TestImplementationStatus_MarshalOscal(t *testing.T) {
+	is := &ImplementationStatus{
+		State:   ImplementationStatusPlanned,
+		Remarks: "Plan documented in remarks",
+	}
+	oscalIS := is.MarshalOscal()
+	assert.Equal(t, "planned", oscalIS.State)
+	assert.Equal(t, "Plan documented in remarks", oscalIS.Remarks)
+}
+
+func TestConvertOscalToImplementationStatus(t *testing.T) {
+	oscalIS := &oscalTypes_1_1_3.ImplementationStatus{
+		State:   "alternative",
+		Remarks: "Alternative approach taken",
+	}
+	result := ConvertOscalToImplementationStatus(oscalIS)
+	assert.Equal(t, ImplementationStatusAlternative, result.Data().State)
+	assert.Equal(t, "Alternative approach taken", result.Data().Remarks)
+}
+
+func TestConvertImplementationStatusToOscal(t *testing.T) {
+	is := ImplementationStatus{
+		State:   ImplementationStatusNotApplicable,
+		Remarks: "Not applicable for this system",
+	}
+	data := datatypes.NewJSONType(is)
+	oscalIS := ConvertImplementationStatusToOscal(data)
+	assert.Equal(t, "not-applicable", oscalIS.State)
+	assert.Equal(t, "Not applicable for this system", oscalIS.Remarks)
+}
+
+func TestImplementationStatus_JSONRoundTrip(t *testing.T) {
+	is := ImplementationStatus{
+		State:   ImplementationStatusImplemented,
+		Remarks: "Fully implemented",
+	}
+	b, err := json.Marshal(is)
+	assert.NoError(t, err)
+
+	var parsed ImplementationStatus
+	err = json.Unmarshal(b, &parsed)
+	assert.NoError(t, err)
+	assert.Equal(t, is.State, parsed.State)
+	assert.Equal(t, is.Remarks, parsed.Remarks)
+}
+
+func TestImplementationStatus_JSONCompatibleWithOscal(t *testing.T) {
+	oscalJSON := `{"state":"implemented","remarks":"Test remarks"}`
+
+	var is ImplementationStatus
+	err := json.Unmarshal([]byte(oscalJSON), &is)
+	assert.NoError(t, err)
+	assert.Equal(t, ImplementationStatusImplemented, is.State)
+	assert.Equal(t, "Test remarks", is.Remarks)
+
+	b, err := json.Marshal(is)
+	assert.NoError(t, err)
+	assert.JSONEq(t, oscalJSON, string(b))
+}
+
+func TestImplementationStatus_OmittedStatus(t *testing.T) {
+	id := uuid.New()
+	bc := ByComponent{
+		UUIDModel:     UUIDModel{ID: &id},
+		ComponentUUID: uuid.New(),
+		Description:   "Test component",
+	}
+	oscalBC := bc.MarshalOscal()
+	assert.Nil(t, oscalBC.ImplementationStatus)
+}
+
+func TestByComponent_WithImplementationStatus_RoundTrip(t *testing.T) {
+	compUUID := uuid.New()
+	bcUUID := uuid.New()
+	oscalBC := oscalTypes_1_1_3.ByComponent{
+		UUID:          bcUUID.String(),
+		ComponentUuid: compUUID.String(),
+		Description:   "Test by-component",
+		ImplementationStatus: &oscalTypes_1_1_3.ImplementationStatus{
+			State:   "partial",
+			Remarks: "Partially done",
+		},
+	}
+
+	relBC := &ByComponent{}
+	relBC.UnmarshalOscal(oscalBC)
+
+	assert.Equal(t, ImplementationStatusPartial, relBC.ImplementationStatus.Data().State)
+	assert.Equal(t, "Partially done", relBC.ImplementationStatus.Data().Remarks)
+
+	// Validate passes
+	is := relBC.ImplementationStatus.Data()
+	assert.NoError(t, is.Validate())
+
+	// Marshal back to OSCAL
+	out := relBC.MarshalOscal()
+	assert.NotNil(t, out.ImplementationStatus)
+	assert.Equal(t, "partial", out.ImplementationStatus.State)
+	assert.Equal(t, "Partially done", out.ImplementationStatus.Remarks)
+}
+
+func TestValidImplementationStatusStates_ReturnsAllStates(t *testing.T) {
+	states := ValidImplementationStatusStates()
+	assert.Len(t, states, 5)
+	expected := map[ImplementationStatusState]bool{
+		ImplementationStatusImplemented:   true,
+		ImplementationStatusPartial:       true,
+		ImplementationStatusPlanned:       true,
+		ImplementationStatusAlternative:   true,
+		ImplementationStatusNotApplicable: true,
+	}
+	for _, s := range states {
+		assert.True(t, expected[s], "unexpected state %q", s)
+	}
 }
