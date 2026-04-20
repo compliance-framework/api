@@ -631,7 +631,7 @@ func Workers(
 		sharedNotificationRuntimeProvider := newWorkerNotificationRuntimeProvider(
 			emailService,
 			slackService,
-			func() notification.WorkerEnqueuer { return nil },
+			func() notification.WorkerEnqueuer { return notificationWorkerEnqueuer },
 		)
 
 		workflowTaskAssignedWorker := NewWorkflowTaskAssignedWorker(

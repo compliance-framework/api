@@ -45,13 +45,14 @@ func (r *GORMUserRepository) FindUserByID(ctx context.Context, userID string) (N
 
 	var slackLink relational.SlackUserLink
 	var slackUserID string
-	err = r.db.WithContext(ctx).
+	result := r.db.WithContext(ctx).
 		Where("user_id = ?", user.ID.String()).
-		First(&slackLink).Error
-	if err == nil {
+		Limit(1).
+		Find(&slackLink)
+	if result.Error == nil && result.RowsAffected > 0 {
 		slackUserID = slackLink.SlackUserID
-	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
-		return NotificationUser{}, fmt.Errorf("failed to fetch slack user link for user %s: %w", userID, err)
+	} else if result.Error != nil {
+		return NotificationUser{}, fmt.Errorf("failed to fetch slack user link for user %s: %w", userID, result.Error)
 	}
 
 	subscriptions := make([]NotificationSubscription, 0, len(rows))

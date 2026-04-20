@@ -377,6 +377,19 @@ func (a *notificationUserRepositoryAdapter) ListActiveUsersByNotificationType(_ 
 	return users, nil
 }
 
+func (a *notificationUserRepositoryAdapter) ListActiveUsers(_ context.Context) ([]notification.User, error) {
+	if a == nil || len(a.cached) == 0 {
+		return []notification.User{}, nil
+	}
+
+	users := make([]notification.User, 0, len(a.cached))
+	for _, user := range a.cached {
+		users = append(users, convertNotificationUser(user))
+	}
+
+	return users, nil
+}
+
 func convertNotificationUser(user NotificationUser) notification.User {
 	subscriptions := make([]notification.UserSubscription, 0, len(user.NotificationSubscriptions))
 	for _, subscription := range user.NotificationSubscriptions {

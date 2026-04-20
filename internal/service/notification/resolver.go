@@ -69,6 +69,10 @@ type UserRepository interface {
 	ListActiveUsersByNotificationType(ctx context.Context, notificationType string) ([]User, error)
 }
 
+type ActiveUserRepository interface {
+	ListActiveUsers(ctx context.Context) ([]User, error)
+}
+
 type GORMUserRepository struct {
 	db *gorm.DB
 }
@@ -210,6 +214,48 @@ func (r *GORMUserRepository) ListActiveUsersByNotificationType(ctx context.Conte
 	return users, nil
 }
 
+func (r *GORMUserRepository) ListActiveUsers(ctx context.Context) ([]User, error) {
+	var records []relational.User
+	if err := r.db.WithContext(ctx).
+		Where("is_active = ? AND is_locked = ?", true, false).
+		Find(&records).Error; err != nil {
+		return nil, fmt.Errorf("failed to fetch active users: %w", err)
+	}
+
+	if len(records) == 0 {
+		return []User{}, nil
+	}
+
+	userIDs := make([]string, 0, len(records))
+	for i := range records {
+		userIDs = append(userIDs, records[i].ID.String())
+	}
+
+	identitiesByUserID, err := r.loadProviderIdentitiesByUserID(ctx, userIDs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch notification identities for active users: %w", err)
+	}
+
+	users := make([]User, 0, len(records))
+	for i := range records {
+		record := records[i]
+		userID := record.ID.String()
+		users = append(users, User{
+			ID:         userID,
+			Email:      record.Email,
+			FirstName:  record.FirstName,
+			LastName:   record.LastName,
+			Identities: identitiesByUserID[userID],
+		})
+	}
+
+	sort.Slice(users, func(i, j int) bool {
+		return users[i].Email < users[j].Email
+	})
+
+	return users, nil
+}
+
 func (r *GORMUserRepository) loadProviderIdentitiesByUserID(ctx context.Context, userIDs []string) (map[string]map[string]map[string]string, error) {
 	identitiesByUserID := make(map[string]map[string]map[string]string)
 	if r == nil || r.db == nil || len(userIDs) == 0 {
@@ -322,10 +368,19 @@ func (r *Resolver) ListSubscribedUsers(ctx context.Context, definition Definitio
 		return nil, err
 	}
 	if normalizedDefinition.SubscriptionType == "" {
-		return nil, ErrMissingSubscriptionType
+		return r.listActiveUsers(ctx)
 	}
 
 	return r.users.ListActiveUsersByNotificationType(ctx, normalizedDefinition.SubscriptionType)
+}
+
+func (r *Resolver) listActiveUsers(ctx context.Context) ([]User, error) {
+	activeUsers, ok := r.users.(ActiveUserRepository)
+	if !ok {
+		return nil, ErrUngatedUserListingNotSupported
+	}
+
+	return activeUsers.ListActiveUsers(ctx)
 }
 
 func (r *Resolver) resolveAudience(ctx context.Context, audience Audience, options DispatchOptions, definition Definition) ([]Target, error) {
@@ -365,12 +420,14 @@ func (r *Resolver) ResolveUser(user User, options DispatchOptions, definition De
 }
 
 func (r *Resolver) resolveUser(user User, options DispatchOptions, definition Definition) ([]Target, error) {
+	channels := append([]string(nil), definition.SupportedChannels...)
+	if definition.SubscriptionType != NotificationTypeUngated {
+		if definition.SubscriptionType == "" {
+			return nil, ErrMissingSubscriptionType
+		}
 
-	if definition.SubscriptionType == "" {
-		return nil, ErrMissingSubscriptionType
+		channels = user.NotificationChannels(definition.SubscriptionType)
 	}
-
-	channels := user.NotificationChannels(definition.SubscriptionType)
 	channels = applyRequestedChannelFilter(channels, options.RequestedChannel)
 	if len(channels) == 0 {
 		return nil, nil

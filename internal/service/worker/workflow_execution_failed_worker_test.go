@@ -51,7 +51,7 @@ func TestWorkflowExecutionFailedWorker_NilDB_ReturnsError(t *testing.T) {
 	mockEmail.AssertNotCalled(t, "Send")
 }
 
-func TestWorkflowExecutionFailedWorker_SlackOnlyUser_SendsSlack(t *testing.T) {
+func TestWorkflowExecutionFailedWorker_SlackSubscribedUser_SendsAllAssociatedChannels(t *testing.T) {
 	ctx := context.Background()
 	db := newWorkflowNotificationJobsTestDB(t)
 	mockEmail := &MockEmailService{}
@@ -72,6 +72,11 @@ func TestWorkflowExecutionFailedWorker_SlackOnlyUser_SendsSlack(t *testing.T) {
 		},
 	}
 	mockRepo.On("FindUserByID", ctx, createdByID.String()).Return(user, nil)
+	mockEmail.On("UseTemplate", "workflow-execution-failed", mock.Anything).Return("<html>failed</html>", "failed text", nil).Once()
+	mockEmail.On("GetDefaultFromAddress").Return("noreply@example.com").Once()
+	mockEmail.On("Send", ctx, mock.MatchedBy(func(msg *types.Message) bool {
+		return len(msg.To) == 1 && msg.To[0] == "owner@example.com"
+	})).Return(&types.SendResult{Success: true, MessageID: "wf-exec-email-1"}, nil).Once()
 	mockSlack.On("IsEnabled").Return(true).Once()
 	mockSlack.On("SendMessage", ctx, "UWFEXEC1", mock.MatchedBy(func(msg *slacktypes.Message) bool {
 		return msg != nil && msg.Text != ""
@@ -81,8 +86,7 @@ func TestWorkflowExecutionFailedWorker_SlackOnlyUser_SendsSlack(t *testing.T) {
 
 	err := w.Work(ctx, makeFailedJob(WorkflowExecutionFailedArgs{WorkflowExecutionID: executionID.String()}))
 	assert.NoError(t, err)
-	mockEmail.AssertNotCalled(t, "UseTemplate", mock.Anything, mock.Anything)
-	mockEmail.AssertNotCalled(t, "Send", mock.Anything, mock.Anything)
+	mockEmail.AssertExpectations(t)
 	mockSlack.AssertExpectations(t)
 	mockRepo.AssertExpectations(t)
 }
