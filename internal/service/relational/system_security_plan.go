@@ -1,6 +1,7 @@
 package relational
 
 import (
+	"fmt"
 	"time"
 
 	oscalTypes_1_1_3 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
@@ -1400,21 +1401,76 @@ func (bc *ByComponent) MarshalOscal() *oscalTypes_1_1_3.ByComponent {
 	return ret
 }
 
-type ImplementationStatus oscalTypes_1_1_3.ImplementationStatus
+// ImplementationStatusState represents the well-defined states for an OSCAL
+// implementation status, aligned with OSCAL SSP semantics.
+type ImplementationStatusState string
+
+const (
+	ImplementationStatusImplemented   ImplementationStatusState = "implemented"
+	ImplementationStatusPartial       ImplementationStatusState = "partial"
+	ImplementationStatusPlanned       ImplementationStatusState = "planned"
+	ImplementationStatusAlternative   ImplementationStatusState = "alternative"
+	ImplementationStatusNotApplicable ImplementationStatusState = "not-applicable"
+)
+
+// validImplementationStatusStates is the set of accepted state values.
+var validImplementationStatusStates = map[ImplementationStatusState]struct{}{
+	ImplementationStatusImplemented:   {},
+	ImplementationStatusPartial:       {},
+	ImplementationStatusPlanned:       {},
+	ImplementationStatusAlternative:   {},
+	ImplementationStatusNotApplicable: {},
+}
+
+// ValidImplementationStatusStates returns the list of supported state values.
+func ValidImplementationStatusStates() []ImplementationStatusState {
+	return []ImplementationStatusState{
+		ImplementationStatusImplemented,
+		ImplementationStatusPartial,
+		ImplementationStatusPlanned,
+		ImplementationStatusAlternative,
+		ImplementationStatusNotApplicable,
+	}
+}
+
+// IsValidImplementationStatusState reports whether s is a supported state value.
+func IsValidImplementationStatusState(s ImplementationStatusState) bool {
+	_, ok := validImplementationStatusStates[s]
+	return ok
+}
+
+// ImplementationStatus mirrors oscalTypes_1_1_3.ImplementationStatus but
+// constrains State to a well-defined enum.
+type ImplementationStatus struct {
+	Remarks string                    `json:"remarks,omitempty" yaml:"remarks,omitempty"`
+	State   ImplementationStatusState `json:"state" yaml:"state"`
+}
+
+// Validate checks that State is one of the supported values.
+func (is *ImplementationStatus) Validate() error {
+	if !IsValidImplementationStatusState(is.State) {
+		return fmt.Errorf("invalid implementation status state %q: must be one of %v",
+			is.State, ValidImplementationStatusStates())
+	}
+	return nil
+}
 
 func (is *ImplementationStatus) UnmarshalOscal(ois oscalTypes_1_1_3.ImplementationStatus) *ImplementationStatus {
-	*is = ImplementationStatus(ois)
+	is.State = ImplementationStatusState(ois.State)
+	is.Remarks = ois.Remarks
 	return is
 }
 
 func (is *ImplementationStatus) MarshalOscal() *oscalTypes_1_1_3.ImplementationStatus {
-	ret := oscalTypes_1_1_3.ImplementationStatus(*is)
-	return &ret
+	return &oscalTypes_1_1_3.ImplementationStatus{
+		State:   string(is.State),
+		Remarks: is.Remarks,
+	}
 }
 
 func ConvertOscalToImplementationStatus(oscal *oscalTypes_1_1_3.ImplementationStatus) datatypes.JSONType[ImplementationStatus] {
 	impStatus := ImplementationStatus{
-		State:   oscal.State,
+		State:   ImplementationStatusState(oscal.State),
 		Remarks: oscal.Remarks,
 	}
 	return datatypes.NewJSONType(impStatus)
@@ -1422,7 +1478,7 @@ func ConvertOscalToImplementationStatus(oscal *oscalTypes_1_1_3.ImplementationSt
 
 func ConvertImplementationStatusToOscal(data datatypes.JSONType[ImplementationStatus]) *oscalTypes_1_1_3.ImplementationStatus {
 	impStatus := oscalTypes_1_1_3.ImplementationStatus{
-		State:   data.Data().State,
+		State:   string(data.Data().State),
 		Remarks: data.Data().Remarks,
 	}
 	return &impStatus

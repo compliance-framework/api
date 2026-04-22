@@ -407,7 +407,7 @@ func (s *SystemComponentSuggestionService) ensureByComponentLink(
 	parentID uuid.UUID,
 	parentType string,
 ) error {
-	implStatus := ImplementationStatus{State: "implemented"}
+	implStatus := ImplementationStatus{State: ImplementationStatusImplemented}
 	// Generate deterministic UUID from the unique key (component_uuid, parent_id, parent_type).
 	// This ensures concurrent requests generate the same UUID, making the operation idempotent.
 	deterministicID := uuid.NewSHA1(uuid.NameSpaceOID, []byte(
