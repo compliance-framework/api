@@ -43,25 +43,25 @@ func (w *WorkflowTaskDigestCheckerWorker) Work(ctx context.Context, job *river.J
 		return fmt.Errorf("WorkflowTaskDigestCheckerWorker: db is nil")
 	}
 
-	users, err := notification.NewGORMUserRepository(w.db).ListActiveUsersByNotificationType(ctx, notification.NotificationTypeTaskDailyDigest)
+	userIDs, err := notification.NewGORMUserRepository(w.db).ListActiveUserIDsByNotificationType(ctx, notification.NotificationTypeTaskDailyDigest)
 	if err != nil {
 		return fmt.Errorf("workflow-task-digest-checker: failed to load subscribed users: %w", err)
 	}
 
-	if len(users) == 0 {
+	if len(userIDs) == 0 {
 		w.logger.Infow("WorkflowTaskDigestCheckerWorker: no subscribed users found")
 		return nil
 	}
 
-	params := make([]river.InsertManyParams, 0, len(users))
-	for i := range users {
-		if users[i].ID == "" {
+	params := make([]river.InsertManyParams, 0, len(userIDs))
+	for i := range userIDs {
+		if userIDs[i] == "" {
 			continue
 		}
 
 		params = append(params, river.InsertManyParams{
 			Args: WorkflowTaskDigestArgs{
-				UserID: users[i].ID,
+				UserID: userIDs[i],
 			},
 			InsertOpts: &river.InsertOpts{
 				Queue:       "digest",
@@ -87,7 +87,7 @@ func (w *WorkflowTaskDigestCheckerWorker) Work(ctx context.Context, job *river.J
 	}
 
 	w.logger.Infow("WorkflowTaskDigestCheckerWorker: enqueued digest jobs",
-		"total_users", len(users),
+		"total_users", len(userIDs),
 		"enqueued", inserted,
 	)
 	return nil

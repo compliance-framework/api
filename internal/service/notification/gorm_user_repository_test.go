@@ -77,6 +77,70 @@ func TestGORMUserRepositoryListActiveUsersByNotificationTypeIncludesSlackIdentit
 	assert.Equal(t, "direct_message", identity["target_type"])
 }
 
+func TestGORMUserRepositoryListActiveUserIDsByNotificationType(t *testing.T) {
+	db := newNotificationTestDB(t)
+	activeID := uuid.New()
+	inactiveID := uuid.New()
+	lockedID := uuid.New()
+	invalidChannelID := uuid.New()
+
+	require.NoError(t, db.Model(&relational.User{}).Create(map[string]interface{}{
+		"id":          activeID,
+		"email":       "active@example.com",
+		"is_active":   true,
+		"is_locked":   false,
+		"auth_method": "password",
+	}).Error)
+	require.NoError(t, db.Model(&relational.User{}).Create(map[string]interface{}{
+		"id":          inactiveID,
+		"email":       "inactive@example.com",
+		"is_active":   false,
+		"is_locked":   false,
+		"auth_method": "password",
+	}).Error)
+	require.NoError(t, db.Model(&relational.User{}).Create(map[string]interface{}{
+		"id":          lockedID,
+		"email":       "locked@example.com",
+		"is_active":   true,
+		"is_locked":   true,
+		"auth_method": "password",
+	}).Error)
+	require.NoError(t, db.Model(&relational.User{}).Create(map[string]interface{}{
+		"id":          invalidChannelID,
+		"email":       "invalid@example.com",
+		"is_active":   true,
+		"is_locked":   false,
+		"auth_method": "password",
+	}).Error)
+
+	require.NoError(t, db.Create(&relational.UserNotificationSubscription{
+		UserID:           activeID.String(),
+		NotificationType: NotificationTypeTaskDailyDigest,
+		Channels:         datatypes.JSONSlice[string]{DeliveryChannelEmail},
+	}).Error)
+	require.NoError(t, db.Create(&relational.UserNotificationSubscription{
+		UserID:           inactiveID.String(),
+		NotificationType: NotificationTypeTaskDailyDigest,
+		Channels:         datatypes.JSONSlice[string]{DeliveryChannelEmail},
+	}).Error)
+	require.NoError(t, db.Create(&relational.UserNotificationSubscription{
+		UserID:           lockedID.String(),
+		NotificationType: NotificationTypeTaskDailyDigest,
+		Channels:         datatypes.JSONSlice[string]{DeliveryChannelSlack},
+	}).Error)
+	require.NoError(t, db.Create(&relational.UserNotificationSubscription{
+		UserID:           invalidChannelID.String(),
+		NotificationType: NotificationTypeTaskDailyDigest,
+		Channels:         datatypes.JSONSlice[string]{"invalid-channel"},
+	}).Error)
+
+	repo := NewGORMUserRepository(db)
+	userIDs, err := repo.ListActiveUserIDsByNotificationType(context.Background(), NotificationTypeTaskDailyDigest)
+	require.NoError(t, err)
+	require.Len(t, userIDs, 1)
+	assert.Equal(t, activeID.String(), userIDs[0])
+}
+
 func newNotificationTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 

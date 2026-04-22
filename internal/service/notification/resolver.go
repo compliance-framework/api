@@ -214,6 +214,59 @@ func (r *GORMUserRepository) ListActiveUsersByNotificationType(ctx context.Conte
 	return users, nil
 }
 
+// ListActiveUserIDsByNotificationType returns IDs for active, unlocked users
+// subscribed to the given notification type on at least one valid channel.
+func (r *GORMUserRepository) ListActiveUserIDsByNotificationType(ctx context.Context, notificationType string) ([]string, error) {
+	canonicalType, ok := NormalizeNotificationType(notificationType)
+	if !ok {
+		return []string{}, nil
+	}
+
+	var subscriptions []relational.UserNotificationSubscription
+	if err := r.db.WithContext(ctx).
+		Where("notification_type = ?", canonicalType).
+		Find(&subscriptions).Error; err != nil {
+		return nil, fmt.Errorf("failed to fetch notification subscriptions for type %s: %w", canonicalType, err)
+	}
+
+	userIDSet := make(map[string]struct{}, len(subscriptions))
+	for i := range subscriptions {
+		userID := strings.TrimSpace(subscriptions[i].UserID)
+		if userID == "" {
+			continue
+		}
+
+		channels, _ := NormalizeDeliveryChannels(subscriptions[i].Channels)
+		if len(channels) == 0 {
+			continue
+		}
+
+		userIDSet[userID] = struct{}{}
+	}
+
+	if len(userIDSet) == 0 {
+		return []string{}, nil
+	}
+
+	userIDs := make([]string, 0, len(userIDSet))
+	for userID := range userIDSet {
+		userIDs = append(userIDs, userID)
+	}
+
+	var activeUserIDs []string
+	if err := r.db.WithContext(ctx).
+		Model(&relational.User{}).
+		Select("id").
+		Where("id IN ?", userIDs).
+		Where("is_active = ? AND is_locked = ?", true, false).
+		Pluck("id", &activeUserIDs).Error; err != nil {
+		return nil, fmt.Errorf("failed to fetch subscribed users for type %s: %w", canonicalType, err)
+	}
+
+	sort.Strings(activeUserIDs)
+	return activeUserIDs, nil
+}
+
 func (r *GORMUserRepository) ListActiveUsers(ctx context.Context) ([]User, error) {
 	var records []relational.User
 	if err := r.db.WithContext(ctx).

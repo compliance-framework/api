@@ -92,5 +92,11 @@ func cloneDefinition(definition Definition) Definition {
 	if len(definition.SupportedChannels) > 0 {
 		cloned.SupportedChannels = append([]string(nil), definition.SupportedChannels...)
 	}
+	if len(definition.Renderers) > 0 {
+		cloned.Renderers = make(map[string]ChannelRenderer, len(definition.Renderers))
+		for channel, renderer := range definition.Renderers {
+			cloned.Renderers[channel] = renderer
+		}
+	}
 	return cloned
 }

@@ -49,3 +49,24 @@ func TestRegistryRegisterRejectsDuplicateKind(t *testing.T) {
 	require.Error(t, err)
 	assert.ErrorIs(t, err, ErrInvalidRequest)
 }
+
+func TestRegistryDefinitionReturnsIndependentRendererMap(t *testing.T) {
+	registry, err := NewRegistry(Definition{
+		Kind:              Kind("digest"),
+		SupportedChannels: []string{DeliveryChannelEmail},
+		Renderers: map[string]ChannelRenderer{
+			DeliveryChannelEmail: ProviderRenderer(DeliveryChannelEmail, func(context.Context, any) (any, error) {
+				return testEmailContent{From: "from@example.com", Subject: "subject", TextBody: "body"}, nil
+			}),
+		},
+	})
+	require.NoError(t, err)
+
+	definition, ok := registry.Definition(Kind("digest"))
+	require.True(t, ok)
+	definition.Renderers[DeliveryChannelEmail] = nil
+
+	reloaded, ok := registry.Definition(Kind("digest"))
+	require.True(t, ok)
+	assert.NotNil(t, reloaded.Renderers[DeliveryChannelEmail])
+}
