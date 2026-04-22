@@ -9,6 +9,7 @@ import (
 	"github.com/compliance-framework/api/internal/service/notification"
 	emailprovider "github.com/compliance-framework/api/internal/service/notification/providers/email"
 	slackprovider "github.com/compliance-framework/api/internal/service/notification/providers/slack"
+	notificationruntime "github.com/compliance-framework/api/internal/service/notification/runtime"
 	"github.com/compliance-framework/api/internal/workflow"
 )
 
@@ -32,82 +33,65 @@ type workerNotificationEnqueuer struct {
 	maxAttempts int
 }
 
-type workerSlackEnqueuer interface {
-	IsStarted() bool
-	EnqueueNotificationSlack(ctx context.Context, delivery slackprovider.Delivery) error
-}
-
-func newWorkerNotificationTransport(
-	emailService EmailService,
-	slackService SlackService,
-	workerEnqueuerProvider notification.WorkerEnqueuerProvider,
-) *notification.DeliveryTransport {
-	return notification.NewDeliveryTransport(
-		notification.WithProvider(emailprovider.NewProviderWithTemplateRenderer(
-			func() emailprovider.Sender {
-				if emailService == nil {
-					return nil
-				}
-				return &workerNotificationEmailSender{service: emailService}
-			},
-			func() emailprovider.Enqueuer {
-				if workerEnqueuerProvider == nil {
-					return nil
-				}
-
-				workerEnqueuer := workerEnqueuerProvider()
-				if workerEnqueuer == nil {
-					return nil
-				}
-
-				enqueuer, ok := workerEnqueuer.(emailprovider.Enqueuer)
-				if !ok {
-					return nil
-				}
-
-				return enqueuer
-			},
-			func() emailprovider.ContentRenderer {
-				if emailService == nil {
-					return nil
-				}
-				return &workerNotificationEmailTemplateRenderer{service: emailService}
-			},
-		)),
-		notification.WithProvider(slackprovider.NewProvider(
-			func() slackprovider.Sender {
-				if slackService == nil {
-					return nil
-				}
-				return slackService
-			},
-			func() slackprovider.Enqueuer {
-				if workerEnqueuerProvider == nil {
-					return nil
-				}
-
-				workerEnqueuer := workerEnqueuerProvider()
-				if workerEnqueuer == nil {
-					return nil
-				}
-
-				enqueuer, ok := workerEnqueuer.(workerSlackEnqueuer)
-				if !ok {
-					return nil
-				}
-
-				return enqueuer
-			},
-		)),
-	)
-}
-
 func newWorkerNotificationRuntimeProvider(
 	emailService EmailService,
 	slackService SlackService,
 	workerEnqueuerProvider notification.WorkerEnqueuerProvider,
 ) notification.RuntimeProvider {
-	return notification.NewStaticRuntimeProvider(newWorkerNotificationTransport(emailService, slackService, workerEnqueuerProvider))
+	return notificationruntime.NewRegisteredRuntimeProvider(notificationruntime.ProviderRegistrations{
+		EmailSender: func() emailprovider.Sender {
+			if emailService == nil {
+				return nil
+			}
+			return &workerNotificationEmailSender{service: emailService}
+		},
+		EmailEnqueuer: func() emailprovider.Enqueuer {
+			if workerEnqueuerProvider == nil {
+				return nil
+			}
+
+			workerEnqueuer := workerEnqueuerProvider()
+			if workerEnqueuer == nil {
+				return nil
+			}
+
+			enqueuer, ok := workerEnqueuer.(emailprovider.Enqueuer)
+			if !ok {
+				return nil
+			}
+
+			return enqueuer
+		},
+		EmailContentRenderer: func() emailprovider.ContentRenderer {
+			if emailService == nil {
+				return nil
+			}
+			return &workerNotificationEmailTemplateRenderer{service: emailService}
+		},
+		SlackSender: func() slackprovider.Sender {
+			if slackService == nil {
+				return nil
+			}
+			return slackService
+		},
+		SlackEnqueuer: func() slackprovider.Enqueuer {
+			if workerEnqueuerProvider == nil {
+				return nil
+			}
+
+			workerEnqueuer := workerEnqueuerProvider()
+			if workerEnqueuer == nil {
+				return nil
+			}
+
+			enqueuer, ok := workerEnqueuer.(slackprovider.Enqueuer)
+			if !ok {
+				return nil
+			}
+
+			return enqueuer
+		},
+	})
 }
 
 func newWorkerNotificationEnqueuer(client workflow.RiverClient, emailQueue string, maxAttempts int) notification.WorkerEnqueuer {

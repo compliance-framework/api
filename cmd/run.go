@@ -15,7 +15,6 @@ import (
 	"github.com/compliance-framework/api/internal/service/digest"
 	"github.com/compliance-framework/api/internal/service/email"
 	"github.com/compliance-framework/api/internal/service/notification"
-	slackprovider "github.com/compliance-framework/api/internal/service/notification/providers/slack"
 	evidencesvc "github.com/compliance-framework/api/internal/service/relational/evidence"
 	templatesvc "github.com/compliance-framework/api/internal/service/relational/templates"
 	"github.com/compliance-framework/api/internal/service/relational/workflows"
@@ -102,10 +101,10 @@ func RunServer(cmd *cobra.Command, args []string) {
 	var digestWorkerEnqueuer notification.WorkerEnqueuer
 	digestRuntimeProvider := digest.NewRuntimeProvider(
 		emailService,
-		cfg,
 		func() notification.WorkerEnqueuer { return digestWorkerEnqueuer },
-		func() slackprovider.Sender { return slackService },
+		slackService,
 	)
+
 	digestNotifier := digest.NewNotificationService(
 		db,
 		cfg,

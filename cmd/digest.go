@@ -9,8 +9,6 @@ import (
 	"github.com/compliance-framework/api/internal/service"
 	"github.com/compliance-framework/api/internal/service/digest"
 	"github.com/compliance-framework/api/internal/service/email"
-	"github.com/compliance-framework/api/internal/service/notification"
-	slackprovider "github.com/compliance-framework/api/internal/service/notification/providers/slack"
 	slacksvc "github.com/compliance-framework/api/internal/service/slack"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -94,9 +92,8 @@ func runDigestTest(cmd *cobra.Command, args []string) {
 	}
 	runtimeProvider := digest.NewRuntimeProvider(
 		emailService,
-		cfg,
-		func() notification.WorkerEnqueuer { return nil },
-		func() slackprovider.Sender { return slackService },
+		nil,
+		slackService,
 	)
 
 	notifier := digest.NewNotificationService(
@@ -170,9 +167,8 @@ func runDigestPreview(cmd *cobra.Command, args []string) {
 	}
 	runtimeProvider := digest.NewRuntimeProvider(
 		emailService,
-		cfg,
-		func() notification.WorkerEnqueuer { return nil },
-		func() slackprovider.Sender { return slackService },
+		nil,
+		slackService,
 	)
 
 	notifier := digest.NewNotificationService(

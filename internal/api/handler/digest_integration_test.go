@@ -11,8 +11,6 @@ import (
 	"github.com/compliance-framework/api/internal/api"
 	"github.com/compliance-framework/api/internal/service/digest"
 	"github.com/compliance-framework/api/internal/service/email"
-	"github.com/compliance-framework/api/internal/service/notification"
-	slackprovider "github.com/compliance-framework/api/internal/service/notification/providers/slack"
 	slacksvc "github.com/compliance-framework/api/internal/service/slack"
 	"github.com/compliance-framework/api/internal/tests"
 	"github.com/stretchr/testify/suite"
@@ -46,9 +44,8 @@ func (suite *DigestApiIntegrationSuite) SetupSuite() {
 	suite.Require().NoError(err, "Failed to create slack service")
 	runtimeProvider := digest.NewRuntimeProvider(
 		suite.emailService,
-		suite.Config,
-		func() notification.WorkerEnqueuer { return nil },
-		func() slackprovider.Sender { return slackService },
+		nil,
+		slackService,
 	)
 
 	// Create digest handler
