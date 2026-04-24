@@ -1,8 +1,12 @@
 package handler
 
 import (
+	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
+	"reflect"
 	"sort"
 	"strings"
 
@@ -12,6 +16,7 @@ import (
 	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/labstack/echo/v4"
 	"go.uber.org/zap"
+	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
 
@@ -31,6 +36,29 @@ type systemNotificationResponse struct {
 	ConfiguredDestinations []configuredSystemDestinationResponse `json:"configuredDestinations"`
 }
 
+type createSystemNotificationDestinationRequest struct {
+	ProviderType      string `json:"providerType" validate:"required"`
+	DestinationTarget string `json:"destinationTarget" validate:"required"`
+}
+
+func (r *createSystemNotificationDestinationRequest) UnmarshalJSON(data []byte) error {
+	type requestAlias struct {
+		ProviderTypeCamel      string `json:"providerType"`
+		DestinationTargetCamel string `json:"destinationTarget"`
+		ProviderTypeKebab      string `json:"provider-type"`
+		DestinationTargetKebab string `json:"destination-target"`
+	}
+
+	var decoded requestAlias
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return err
+	}
+
+	r.ProviderType = strings.TrimSpace(firstNonEmpty(decoded.ProviderTypeCamel, decoded.ProviderTypeKebab))
+	r.DestinationTarget = strings.TrimSpace(firstNonEmpty(decoded.DestinationTargetCamel, decoded.DestinationTargetKebab))
+	return nil
+}
+
 func NewNotificationsHandler(sugar *zap.SugaredLogger, db *gorm.DB) *NotificationsHandler {
 	return &NotificationsHandler{
 		sugar:     sugar,
@@ -41,6 +69,7 @@ func NewNotificationsHandler(sugar *zap.SugaredLogger, db *gorm.DB) *Notificatio
 
 func (h *NotificationsHandler) Register(api *echo.Group) {
 	api.GET("", h.ListSystemNotifications)
+	api.POST("/:notificationName/destinations", h.CreateSystemNotificationDestination)
 }
 
 // ListSystemNotifications godoc
@@ -119,23 +148,124 @@ func (h *NotificationsHandler) ListSystemNotifications(ctx echo.Context) error {
 	return ctx.JSON(http.StatusOK, GenericDataListResponse[systemNotificationResponse]{Data: response})
 }
 
-func (h *NotificationsHandler) destinationResponseForRecord(record relational.SystemNotificationDestination) (configuredSystemDestinationResponse, error) {
-	provider, ok := notification.NormalizeDeliveryChannel(record.Provider)
+// CreateSystemNotificationDestination godoc
+//
+//	@Summary		Create system notification destination
+//	@Description	Creates a new system notification destination configuration for an admin-managed notification
+//	@Tags			Notifications
+//	@Accept			json
+//	@Produce		json
+//	@Param			notificationName	path		string													true	"Notification name"
+//	@Param			destination			body		handler.createSystemNotificationDestinationRequest		true	"Destination details"
+//	@Success		201					{object}	handler.GenericDataResponse[handler.configuredSystemDestinationResponse]
+//	@Failure		400					{object}	api.Error
+//	@Failure		401					{object}	api.Error
+//	@Failure		409					{object}	api.Error
+//	@Failure		500					{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/admin/notifications/{notificationName}/destinations [post]
+func (h *NotificationsHandler) CreateSystemNotificationDestination(ctx echo.Context) error {
+	notificationName := ctx.Param("notificationName")
+	canonicalType, ok := notification.NormalizeNotificationType(notificationName)
 	if !ok {
-		return configuredSystemDestinationResponse{}, fmt.Errorf("unsupported notification provider %q", record.Provider)
+		err := fmt.Errorf("unsupported notification type %q", notificationName)
+		h.sugar.Warnw("Invalid system notification type", "error", err, "notificationName", notificationName)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	var req createSystemNotificationDestinationRequest
+	if err := ctx.Bind(&req); err != nil {
+		h.sugar.Errorw("Failed to bind create system notification destination request", "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	if err := ctx.Validate(&req); err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.Validator(err))
+	}
+
+	provider, ok := notification.NormalizeDeliveryChannel(req.ProviderType)
+	if !ok {
+		err := fmt.Errorf("unsupported notification provider %q", req.ProviderType)
+		h.sugar.Warnw("Invalid system notification provider", "error", err, "providerType", req.ProviderType)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	target, err := h.buildTarget(provider, req.DestinationTarget)
+	if err != nil {
+		h.sugar.Warnw(
+			"Invalid system notification destination target",
+			"error", err,
+			"provider", provider,
+			"notificationType", canonicalType,
+		)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	exists, err := h.destinationExists(ctx.Request().Context(), canonicalType, target)
+	if err != nil {
+		h.sugar.Errorw(
+			"Failed to check existing system notification destinations",
+			"error", err,
+			"provider", provider,
+			"notificationType", canonicalType,
+		)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+	if exists {
+		return ctx.JSON(
+			http.StatusConflict,
+			api.NewError(errors.New("That destination is already configured for this notification.")),
+		)
+	}
+
+	row := relational.SystemNotificationDestination{
+		NotificationType: canonicalType,
+		Provider:         provider,
+		Target: datatypes.NewJSONType(relational.SystemNotificationTarget{
+			Address: target.Address,
+		}),
+	}
+	if err := h.db.WithContext(ctx.Request().Context()).Create(&row).Error; err != nil {
+		h.sugar.Errorw(
+			"Failed to create system notification destination",
+			"error", err,
+			"provider", provider,
+			"notificationType", canonicalType,
+		)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	response, err := h.destinationResponseForTarget(target)
+	if err != nil {
+		h.sugar.Errorw(
+			"Failed to build created system notification destination response",
+			"error", err,
+			"provider", provider,
+			"notificationType", canonicalType,
+		)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	return ctx.JSON(http.StatusCreated, GenericDataResponse[configuredSystemDestinationResponse]{Data: response})
+}
+
+func (h *NotificationsHandler) destinationResponseForRecord(record relational.SystemNotificationDestination) (configuredSystemDestinationResponse, error) {
+	target, err := h.targetForRecord(record)
+	if err != nil {
+		return configuredSystemDestinationResponse{}, err
+	}
+
+	return h.destinationResponseForTarget(target)
+}
+
+func (h *NotificationsHandler) destinationResponseForTarget(target notification.Target) (configuredSystemDestinationResponse, error) {
+	provider, ok := notification.NormalizeDeliveryChannel(target.Provider)
+	if !ok {
+		return configuredSystemDestinationResponse{}, fmt.Errorf("unsupported notification provider %q", target.Provider)
 	}
 
 	configurator, ok := notification.LookupTargetConfigurator(h.providers, provider)
 	if !ok {
 		return configuredSystemDestinationResponse{}, fmt.Errorf("unsupported notification provider %q", provider)
-	}
-
-	target, err := configurator.NormalizeTarget(notification.Target{
-		Provider: provider,
-		Address:  record.Target.Data().Address,
-	})
-	if err != nil {
-		return configuredSystemDestinationResponse{}, err
 	}
 
 	destinationTarget, err := configurator.DisplayTarget(target)
@@ -147,4 +277,72 @@ func (h *NotificationsHandler) destinationResponseForRecord(record relational.Sy
 		ProviderType:      provider,
 		DestinationTarget: destinationTarget,
 	}, nil
+}
+
+func (h *NotificationsHandler) targetForRecord(record relational.SystemNotificationDestination) (notification.Target, error) {
+	provider, ok := notification.NormalizeDeliveryChannel(record.Provider)
+	if !ok {
+		return notification.Target{}, fmt.Errorf("unsupported notification provider %q", record.Provider)
+	}
+
+	configurator, ok := notification.LookupTargetConfigurator(h.providers, provider)
+	if !ok {
+		return notification.Target{}, fmt.Errorf("unsupported notification provider %q", provider)
+	}
+
+	target, err := configurator.NormalizeTarget(notification.Target{
+		Provider: provider,
+		Address:  record.Target.Data().Address,
+	})
+	if err != nil {
+		return notification.Target{}, err
+	}
+
+	return target, nil
+}
+
+func (h *NotificationsHandler) buildTarget(provider string, rawTarget string) (notification.Target, error) {
+	configurator, ok := notification.LookupTargetConfigurator(h.providers, provider)
+	if !ok {
+		return notification.Target{}, fmt.Errorf("unsupported notification provider %q", provider)
+	}
+
+	return configurator.BuildTarget(rawTarget)
+}
+
+func (h *NotificationsHandler) destinationExists(ctx context.Context, notificationType string, target notification.Target) (bool, error) {
+	provider, ok := notification.NormalizeDeliveryChannel(target.Provider)
+	if !ok {
+		return false, fmt.Errorf("unsupported notification provider %q", target.Provider)
+	}
+
+	var rows []relational.SystemNotificationDestination
+	if err := h.db.WithContext(ctx).
+		Where("notification_type = ? AND provider = ?", notificationType, provider).
+		Find(&rows).Error; err != nil {
+		return false, err
+	}
+
+	for i := range rows {
+		existingTarget, err := h.targetForRecord(rows[i])
+		if err != nil {
+			return false, err
+		}
+
+		if reflect.DeepEqual(existingTarget.Address, target.Address) {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return value
+		}
+	}
+
+	return ""
 }

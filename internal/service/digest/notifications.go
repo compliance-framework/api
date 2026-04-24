@@ -2,7 +2,6 @@ package digest
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -11,6 +10,7 @@ import (
 	"github.com/compliance-framework/api/internal/service/email"
 	emailtypes "github.com/compliance-framework/api/internal/service/email/types"
 	"github.com/compliance-framework/api/internal/service/notification"
+	notificationproviders "github.com/compliance-framework/api/internal/service/notification/providers"
 	emailprovider "github.com/compliance-framework/api/internal/service/notification/providers/email"
 	slackprovider "github.com/compliance-framework/api/internal/service/notification/providers/slack"
 	"gorm.io/gorm"
@@ -214,23 +214,27 @@ func (s *Service) dispatchEvidenceDigestNotifications(
 	summary *EvidenceSummary,
 	webBaseURL string,
 	generatedAt time.Time,
-	includeConfiguredSlack bool,
+	includeConfiguredDestinations bool,
 	includeSubscribedUsers bool,
 ) error {
 	request := notification.FanoutRequest{}
 	dispatchOptions := evidenceDigestDispatchOptions(generatedAt)
 
-	if includeConfiguredSlack {
-		request.Requests = append(request.Requests, notification.Request{
-			Kind: evidenceDigestKind,
-			Audiences: []notification.Audience{
-				{ConfiguredDestination: &notification.ConfiguredDestinationAudience{
-					Key: slackprovider.ConfiguredDestinationDigestChan,
-				}},
-			},
-			Model:   newEvidenceDigestNotificationModel(summary, "", webBaseURL, generatedAt),
-			Options: dispatchOptions,
-		})
+	if includeConfiguredDestinations {
+		targets, err := s.configuredDigestTargets(ctx)
+		if err != nil {
+			return err
+		}
+
+		audiences := audiencesForTargets(targets)
+		if len(audiences) > 0 {
+			request.Requests = append(request.Requests, notification.Request{
+				Kind:      evidenceDigestKind,
+				Audiences: audiences,
+				Model:     newEvidenceDigestNotificationModel(summary, "", webBaseURL, generatedAt),
+				Options:   dispatchOptions,
+			})
+		}
 	}
 
 	if includeSubscribedUsers {
@@ -259,26 +263,48 @@ func evidenceDigestDispatchOptions(generatedAt time.Time) notification.DispatchO
 	}
 }
 
-func (s *Service) globalDigestSlackEnabled(ctx context.Context) bool {
-	if s.config == nil || s.config.Slack == nil || !s.config.Slack.Enabled {
-		return false
-	}
+func (s *Service) configuredDigestTargets(ctx context.Context) ([]notification.Target, error) {
 	if s.db == nil {
-		s.logger.Debug("Digest database is unavailable; skipping optional digest Slack message")
+		return []notification.Target{}, nil
+	}
+
+	return notification.NewGORMSystemDestinationRepository(s.db, notificationproviders.NewLookup()).
+		ListTargetsByNotificationType(ctx, notification.NotificationTypeEvidenceDigest)
+}
+
+func audiencesForTargets(targets []notification.Target) []notification.Audience {
+	if len(targets) == 0 {
+		return nil
+	}
+
+	audiences := make([]notification.Audience, 0, len(targets))
+	for i := range targets {
+		address := make(map[string]string, len(targets[i].Address))
+		for key, value := range targets[i].Address {
+			address[key] = value
+		}
+
+		audiences = append(audiences, notification.Audience{
+			Direct: &notification.DirectAudience{
+				Provider: targets[i].Provider,
+				Address:  address,
+			},
+		})
+	}
+
+	return audiences
+}
+
+func (s *Service) hasGlobalDigestDestinations(ctx context.Context) bool {
+	targets, err := s.configuredDigestTargets(ctx)
+	if err != nil {
+		s.logger.Warnw("Failed to resolve configured digest destinations", "error", err)
+		return false
+	}
+	if len(targets) == 0 {
+		s.logger.Debug("Configured digest destinations are missing; skipping optional digest system notifications")
 		return false
 	}
 
-	_, err := notification.NewGORMConfiguredDestinationResolver(s.db).
-		ResolveConfiguredDestination(ctx, slackprovider.ConfiguredDestinationDigestChan)
-	if err == nil {
-		return true
-	}
-
-	if errors.Is(err, notification.ErrConfiguredDestinationNotFound) {
-		s.logger.Debug("Configured Slack digest destination is missing; skipping optional digest Slack message")
-		return false
-	}
-
-	s.logger.Warnw("Failed to resolve configured Slack digest destination", "error", err)
-	return false
+	return true
 }

@@ -246,16 +246,16 @@ func (s *Service) SendGlobalDigest(ctx context.Context) error {
 		return fmt.Errorf("failed to get evidence summary: %w", err)
 	}
 
-	sendGlobalSlack := s.globalDigestSlackEnabled(ctx)
+	sendConfiguredDestinations := s.hasGlobalDigestDestinations(ctx)
 	sendUserDigests := summary.TotalCount > 0 && (summary.NotSatisfiedCount > 0 || summary.ExpiredCount > 0)
 
 	if !sendUserDigests {
 		if summary.TotalCount == 0 {
-			if !sendGlobalSlack {
+			if !sendConfiguredDestinations {
 				s.logger.Debug("No evidence found, skipping digest")
 				return nil
 			}
-		} else if !sendGlobalSlack {
+		} else if !sendConfiguredDestinations {
 			s.logger.Debug("No issues found (no expired or not-satisfied evidence), skipping digest")
 			return nil
 		}
@@ -268,7 +268,7 @@ func (s *Service) SendGlobalDigest(ctx context.Context) error {
 	}
 
 	if !sendUserDigests {
-		return s.dispatchEvidenceDigestNotifications(ctx, summary, webBaseURL, generatedAt, sendGlobalSlack, false)
+		return s.dispatchEvidenceDigestNotifications(ctx, summary, webBaseURL, generatedAt, sendConfiguredDestinations, false)
 	}
 
 	s.logger.Debugw("Sending global digest",
@@ -277,5 +277,5 @@ func (s *Service) SendGlobalDigest(ctx context.Context) error {
 		"expired", summary.ExpiredCount,
 	)
 
-	return s.dispatchEvidenceDigestNotifications(ctx, summary, webBaseURL, generatedAt, sendGlobalSlack, true)
+	return s.dispatchEvidenceDigestNotifications(ctx, summary, webBaseURL, generatedAt, sendConfiguredDestinations, true)
 }
