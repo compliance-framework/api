@@ -284,6 +284,138 @@ func (suite *NotificationsApiIntegrationSuite) TestCreateSystemNotificationDesti
 	suite.Equal(http.StatusUnauthorized, rec.Code, "Expected Unauthorized response for missing token")
 }
 
+func (suite *NotificationsApiIntegrationSuite) TestDeleteSystemNotificationDestination() {
+	suite.Require().NoError(suite.DB.Create(&relational.SystemNotificationDestination{
+		NotificationType: notification.NotificationTypeEvidenceDigest,
+		Provider:         notification.DeliveryChannelEmail,
+		Target: datatypes.NewJSONType(relational.SystemNotificationTarget{
+			Address: map[string]string{
+				emailprovider.AddressKeyEmail: "alerts@example.com",
+			},
+		}),
+	}).Error)
+
+	rec, req := suite.authedJSONRequest(http.MethodDelete, "/api/admin/notifications/EVIDENCE_DIGEST/destinations", map[string]string{
+		"providerType":      "email",
+		"destinationTarget": "alerts@example.com",
+	})
+
+	suite.server.E().ServeHTTP(rec, req)
+	suite.Equal(http.StatusNoContent, rec.Code, "Expected NoContent response for DeleteSystemNotificationDestination")
+
+	var count int64
+	suite.Require().NoError(suite.DB.Model(&relational.SystemNotificationDestination{}).Count(&count).Error)
+	suite.Equal(int64(0), count)
+}
+
+func (suite *NotificationsApiIntegrationSuite) TestDeleteSystemNotificationDestinationAcceptsKebabCasePayload() {
+	suite.Require().NoError(suite.DB.Create(&relational.SystemNotificationDestination{
+		NotificationType: notification.NotificationTypeEvidenceDigest,
+		Provider:         notification.DeliveryChannelEmail,
+		Target: datatypes.NewJSONType(relational.SystemNotificationTarget{
+			Address: map[string]string{
+				emailprovider.AddressKeyEmail: "alerts@example.com",
+			},
+		}),
+	}).Error)
+
+	rec, req := suite.authedJSONRequest(http.MethodDelete, "/api/admin/notifications/EVIDENCE_DIGEST/destinations", map[string]string{
+		"provider-type":      "email",
+		"destination-target": "alerts@example.com",
+	})
+
+	suite.server.E().ServeHTTP(rec, req)
+	suite.Equal(http.StatusNoContent, rec.Code, "Expected NoContent response for kebab-case delete payload")
+}
+
+func (suite *NotificationsApiIntegrationSuite) TestDeleteSystemNotificationDestinationRemovesDuplicateRows() {
+	suite.Require().NoError(suite.DB.Create(&relational.SystemNotificationDestination{
+		NotificationType: notification.NotificationTypeEvidenceDigest,
+		Provider:         notification.DeliveryChannelSlack,
+		Target: datatypes.NewJSONType(relational.SystemNotificationTarget{
+			Address: map[string]string{
+				slackprovider.AddressKeyChannel:    "ccf-slack-int",
+				slackprovider.AddressKeyTargetType: slackprovider.TargetTypeChannel,
+			},
+		}),
+	}).Error)
+	suite.Require().NoError(suite.DB.Create(&relational.SystemNotificationDestination{
+		NotificationType: notification.NotificationTypeEvidenceDigest,
+		Provider:         notification.DeliveryChannelSlack,
+		Target: datatypes.NewJSONType(relational.SystemNotificationTarget{
+			Address: map[string]string{
+				slackprovider.AddressKeyChannel:    "CCF-SLACK-INT",
+				slackprovider.AddressKeyTargetType: slackprovider.TargetTypeChannel,
+			},
+		}),
+	}).Error)
+	suite.Require().NoError(suite.DB.Create(&relational.SystemNotificationDestination{
+		NotificationType: notification.NotificationTypeEvidenceDigest,
+		Provider:         notification.DeliveryChannelSlack,
+		Target: datatypes.NewJSONType(relational.SystemNotificationTarget{
+			Address: map[string]string{
+				slackprovider.AddressKeyChannel:    "ccf-slack-secondary",
+				slackprovider.AddressKeyTargetType: slackprovider.TargetTypeChannel,
+			},
+		}),
+	}).Error)
+
+	rec, req := suite.authedJSONRequest(http.MethodDelete, "/api/admin/notifications/EVIDENCE_DIGEST/destinations", map[string]string{
+		"providerType":      "slack",
+		"destinationTarget": "ccf-slack-int",
+	})
+
+	suite.server.E().ServeHTTP(rec, req)
+	suite.Equal(http.StatusNoContent, rec.Code, "Expected NoContent response for duplicate destination delete")
+
+	var rows []relational.SystemNotificationDestination
+	suite.Require().NoError(suite.DB.Order("created_at ASC").Find(&rows).Error)
+	suite.Require().Len(rows, 1)
+	suite.Equal("ccf-slack-secondary", rows[0].Target.Data().Address[slackprovider.AddressKeyChannel])
+}
+
+func (suite *NotificationsApiIntegrationSuite) TestDeleteSystemNotificationDestinationRejectsInvalidInput() {
+	rec, req := suite.authedJSONRequest(http.MethodDelete, "/api/admin/notifications/not_real/destinations", map[string]string{
+		"providerType":      "email",
+		"destinationTarget": "alerts@example.com",
+	})
+	suite.server.E().ServeHTTP(rec, req)
+	suite.Equal(http.StatusBadRequest, rec.Code, "Expected BadRequest response for unsupported notification type")
+
+	rec, req = suite.authedJSONRequest(http.MethodDelete, "/api/admin/notifications/EVIDENCE_DIGEST/destinations", map[string]string{
+		"providerType":      "pagerduty",
+		"destinationTarget": "alerts@example.com",
+	})
+	suite.server.E().ServeHTTP(rec, req)
+	suite.Equal(http.StatusBadRequest, rec.Code, "Expected BadRequest response for unsupported provider")
+
+	rec, req = suite.authedJSONRequest(http.MethodDelete, "/api/admin/notifications/EVIDENCE_DIGEST/destinations", map[string]string{
+		"providerType":      "email",
+		"destinationTarget": "not-an-email",
+	})
+	suite.server.E().ServeHTTP(rec, req)
+	suite.Equal(http.StatusBadRequest, rec.Code, "Expected BadRequest response for invalid destination target")
+}
+
+func (suite *NotificationsApiIntegrationSuite) TestDeleteSystemNotificationDestinationReturnsNotFoundWhenMissing() {
+	rec, req := suite.authedJSONRequest(http.MethodDelete, "/api/admin/notifications/EVIDENCE_DIGEST/destinations", map[string]string{
+		"providerType":      "email",
+		"destinationTarget": "alerts@example.com",
+	})
+
+	suite.server.E().ServeHTTP(rec, req)
+	suite.Equal(http.StatusNotFound, rec.Code, "Expected NotFound response for missing notification destination")
+}
+
+func (suite *NotificationsApiIntegrationSuite) TestDeleteSystemNotificationDestinationUnauthorized() {
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodDelete, "/api/admin/notifications/EVIDENCE_DIGEST/destinations", bytes.NewReader([]byte(`{"providerType":"email","destinationTarget":"alerts@example.com"}`)))
+	req.Header.Set("Content-Type", "application/json")
+
+	suite.server.E().ServeHTTP(rec, req)
+	suite.Equal(http.StatusUnauthorized, rec.Code, "Expected Unauthorized response for missing token")
+}
+
 func (suite *NotificationsApiIntegrationSuite) TestListSystemNotificationsUnauthorized() {
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/admin/notifications", nil)

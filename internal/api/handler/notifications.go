@@ -70,6 +70,7 @@ func NewNotificationsHandler(sugar *zap.SugaredLogger, db *gorm.DB) *Notificatio
 func (h *NotificationsHandler) Register(api *echo.Group) {
 	api.GET("", h.ListSystemNotifications)
 	api.POST("/:notificationName/destinations", h.CreateSystemNotificationDestination)
+	api.DELETE("/:notificationName/destinations", h.DeleteSystemNotificationDestination)
 }
 
 // ListSystemNotifications godoc
@@ -248,6 +249,92 @@ func (h *NotificationsHandler) CreateSystemNotificationDestination(ctx echo.Cont
 	return ctx.JSON(http.StatusCreated, GenericDataResponse[configuredSystemDestinationResponse]{Data: response})
 }
 
+// DeleteSystemNotificationDestination godoc
+//
+//	@Summary		Delete system notification destination
+//	@Description	Deletes a stored system notification destination configuration for an admin-managed notification
+//	@Tags			Notifications
+//	@Accept			json
+//	@Produce		json
+//	@Param			notificationName	path		string													true	"Notification name"
+//	@Param			destination			body		handler.createSystemNotificationDestinationRequest		true	"Destination details"
+//	@Success		204					{object}	nil
+//	@Failure		400					{object}	api.Error
+//	@Failure		401					{object}	api.Error
+//	@Failure		404					{object}	api.Error
+//	@Failure		500					{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/admin/notifications/{notificationName}/destinations [delete]
+func (h *NotificationsHandler) DeleteSystemNotificationDestination(ctx echo.Context) error {
+	notificationName := ctx.Param("notificationName")
+	canonicalType, ok := notification.NormalizeNotificationType(notificationName)
+	if !ok {
+		err := fmt.Errorf("unsupported notification type %q", notificationName)
+		h.sugar.Warnw("Invalid system notification type", "error", err, "notificationName", notificationName)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	var req createSystemNotificationDestinationRequest
+	if err := ctx.Bind(&req); err != nil {
+		h.sugar.Errorw("Failed to bind delete system notification destination request", "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	if err := ctx.Validate(&req); err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.Validator(err))
+	}
+
+	provider, ok := notification.NormalizeDeliveryChannel(req.ProviderType)
+	if !ok {
+		err := fmt.Errorf("unsupported notification provider %q", req.ProviderType)
+		h.sugar.Warnw("Invalid system notification provider", "error", err, "providerType", req.ProviderType)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	target, err := h.buildTarget(provider, req.DestinationTarget)
+	if err != nil {
+		h.sugar.Warnw(
+			"Invalid system notification destination target",
+			"error", err,
+			"provider", provider,
+			"notificationType", canonicalType,
+		)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	rows, err := h.findDestinationRows(ctx.Request().Context(), canonicalType, target)
+	if err != nil {
+		h.sugar.Errorw(
+			"Failed to find system notification destinations for delete",
+			"error", err,
+			"provider", provider,
+			"notificationType", canonicalType,
+		)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+	if len(rows) == 0 {
+		return ctx.JSON(http.StatusNotFound, api.NotFoundCustomMsg("configured notification destination not found"))
+	}
+
+	if err := h.db.WithContext(ctx.Request().Context()).Transaction(func(tx *gorm.DB) error {
+		for i := range rows {
+			if err := tx.Delete(&rows[i]).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	}); err != nil {
+		h.sugar.Errorw(
+			"Failed to delete system notification destination",
+			"error", err,
+			"provider", provider,
+			"notificationType", canonicalType,
+		)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	return ctx.NoContent(http.StatusNoContent)
+}
+
 func (h *NotificationsHandler) destinationResponseForRecord(record relational.SystemNotificationDestination) (configuredSystemDestinationResponse, error) {
 	target, err := h.targetForRecord(record)
 	if err != nil {
@@ -311,30 +398,65 @@ func (h *NotificationsHandler) buildTarget(provider string, rawTarget string) (n
 }
 
 func (h *NotificationsHandler) destinationExists(ctx context.Context, notificationType string, target notification.Target) (bool, error) {
+	rows, err := h.findDestinationRows(ctx, notificationType, target)
+	if err != nil {
+		return false, err
+	}
+
+	return len(rows) > 0, nil
+}
+
+func (h *NotificationsHandler) findDestinationRows(ctx context.Context, notificationType string, target notification.Target) ([]relational.SystemNotificationDestination, error) {
 	provider, ok := notification.NormalizeDeliveryChannel(target.Provider)
 	if !ok {
-		return false, fmt.Errorf("unsupported notification provider %q", target.Provider)
+		return nil, fmt.Errorf("unsupported notification provider %q", target.Provider)
 	}
 
 	var rows []relational.SystemNotificationDestination
 	if err := h.db.WithContext(ctx).
 		Where("notification_type = ? AND provider = ?", notificationType, provider).
 		Find(&rows).Error; err != nil {
-		return false, err
+		return nil, err
 	}
 
+	matches := make([]relational.SystemNotificationDestination, 0, len(rows))
 	for i := range rows {
 		existingTarget, err := h.targetForRecord(rows[i])
 		if err != nil {
-			return false, err
+			return nil, err
 		}
 
-		if reflect.DeepEqual(existingTarget.Address, target.Address) {
-			return true, nil
+		match, err := h.targetsMatch(existingTarget, target)
+		if err != nil {
+			return nil, err
+		}
+		if match {
+			matches = append(matches, rows[i])
 		}
 	}
 
-	return false, nil
+	return matches, nil
+}
+
+func (h *NotificationsHandler) targetsMatch(left notification.Target, right notification.Target) (bool, error) {
+	if reflect.DeepEqual(left.Address, right.Address) {
+		return true, nil
+	}
+
+	leftResponse, err := h.destinationResponseForTarget(left)
+	if err != nil {
+		return false, err
+	}
+	rightResponse, err := h.destinationResponseForTarget(right)
+	if err != nil {
+		return false, err
+	}
+
+	if leftResponse.ProviderType != rightResponse.ProviderType {
+		return false, nil
+	}
+
+	return strings.EqualFold(leftResponse.DestinationTarget, rightResponse.DestinationTarget), nil
 }
 
 func firstNonEmpty(values ...string) string {
