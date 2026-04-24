@@ -246,7 +246,7 @@ func (s *Service) SendGlobalDigest(ctx context.Context) error {
 		return fmt.Errorf("failed to get evidence summary: %w", err)
 	}
 
-	sendGlobalSlack := s.globalDigestSlackEnabled()
+	sendGlobalSlack := s.globalDigestSlackEnabled(ctx)
 	sendUserDigests := summary.TotalCount > 0 && (summary.NotSatisfiedCount > 0 || summary.ExpiredCount > 0)
 
 	if !sendUserDigests {

@@ -3,10 +3,13 @@ package service
 import (
 	"testing"
 
+	"github.com/compliance-framework/api/internal/config"
 	"github.com/compliance-framework/api/internal/service/notification"
+	slackprovider "github.com/compliance-framework/api/internal/service/notification/providers/slack"
 	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gorm.io/datatypes"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
@@ -137,4 +140,58 @@ func TestBackfillLegacyRiskNotificationSubscriptions(t *testing.T) {
 	var count int64
 	require.NoError(t, db.Model(&relational.UserNotificationSubscription{}).Count(&count).Error)
 	assert.Equal(t, int64(1), count)
+}
+
+func TestMigrateLegacySystemNotificationDestinationsBackfillsSlackDigestChannel(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	require.NoError(t, db.AutoMigrate(&relational.SystemNotificationDestination{}))
+
+	cfg := &config.Config{
+		Slack: &config.SlackConfig{
+			DigestChannel: "ccf-alerts",
+		},
+	}
+
+	require.NoError(t, migrateLegacySystemNotificationDestinations(db, cfg))
+
+	var rows []relational.SystemNotificationDestination
+	require.NoError(t, db.Find(&rows).Error)
+	require.Len(t, rows, 1)
+	assert.Equal(t, notification.NotificationTypeEvidenceDigest, rows[0].NotificationType)
+	assert.Equal(t, notification.DeliveryChannelSlack, rows[0].Provider)
+	target := rows[0].Target.Data()
+	assert.Equal(t, "ccf-alerts", target.Address[slackprovider.AddressKeyChannel])
+	assert.Equal(t, slackprovider.TargetTypeChannel, target.Address[slackprovider.AddressKeyTargetType])
+}
+
+func TestMigrateLegacySystemNotificationDestinationsDoesNotOverwriteExistingRow(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	require.NoError(t, db.AutoMigrate(&relational.SystemNotificationDestination{}))
+
+	existing := relational.SystemNotificationDestination{
+		NotificationType: notification.NotificationTypeEvidenceDigest,
+		Provider:         notification.DeliveryChannelSlack,
+		Target: datatypes.NewJSONType(relational.SystemNotificationTarget{
+			Address: map[string]string{
+				slackprovider.AddressKeyChannel:    "existing-channel",
+				slackprovider.AddressKeyTargetType: slackprovider.TargetTypeChannel,
+			},
+		}),
+	}
+	require.NoError(t, db.Create(&existing).Error)
+
+	cfg := &config.Config{
+		Slack: &config.SlackConfig{
+			DigestChannel: "env-channel",
+		},
+	}
+
+	require.NoError(t, migrateLegacySystemNotificationDestinations(db, cfg))
+
+	var rows []relational.SystemNotificationDestination
+	require.NoError(t, db.Find(&rows).Error)
+	require.Len(t, rows, 1)
+	assert.Equal(t, "existing-channel", rows[0].Target.Data().Address[slackprovider.AddressKeyChannel])
 }

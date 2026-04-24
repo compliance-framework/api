@@ -2,6 +2,7 @@ package digest
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -134,7 +135,7 @@ func NewNotificationService(
 		return notification.NewService(nil, nil, nil)
 	}
 
-	return notificationRuntime.NewRuntimeFactory(newDigestConfiguredDestinationResolver(cfg)).MustNewService(
+	return notificationRuntime.NewRuntimeFactory(notification.NewGORMConfiguredDestinationResolver(db)).MustNewService(
 		notification.NewGORMUserRepository(db),
 		notification.NewDefinition(
 			evidenceDigestKind,
@@ -147,36 +148,6 @@ func NewNotificationService(
 			}),
 		),
 	)
-}
-
-type digestConfiguredDestinationResolver struct {
-	config *config.Config
-}
-
-func newDigestConfiguredDestinationResolver(cfg *config.Config) digestConfiguredDestinationResolver {
-	return digestConfiguredDestinationResolver{config: cfg}
-}
-
-func (r digestConfiguredDestinationResolver) ResolveConfiguredDestination(_ context.Context, key string) (notification.ConfiguredDestination, error) {
-	if strings.TrimSpace(key) != slackprovider.ConfiguredDestinationDigestChan {
-		return notification.ConfiguredDestination{}, fmt.Errorf("%w: %q", notification.ErrConfiguredDestinationNotFound, key)
-	}
-	if r.config == nil || r.config.Slack == nil || !r.config.Slack.Enabled {
-		return notification.ConfiguredDestination{}, fmt.Errorf("%w: %q", notification.ErrConfiguredDestinationNotFound, key)
-	}
-
-	channel := strings.TrimSpace(r.config.Slack.DigestChannel)
-	if channel == "" {
-		return notification.ConfiguredDestination{}, fmt.Errorf("%w: %q", notification.ErrConfiguredDestinationNotFound, key)
-	}
-
-	return notification.ConfiguredDestination{
-		Provider: notification.DeliveryChannelSlack,
-		Address: map[string]string{
-			slackprovider.AddressKeyChannel:    channel,
-			slackprovider.AddressKeyTargetType: slackprovider.TargetTypeChannel,
-		},
-	}, nil
 }
 
 func evidenceDigestModelFromAny(model any) (evidenceDigestNotificationModel, error) {
@@ -288,13 +259,26 @@ func evidenceDigestDispatchOptions(generatedAt time.Time) notification.DispatchO
 	}
 }
 
-func (s *Service) globalDigestSlackEnabled() bool {
+func (s *Service) globalDigestSlackEnabled(ctx context.Context) bool {
 	if s.config == nil || s.config.Slack == nil || !s.config.Slack.Enabled {
 		return false
 	}
-	if strings.TrimSpace(s.config.Slack.DigestChannel) == "" {
-		s.logger.Debug("Slack digest channel is empty; skipping optional digest Slack message")
+	if s.db == nil {
+		s.logger.Debug("Digest database is unavailable; skipping optional digest Slack message")
 		return false
 	}
-	return true
+
+	_, err := notification.NewGORMConfiguredDestinationResolver(s.db).
+		ResolveConfiguredDestination(ctx, slackprovider.ConfiguredDestinationDigestChan)
+	if err == nil {
+		return true
+	}
+
+	if errors.Is(err, notification.ErrConfiguredDestinationNotFound) {
+		s.logger.Debug("Configured Slack digest destination is missing; skipping optional digest Slack message")
+		return false
+	}
+
+	s.logger.Warnw("Failed to resolve configured Slack digest destination", "error", err)
+	return false
 }

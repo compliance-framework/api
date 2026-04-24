@@ -1,15 +1,22 @@
 package digest
 
 import (
+	"context"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/compliance-framework/api/internal/config"
 	"github.com/compliance-framework/api/internal/service/notification"
+	slackprovider "github.com/compliance-framework/api/internal/service/notification/providers/slack"
+	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
+	"gorm.io/datatypes"
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
 )
 
 func TestConvertToEvidenceItems(t *testing.T) {
@@ -81,12 +88,29 @@ func TestEvidenceDigestDispatchOptions_UsesCorrelationAndSourceJobKind(t *testin
 }
 
 func TestGlobalDigestSlackEnabled_RequiresConfiguredChannel(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	require.NoError(t, db.AutoMigrate(&relational.SystemNotificationDestination{}))
+
 	service := NewService(
+		db,
 		nil,
-		nil,
-		&config.Config{Slack: &config.SlackConfig{Enabled: true, DigestChannel: ""}},
+		&config.Config{Slack: &config.SlackConfig{Enabled: true}},
 		zap.NewNop().Sugar(),
 	)
 
-	assert.False(t, service.globalDigestSlackEnabled())
+	assert.False(t, service.globalDigestSlackEnabled(context.Background()))
+
+	require.NoError(t, db.Create(&relational.SystemNotificationDestination{
+		NotificationType: notification.NotificationTypeEvidenceDigest,
+		Provider:         notification.DeliveryChannelSlack,
+		Target: datatypes.NewJSONType(relational.SystemNotificationTarget{
+			Address: map[string]string{
+				slackprovider.AddressKeyChannel:    "ccf-alerts",
+				slackprovider.AddressKeyTargetType: slackprovider.TargetTypeChannel,
+			},
+		}),
+	}).Error)
+
+	assert.True(t, service.globalDigestSlackEnabled(context.Background()))
 }

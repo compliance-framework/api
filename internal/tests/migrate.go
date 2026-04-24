@@ -171,6 +171,7 @@ func (t *TestMigrator) Up() error {
 		&relational.SlackUserLink{},
 		&relational.User{},
 		&relational.UserNotificationSubscription{},
+		&relational.SystemNotificationDestination{},
 
 		&service.Heartbeat{},
 		&poamrel.PoamItem{},
@@ -374,6 +375,7 @@ func (t *TestMigrator) Down() error {
 		&relational.SlackUserLink{},
 		&relational.User{},
 		&relational.UserNotificationSubscription{},
+		&relational.SystemNotificationDestination{},
 
 		&service.Heartbeat{},
 		&relational.Evidence{},

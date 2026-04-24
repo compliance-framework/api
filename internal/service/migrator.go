@@ -2,13 +2,20 @@ package service
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"os"
+	"strings"
 
+	"github.com/compliance-framework/api/internal/config"
 	"github.com/compliance-framework/api/internal/service/notification"
+	slackprovider "github.com/compliance-framework/api/internal/service/notification/providers/slack"
 	"github.com/compliance-framework/api/internal/service/relational"
 	poamrel "github.com/compliance-framework/api/internal/service/relational/poam"
 	riskrel "github.com/compliance-framework/api/internal/service/relational/risks"
 	templaterel "github.com/compliance-framework/api/internal/service/relational/templates"
 	"github.com/compliance-framework/api/internal/service/relational/workflows"
+	"gorm.io/datatypes"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -20,6 +27,10 @@ type legacySubscribedUser struct {
 }
 
 func MigrateUp(db *gorm.DB) error {
+	return MigrateUpWithConfig(db, nil)
+}
+
+func MigrateUpWithConfig(db *gorm.DB, cfg *config.Config) error {
 	workflowEntities := workflows.GetWorkflowEntities()
 
 	err := db.AutoMigrate(
@@ -160,6 +171,7 @@ func MigrateUp(db *gorm.DB) error {
 		&relational.AgentServiceAccountKey{},
 		&relational.AgentAuthEvent{},
 		&relational.UserNotificationSubscription{},
+		&relational.SystemNotificationDestination{},
 		&Heartbeat{},
 		&relational.Evidence{},
 		&relational.Labels{},
@@ -181,6 +193,9 @@ func MigrateUp(db *gorm.DB) error {
 		return err
 	}
 
+	if err := migrateLegacySystemNotificationDestinations(db, cfg); err != nil {
+		return err
+	}
 	if err := migrateLegacyTaskAvailableEmailSubscriptions(db); err != nil {
 		return err
 	}
@@ -227,6 +242,62 @@ func MigrateUp(db *gorm.DB) error {
 	// is typically not used for expression predicates like UPPER(control_id) without an expression index.
 
 	return err
+}
+
+func migrateLegacySystemNotificationDestinations(db *gorm.DB, cfg *config.Config) error {
+	channel := legacySlackDigestChannel(cfg)
+	if channel == "" {
+		db.Logger.Info(
+			context.Background(),
+			"Skipping legacy system notification destination migration: CCF_SLACK_DIGEST_CHANNEL is empty",
+		)
+		return nil
+	}
+
+	var existing relational.SystemNotificationDestination
+	if err := db.
+		Where("notification_type = ? AND provider = ?", notification.NotificationTypeEvidenceDigest, notification.DeliveryChannelSlack).
+		First(&existing).Error; err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return fmt.Errorf("failed to query existing system notification destination %q: %w", slackprovider.ConfiguredDestinationDigestChan, err)
+		}
+
+		row := relational.SystemNotificationDestination{
+			NotificationType: notification.NotificationTypeEvidenceDigest,
+			Provider:         notification.DeliveryChannelSlack,
+			Target: datatypes.NewJSONType(relational.SystemNotificationTarget{
+				Address: map[string]string{
+					slackprovider.AddressKeyChannel:    channel,
+					slackprovider.AddressKeyTargetType: slackprovider.TargetTypeChannel,
+				},
+			}),
+		}
+		if err := db.Create(&row).Error; err != nil {
+			return fmt.Errorf("failed to migrate legacy system notification destination %q: %w", slackprovider.ConfiguredDestinationDigestChan, err)
+		}
+
+		db.Logger.Info(
+			context.Background(),
+			"Migrated legacy Slack digest channel into ccf_system_notification_destinations",
+		)
+		return nil
+	}
+
+	db.Logger.Info(
+		context.Background(),
+		"Skipping legacy system notification destination migration: configured destination already exists",
+	)
+	return nil
+}
+
+func legacySlackDigestChannel(cfg *config.Config) string {
+	if cfg != nil && cfg.Slack != nil {
+		if channel := strings.TrimSpace(cfg.Slack.DigestChannel); channel != "" {
+			return channel
+		}
+	}
+
+	return strings.TrimSpace(os.Getenv("CCF_SLACK_DIGEST_CHANNEL"))
 }
 
 func migrateLegacyTaskAvailableEmailSubscriptions(db *gorm.DB) error {
@@ -538,6 +609,7 @@ func MigrateDown(db *gorm.DB) error {
 		&relational.SlackUserLink{},
 		&relational.User{},
 		&relational.UserNotificationSubscription{},
+		&relational.SystemNotificationDestination{},
 
 		&Heartbeat{},
 		&relational.Evidence{},

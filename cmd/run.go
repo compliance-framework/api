@@ -81,7 +81,7 @@ func RunServer(cmd *cobra.Command, args []string) {
 		sugar.Fatalw("Failed to connect to SQL database", "error", err)
 	}
 
-	err = service.MigrateUp(db)
+	err = service.MigrateUpWithConfig(db, cfg)
 	if err != nil {
 		sugar.Fatalw("Failed to migrate database", "error", err)
 	}
