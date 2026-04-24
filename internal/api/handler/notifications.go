@@ -40,6 +40,11 @@ type availableNotificationProviderResponse struct {
 	Metadata     map[string]string `json:"metadata,omitempty"`
 }
 
+type notificationProviderStatusResponse struct {
+	ProviderType string `json:"providerType"`
+	Enabled      bool   `json:"enabled"`
+}
+
 type systemNotificationResponse struct {
 	Name                   string                                `json:"name"`
 	ConfiguredDestinations []configuredSystemDestinationResponse `json:"configuredDestinations"`
@@ -83,6 +88,10 @@ func (h *NotificationsHandler) Register(api *echo.Group) {
 	api.DELETE("/:notificationName/destinations", h.DeleteSystemNotificationDestination)
 }
 
+func (h *NotificationsHandler) RegisterPublic(api *echo.Group) {
+	api.GET("/providers", h.ListNotificationProviderStatus)
+}
+
 // ListNotificationProviders godoc
 //
 //	@Summary		List available notification providers
@@ -115,6 +124,37 @@ func (h *NotificationsHandler) ListNotificationProviders(ctx echo.Context) error
 	}
 
 	return ctx.JSON(http.StatusOK, GenericDataListResponse[availableNotificationProviderResponse]{Data: response})
+}
+
+// ListNotificationProviderStatus godoc
+//
+//	@Summary		List notification provider status
+//	@Description	Returns notification provider availability for authenticated users
+//	@Tags			Notifications
+//	@Produce		json
+//	@Success		200	{object}	handler.GenericDataListResponse[handler.notificationProviderStatusResponse]
+//	@Failure		401	{object}	api.Error
+//	@Failure		500	{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/notifications/providers [get]
+func (h *NotificationsHandler) ListNotificationProviderStatus(ctx echo.Context) error {
+	catalog, ok := h.providers.(notification.ProviderCatalog)
+	if !ok {
+		err := errors.New("notification provider catalog is not configured")
+		h.sugar.Errorw("Failed to list notification provider status", "error", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	providers := catalog.Providers()
+	response := make([]notificationProviderStatusResponse, 0, len(providers))
+	for _, provider := range providers {
+		response = append(response, notificationProviderStatusResponse{
+			ProviderType: provider.ProviderType,
+			Enabled:      provider.Enabled,
+		})
+	}
+
+	return ctx.JSON(http.StatusOK, GenericDataListResponse[notificationProviderStatusResponse]{Data: response})
 }
 
 // ListSystemNotifications godoc
