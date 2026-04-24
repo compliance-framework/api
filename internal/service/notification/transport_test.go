@@ -60,6 +60,14 @@ type testEmailProvider struct {
 
 func (p *testEmailProvider) ID() string { return DeliveryChannelEmail }
 
+func (p *testEmailProvider) ProviderMetadata() ProviderMetadata {
+	return ProviderMetadata{
+		ProviderType: DeliveryChannelEmail,
+		DisplayName:  "Email",
+		Description:  "Configured SMTP provider for email service",
+	}
+}
+
 func (p *testEmailProvider) ResolveUserTarget(_ User) (Target, bool, error) {
 	return Target{}, false, nil
 }
@@ -127,6 +135,14 @@ type testSlackProvider struct {
 }
 
 func (p *testSlackProvider) ID() string { return DeliveryChannelSlack }
+
+func (p *testSlackProvider) ProviderMetadata() ProviderMetadata {
+	return ProviderMetadata{
+		ProviderType: DeliveryChannelSlack,
+		DisplayName:  "Slack",
+		Description:  "Configured Slack workspace",
+	}
+}
 
 func (p *testSlackProvider) ResolveUserTarget(_ User) (Target, bool, error) {
 	return Target{}, false, nil
@@ -227,4 +243,25 @@ func TestDeliveryTransportFallsBackToDirectSend(t *testing.T) {
 	assert.Equal(t, "alice@example.com", emailSender.messages[0].To[0])
 	require.Len(t, slackSender.messages, 1)
 	assert.Equal(t, "C-DIGEST", slackSender.channels[0])
+}
+
+func TestDeliveryTransportProvidersReturnsSortedMetadata(t *testing.T) {
+	transport := NewDeliveryTransport(
+		WithProvider(&testSlackProvider{}),
+		WithProvider(&testEmailProvider{}),
+	)
+
+	providers := transport.Providers()
+	require.Len(t, providers, 2)
+
+	assert.Equal(t, ProviderMetadata{
+		ProviderType: DeliveryChannelEmail,
+		DisplayName:  "Email",
+		Description:  "Configured SMTP provider for email service",
+	}, providers[0])
+	assert.Equal(t, ProviderMetadata{
+		ProviderType: DeliveryChannelSlack,
+		DisplayName:  "Slack",
+		Description:  "Configured Slack workspace",
+	}, providers[1])
 }

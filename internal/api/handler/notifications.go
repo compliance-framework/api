@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/compliance-framework/api/internal/api"
+	"github.com/compliance-framework/api/internal/config"
 	"github.com/compliance-framework/api/internal/service/notification"
 	notificationproviders "github.com/compliance-framework/api/internal/service/notification/providers"
 	"github.com/compliance-framework/api/internal/service/relational"
@@ -29,6 +30,14 @@ type NotificationsHandler struct {
 type configuredSystemDestinationResponse struct {
 	ProviderType      string `json:"providerType"`
 	DestinationTarget string `json:"destinationTarget"`
+}
+
+type availableNotificationProviderResponse struct {
+	ProviderType string            `json:"providerType"`
+	DisplayName  string            `json:"displayName"`
+	Description  string            `json:"description"`
+	Enabled      bool              `json:"enabled"`
+	Metadata     map[string]string `json:"metadata,omitempty"`
 }
 
 type systemNotificationResponse struct {
@@ -59,18 +68,53 @@ func (r *createSystemNotificationDestinationRequest) UnmarshalJSON(data []byte) 
 	return nil
 }
 
-func NewNotificationsHandler(sugar *zap.SugaredLogger, db *gorm.DB) *NotificationsHandler {
+func NewNotificationsHandler(sugar *zap.SugaredLogger, db *gorm.DB, cfg *config.Config) *NotificationsHandler {
 	return &NotificationsHandler{
 		sugar:     sugar,
 		db:        db,
-		providers: notificationproviders.NewLookup(),
+		providers: notificationproviders.NewLookup(notificationproviders.WithConfig(cfg)),
 	}
 }
 
 func (h *NotificationsHandler) Register(api *echo.Group) {
 	api.GET("", h.ListSystemNotifications)
+	api.GET("/providers", h.ListNotificationProviders)
 	api.POST("/:notificationName/destinations", h.CreateSystemNotificationDestination)
 	api.DELETE("/:notificationName/destinations", h.DeleteSystemNotificationDestination)
+}
+
+// ListNotificationProviders godoc
+//
+//	@Summary		List available notification providers
+//	@Description	Returns notification providers registered in the backend
+//	@Tags			Notifications
+//	@Produce		json
+//	@Success		200	{object}	handler.GenericDataListResponse[handler.availableNotificationProviderResponse]
+//	@Failure		401	{object}	api.Error
+//	@Failure		500	{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/admin/notifications/providers [get]
+func (h *NotificationsHandler) ListNotificationProviders(ctx echo.Context) error {
+	catalog, ok := h.providers.(notification.ProviderCatalog)
+	if !ok {
+		err := errors.New("notification provider catalog is not configured")
+		h.sugar.Errorw("Failed to list notification providers", "error", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	providers := catalog.Providers()
+	response := make([]availableNotificationProviderResponse, 0, len(providers))
+	for _, provider := range providers {
+		response = append(response, availableNotificationProviderResponse{
+			ProviderType: provider.ProviderType,
+			DisplayName:  provider.DisplayName,
+			Description:  provider.Description,
+			Enabled:      provider.Enabled,
+			Metadata:     provider.Metadata,
+		})
+	}
+
+	return ctx.JSON(http.StatusOK, GenericDataListResponse[availableNotificationProviderResponse]{Data: response})
 }
 
 // ListSystemNotifications godoc
@@ -156,8 +200,8 @@ func (h *NotificationsHandler) ListSystemNotifications(ctx echo.Context) error {
 //	@Tags			Notifications
 //	@Accept			json
 //	@Produce		json
-//	@Param			notificationName	path		string													true	"Notification name"
-//	@Param			destination			body		handler.createSystemNotificationDestinationRequest		true	"Destination details"
+//	@Param			notificationName	path		string												true	"Notification name"
+//	@Param			destination			body		handler.createSystemNotificationDestinationRequest	true	"Destination details"
 //	@Success		201					{object}	handler.GenericDataResponse[handler.configuredSystemDestinationResponse]
 //	@Failure		400					{object}	api.Error
 //	@Failure		401					{object}	api.Error
@@ -256,8 +300,8 @@ func (h *NotificationsHandler) CreateSystemNotificationDestination(ctx echo.Cont
 //	@Tags			Notifications
 //	@Accept			json
 //	@Produce		json
-//	@Param			notificationName	path		string													true	"Notification name"
-//	@Param			destination			body		handler.createSystemNotificationDestinationRequest		true	"Destination details"
+//	@Param			notificationName	path		string												true	"Notification name"
+//	@Param			destination			body		handler.createSystemNotificationDestinationRequest	true	"Destination details"
 //	@Success		204					{object}	nil
 //	@Failure		400					{object}	api.Error
 //	@Failure		401					{object}	api.Error

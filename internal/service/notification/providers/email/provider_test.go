@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/compliance-framework/api/internal/config"
 	emailtypes "github.com/compliance-framework/api/internal/service/email/types"
 	"github.com/compliance-framework/api/internal/service/notification"
 	"github.com/stretchr/testify/assert"
@@ -74,6 +75,36 @@ func TestBuildTargetNormalizesEmailAddress(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, ChannelID, target.Provider)
 	assert.Equal(t, map[string]string{AddressKeyEmail: "alice@example.com"}, target.Address)
+}
+
+func TestProviderMetadataUsesConfiguredEmailProvider(t *testing.T) {
+	provider := NewCatalogProvider(&config.Config{
+		Email: &config.EmailConfig{
+			Enabled:  true,
+			Provider: "smtp",
+			Providers: &config.SupportedEmailProviders{
+				SMTP: &config.SMTPConfig{
+					Name:    "smtp-primary",
+					Enabled: true,
+					Host:    "smtp.example.com",
+					Port:    587,
+					From:    "alerts@example.com",
+				},
+			},
+		},
+	})
+
+	metadata := provider.ProviderMetadata()
+	assert.Equal(t, notification.ProviderMetadata{
+		ProviderType: ChannelID,
+		DisplayName:  "Email",
+		Description:  "Configured SMTP provider for email service",
+		Enabled:      true,
+		Metadata: map[string]string{
+			MetadataKeyServiceProviderName: "smtp-primary",
+			MetadataKeyServiceProviderType: "smtp",
+		},
+	}, metadata)
 }
 
 func TestDisplayTargetRejectsInvalidEmailAddress(t *testing.T) {

@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/compliance-framework/api/internal/api"
+	"github.com/compliance-framework/api/internal/config"
 	"github.com/compliance-framework/api/internal/service/notification"
 	emailprovider "github.com/compliance-framework/api/internal/service/notification/providers/email"
 	slackprovider "github.com/compliance-framework/api/internal/service/notification/providers/slack"
@@ -33,6 +34,20 @@ type NotificationsApiIntegrationSuite struct {
 
 func (suite *NotificationsApiIntegrationSuite) SetupSuite() {
 	suite.IntegrationTestSuite.SetupSuite()
+
+	suite.Config.Email = &config.EmailConfig{
+		Enabled:  true,
+		Provider: "smtp",
+		Providers: &config.SupportedEmailProviders{
+			SMTP: &config.SMTPConfig{
+				Name:    "smtp-primary",
+				Enabled: true,
+				Host:    "smtp.example.com",
+				Port:    587,
+				From:    "alerts@example.com",
+			},
+		},
+	}
 
 	logger, _ := zap.NewDevelopment()
 	suite.logger = logger.Sugar()
@@ -69,6 +84,43 @@ func (suite *NotificationsApiIntegrationSuite) authedJSONRequest(method string, 
 	req.Header.Set("Authorization", "Bearer "+*token)
 	req.Header.Set("Content-Type", "application/json")
 	return rec, req
+}
+
+func (suite *NotificationsApiIntegrationSuite) TestListNotificationProviders() {
+	rec, req := suite.authedRequest(http.MethodGet, "/api/admin/notifications/providers")
+
+	suite.server.E().ServeHTTP(rec, req)
+	suite.Equal(http.StatusOK, rec.Code, "Expected OK response for ListNotificationProviders")
+
+	var response GenericDataListResponse[availableNotificationProviderResponse]
+	err := json.Unmarshal(rec.Body.Bytes(), &response)
+	suite.Require().NoError(err, "Failed to unmarshal notification providers response")
+	suite.Require().Len(response.Data, 2)
+
+	suite.Equal(availableNotificationProviderResponse{
+		ProviderType: "email",
+		DisplayName:  "Email",
+		Description:  "Configured SMTP provider for email service",
+		Enabled:      true,
+		Metadata: map[string]string{
+			emailprovider.MetadataKeyServiceProviderName: "smtp-primary",
+			emailprovider.MetadataKeyServiceProviderType: "smtp",
+		},
+	}, response.Data[0])
+	suite.Equal(availableNotificationProviderResponse{
+		ProviderType: "slack",
+		DisplayName:  "Slack",
+		Description:  "Configured Slack workspace",
+		Enabled:      false,
+	}, response.Data[1])
+}
+
+func (suite *NotificationsApiIntegrationSuite) TestListNotificationProvidersUnauthorized() {
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/admin/notifications/providers", nil)
+
+	suite.server.E().ServeHTTP(rec, req)
+	suite.Equal(http.StatusUnauthorized, rec.Code, "Expected Unauthorized response for missing token")
 }
 
 func (suite *NotificationsApiIntegrationSuite) TestListSystemNotifications() {

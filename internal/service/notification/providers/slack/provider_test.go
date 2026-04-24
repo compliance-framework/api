@@ -1,9 +1,11 @@
 package slack
 
 import (
+	"context"
 	"testing"
 
 	"github.com/compliance-framework/api/internal/service/notification"
+	slacksvc "github.com/compliance-framework/api/internal/service/slack"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -30,6 +32,49 @@ func TestDisplayTargetReturnsNormalizedChannel(t *testing.T) {
 	})
 	require.NoError(t, err)
 	assert.Equal(t, "ccf-alerts", channel)
+}
+
+func TestProviderMetadataIncludesWorkspaceDetails(t *testing.T) {
+	provider := NewProvider(
+		nil,
+		nil,
+		WithEnabledResolver(func() bool { return true }),
+		WithWorkspaceConfigurationResolver(func(context.Context) (slacksvc.WorkspaceConfiguration, error) {
+			return slacksvc.WorkspaceConfiguration{
+				WorkspaceName:   "Acme Security",
+				WorkspaceURL:    "https://acme.slack.com/",
+				WorkspaceDomain: "acme",
+				EmailDomain:     "acme.example.com",
+				TeamID:          "T123",
+				BotID:           "B123",
+				BotName:         "Compliance Bot",
+				EnterpriseID:    "E123",
+			}, nil
+		}),
+	)
+
+	metadata := provider.ProviderMetadata()
+	assert.Equal(t, "Configured Slack workspace Acme Security", metadata.Description)
+	assert.True(t, metadata.Enabled)
+	assert.Equal(t, "Acme Security", metadata.Metadata[MetadataKeyWorkspaceName])
+	assert.Equal(t, "https://acme.slack.com/", metadata.Metadata[MetadataKeyWorkspaceURL])
+	assert.Equal(t, "acme", metadata.Metadata[MetadataKeyWorkspaceDomain])
+	assert.Equal(t, "acme.example.com", metadata.Metadata[MetadataKeyEmailDomain])
+	assert.Equal(t, "T123", metadata.Metadata[MetadataKeyTeamID])
+	assert.Equal(t, "B123", metadata.Metadata[MetadataKeyBotID])
+	assert.Equal(t, "Compliance Bot", metadata.Metadata[MetadataKeyBotName])
+	assert.Equal(t, "E123", metadata.Metadata[MetadataKeyEnterpriseID])
+}
+
+func TestProviderMetadataIncludesEnabledStateFromResolver(t *testing.T) {
+	provider := NewProvider(
+		nil,
+		nil,
+		WithEnabledResolver(func() bool { return true }),
+	)
+
+	metadata := provider.ProviderMetadata()
+	assert.True(t, metadata.Enabled)
 }
 
 func TestDisplayTargetRejectsInvalidSlackTarget(t *testing.T) {

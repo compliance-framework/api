@@ -121,7 +121,7 @@ func RegisterHandlers(server *api.Server, logger *zap.SugaredLogger, db *gorm.DB
 	userGroup.Use(middleware.JWTMiddleware(config.JWTPublicKey))
 	userHandler.RegisterPublicRoutes(userGroup)
 
-	notificationsHandler := NewNotificationsHandler(logger, db)
+	notificationsHandler := NewNotificationsHandler(logger, db, config)
 	notificationsGroup := server.API().Group("/admin/notifications")
 	notificationsGroup.Use(middleware.JWTMiddleware(config.JWTPublicKey))
 	notificationsGroup.Use(middleware.RequireAdminGroups(db, config, logger))

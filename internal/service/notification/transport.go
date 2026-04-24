@@ -3,6 +3,7 @@ package notification
 import (
 	"context"
 	"fmt"
+	"sort"
 )
 
 type WorkerEnqueuer interface {
@@ -20,6 +21,23 @@ type Provider interface {
 
 type ProviderLookup interface {
 	Provider(providerID string) (Provider, bool)
+}
+
+type ProviderMetadata struct {
+	ProviderType string
+	DisplayName  string
+	Description  string
+	Enabled      bool
+	Metadata     map[string]string
+}
+
+type ProviderMetadataProvider interface {
+	ProviderMetadata() ProviderMetadata
+}
+
+type ProviderCatalog interface {
+	ProviderIDs() []string
+	Providers() []ProviderMetadata
 }
 
 type DeliveryTransport struct {
@@ -88,6 +106,59 @@ func (t *DeliveryTransport) Provider(providerID string) (Provider, bool) {
 
 	provider, exists := t.providers[canonical]
 	return provider, exists
+}
+
+func (t *DeliveryTransport) ProviderIDs() []string {
+	if t == nil {
+		return nil
+	}
+
+	providerIDs := make([]string, 0, len(t.providers))
+	for providerID := range t.providers {
+		providerIDs = append(providerIDs, providerID)
+	}
+	sort.Strings(providerIDs)
+
+	return providerIDs
+}
+
+func (t *DeliveryTransport) Providers() []ProviderMetadata {
+	if t == nil {
+		return nil
+	}
+
+	providerIDs := t.ProviderIDs()
+	providers := make([]ProviderMetadata, 0, len(providerIDs))
+	for _, providerID := range providerIDs {
+		metadata := ProviderMetadata{
+			ProviderType: providerID,
+			DisplayName:  providerID,
+		}
+
+		if providerWithMetadata, ok := t.providers[providerID].(ProviderMetadataProvider); ok {
+			metadata = providerWithMetadata.ProviderMetadata()
+		}
+
+		if canonicalProviderType, ok := NormalizeDeliveryChannel(metadata.ProviderType); ok {
+			metadata.ProviderType = canonicalProviderType
+		} else {
+			metadata.ProviderType = providerID
+		}
+		if metadata.DisplayName == "" {
+			metadata.DisplayName = metadata.ProviderType
+		}
+		if len(metadata.Metadata) > 0 {
+			cloned := make(map[string]string, len(metadata.Metadata))
+			for key, value := range metadata.Metadata {
+				cloned[key] = value
+			}
+			metadata.Metadata = cloned
+		}
+
+		providers = append(providers, metadata)
+	}
+
+	return providers
 }
 
 func (t *DeliveryTransport) registerProvider(provider Provider) {

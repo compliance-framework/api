@@ -6,6 +6,7 @@ import (
 	"net/mail"
 	"strings"
 
+	"github.com/compliance-framework/api/internal/config"
 	emailtypes "github.com/compliance-framework/api/internal/service/email/types"
 	"github.com/compliance-framework/api/internal/service/notification"
 )
@@ -13,6 +14,11 @@ import (
 type Sender interface {
 	IsEnabled() bool
 	Send(ctx context.Context, message *emailtypes.Message) (*emailtypes.SendResult, error)
+}
+
+type ServiceProviderDescriptor struct {
+	Name string
+	Type string
 }
 
 type Enqueuer interface {
@@ -30,14 +36,51 @@ type EnqueuerProvider func() Enqueuer
 
 type ContentRendererProvider func() ContentRenderer
 
+type ServiceProviderResolver func() ServiceProviderDescriptor
+
+type EnabledResolver func() bool
+
+type ProviderOption func(*Provider)
+
 type Provider struct {
 	senderProvider          SenderProvider
 	enqueuerProvider        EnqueuerProvider
 	contentRendererProvider ContentRendererProvider
+	serviceProviderResolver ServiceProviderResolver
+	enabledResolver         EnabledResolver
 }
 
-func NewProvider(senderProvider SenderProvider, enqueuerProvider EnqueuerProvider) *Provider {
-	return &Provider{senderProvider: senderProvider, enqueuerProvider: enqueuerProvider}
+const (
+	MetadataKeyServiceProviderName = "service-provider-name"
+	MetadataKeyServiceProviderType = "service-provider-type"
+)
+
+func NewCatalogProvider(cfg *config.Config) *Provider {
+	var emailConfig *config.EmailConfig
+	if cfg != nil {
+		emailConfig = cfg.Email
+	}
+
+	return NewProvider(
+		nil,
+		nil,
+		WithEnabledResolver(func() bool {
+			return emailEnabledFromConfig(emailConfig)
+		}),
+		WithServiceProviderResolver(func() ServiceProviderDescriptor {
+			return serviceProviderDescriptorFromConfig(emailConfig)
+		}),
+	)
+}
+
+func NewProvider(senderProvider SenderProvider, enqueuerProvider EnqueuerProvider, opts ...ProviderOption) *Provider {
+	provider := &Provider{senderProvider: senderProvider, enqueuerProvider: enqueuerProvider}
+	for _, opt := range opts {
+		if opt != nil {
+			opt(provider)
+		}
+	}
+	return provider
 }
 
 func NewProviderWithTemplateRenderer(
@@ -45,14 +88,137 @@ func NewProviderWithTemplateRenderer(
 	enqueuerProvider EnqueuerProvider,
 	contentRendererProvider ContentRendererProvider,
 ) *Provider {
-	return &Provider{
+	return NewProviderWithTemplateRendererOptions(senderProvider, enqueuerProvider, contentRendererProvider)
+}
+
+func NewProviderWithTemplateRendererOptions(
+	senderProvider SenderProvider,
+	enqueuerProvider EnqueuerProvider,
+	contentRendererProvider ContentRendererProvider,
+	opts ...ProviderOption,
+) *Provider {
+	provider := &Provider{
 		senderProvider:          senderProvider,
 		enqueuerProvider:        enqueuerProvider,
 		contentRendererProvider: contentRendererProvider,
 	}
+	for _, opt := range opts {
+		if opt != nil {
+			opt(provider)
+		}
+	}
+	return provider
+}
+
+func WithServiceProviderResolver(resolver ServiceProviderResolver) ProviderOption {
+	return func(provider *Provider) {
+		if provider == nil {
+			return
+		}
+		provider.serviceProviderResolver = resolver
+	}
+}
+
+func WithEnabledResolver(resolver EnabledResolver) ProviderOption {
+	return func(provider *Provider) {
+		if provider == nil {
+			return
+		}
+		provider.enabledResolver = resolver
+	}
 }
 
 func (p *Provider) ID() string { return ChannelID }
+
+func (p *Provider) ProviderMetadata() notification.ProviderMetadata {
+	metadata := notification.ProviderMetadata{
+		ProviderType: ChannelID,
+		DisplayName:  "Email",
+		Description:  "Configured provider for email service",
+		Enabled:      p.enabled(),
+	}
+
+	serviceProvider := p.serviceProvider()
+	if serviceProvider.Type != "" {
+		metadata.Description = fmt.Sprintf("Configured %s provider for email service", strings.ToUpper(serviceProvider.Type))
+	}
+	if serviceProvider.Name != "" || serviceProvider.Type != "" {
+		metadata.Metadata = map[string]string{}
+		if serviceProvider.Name != "" {
+			metadata.Metadata[MetadataKeyServiceProviderName] = serviceProvider.Name
+		}
+		if serviceProvider.Type != "" {
+			metadata.Metadata[MetadataKeyServiceProviderType] = serviceProvider.Type
+		}
+	}
+
+	return metadata
+}
+
+type senderServiceProviderDescriptor interface {
+	GetDefaultProviderName() string
+	GetDefaultProviderType() string
+}
+
+func serviceProviderDescriptorFromConfig(cfg *config.EmailConfig) ServiceProviderDescriptor {
+	if cfg == nil {
+		return ServiceProviderDescriptor{}
+	}
+
+	provider := cfg.GetDefaultProvider()
+	if provider == nil {
+		return ServiceProviderDescriptor{}
+	}
+
+	return ServiceProviderDescriptor{
+		Name: strings.TrimSpace(provider.GetName()),
+		Type: strings.TrimSpace(provider.GetType()),
+	}
+}
+
+func emailEnabledFromConfig(cfg *config.EmailConfig) bool {
+	if cfg == nil || !cfg.Enabled {
+		return false
+	}
+
+	provider := cfg.GetDefaultProvider()
+	return provider != nil && provider.IsEnabled()
+}
+
+func (p *Provider) serviceProvider() ServiceProviderDescriptor {
+	if p != nil && p.serviceProviderResolver != nil {
+		descriptor := p.serviceProviderResolver()
+		descriptor.Name = strings.TrimSpace(descriptor.Name)
+		descriptor.Type = strings.TrimSpace(descriptor.Type)
+		if descriptor.Name != "" || descriptor.Type != "" {
+			return descriptor
+		}
+	}
+
+	sender := p.sender()
+	if sender == nil {
+		return ServiceProviderDescriptor{}
+	}
+
+	descriptorProvider, ok := sender.(senderServiceProviderDescriptor)
+	if !ok {
+		return ServiceProviderDescriptor{}
+	}
+
+	return ServiceProviderDescriptor{
+		Name: strings.TrimSpace(descriptorProvider.GetDefaultProviderName()),
+		Type: strings.TrimSpace(descriptorProvider.GetDefaultProviderType()),
+	}
+}
+
+func (p *Provider) enabled() bool {
+	if p != nil && p.enabledResolver != nil {
+		return p.enabledResolver()
+	}
+
+	sender := p.sender()
+	return sender != nil && sender.IsEnabled()
+}
 
 func (p *Provider) ResolveUserTarget(user notification.User) (notification.Target, bool, error) {
 	if len(user.Identities) > 0 {
