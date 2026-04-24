@@ -32,6 +32,7 @@ func MigrateUp(db *gorm.DB) error {
 
 func MigrateUpWithConfig(db *gorm.DB, cfg *config.Config) error {
 	workflowEntities := workflows.GetWorkflowEntities()
+	systemNotificationDestinationTableExists := db.Migrator().HasTable(&relational.SystemNotificationDestination{})
 
 	err := db.AutoMigrate(
 		&relational.ResponsiblePartyParties{},
@@ -193,7 +194,7 @@ func MigrateUpWithConfig(db *gorm.DB, cfg *config.Config) error {
 		return err
 	}
 
-	if err := migrateLegacySystemNotificationDestinations(db, cfg); err != nil {
+	if err := migrateLegacySystemNotificationDestinations(db, cfg, !systemNotificationDestinationTableExists); err != nil {
 		return err
 	}
 	if err := migrateLegacyTaskAvailableEmailSubscriptions(db); err != nil {
@@ -244,7 +245,15 @@ func MigrateUpWithConfig(db *gorm.DB, cfg *config.Config) error {
 	return err
 }
 
-func migrateLegacySystemNotificationDestinations(db *gorm.DB, cfg *config.Config) error {
+func migrateLegacySystemNotificationDestinations(db *gorm.DB, cfg *config.Config, tableJustCreated bool) error {
+	if !tableJustCreated {
+		db.Logger.Info(
+			context.Background(),
+			"Skipping legacy system notification destination migration: ccf_system_notification_destinations already exists",
+		)
+		return nil
+	}
+
 	channel := legacySlackDigestChannel(cfg)
 	if channel == "" {
 		db.Logger.Info(

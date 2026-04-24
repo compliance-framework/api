@@ -67,6 +67,26 @@ func TestResolveUserTargetFallsBackToUserEmail(t *testing.T) {
 	assert.Equal(t, map[string]string{AddressKeyEmail: "alice@example.com"}, target.Address)
 }
 
+func TestBuildTargetNormalizesEmailAddress(t *testing.T) {
+	provider := NewProvider(nil, nil)
+
+	target, err := provider.BuildTarget(" Alice <alice@example.com> ")
+	require.NoError(t, err)
+	assert.Equal(t, ChannelID, target.Provider)
+	assert.Equal(t, map[string]string{AddressKeyEmail: "alice@example.com"}, target.Address)
+}
+
+func TestDisplayTargetRejectsInvalidEmailAddress(t *testing.T) {
+	provider := NewProvider(nil, nil)
+
+	_, err := provider.DisplayTarget(notification.Target{
+		Provider: ChannelID,
+		Address:  map[string]string{AddressKeyEmail: "not-an-email"},
+	})
+	require.Error(t, err)
+	assert.ErrorIs(t, err, notification.ErrInvalidTarget)
+}
+
 func TestDeliverUsesEnqueuerWhenStarted(t *testing.T) {
 	enqueuer := &stubEnqueuer{started: true}
 	sender := &stubSender{enabled: true}

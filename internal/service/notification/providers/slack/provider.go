@@ -107,6 +107,51 @@ func (p *Provider) ResolveUserTarget(user notification.User) (notification.Targe
 	}, true, nil
 }
 
+func (p *Provider) BuildTarget(rawTarget string) (notification.Target, error) {
+	return p.NormalizeTarget(notification.Target{
+		Provider: ChannelID,
+		Address: map[string]string{
+			AddressKeyChannel:    rawTarget,
+			AddressKeyTargetType: TargetTypeChannel,
+		},
+	})
+}
+
+func (p *Provider) NormalizeTarget(target notification.Target) (notification.Target, error) {
+	channel := strings.TrimSpace(target.Address[AddressKeyChannel])
+	if channel == "" {
+		return notification.Target{}, fmt.Errorf("%w: slack provider requires channel address", notification.ErrInvalidTarget)
+	}
+
+	targetType, ok := NormalizeTargetType(target.Address[AddressKeyTargetType])
+	if !ok {
+		return notification.Target{}, fmt.Errorf("%w: slack target requires a supported target type", notification.ErrInvalidTarget)
+	}
+
+	normalized := notification.Target{
+		Provider: ChannelID,
+		UserID:   strings.TrimSpace(target.UserID),
+		Address: map[string]string{
+			AddressKeyChannel:    channel,
+			AddressKeyTargetType: targetType,
+		},
+	}
+	if err := p.ValidateTarget(normalized); err != nil {
+		return notification.Target{}, err
+	}
+
+	return normalized, nil
+}
+
+func (p *Provider) DisplayTarget(target notification.Target) (string, error) {
+	normalized, err := p.NormalizeTarget(target)
+	if err != nil {
+		return "", err
+	}
+
+	return normalized.Address[AddressKeyChannel], nil
+}
+
 func (p *Provider) ValidateTarget(target notification.Target) error {
 	channel := strings.TrimSpace(target.Address["channel"])
 	if channel == "" {

@@ -153,7 +153,7 @@ func TestMigrateLegacySystemNotificationDestinationsBackfillsSlackDigestChannel(
 		},
 	}
 
-	require.NoError(t, migrateLegacySystemNotificationDestinations(db, cfg))
+	require.NoError(t, migrateLegacySystemNotificationDestinations(db, cfg, true))
 
 	var rows []relational.SystemNotificationDestination
 	require.NoError(t, db.Find(&rows).Error)
@@ -188,10 +188,28 @@ func TestMigrateLegacySystemNotificationDestinationsDoesNotOverwriteExistingRow(
 		},
 	}
 
-	require.NoError(t, migrateLegacySystemNotificationDestinations(db, cfg))
+	require.NoError(t, migrateLegacySystemNotificationDestinations(db, cfg, true))
 
 	var rows []relational.SystemNotificationDestination
 	require.NoError(t, db.Find(&rows).Error)
 	require.Len(t, rows, 1)
 	assert.Equal(t, "existing-channel", rows[0].Target.Data().Address[slackprovider.AddressKeyChannel])
+}
+
+func TestMigrateLegacySystemNotificationDestinationsSkipsWhenTableAlreadyExists(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	require.NoError(t, db.AutoMigrate(&relational.SystemNotificationDestination{}))
+
+	cfg := &config.Config{
+		Slack: &config.SlackConfig{
+			DigestChannel: "ccf-alerts",
+		},
+	}
+
+	require.NoError(t, migrateLegacySystemNotificationDestinations(db, cfg, false))
+
+	var count int64
+	require.NoError(t, db.Model(&relational.SystemNotificationDestination{}).Count(&count).Error)
+	assert.Zero(t, count)
 }

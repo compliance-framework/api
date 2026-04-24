@@ -3,6 +3,7 @@ package email
 import (
 	"context"
 	"fmt"
+	"net/mail"
 	"strings"
 
 	emailtypes "github.com/compliance-framework/api/internal/service/email/types"
@@ -81,6 +82,47 @@ func (p *Provider) ResolveUserTarget(user notification.User) (notification.Targe
 		UserID:   user.ID,
 		Address:  address,
 	}, true, nil
+}
+
+func (p *Provider) BuildTarget(rawTarget string) (notification.Target, error) {
+	return p.NormalizeTarget(notification.Target{
+		Provider: ChannelID,
+		Address: map[string]string{
+			AddressKeyEmail: rawTarget,
+		},
+	})
+}
+
+func (p *Provider) NormalizeTarget(target notification.Target) (notification.Target, error) {
+	address := strings.TrimSpace(target.Address[AddressKeyEmail])
+	if address == "" {
+		return notification.Target{}, fmt.Errorf("%w: email provider requires email address", notification.ErrInvalidTarget)
+	}
+
+	parsedAddress, err := mail.ParseAddress(address)
+	if err != nil || strings.TrimSpace(parsedAddress.Address) == "" {
+		return notification.Target{}, fmt.Errorf("%w: email provider requires email address", notification.ErrInvalidTarget)
+	}
+
+	normalized := notification.Target{
+		Provider: ChannelID,
+		UserID:   strings.TrimSpace(target.UserID),
+		Address:  Identity(parsedAddress.Address),
+	}
+	if err := p.ValidateTarget(normalized); err != nil {
+		return notification.Target{}, err
+	}
+
+	return normalized, nil
+}
+
+func (p *Provider) DisplayTarget(target notification.Target) (string, error) {
+	normalized, err := p.NormalizeTarget(target)
+	if err != nil {
+		return "", err
+	}
+
+	return normalized.Address[AddressKeyEmail], nil
 }
 
 func (p *Provider) ValidateTarget(target notification.Target) error {

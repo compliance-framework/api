@@ -41,6 +41,10 @@ var notificationTypeWireValues = map[string]string{
 	NotificationTypeRiskNotifications: NotificationTypeRiskNotificationsWire,
 }
 
+var systemNotificationTypes = []string{
+	NotificationTypeEvidenceDigest,
+}
+
 func normalizeToken(value string) string {
 	return strings.ToLower(strings.TrimSpace(value))
 }
@@ -73,4 +77,8 @@ func WireNotificationType(notificationType string) (string, bool) {
 	}
 
 	return wireValue, true
+}
+
+func SystemNotificationTypes() []string {
+	return append([]string(nil), systemNotificationTypes...)
 }
