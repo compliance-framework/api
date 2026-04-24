@@ -51,7 +51,7 @@ type MilestoneOverdueScannerArgs struct{}
 // ─── Notification / action args ──────────────────────────────────────────────
 
 // PoamDeadlineReminderArgs carries the data needed to send a single
-// POAM deadline approaching reminder email to one recipient.
+// POAM deadline approaching reminder notification to one recipient.
 // Idempotency key: PoamItemID + Deadline + ReminderWindowBucket (ByArgs + ByPeriod 24h).
 type PoamDeadlineReminderArgs struct {
 	PoamItemID           uuid.UUID `json:"poam_item_id"`
@@ -67,7 +67,7 @@ type PoamDeadlineReminderArgs struct {
 }
 
 // PoamOverdueNotificationArgs carries the data needed to send a single
-// POAM overdue notification email to one recipient.
+// POAM overdue notification to one recipient.
 // Idempotency key: PoamItemID + Deadline + OverdueWindow (ByArgs + ByPeriod 24h).
 type PoamOverdueNotificationArgs struct {
 	PoamItemID      uuid.UUID `json:"poam_item_id"`
@@ -95,7 +95,7 @@ type PoamOpenDigestArgs struct {
 }
 
 // MilestoneOverdueReminderArgs carries the data needed to send a single
-// incomplete milestone overdue reminder email to one recipient.
+// incomplete milestone overdue reminder notification to one recipient.
 // Idempotency key: MilestoneID + DueDate + WeeklyBucket (ByArgs + ByPeriod 7 days).
 type MilestoneOverdueReminderArgs struct {
 	MilestoneID     uuid.UUID `json:"milestone_id"`

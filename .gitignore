@@ -17,6 +17,7 @@ __debug_*
 
 local.go
 resolver.go
+!internal/service/notification/resolver.go
 
 api
 !internal/api/
