@@ -36,6 +36,7 @@ func (r *GORMConfiguredDestinationResolver) ResolveConfiguredDestination(ctx con
 	var record relational.SystemNotificationDestination
 	result := r.db.WithContext(ctx).
 		Where("notification_type = ? AND provider = ?", lookup.NotificationType, lookup.Provider).
+		Order("updated_at DESC, created_at DESC, id DESC").
 		Limit(1).
 		Find(&record)
 	if result.Error != nil {

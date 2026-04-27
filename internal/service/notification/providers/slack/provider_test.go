@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/compliance-framework/api/internal/config"
 	"github.com/compliance-framework/api/internal/service/notification"
 	slacksvc "github.com/compliance-framework/api/internal/service/slack"
 	"github.com/stretchr/testify/assert"
@@ -97,6 +98,24 @@ func TestProviderMetadataRetriesWorkspaceDetailsAfterResolverError(t *testing.T)
 
 	provider.ProviderMetadata()
 	assert.Equal(t, 2, attempts)
+}
+
+func TestNewCatalogProviderCachesEmptyWorkspaceConfigurationWhenSlackDisabled(t *testing.T) {
+	provider := NewCatalogProvider(&config.Config{
+		Slack: &config.SlackConfig{
+			Enabled: false,
+			Token:   "xoxb-test-token",
+		},
+	})
+
+	metadata := provider.ProviderMetadata()
+	assert.False(t, metadata.Enabled)
+	assert.Equal(t, "Configured Slack workspace", metadata.Description)
+	assert.Empty(t, metadata.Metadata)
+	assert.True(t, provider.workspaceConfigurationLoaded)
+
+	provider.ProviderMetadata()
+	assert.True(t, provider.workspaceConfigurationLoaded)
 }
 
 func TestProviderMetadataIncludesEnabledStateFromResolver(t *testing.T) {

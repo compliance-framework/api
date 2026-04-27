@@ -111,7 +111,7 @@ func NewCatalogProvider(cfg *config.Config) *Provider {
 			return slackEnabledFromConfig(cfg)
 		}),
 		WithWorkspaceConfigurationResolver(func(ctx context.Context) (slacksvc.WorkspaceConfiguration, error) {
-			if cfg == nil || cfg.Slack == nil || strings.TrimSpace(cfg.Slack.Token) == "" {
+			if cfg == nil || cfg.Slack == nil || !cfg.Slack.Enabled || strings.TrimSpace(cfg.Slack.Token) == "" {
 				return slacksvc.WorkspaceConfiguration{}, nil
 			}
 
