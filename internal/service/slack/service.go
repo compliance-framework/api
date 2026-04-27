@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
 
 	"github.com/compliance-framework/api/internal/config"
 	"github.com/compliance-framework/api/internal/service/slack/types"
@@ -30,9 +31,10 @@ type WorkspaceConfiguration struct {
 }
 
 type Service struct {
-	config *config.SlackConfig
-	logger *zap.SugaredLogger
-	client apiClient
+	config   *config.SlackConfig
+	logger   *zap.SugaredLogger
+	clientMu sync.Mutex
+	client   apiClient
 }
 
 func NewService(cfg *config.SlackConfig, logger *zap.SugaredLogger) (*Service, error) {
@@ -163,16 +165,22 @@ func (s *Service) IsEnabled() bool {
 
 func (s *Service) clientForToken(token string) apiClient {
 	trimmedToken := strings.TrimSpace(token)
-	if s != nil && s.client != nil && s.config != nil && trimmedToken == strings.TrimSpace(s.config.Token) {
-		return s.client
+	if s == nil || s.config == nil {
+		return slack.New(trimmedToken)
 	}
 
-	api := slack.New(trimmedToken)
-	if s != nil && s.config != nil && trimmedToken == strings.TrimSpace(s.config.Token) {
-		s.client = api
+	if trimmedToken != strings.TrimSpace(s.config.Token) {
+		return slack.New(trimmedToken)
 	}
 
-	return api
+	s.clientMu.Lock()
+	defer s.clientMu.Unlock()
+
+	if s.client == nil {
+		s.client = slack.New(trimmedToken)
+	}
+
+	return s.client
 }
 
 func validateSendInput(channel string, message *types.Message) error {

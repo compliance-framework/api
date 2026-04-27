@@ -3,6 +3,7 @@ package slack
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
 
 	"github.com/compliance-framework/api/internal/config"
@@ -174,6 +175,40 @@ func TestGetConfigurationForTokenRequiresConfiguredService(t *testing.T) {
 			assert.Equal(t, "slack service is not configured", err.Error())
 			assert.Equal(t, WorkspaceConfiguration{}, configuration)
 		})
+	}
+}
+
+func TestClientForTokenCachesConfiguredClientConcurrently(t *testing.T) {
+	service := &Service{
+		config: &config.SlackConfig{
+			Enabled: true,
+			Token:   "xoxb-test-token",
+		},
+		logger: zap.NewNop().Sugar(),
+	}
+
+	const workers = 20
+	start := make(chan struct{})
+	clients := make(chan apiClient, workers)
+	var wg sync.WaitGroup
+	wg.Add(workers)
+
+	for range workers {
+		go func() {
+			defer wg.Done()
+			<-start
+			clients <- service.clientForToken("xoxb-test-token")
+		}()
+	}
+
+	close(start)
+	wg.Wait()
+	close(clients)
+
+	require.NotNil(t, service.client)
+	cached := service.client
+	for client := range clients {
+		assert.True(t, client == cached)
 	}
 }
 
