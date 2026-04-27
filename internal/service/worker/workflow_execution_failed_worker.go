@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/compliance-framework/api/internal/service/notification"
+	notificationproviders "github.com/compliance-framework/api/internal/service/notification/providers"
 	"github.com/compliance-framework/api/internal/service/relational/workflows"
 	"github.com/compliance-framework/api/internal/workflow"
 	"github.com/google/uuid"
@@ -119,10 +120,22 @@ func (w *WorkflowExecutionFailedWorker) Work(ctx context.Context, job *river.Job
 		WorkflowURL:          w.webBaseURL + "/my-tasks",
 		MyTasksURL:           w.webBaseURL + "/my-tasks",
 	}
-
-	if err := notifier.Dispatch(
-		ctx,
+	requests := []notification.Request{
 		buildWorkflowExecutionFailedNotificationRequest(args, recipient.ID, model),
+	}
+
+	targets, err := w.configuredWorkflowExecutionFailedTargets(ctx)
+	if err != nil {
+		return fmt.Errorf("resolve workflow-execution-failed system destinations: %w", err)
+	}
+
+	if systemRequest, ok := buildWorkflowExecutionFailedSystemNotificationRequest(args, targets, model); ok {
+		requests = append(requests, systemRequest)
+	}
+
+	if err := notifier.DispatchFanout(
+		ctx,
+		notification.FanoutRequest{Requests: requests},
 	); err != nil {
 		return fmt.Errorf("dispatch workflow-execution-failed notification: %w", err)
 	}
@@ -130,7 +143,17 @@ func (w *WorkflowExecutionFailedWorker) Work(ctx context.Context, job *river.Job
 	w.logger.Infow("WorkflowExecutionFailedWorker: failure notification sent",
 		"workflow_execution_id", args.WorkflowExecutionID,
 		"recipient", recipient.Email,
+		"system_target_count", len(targets),
 	)
 
 	return nil
+}
+
+func (w *WorkflowExecutionFailedWorker) configuredWorkflowExecutionFailedTargets(ctx context.Context) ([]notification.Target, error) {
+	if w == nil || w.db == nil {
+		return []notification.Target{}, nil
+	}
+
+	return notification.NewGORMSystemDestinationRepository(w.db, notificationproviders.NewLookup()).
+		ListTargetsByNotificationType(ctx, string(notification.NotificationKindWorkflowExecutionFailed))
 }

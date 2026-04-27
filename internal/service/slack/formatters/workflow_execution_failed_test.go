@@ -43,3 +43,29 @@ func TestFormatWorkflowExecutionFailedMessage_DefaultsMissingFields(t *testing.T
 	assert.Contains(t, msg.Text, "Workflow execution failed: Workflow")
 	require.NotEmpty(t, msg.Blocks)
 }
+
+func TestFormatWorkflowExecutionFailedSystemMessage(t *testing.T) {
+	msg, err := FormatWorkflowExecutionFailedSystemMessage(
+		"Annual Audit",
+		"Audit 2026",
+		"exec-123",
+		"step execution failed",
+		"17 Apr 2026",
+		1,
+		3,
+		4,
+		"https://app.example.com/my-tasks",
+	)
+	require.NoError(t, err)
+	assert.Contains(t, msg.Text, "Workflow execution failed")
+	require.NotEmpty(t, msg.Blocks)
+
+	var foundSystemNotice bool
+	for _, block := range msg.Blocks {
+		if section, ok := block.(*slack.SectionBlock); ok && section.Text != nil && strings.Contains(section.Text.Text, "configured system destination") {
+			foundSystemNotice = true
+			break
+		}
+	}
+	assert.True(t, foundSystemNotice)
+}

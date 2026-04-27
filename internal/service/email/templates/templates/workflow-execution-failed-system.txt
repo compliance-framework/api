@@ -1,0 +1,30 @@
+WORKFLOW EXECUTION FAILED
+=========================
+
+A workflow execution has failed and may require your attention.
+
+WORKFLOW:  {{.WorkflowTitle}}
+INSTANCE:  {{.WorkflowInstanceName}}
+
+EXECUTION SUMMARY
+-----------------
+Failed Steps:    {{.FailedSteps}}
+Completed Steps: {{.CompletedSteps}}
+Total Steps:     {{.TotalSteps}}
+
+EXECUTION DETAILS
+-----------------
+Execution ID: {{.ExecutionID}}
+Failed At:    {{.FailedAt}}
+
+FAILURE REASON
+--------------
+{{.FailureReason}}
+{{if .WorkflowURL}}
+VIEW WORKFLOW INSTANCE
+----------------------
+{{.WorkflowURL}}
+{{end}}
+---
+This destination is configured for workflow failure alerts.
+Compliance Framework

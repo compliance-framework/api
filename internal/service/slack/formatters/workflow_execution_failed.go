@@ -86,3 +86,74 @@ func FormatWorkflowExecutionFailedMessage(
 		Blocks: blocks,
 	}, nil
 }
+
+func FormatWorkflowExecutionFailedSystemMessage(
+	workflowTitle string,
+	workflowInstanceName string,
+	executionID string,
+	failureReason string,
+	failedAt string,
+	failedSteps int,
+	completedSteps int,
+	totalSteps int,
+	workflowURL string,
+) (*types.Message, error) {
+	workflow := strings.TrimSpace(workflowTitle)
+	if workflow == "" {
+		workflow = "Workflow"
+	}
+
+	instance := strings.TrimSpace(workflowInstanceName)
+	if instance == "" {
+		instance = workflow
+	}
+
+	reason := strings.TrimSpace(failureReason)
+	if reason == "" {
+		reason = "No failure reason provided."
+	}
+
+	summary := fmt.Sprintf("*Instance:* %s\n*Workflow:* %s\n*Failed Steps:* %d\n*Completed Steps:* %d\n*Total Steps:* %d", instance, workflow, failedSteps, completedSteps, totalSteps)
+
+	details := []string{}
+	if trimmedExecutionID := strings.TrimSpace(executionID); trimmedExecutionID != "" {
+		details = append(details, fmt.Sprintf("*Execution ID:* %s", trimmedExecutionID))
+	}
+	if trimmedFailedAt := strings.TrimSpace(failedAt); trimmedFailedAt != "" {
+		details = append(details, fmt.Sprintf("*Failed At:* %s", trimmedFailedAt))
+	}
+
+	blocks := []slack.Block{
+		slack.NewHeaderBlock(slack.NewTextBlockObject(slack.PlainTextType, "Workflow Execution Failed", true, false)),
+		slack.NewSectionBlock(slack.NewTextBlockObject(slack.MarkdownType, "A workflow execution has failed and may require your attention.", false, false), nil, nil),
+		slack.NewSectionBlock(slack.NewTextBlockObject(slack.MarkdownType, summary, false, false), nil, nil),
+		slack.NewSectionBlock(slack.NewTextBlockObject(slack.MarkdownType, fmt.Sprintf("*Failure Reason:*\n```%s```", reason), false, false), nil, nil),
+	}
+
+	if len(details) > 0 {
+		blocks = append(blocks, slack.NewSectionBlock(
+			slack.NewTextBlockObject(slack.MarkdownType, strings.Join(details, "\n"), false, false),
+			nil,
+			nil,
+		))
+	}
+
+	if trimmedWorkflowURL := strings.TrimSpace(workflowURL); trimmedWorkflowURL != "" {
+		blocks = append(blocks, slack.NewSectionBlock(
+			slack.NewTextBlockObject(slack.MarkdownType, fmt.Sprintf("<%s|View Workflow Instance>", trimmedWorkflowURL), false, false),
+			nil,
+			nil,
+		))
+	}
+
+	blocks = append(blocks, slack.NewSectionBlock(
+		slack.NewTextBlockObject(slack.MarkdownType, "This alert was sent to a configured system destination.", false, false),
+		nil,
+		nil,
+	))
+
+	return &types.Message{
+		Text:   fmt.Sprintf("Workflow execution failed: %s", instance),
+		Blocks: blocks,
+	}, nil
+}

@@ -53,6 +53,7 @@ type workflowExecutionFailedNotificationModel struct {
 	TotalSteps           int
 	WorkflowURL          string
 	MyTasksURL           string
+	IsSystemAudience     bool
 }
 
 type notificationUserRepositoryAdapter struct {
@@ -203,6 +204,42 @@ func buildWorkflowExecutionFailedNotificationRequest(
 	)
 }
 
+func buildWorkflowExecutionFailedSystemNotificationRequest(
+	args WorkflowExecutionFailedArgs,
+	targets []notification.Target,
+	data workflowExecutionFailedNotificationModel,
+) (notification.Request, bool) {
+	audiences := make([]notification.Audience, 0, len(targets))
+	for i := range targets {
+		address := make(map[string]string, len(targets[i].Address))
+		for key, value := range targets[i].Address {
+			address[key] = value
+		}
+
+		audiences = append(audiences, notification.Audience{
+			Direct: &notification.DirectAudience{
+				Provider: targets[i].Provider,
+				Address:  address,
+			},
+		})
+	}
+
+	if len(audiences) == 0 {
+		return notification.Request{}, false
+	}
+
+	systemModel := newWorkflowExecutionFailedNotificationModel(data)
+	systemModel.RecipientName = ""
+	systemModel.IsSystemAudience = true
+
+	return notification.Request{
+		Kind:      notification.NotificationKindWorkflowExecutionFailed,
+		Audiences: audiences,
+		Model:     systemModel,
+		Options:   newJobDispatchOptions(JobTypeWorkflowExecutionFailed, "", args.WorkflowExecutionID),
+	}, true
+}
+
 func (m workflowTaskDigestNotificationModel) templateData() map[string]interface{} {
 	return map[string]interface{}{
 		"UserName":     m.UserName,
@@ -226,6 +263,7 @@ func (m workflowExecutionFailedNotificationModel) templateData() map[string]inte
 		"TotalSteps":           m.TotalSteps,
 		"WorkflowURL":          m.WorkflowURL,
 		"MyTasksURL":           m.MyTasksURL,
+		"IsSystemAudience":     m.IsSystemAudience,
 	}
 }
 
@@ -383,6 +421,10 @@ func renderWorkflowTaskDigestEmail(digestModel workflowTaskDigestNotificationMod
 }
 
 func renderWorkflowExecutionFailedEmail(failedModel workflowExecutionFailedNotificationModel) (emailprovider.TemplateContent, error) {
+	if failedModel.IsSystemAudience {
+		return renderWorkflowExecutionFailedSystemEmail(failedModel)
+	}
+
 	instanceName := failedModel.WorkflowInstanceName
 	if instanceName == "" {
 		instanceName = failedModel.WorkflowTitle
@@ -393,6 +435,20 @@ func renderWorkflowExecutionFailedEmail(failedModel workflowExecutionFailedNotif
 		TemplateData: failedModel.templateData(),
 		Subject:      fmt.Sprintf("Workflow execution failed: %s", instanceName),
 		TextBody:     fmt.Sprintf("Workflow execution failed for %s. Open: %s", instanceName, failedModel.WorkflowURL),
+	}, nil
+}
+
+func renderWorkflowExecutionFailedSystemEmail(failedModel workflowExecutionFailedNotificationModel) (emailprovider.TemplateContent, error) {
+	instanceName := failedModel.WorkflowInstanceName
+	if instanceName == "" {
+		instanceName = failedModel.WorkflowTitle
+	}
+
+	return emailprovider.TemplateContent{
+		TemplateName: "workflow-execution-failed-system",
+		TemplateData: failedModel.templateData(),
+		Subject:      fmt.Sprintf("System alert: workflow execution failed: %s", instanceName),
+		TextBody:     fmt.Sprintf("Workflow execution failed for %s. Review details: %s", instanceName, failedModel.WorkflowURL),
 	}, nil
 }
 
@@ -444,6 +500,25 @@ func renderWorkflowTaskDigestSlack(digestModel workflowTaskDigestNotificationMod
 }
 
 func renderWorkflowExecutionFailedSlack(failedModel workflowExecutionFailedNotificationModel) (*slackprovider.Message, error) {
+	if failedModel.IsSystemAudience {
+		message, err := slackprovider.FormatWorkflowExecutionFailedSystemMessage(
+			failedModel.WorkflowTitle,
+			failedModel.WorkflowInstanceName,
+			failedModel.ExecutionID,
+			failedModel.FailureReason,
+			failedModel.FailedAt,
+			failedModel.FailedSteps,
+			failedModel.CompletedSteps,
+			failedModel.TotalSteps,
+			failedModel.WorkflowURL,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to format workflow-execution-failed system slack message: %w", err)
+		}
+
+		return message, nil
+	}
+
 	message, err := slackprovider.FormatWorkflowExecutionFailedMessage(
 		failedModel.RecipientName,
 		failedModel.WorkflowTitle,

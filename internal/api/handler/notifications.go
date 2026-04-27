@@ -299,7 +299,7 @@ func (h *NotificationsHandler) CreateSystemNotificationDestination(ctx echo.Cont
 	if exists {
 		return ctx.JSON(
 			http.StatusConflict,
-			api.NewError(errors.New("That destination is already configured for this notification.")),
+			api.NewError(errors.New("destination already configured for this notification")),
 		)
 	}
 

@@ -21,18 +21,19 @@ type RiskDigestItem = slackformatters.RiskDigestItem
 type WorkflowTaskDigestItem = slackformatters.WorkflowTaskDigestItem
 
 var (
-	FormatDigestMessage                       = slackformatters.FormatDigestMessage
-	FormatPoamDeadlineReminderMessage         = slackformatters.FormatPoamDeadlineReminderMessage
-	FormatPoamMilestoneOverdueReminderMessage = slackformatters.FormatPoamMilestoneOverdueReminderMessage
-	FormatPoamOverdueNotificationMessage      = slackformatters.FormatPoamOverdueNotificationMessage
-	FormatRiskReviewDueReminderMessage        = slackformatters.FormatRiskReviewDueReminderMessage
-	FormatRiskReviewOverdueEscalationMessage  = slackformatters.FormatRiskReviewOverdueEscalationMessage
-	FormatRiskStaleOpenReminderMessage        = slackformatters.FormatRiskStaleOpenReminderMessage
-	FormatRiskOpenDigestMessage               = slackformatters.FormatRiskOpenDigestMessage
-	FormatWorkflowExecutionFailedMessage      = slackformatters.FormatWorkflowExecutionFailedMessage
-	FormatWorkflowTaskAssignedMessage         = slackformatters.FormatWorkflowTaskAssignedMessage
-	FormatWorkflowTaskDueSoonMessage          = slackformatters.FormatWorkflowTaskDueSoonMessage
-	FormatWorkflowTaskDigestMessage           = slackformatters.FormatWorkflowTaskDigestMessage
+	FormatDigestMessage                        = slackformatters.FormatDigestMessage
+	FormatPoamDeadlineReminderMessage          = slackformatters.FormatPoamDeadlineReminderMessage
+	FormatPoamMilestoneOverdueReminderMessage  = slackformatters.FormatPoamMilestoneOverdueReminderMessage
+	FormatPoamOverdueNotificationMessage       = slackformatters.FormatPoamOverdueNotificationMessage
+	FormatRiskReviewDueReminderMessage         = slackformatters.FormatRiskReviewDueReminderMessage
+	FormatRiskReviewOverdueEscalationMessage   = slackformatters.FormatRiskReviewOverdueEscalationMessage
+	FormatRiskStaleOpenReminderMessage         = slackformatters.FormatRiskStaleOpenReminderMessage
+	FormatRiskOpenDigestMessage                = slackformatters.FormatRiskOpenDigestMessage
+	FormatWorkflowExecutionFailedMessage       = slackformatters.FormatWorkflowExecutionFailedMessage
+	FormatWorkflowExecutionFailedSystemMessage = slackformatters.FormatWorkflowExecutionFailedSystemMessage
+	FormatWorkflowTaskAssignedMessage          = slackformatters.FormatWorkflowTaskAssignedMessage
+	FormatWorkflowTaskDueSoonMessage           = slackformatters.FormatWorkflowTaskDueSoonMessage
+	FormatWorkflowTaskDigestMessage            = slackformatters.FormatWorkflowTaskDigestMessage
 )
 
 func MessageRenderer(renderer func(ctx context.Context, model any) (*Message, error)) notification.ChannelRenderer {
