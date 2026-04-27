@@ -199,7 +199,7 @@ func (h *NotificationsHandler) ListSystemNotifications(ctx echo.Context) error {
 			return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 		}
 
-		destinationKey := name + ":" + destination.ProviderType + ":" + destination.DestinationTarget
+		destinationKey := name + ":" + destination.ProviderType + ":" + strings.ToLower(strings.TrimSpace(destination.DestinationTarget))
 		if _, exists := seenDestinations[destinationKey]; exists {
 			continue
 		}

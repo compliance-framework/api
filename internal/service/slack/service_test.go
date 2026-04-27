@@ -152,6 +152,31 @@ func TestGetConfigurationForTokenRequiresToken(t *testing.T) {
 	assert.Equal(t, WorkspaceConfiguration{}, configuration)
 }
 
+func TestGetConfigurationForTokenRequiresConfiguredService(t *testing.T) {
+	tests := []struct {
+		name    string
+		service *Service
+	}{
+		{
+			name:    "nil service",
+			service: nil,
+		},
+		{
+			name:    "nil config",
+			service: &Service{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			configuration, err := tt.service.GetConfigurationForToken(context.Background(), "xoxb-test-token")
+			require.Error(t, err)
+			assert.Equal(t, "slack service is not configured", err.Error())
+			assert.Equal(t, WorkspaceConfiguration{}, configuration)
+		})
+	}
+}
+
 func TestSendMessageUsesExistingClientInterface(t *testing.T) {
 	service := &Service{
 		config: &config.SlackConfig{

@@ -2,6 +2,7 @@ package slack
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/compliance-framework/api/internal/service/notification"
@@ -64,6 +65,38 @@ func TestProviderMetadataIncludesWorkspaceDetails(t *testing.T) {
 	assert.Equal(t, "B123", metadata.Metadata[MetadataKeyBotID])
 	assert.Equal(t, "Compliance Bot", metadata.Metadata[MetadataKeyBotName])
 	assert.Equal(t, "E123", metadata.Metadata[MetadataKeyEnterpriseID])
+}
+
+func TestProviderMetadataRetriesWorkspaceDetailsAfterResolverError(t *testing.T) {
+	attempts := 0
+	provider := NewProvider(
+		nil,
+		nil,
+		WithWorkspaceConfigurationResolver(func(context.Context) (slacksvc.WorkspaceConfiguration, error) {
+			attempts++
+			if attempts == 1 {
+				return slacksvc.WorkspaceConfiguration{}, errors.New("temporary slack failure")
+			}
+
+			return slacksvc.WorkspaceConfiguration{
+				WorkspaceName: "Recovered Workspace",
+				TeamID:        "T456",
+			}, nil
+		}),
+	)
+
+	firstMetadata := provider.ProviderMetadata()
+	assert.Equal(t, "Configured Slack workspace", firstMetadata.Description)
+	assert.Empty(t, firstMetadata.Metadata)
+
+	secondMetadata := provider.ProviderMetadata()
+	assert.Equal(t, "Configured Slack workspace Recovered Workspace", secondMetadata.Description)
+	assert.Equal(t, "Recovered Workspace", secondMetadata.Metadata[MetadataKeyWorkspaceName])
+	assert.Equal(t, "T456", secondMetadata.Metadata[MetadataKeyTeamID])
+	assert.Equal(t, 2, attempts)
+
+	provider.ProviderMetadata()
+	assert.Equal(t, 2, attempts)
 }
 
 func TestProviderMetadataIncludesEnabledStateFromResolver(t *testing.T) {

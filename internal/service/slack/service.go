@@ -55,6 +55,10 @@ func (s *Service) GetConfiguration(ctx context.Context) (WorkspaceConfiguration,
 }
 
 func (s *Service) GetConfigurationForToken(ctx context.Context, token string) (WorkspaceConfiguration, error) {
+	if s == nil || s.config == nil {
+		return WorkspaceConfiguration{}, fmt.Errorf("slack service is not configured")
+	}
+
 	if !s.config.Enabled {
 		return WorkspaceConfiguration{}, fmt.Errorf("slack service is not enabled")
 	}

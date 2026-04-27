@@ -87,7 +87,8 @@ type Provider struct {
 	enqueuerProvider               EnqueuerProvider
 	enabledResolver                EnabledResolver
 	workspaceConfigurationResolver WorkspaceConfigurationResolver
-	workspaceConfigurationOnce     sync.Once
+	workspaceConfigurationMu       sync.Mutex
+	workspaceConfigurationLoaded   bool
 	workspaceConfiguration         slacksvc.WorkspaceConfiguration
 }
 
@@ -217,17 +218,23 @@ func (p *Provider) workspaceConfigurationDetails() slacksvc.WorkspaceConfigurati
 		return slacksvc.WorkspaceConfiguration{}
 	}
 
-	p.workspaceConfigurationOnce.Do(func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
+	p.workspaceConfigurationMu.Lock()
+	defer p.workspaceConfigurationMu.Unlock()
 
-		configuration, err := p.workspaceConfigurationResolver(ctx)
-		if err != nil {
-			return
-		}
-		p.workspaceConfiguration = configuration
-	})
+	if p.workspaceConfigurationLoaded {
+		return p.workspaceConfiguration
+	}
 
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	configuration, err := p.workspaceConfigurationResolver(ctx)
+	if err != nil {
+		return p.workspaceConfiguration
+	}
+
+	p.workspaceConfiguration = configuration
+	p.workspaceConfigurationLoaded = true
 	return p.workspaceConfiguration
 }
 

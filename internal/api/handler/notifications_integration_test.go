@@ -203,6 +203,43 @@ func (suite *NotificationsApiIntegrationSuite) TestListSystemNotifications() {
 	}, digestConfig.ConfiguredDestinations)
 }
 
+func (suite *NotificationsApiIntegrationSuite) TestListSystemNotificationsDeduplicatesEquivalentDestinations() {
+	suite.Require().NoError(suite.DB.Create(&relational.SystemNotificationDestination{
+		NotificationType: notification.NotificationTypeEvidenceDigest,
+		Provider:         notification.DeliveryChannelSlack,
+		Target: datatypes.NewJSONType(relational.SystemNotificationTarget{
+			Address: map[string]string{
+				slackprovider.AddressKeyChannel:    "ccf-slack-int",
+				slackprovider.AddressKeyTargetType: slackprovider.TargetTypeChannel,
+			},
+		}),
+	}).Error)
+	suite.Require().NoError(suite.DB.Create(&relational.SystemNotificationDestination{
+		NotificationType: notification.NotificationTypeEvidenceDigest,
+		Provider:         notification.DeliveryChannelSlack,
+		Target: datatypes.NewJSONType(relational.SystemNotificationTarget{
+			Address: map[string]string{
+				slackprovider.AddressKeyChannel:    " CCF-SLACK-INT ",
+				slackprovider.AddressKeyTargetType: slackprovider.TargetTypeChannel,
+			},
+		}),
+	}).Error)
+
+	rec, req := suite.authedRequest(http.MethodGet, "/api/admin/notifications")
+
+	suite.server.E().ServeHTTP(rec, req)
+	suite.Equal(http.StatusOK, rec.Code, "Expected OK response for ListSystemNotifications")
+
+	var response GenericDataListResponse[systemNotificationResponse]
+	err := json.Unmarshal(rec.Body.Bytes(), &response)
+	suite.Require().NoError(err, "Failed to unmarshal notifications response")
+	suite.Require().Len(response.Data, 1)
+	suite.Equal("EVIDENCE_DIGEST", response.Data[0].Name)
+	suite.Equal([]configuredSystemDestinationResponse{
+		{ProviderType: "slack", DestinationTarget: "ccf-slack-int"},
+	}, response.Data[0].ConfiguredDestinations)
+}
+
 func (suite *NotificationsApiIntegrationSuite) TestListSystemNotificationsIncludesConfiguredSupportedTypesOutsideDefaultBaseline() {
 	suite.Require().NoError(suite.DB.Create(&relational.SystemNotificationDestination{
 		NotificationType: notification.NotificationTypeTaskAvailable,
