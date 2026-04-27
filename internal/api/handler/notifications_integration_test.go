@@ -123,6 +123,29 @@ func (suite *NotificationsApiIntegrationSuite) TestListNotificationProvidersUnau
 	suite.Equal(http.StatusUnauthorized, rec.Code, "Expected Unauthorized response for missing token")
 }
 
+func (suite *NotificationsApiIntegrationSuite) TestListNotificationProviderStatus() {
+	rec, req := suite.authedRequest(http.MethodGet, "/api/notifications/providers")
+
+	suite.server.E().ServeHTTP(rec, req)
+	suite.Equal(http.StatusOK, rec.Code, "Expected OK response for ListNotificationProviderStatus")
+
+	var response GenericDataListResponse[notificationProviderStatusResponse]
+	err := json.Unmarshal(rec.Body.Bytes(), &response)
+	suite.Require().NoError(err, "Failed to unmarshal notification provider status response")
+	suite.Require().Len(response.Data, 2)
+
+	suite.Equal(notificationProviderStatusResponse{ProviderType: "email", Enabled: true}, response.Data[0])
+	suite.Equal(notificationProviderStatusResponse{ProviderType: "slack", Enabled: false}, response.Data[1])
+}
+
+func (suite *NotificationsApiIntegrationSuite) TestListNotificationProviderStatusUnauthorized() {
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/notifications/providers", nil)
+
+	suite.server.E().ServeHTTP(rec, req)
+	suite.Equal(http.StatusUnauthorized, rec.Code, "Expected Unauthorized response for missing token")
+}
+
 func (suite *NotificationsApiIntegrationSuite) TestListSystemNotifications() {
 	suite.Require().NoError(suite.DB.Create(&relational.SystemNotificationDestination{
 		NotificationType: notification.NotificationTypeEvidenceDigest,

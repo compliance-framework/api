@@ -571,6 +571,14 @@ definitions:
           $ref: '#/definitions/handler.milestoneResponse'
         type: array
     type: object
+  handler.GenericDataListResponse-handler_notificationProviderStatusResponse:
+    properties:
+      data:
+        description: Items from the list response
+        items:
+          $ref: '#/definitions/handler.notificationProviderStatusResponse'
+        type: array
+    type: object
   handler.GenericDataListResponse-handler_poamItemResponse:
     properties:
       data:
@@ -1878,6 +1886,13 @@ definitions:
       title:
         type: string
       updatedAt:
+        type: string
+    type: object
+  handler.notificationProviderStatusResponse:
+    properties:
+      enabled:
+        type: boolean
+      providerType:
         type: string
     type: object
   handler.poamControlRefRequest:
@@ -10665,6 +10680,29 @@ paths:
       summary: Import dashboard filters
       tags:
       - Filters
+  /notifications/providers:
+    get:
+      description: Returns notification provider availability for authenticated users
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-handler_notificationProviderStatusResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: List notification provider status
+      tags:
+      - Notifications
   /oscal/activities:
     post:
       consumes:

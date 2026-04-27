@@ -2396,6 +2396,43 @@ const docTemplate = `{
                 }
             }
         },
+        "/notifications/providers": {
+            "get": {
+                "description": "Returns notification provider availability for authenticated users",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Notifications"
+                ],
+                "summary": "List notification provider status",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataListResponse-handler_notificationProviderStatusResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
         "/oscal/activities": {
             "post": {
                 "description": "Creates a new activity for us in other resources.",
@@ -27392,6 +27429,18 @@ const docTemplate = `{
                 }
             }
         },
+        "handler.GenericDataListResponse-handler_notificationProviderStatusResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handler.notificationProviderStatusResponse"
+                    }
+                }
+            }
+        },
         "handler.GenericDataListResponse-handler_poamItemResponse": {
             "type": "object",
             "properties": {
@@ -29551,6 +29600,17 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "updatedAt": {
+                    "type": "string"
+                }
+            }
+        },
+        "handler.notificationProviderStatusResponse": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean"
+                },
+                "providerType": {
                     "type": "string"
                 }
             }
