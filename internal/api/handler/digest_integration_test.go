@@ -42,9 +42,19 @@ func (suite *DigestApiIntegrationSuite) SetupSuite() {
 
 	slackService, err := slacksvc.NewService(suite.Config.Slack, suite.logger)
 	suite.Require().NoError(err, "Failed to create slack service")
+	runtimeProvider := digest.NewRuntimeProvider(
+		suite.emailService,
+		nil,
+		slackService,
+	)
 
 	// Create digest handler
-	digestService := digest.NewService(suite.DB, suite.emailService, slackService, nil, suite.Config, suite.logger)
+	notifier := digest.NewNotificationService(
+		suite.DB,
+		suite.Config,
+		runtimeProvider,
+	)
+	digestService := digest.NewService(suite.DB, notifier, suite.Config, suite.logger)
 	suite.digestHandler = NewDigestHandler(digestService, suite.logger)
 
 	// Setup server

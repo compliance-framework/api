@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/compliance-framework/api/internal/service/email/types"
 	"github.com/compliance-framework/api/internal/service/relational/poam"
 	"github.com/compliance-framework/api/internal/workflow"
 	"github.com/google/uuid"
@@ -97,6 +96,29 @@ func (w *MilestoneOverdueScannerWorker) Work(
 		return nil
 	}
 
+	sspLookupItems := make([]poam.PoamItem, 0, len(rows))
+	seenSSPIDs := make(map[uuid.UUID]struct{}, len(rows))
+	for i := range rows {
+		if rows[i].ParentSspID == "" {
+			continue
+		}
+		sspID, err := uuid.Parse(rows[i].ParentSspID)
+		if err != nil {
+			continue
+		}
+		if _, ok := seenSSPIDs[sspID]; ok {
+			continue
+		}
+		seenSSPIDs[sspID] = struct{}{}
+		sspLookupItems = append(sspLookupItems, poam.PoamItem{SspID: sspID})
+	}
+
+	sspNames, err := resolvePoamSSPDisplayNames(ctx, w.db, sspLookupItems)
+	if err != nil {
+		w.logger.Warnw("MilestoneOverdueScannerWorker: failed to resolve SSP names", "error", err)
+		sspNames = map[string]string{}
+	}
+
 	params := make([]river.InsertManyParams, 0, len(rows))
 
 	for i := range rows {
@@ -127,6 +149,11 @@ func (w *MilestoneOverdueScannerWorker) Work(
 			}
 		}
 
+		sspName := sspNames[row.ParentSspID]
+		if sspName == "" {
+			sspName = row.ParentSspID
+		}
+
 		for _, recipientID := range recipients {
 			args := MilestoneOverdueReminderArgs{
 				MilestoneID:     row.ID,
@@ -135,7 +162,7 @@ func (w *MilestoneOverdueScannerWorker) Work(
 				MilestoneTitle:  row.Title,
 				PoamTitle:       row.ParentTitle,
 				SspID:           sspID,
-				SspDisplayName:  row.ParentSspID,
+				SspDisplayName:  sspName,
 				DueDate:         row.PlannedCompletionDate.UTC().Format(time.RFC3339),
 				PoamURL:         poamURL,
 				WeeklyBucket:    weeklyBucket,
@@ -166,30 +193,30 @@ func (w *MilestoneOverdueScannerWorker) Work(
 // ─── Notification worker ─────────────────────────────────────────────────────
 
 // MilestoneOverdueReminderWorker sends a single incomplete milestone overdue
-// reminder email to one recipient.
+// reminder to one recipient.
 type MilestoneOverdueReminderWorker struct {
-	emailService EmailService
-	userRepo     UserRepository
-	webBaseURL   string
-	logger       *zap.SugaredLogger
+	userRepo                   UserRepository
+	webBaseURL                 string
+	notificationServiceFactory *PoamNotificationServiceFactory
+	logger                     *zap.SugaredLogger
 }
 
 // NewMilestoneOverdueReminderWorker constructs a MilestoneOverdueReminderWorker.
 func NewMilestoneOverdueReminderWorker(
-	emailService EmailService,
 	userRepo UserRepository,
 	webBaseURL string,
+	notificationServiceFactory *PoamNotificationServiceFactory,
 	logger *zap.SugaredLogger,
 ) *MilestoneOverdueReminderWorker {
 	return &MilestoneOverdueReminderWorker{
-		emailService: emailService,
-		userRepo:     userRepo,
-		webBaseURL:   webBaseURL,
-		logger:       logger,
+		userRepo:                   userRepo,
+		webBaseURL:                 webBaseURL,
+		notificationServiceFactory: notificationServiceFactory,
+		logger:                     logger,
 	}
 }
 
-// Work sends the milestone overdue reminder email for a single milestone × recipient.
+// Work sends the milestone overdue reminder for a single milestone × recipient.
 func (w *MilestoneOverdueReminderWorker) Work(
 	ctx context.Context,
 	job *river.Job[MilestoneOverdueReminderArgs],
@@ -204,45 +231,25 @@ func (w *MilestoneOverdueReminderWorker) Work(
 		)
 		return nil
 	}
-	if user.Email == "" {
-		return nil
-	}
 
-	templateData := map[string]interface{}{
-		"RecipientName":  user.FullName(),
-		"MilestoneTitle": args.MilestoneTitle,
-		"PoamTitle":      args.PoamTitle,
-		"SSPName":        args.SspDisplayName,
-		"DueDate":        args.DueDate,
-		"PoamURL":        args.PoamURL,
-	}
-
-	htmlBody, textBody, err := w.emailService.UseTemplate("poam-milestone-overdue-reminder", templateData)
+	notificationService, err := w.notificationServiceFactory.New(
+		newNotificationUserRepositoryAdapter(w.userRepo, user),
+	)
 	if err != nil {
-		return fmt.Errorf("milestone overdue reminder: render template failed: %w", err)
+		return fmt.Errorf("create poam notification service: %w", err)
 	}
 
-	message := &types.Message{
-		From:     w.emailService.GetDefaultFromAddress(),
-		To:       []string{user.Email},
-		Subject:  fmt.Sprintf("POAM Milestone Overdue: %s", args.MilestoneTitle),
-		HTMLBody: htmlBody,
-		TextBody: textBody,
+	if err := notificationService.Dispatch(
+		ctx,
+		buildPoamMilestoneOverdueNotificationRequest(args, user.FullName()),
+	); err != nil {
+		return fmt.Errorf("dispatch poam-milestone-overdue-reminder notification: %w", err)
 	}
 
-	result, err := w.emailService.Send(ctx, message)
-	if err != nil {
-		return fmt.Errorf("milestone overdue reminder: send email failed: %w", err)
-	}
-	if !result.Success {
-		return fmt.Errorf("milestone overdue reminder: email send reported failure: %s", result.Error)
-	}
-
-	w.logger.Infow("MilestoneOverdueReminderWorker: email sent",
+	w.logger.Infow("MilestoneOverdueReminderWorker: milestone overdue reminder sent",
 		"milestone_id", args.MilestoneID,
 		"poam_item_id", args.PoamItemID,
 		"recipient_user_id", args.RecipientUserID,
-		"message_id", result.MessageID,
 	)
 	return nil
 }

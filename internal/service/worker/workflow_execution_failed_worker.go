@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/compliance-framework/api/internal/service/email/types"
+	"github.com/compliance-framework/api/internal/service/notification"
 	"github.com/compliance-framework/api/internal/service/relational/workflows"
 	"github.com/compliance-framework/api/internal/workflow"
 	"github.com/google/uuid"
@@ -13,27 +13,29 @@ import (
 	"gorm.io/gorm"
 )
 
-// WorkflowExecutionFailedWorker sends a failure notification email to the workflow instance creator
+// WorkflowExecutionFailedWorker sends workflow execution failure notifications to the
+// workflow instance creator using supported delivery targets.
 type WorkflowExecutionFailedWorker struct {
-	db           *gorm.DB
-	emailService EmailService
-	userRepo     UserRepository
-	webBaseURL   string
-	logger       *zap.SugaredLogger
+	db                          *gorm.DB
+	userRepo                    UserRepository
+	webBaseURL                  string
+	notificationRuntimeProvider notification.RuntimeProvider
+	logger                      *zap.SugaredLogger
 }
 
 // NewWorkflowExecutionFailedWorker creates a new WorkflowExecutionFailedWorker
-func NewWorkflowExecutionFailedWorker(db *gorm.DB, emailService EmailService, userRepo UserRepository, webBaseURL string, logger *zap.SugaredLogger) *WorkflowExecutionFailedWorker {
+func NewWorkflowExecutionFailedWorker(db *gorm.DB, userRepo UserRepository, webBaseURL string, notificationRuntime notification.RuntimeProvider, logger *zap.SugaredLogger) *WorkflowExecutionFailedWorker {
 	return &WorkflowExecutionFailedWorker{
-		db:           db,
-		emailService: emailService,
-		userRepo:     userRepo,
-		webBaseURL:   webBaseURL,
-		logger:       logger,
+		db:                          db,
+		userRepo:                    userRepo,
+		webBaseURL:                  webBaseURL,
+		notificationRuntimeProvider: notificationRuntime,
+		logger:                      logger,
 	}
 }
 
-// Work sends a failure notification email for the workflow execution identified by job.Args.WorkflowExecutionID
+// Work sends a workflow execution failure notification for the execution identified
+// by job.Args.WorkflowExecutionID.
 func (w *WorkflowExecutionFailedWorker) Work(ctx context.Context, job *river.Job[WorkflowExecutionFailedArgs]) error {
 	args := job.Args
 
@@ -99,60 +101,35 @@ func (w *WorkflowExecutionFailedWorker) Work(ctx context.Context, job *river.Job
 		failedAt = formatDate(*execution.FailedAt)
 	}
 
-	templateData := map[string]interface{}{
-		"RecipientName":        recipient.FullName(),
-		"WorkflowTitle":        workflowTitle,
-		"WorkflowInstanceName": instance.Name,
-		"ExecutionID":          execution.ID.String(),
-		"FailureReason":        execution.FailureReason,
-		"FailedAt":             failedAt,
-		"FailedSteps":          failedSteps,
-		"CompletedSteps":       completedSteps,
-		"TotalSteps":           totalSteps,
-		"WorkflowURL":          w.webBaseURL + "/my-tasks",
-		"MyTasksURL":           w.webBaseURL + "/my-tasks",
+	notifier := newWorkflowNotificationServiceFromFactory(
+		w.notificationRuntimeProvider.NewRuntimeFactory(nil),
+		newNotificationUserRepositoryAdapter(w.userRepo, recipient),
+	)
+
+	model := workflowExecutionFailedNotificationModel{
+		RecipientName:        recipient.FullName(),
+		WorkflowTitle:        workflowTitle,
+		WorkflowInstanceName: instance.Name,
+		ExecutionID:          execution.ID.String(),
+		FailureReason:        execution.FailureReason,
+		FailedAt:             failedAt,
+		FailedSteps:          failedSteps,
+		CompletedSteps:       completedSteps,
+		TotalSteps:           totalSteps,
+		WorkflowURL:          w.webBaseURL + "/my-tasks",
+		MyTasksURL:           w.webBaseURL + "/my-tasks",
 	}
 
-	htmlBody, textBody, err := w.emailService.UseTemplate("workflow-execution-failed", templateData)
-	if err != nil {
-		w.logger.Errorw("WorkflowExecutionFailedWorker: failed to render template",
-			"workflow_execution_id", args.WorkflowExecutionID,
-			"error", err,
-		)
-		return fmt.Errorf("failed to render workflow-execution-failed template: %w", err)
-	}
-
-	message := &types.Message{
-		From:     w.emailService.GetDefaultFromAddress(),
-		To:       []string{recipient.Email},
-		Subject:  fmt.Sprintf("Workflow execution failed: %s", instance.Name),
-		HTMLBody: htmlBody,
-		TextBody: textBody,
-	}
-
-	result, err := w.emailService.Send(ctx, message)
-	if err != nil {
-		w.logger.Errorw("WorkflowExecutionFailedWorker: failed to send email",
-			"workflow_execution_id", args.WorkflowExecutionID,
-			"recipient", recipient.Email,
-			"error", err,
-		)
-		return fmt.Errorf("failed to send workflow-execution-failed email: %w", err)
-	}
-
-	if !result.Success {
-		w.logger.Errorw("WorkflowExecutionFailedWorker: email send reported failure",
-			"workflow_execution_id", args.WorkflowExecutionID,
-			"recipient", recipient.Email,
-			"error", result.Error,
-		)
-		return fmt.Errorf("workflow-execution-failed email send failed: %s", result.Error)
+	if err := notifier.Dispatch(
+		ctx,
+		buildWorkflowExecutionFailedNotificationRequest(args, recipient.ID, model),
+	); err != nil {
+		return fmt.Errorf("dispatch workflow-execution-failed notification: %w", err)
 	}
 
 	w.logger.Infow("WorkflowExecutionFailedWorker: failure notification sent",
 		"workflow_execution_id", args.WorkflowExecutionID,
 		"recipient", recipient.Email,
-		"message_id", result.MessageID,
 	)
 
 	return nil

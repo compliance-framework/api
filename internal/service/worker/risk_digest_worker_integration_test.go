@@ -126,24 +126,16 @@ func (suite *RiskOpenDigestIntegrationSuite) TestRiskOpenDigestSchedulerAndWorke
 
 	err := scheduler.Work(ctx, &river.Job[RiskOpenDigestSchedulerArgs]{})
 	suite.Require().NoError(err)
-	suite.Require().Len(client.params, 2)
+	suite.Require().Len(client.params, 1)
 
-	var channels []string
 	var jobArgs RiskOpenDigestArgs
 	for _, param := range client.params {
 		args, ok := param.Args.(RiskOpenDigestArgs)
 		suite.Require().True(ok)
 		suite.Equal(recipientID, args.RecipientUserID)
-		channels = append(channels, args.Channel)
-		if args.Channel == notification.DeliveryChannelEmail {
-			jobArgs = args
-		}
+		suite.Equal("", args.Channel)
+		jobArgs = args
 	}
-	suite.ElementsMatch(
-		[]string{notification.DeliveryChannelEmail, notification.DeliveryChannelSlack},
-		channels,
-	)
-	suite.Equal(notification.DeliveryChannelEmail, jobArgs.Channel)
 
 	mockEmail := &MockEmailService{}
 	mockEmail.On("UseTemplate", "risk-open-digest", mock.MatchedBy(func(data map[string]interface{}) bool {
@@ -167,7 +159,7 @@ func (suite *RiskOpenDigestIntegrationSuite) TestRiskOpenDigestSchedulerAndWorke
 		return len(msg.To) == 1 && msg.To[0] == "recipient@example.com"
 	})).Return(&types.SendResult{Success: true, MessageID: "msg-1"}, nil)
 
-	worker := NewRiskOpenDigestWorker(suite.DB, mockEmail, nil, NewGORMUserRepository(suite.DB), suite.Config.WebBaseURL, suite.logger)
+	worker := NewRiskOpenDigestWorker(suite.DB, NewGORMUserRepository(suite.DB), suite.Config.WebBaseURL, newTestRiskNotificationServiceFactory(mockEmail, nil), suite.logger)
 	worker.now = func() time.Time { return now }
 
 	err = worker.Work(ctx, &river.Job[RiskOpenDigestArgs]{Args: jobArgs})

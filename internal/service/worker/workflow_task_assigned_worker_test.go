@@ -8,10 +8,15 @@ import (
 
 	"github.com/compliance-framework/api/internal/service/email/types"
 	"github.com/compliance-framework/api/internal/service/notification"
+	slackprovider "github.com/compliance-framework/api/internal/service/notification/providers/slack"
+	"github.com/compliance-framework/api/internal/service/relational"
+	"github.com/compliance-framework/api/internal/service/relational/workflows"
 	slacktypes "github.com/compliance-framework/api/internal/service/slack/types"
+	"github.com/google/uuid"
 	"github.com/riverqueue/river"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 )
 
@@ -53,7 +58,12 @@ func TestWorkflowTaskAssignedWorker_SubscribedUser_SendsEmail(t *testing.T) {
 		return msg.To[0] == "alice@example.com"
 	})).Return(&types.SendResult{Success: true, MessageID: "msg-1"}, nil)
 
-	w := NewWorkflowTaskAssignedWorker(mockEmail, nil, mockRepo, "http://localhost:8000", mockLog)
+	w := NewWorkflowTaskAssignedWorker(
+		mockRepo,
+		"http://localhost:8000",
+		newTestNotificationRuntimeProvider(mockEmail, nil),
+		mockLog,
+	)
 
 	args := WorkflowTaskAssignedArgs{
 		UserID:                "user-1",
@@ -88,7 +98,12 @@ func TestWorkflowTaskAssignedWorker_UnsubscribedUser_Skips(t *testing.T) {
 	}
 	mockRepo.On("FindUserByID", ctx, "user-2").Return(user, nil)
 
-	w := NewWorkflowTaskAssignedWorker(mockEmail, nil, mockRepo, "http://localhost:8000", mockLog)
+	w := NewWorkflowTaskAssignedWorker(
+		mockRepo,
+		"http://localhost:8000",
+		newTestNotificationRuntimeProvider(mockEmail, nil),
+		mockLog,
+	)
 
 	args := WorkflowTaskAssignedArgs{
 		UserID:          "user-2",
@@ -112,7 +127,12 @@ func TestWorkflowTaskAssignedWorker_UserNotFound_Skips(t *testing.T) {
 
 	mockRepo.On("FindUserByID", ctx, "missing-user").Return(NotificationUser{}, errors.New("not found"))
 
-	w := NewWorkflowTaskAssignedWorker(mockEmail, nil, mockRepo, "http://localhost:8000", mockLog)
+	w := NewWorkflowTaskAssignedWorker(
+		mockRepo,
+		"http://localhost:8000",
+		newTestNotificationRuntimeProvider(mockEmail, nil),
+		mockLog,
+	)
 
 	args := WorkflowTaskAssignedArgs{
 		UserID:          "missing-user",
@@ -144,7 +164,12 @@ func TestWorkflowTaskAssignedWorker_TemplateError_ReturnsError(t *testing.T) {
 	mockEmail.On("UseTemplate", "workflow-task-assigned", mock.Anything).Return("", "", errors.New("template broken"))
 	mockEmail.On("GetDefaultFromAddress").Return("noreply@example.com")
 
-	w := NewWorkflowTaskAssignedWorker(mockEmail, nil, mockRepo, "http://localhost:8000", mockLog)
+	w := NewWorkflowTaskAssignedWorker(
+		mockRepo,
+		"http://localhost:8000",
+		newTestNotificationRuntimeProvider(mockEmail, nil),
+		mockLog,
+	)
 
 	args := WorkflowTaskAssignedArgs{
 		UserID:          "user-3",
@@ -183,7 +208,12 @@ func TestWorkflowTaskAssignedWorker_MultiChannel_EmailChannelJob_SendsOnlyEmail(
 		return msg.To[0] == "dora@example.com"
 	})).Return(&types.SendResult{Success: true, MessageID: "msg-4"}, nil).Once()
 
-	w := NewWorkflowTaskAssignedWorker(mockEmail, mockSlack, mockRepo, "http://localhost:8000", mockLog)
+	w := NewWorkflowTaskAssignedWorker(
+		mockRepo,
+		"http://localhost:8000",
+		newTestNotificationRuntimeProvider(mockEmail, mockSlack),
+		mockLog,
+	)
 
 	args := WorkflowTaskAssignedArgs{
 		Channel:               notification.DeliveryChannelEmail,
@@ -228,7 +258,12 @@ func TestWorkflowTaskAssignedWorker_MultiChannel_SlackChannelJob_SendsOnlySlack(
 		return msg != nil && msg.Text != ""
 	})).Return(&slacktypes.SendResult{Success: true, DeliveryID: "slack-msg-5"}, nil).Once()
 
-	w := NewWorkflowTaskAssignedWorker(mockEmail, mockSlack, mockRepo, "http://localhost:8000", mockLog)
+	w := NewWorkflowTaskAssignedWorker(
+		mockRepo,
+		"http://localhost:8000",
+		newTestNotificationRuntimeProvider(mockEmail, mockSlack),
+		mockLog,
+	)
 
 	args := WorkflowTaskAssignedArgs{
 		Channel:               notification.DeliveryChannelSlack,
@@ -263,10 +298,15 @@ func TestWorkflowTaskAssignedWorker_EmailAssignee_SendsDirectEmailWithoutUserLoo
 		return len(msg.To) == 1 && msg.To[0] == "external@example.com"
 	})).Return(&types.SendResult{Success: true, MessageID: "msg-external"}, nil).Once()
 
-	w := NewWorkflowTaskAssignedWorker(mockEmail, nil, mockRepo, "http://localhost:8000", mockLog)
+	w := NewWorkflowTaskAssignedWorker(
+		mockRepo,
+		"http://localhost:8000",
+		newTestNotificationRuntimeProvider(mockEmail, nil),
+		mockLog,
+	)
 
 	args := WorkflowTaskAssignedArgs{
-		AssignedToType:        "email",
+		AssignedToType:        workflows.AssignmentTypeEmail.String(),
 		UserID:                "external@example.com",
 		StepExecutionID:       "step-external",
 		StepTitle:             "Submit Policy",
@@ -280,4 +320,121 @@ func TestWorkflowTaskAssignedWorker_EmailAssignee_SendsDirectEmailWithoutUserLoo
 	assert.NoError(t, err)
 	mockEmail.AssertExpectations(t)
 	mockRepo.AssertNotCalled(t, "FindUserByID", mock.Anything, mock.Anything)
+}
+
+func TestWorkflowTaskAssignedWorker_WithNotificationEnqueuer_EnqueuesSubscribedChannels(t *testing.T) {
+	ctx := context.Background()
+	client := &stubRiverClient{}
+	mockEmail := &MockEmailService{}
+	mockRepo := &MockUserRepository{}
+	mockLog := zap.NewNop().Sugar()
+	db := newWorkflowNotificationJobsTestDB(t)
+
+	user := NotificationUser{
+		ID:          "user-7",
+		Email:       "grace@example.com",
+		FirstName:   "Grace",
+		SlackUserID: "USLACK7",
+		NotificationSubscriptions: []NotificationSubscription{
+			{NotificationType: notification.NotificationTypeTaskAvailable, Channels: []string{"slack", "email"}},
+		},
+	}
+	mockRepo.On("FindUserByID", ctx, "user-7").Return(user, nil)
+	mockEmail.On("UseTemplate", "workflow-task-assigned", mock.Anything).Return("<html>Task</html>", "Task text", nil)
+	mockEmail.On("GetDefaultFromAddress").Return("noreply@example.com")
+
+	w := NewWorkflowTaskAssignedWorker(
+		mockRepo,
+		"http://localhost:8000",
+		newWorkerNotificationRuntimeProvider(mockEmail, nil, func() notification.WorkerEnqueuer {
+			return newWorkerNotificationEnqueuer(client, "email", 5)
+		}),
+		mockLog,
+	)
+	w.db = db
+
+	sspID := uuid.New()
+	require.NoError(t, db.Model(&relational.SystemSecurityPlan{}).Create(map[string]interface{}{
+		"id": sspID,
+	}).Error)
+
+	definition := workflows.WorkflowDefinition{Name: "Annual Audit"}
+	require.NoError(t, db.Create(&definition).Error)
+
+	instance := workflows.WorkflowInstance{
+		Name:                 "Audit 2026",
+		WorkflowDefinitionID: definition.ID,
+		SystemSecurityPlanID: &sspID,
+	}
+	require.NoError(t, db.Create(&instance).Error)
+
+	execution := workflows.WorkflowExecution{
+		Status:             workflows.WorkflowStatusPending.String(),
+		TriggeredBy:        workflows.TriggerManual.String(),
+		WorkflowInstanceID: instance.ID,
+	}
+	require.NoError(t, db.Create(&execution).Error)
+
+	stepDefinition := workflows.WorkflowStepDefinition{
+		Name:                 "Review Policy",
+		ResponsibleRole:      "owner",
+		WorkflowDefinitionID: definition.ID,
+	}
+	require.NoError(t, db.Create(&stepDefinition).Error)
+
+	dueDate := time.Now().Add(48 * time.Hour)
+	stepExecution := workflows.StepExecution{
+		Status:                   workflows.StepStatusPending.String(),
+		AssignedToType:           workflows.AssignmentTypeUser.String(),
+		AssignedToID:             "user-7",
+		DueDate:                  &dueDate,
+		WorkflowExecutionID:      execution.ID,
+		WorkflowStepDefinitionID: stepDefinition.ID,
+	}
+	require.NoError(t, db.Create(&stepExecution).Error)
+
+	args := WorkflowTaskAssignedArgs{
+		AssignedToType:  workflows.AssignmentTypeUser.String(),
+		UserID:          "user-7",
+		StepExecutionID: stepExecution.ID.String(),
+	}
+
+	err := w.Work(ctx, makeTaskAssignedJob(args))
+	require.NoError(t, err)
+	require.Len(t, client.params, 2)
+
+	var (
+		emailJobs int
+		slackJobs int
+	)
+	for _, param := range client.params {
+		require.NotNil(t, param.InsertOpts)
+
+		switch jobArgs := param.Args.(type) {
+		case *SendEmailArgs:
+			emailJobs++
+			assert.Equal(t, []string{"grace@example.com"}, jobArgs.To)
+			assert.Equal(t, JobTypeWorkflowTaskAssigned, jobArgs.NotificationKind)
+			assert.Equal(t, "user-7", jobArgs.RecipientUserID)
+			assert.Equal(t, "email", param.InsertOpts.Queue)
+		case SendSlackDMArgs:
+			slackJobs++
+			assert.Equal(t, "USLACK7", jobArgs.Channel)
+			assert.Equal(t, slackprovider.TargetTypeDirectMessage, jobArgs.TargetType)
+			assert.Contains(t, jobArgs.Text, "Review Policy")
+			assert.Contains(t, jobArgs.Text, "Annual Audit")
+			assert.Equal(t, JobTypeWorkflowTaskAssigned, jobArgs.NotificationKind)
+			assert.Equal(t, "user-7", jobArgs.RecipientUserID)
+			assert.Equal(t, JobTypeWorkflowTaskAssigned, jobArgs.SourceJobKind)
+			assert.Equal(t, "workflow_task_assigned:"+stepExecution.ID.String(), jobArgs.CorrelationID)
+			assert.Equal(t, "slack", param.InsertOpts.Queue)
+		default:
+			t.Fatalf("unexpected job args type %T", param.Args)
+		}
+	}
+
+	assert.Equal(t, 1, emailJobs)
+	assert.Equal(t, 1, slackJobs)
+	mockEmail.AssertExpectations(t)
+	mockRepo.AssertExpectations(t)
 }

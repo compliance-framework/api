@@ -14,6 +14,7 @@ import (
 	"github.com/compliance-framework/api/internal/service"
 	"github.com/compliance-framework/api/internal/service/digest"
 	"github.com/compliance-framework/api/internal/service/email"
+	"github.com/compliance-framework/api/internal/service/notification"
 	evidencesvc "github.com/compliance-framework/api/internal/service/relational/evidence"
 	templatesvc "github.com/compliance-framework/api/internal/service/relational/templates"
 	"github.com/compliance-framework/api/internal/service/relational/workflows"
@@ -96,8 +97,22 @@ func RunServer(cmd *cobra.Command, args []string) {
 		sugar.Warnw("Failed to initialize slack service, Slack digests will be disabled", "error", err)
 	}
 
-	// Initialize digest service (without worker service initially)
-	digestService := digest.NewService(db, emailService, slackService, nil, cfg, sugar)
+	// Build digest notifier first; worker enqueuer is bound once worker starts.
+	var digestWorkerEnqueuer notification.WorkerEnqueuer
+	digestRuntimeProvider := digest.NewRuntimeProvider(
+		emailService,
+		func() notification.WorkerEnqueuer { return digestWorkerEnqueuer },
+		slackService,
+	)
+
+	digestNotifier := digest.NewNotificationService(
+		db,
+		cfg,
+		digestRuntimeProvider,
+	)
+
+	// Initialize digest service with injected notifier.
+	digestService := digest.NewService(db, digestNotifier, cfg, sugar)
 
 	// profileResolver bridges the worker package and the oscal handler package without creating
 	// a circular import. It uses the pivot table fast path first, then falls back to full
@@ -110,8 +125,8 @@ func RunServer(cmd *cobra.Command, args []string) {
 		sugar.Fatalw("Failed to initialize worker service", "error", err)
 	}
 
-	// Set worker service reference in digest service to avoid circular dependency
-	digestService.SetWorkerService(workerService)
+	// Bind worker enqueuer for digest notification delivery path.
+	digestWorkerEnqueuer = workerService
 
 	// Run River migrations
 	if err := workerService.Migrate(ctx); err != nil {

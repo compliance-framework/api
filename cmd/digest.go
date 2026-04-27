@@ -90,8 +90,18 @@ func runDigestTest(cmd *cobra.Command, args []string) {
 	if err != nil {
 		sugar.Fatalw("Failed to initialize slack service", "error", err)
 	}
+	runtimeProvider := digest.NewRuntimeProvider(
+		emailService,
+		nil,
+		slackService,
+	)
 
-	digestService := digest.NewService(db, emailService, slackService, nil, cfg, sugar)
+	notifier := digest.NewNotificationService(
+		db,
+		cfg,
+		runtimeProvider,
+	)
+	digestService := digest.NewService(db, notifier, cfg, sugar)
 
 	if dryRun {
 		sugar.Info("Running digest test in DRY-RUN mode (no emails will be sent)...")
@@ -155,8 +165,18 @@ func runDigestPreview(cmd *cobra.Command, args []string) {
 	if err != nil {
 		sugar.Warnw("Failed to initialize slack service", "error", err)
 	}
+	runtimeProvider := digest.NewRuntimeProvider(
+		emailService,
+		nil,
+		slackService,
+	)
 
-	digestService := digest.NewService(db, emailService, slackService, nil, cfg, sugar)
+	notifier := digest.NewNotificationService(
+		db,
+		cfg,
+		runtimeProvider,
+	)
+	digestService := digest.NewService(db, notifier, cfg, sugar)
 
 	summary, err := digestService.GetGlobalEvidenceSummary(ctx)
 	if err != nil {
