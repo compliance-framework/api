@@ -52,7 +52,7 @@ func TestBackfillLegacyNotificationSubscriptions(t *testing.T) {
 
 	existing := relational.UserNotificationSubscription{
 		UserID:           userWithExistingSubscription.ID.String(),
-		NotificationType: notification.NotificationTypeTaskAvailable,
+		NotificationType: notification.SubscriptionGateTaskAvailable,
 		Channels:         []string{notification.DeliveryChannelEmail},
 	}
 	require.NoError(t, db.Create(&existing).Error)
@@ -61,7 +61,7 @@ func TestBackfillLegacyNotificationSubscriptions(t *testing.T) {
 		backfillLegacyNotificationSubscriptions(
 			db,
 			"task_available_email_subscribed",
-			notification.NotificationTypeTaskAvailable,
+			notification.SubscriptionGateTaskAvailable,
 			"task-available email",
 		),
 	)
@@ -75,17 +75,17 @@ func TestBackfillLegacyNotificationSubscriptions(t *testing.T) {
 		rowsByUserID[row.UserID] = row
 	}
 
-	assert.Equal(t, notification.NotificationTypeTaskAvailable, rowsByUserID[userWithLegacySubscription.ID.String()].NotificationType)
+	assert.Equal(t, notification.SubscriptionGateTaskAvailable, rowsByUserID[userWithLegacySubscription.ID.String()].NotificationType)
 	assert.Equal(t, []string{notification.DeliveryChannelEmail}, []string(rowsByUserID[userWithLegacySubscription.ID.String()].Channels))
 
-	assert.Equal(t, notification.NotificationTypeTaskAvailable, rowsByUserID[userWithExistingSubscription.ID.String()].NotificationType)
+	assert.Equal(t, notification.SubscriptionGateTaskAvailable, rowsByUserID[userWithExistingSubscription.ID.String()].NotificationType)
 	assert.Equal(t, []string{notification.DeliveryChannelEmail}, []string(rowsByUserID[userWithExistingSubscription.ID.String()].Channels))
 
 	require.NoError(t,
 		backfillLegacyNotificationSubscriptions(
 			db,
 			"task_available_email_subscribed",
-			notification.NotificationTypeTaskAvailable,
+			notification.SubscriptionGateTaskAvailable,
 			"task-available email",
 		),
 	)
@@ -131,7 +131,7 @@ func TestBackfillLegacyRiskNotificationSubscriptions(t *testing.T) {
 	var rows []relational.UserNotificationSubscription
 	require.NoError(t, db.Find(&rows).Error)
 	require.Len(t, rows, 1)
-	assert.Equal(t, notification.NotificationTypeRiskNotifications, rows[0].NotificationType)
+	assert.Equal(t, notification.SubscriptionGateRiskNotifications, rows[0].NotificationType)
 	assert.Equal(t, []string{notification.DeliveryChannelEmail}, []string(rows[0].Channels))
 	assert.Equal(t, user.ID.String(), rows[0].UserID)
 
@@ -158,7 +158,7 @@ func TestMigrateLegacySystemNotificationDestinationsBackfillsSlackDigestChannel(
 	var rows []relational.SystemNotificationDestination
 	require.NoError(t, db.Find(&rows).Error)
 	require.Len(t, rows, 1)
-	assert.Equal(t, notification.NotificationTypeEvidenceDigest, rows[0].NotificationType)
+	assert.Equal(t, string(notification.NotificationKindEvidenceDigest), rows[0].NotificationType)
 	assert.Equal(t, notification.DeliveryChannelSlack, rows[0].Provider)
 	target := rows[0].Target.Data()
 	assert.Equal(t, "ccf-alerts", target.Address[slackprovider.AddressKeyChannel])
@@ -171,7 +171,7 @@ func TestMigrateLegacySystemNotificationDestinationsDoesNotOverwriteExistingRow(
 	require.NoError(t, db.AutoMigrate(&relational.SystemNotificationDestination{}))
 
 	existing := relational.SystemNotificationDestination{
-		NotificationType: notification.NotificationTypeEvidenceDigest,
+		NotificationType: string(notification.NotificationKindEvidenceDigest),
 		Provider:         notification.DeliveryChannelSlack,
 		Target: datatypes.NewJSONType(relational.SystemNotificationTarget{
 			Address: map[string]string{

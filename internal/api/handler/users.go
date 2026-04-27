@@ -693,7 +693,7 @@ func (h *UserHandler) loadUserNotificationSubscriptions(ctx context.Context, use
 	for i := range rows {
 		channels := make([]string, len(rows[i].Channels))
 		copy(channels, rows[i].Channels)
-		wireType, ok := notification.WireNotificationType(rows[i].NotificationType)
+		wireType, ok := notification.WireSubscriptionGate(rows[i].NotificationType)
 		if !ok {
 			wireType = rows[i].NotificationType
 		}
@@ -710,7 +710,7 @@ func normalizeNotificationSubscriptions(notifications map[string][]string) (map[
 
 	channelSets := make(map[string]map[string]struct{}, len(notifications))
 	for notificationType, channels := range notifications {
-		normalizedType, ok := notification.NormalizeNotificationType(notificationType)
+		normalizedType, ok := notification.NormalizeSubscriptionGate(notificationType)
 		if !ok {
 			invalidType := strings.ToLower(strings.TrimSpace(notificationType))
 			return nil, fmt.Errorf("%w: %q", errInvalidNotificationTypes, invalidType)

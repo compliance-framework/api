@@ -11,13 +11,6 @@ import (
 	"github.com/google/uuid"
 )
 
-const (
-	riskReviewDueReminderNotificationKind       = notification.Kind(JobTypeRiskReviewDueReminder)
-	riskReviewOverdueEscalationNotificationKind = notification.Kind(JobTypeRiskReviewOverdueEscalation)
-	riskStaleOpenReminderNotificationKind       = notification.Kind(JobTypeRiskStaleOpenReminder)
-	riskOpenDigestNotificationKind              = notification.Kind(JobTypeRiskOpenDigest)
-)
-
 type riskReminderNotificationModel struct {
 	OwnerName      string
 	RiskTitle      string
@@ -57,29 +50,29 @@ func NewRiskNotificationServiceFactory(
 		notificationRuntime: notificationRuntime,
 		definitions: []notification.Definition{
 			newTypedNotificationDefinition(
-				riskReviewDueReminderNotificationKind,
-				notification.NotificationTypeRiskNotifications,
+				notification.NotificationKindRiskReviewDueReminder,
+				notification.SubscriptionGateRiskNotifications,
 				newNotificationModelDecoder[riskReminderNotificationModel]("risk reminder model"),
 				renderRiskReviewDueReminderEmail,
 				renderRiskReviewDueReminderSlack,
 			),
 			newTypedNotificationDefinition(
-				riskReviewOverdueEscalationNotificationKind,
-				notification.NotificationTypeRiskNotifications,
+				notification.NotificationKindRiskReviewOverdueEscalation,
+				notification.SubscriptionGateRiskNotifications,
 				newNotificationModelDecoder[riskReminderNotificationModel]("risk reminder model"),
 				renderRiskReviewOverdueEscalationEmail,
 				renderRiskReviewOverdueEscalationSlack,
 			),
 			newTypedNotificationDefinition(
-				riskStaleOpenReminderNotificationKind,
-				notification.NotificationTypeRiskNotifications,
+				notification.NotificationKindRiskStaleOpenReminder,
+				notification.SubscriptionGateRiskNotifications,
 				newNotificationModelDecoder[riskReminderNotificationModel]("risk reminder model"),
 				renderRiskStaleOpenReminderEmail,
 				renderRiskStaleOpenReminderSlack,
 			),
 			newTypedNotificationDefinition(
-				riskOpenDigestNotificationKind,
-				notification.NotificationTypeRiskNotifications,
+				notification.NotificationKindRiskOpenDigest,
+				notification.SubscriptionGateRiskNotifications,
 				newNotificationModelDecoder[riskOpenDigestNotificationModel]("risk open digest model"),
 				renderRiskOpenDigestEmail,
 				renderRiskOpenDigestSlack,
@@ -105,7 +98,7 @@ func buildRiskReviewDueReminderNotificationRequest(
 	data riskNotificationData,
 ) notification.Request {
 	return newUserNotificationRequest(
-		riskReviewDueReminderNotificationKind,
+		notification.NotificationKindRiskReviewDueReminder,
 		args.OwnerUserID.String(),
 		newRiskReminderNotificationModel(userName, data),
 		riskReminderDispatchOptions(JobTypeRiskReviewDueReminder, args.Channel, args.RiskID, args.OwnerUserID, args.ReminderWindow),
@@ -118,7 +111,7 @@ func buildRiskReviewOverdueEscalationNotificationRequest(
 	data riskNotificationData,
 ) notification.Request {
 	return newUserNotificationRequest(
-		riskReviewOverdueEscalationNotificationKind,
+		notification.NotificationKindRiskReviewOverdueEscalation,
 		args.OwnerUserID.String(),
 		newRiskReminderNotificationModel(userName, data),
 		riskReminderDispatchOptions(JobTypeRiskReviewOverdueEscalation, args.Channel, args.RiskID, args.OwnerUserID, args.OverdueWindow),
@@ -131,7 +124,7 @@ func buildRiskStaleOpenReminderNotificationRequest(
 	data riskNotificationData,
 ) notification.Request {
 	return newUserNotificationRequest(
-		riskStaleOpenReminderNotificationKind,
+		notification.NotificationKindRiskStaleOpenReminder,
 		args.OwnerUserID.String(),
 		newRiskReminderNotificationModel(userName, data),
 		riskReminderDispatchOptions(JobTypeRiskStaleOpenReminder, args.Channel, args.RiskID, args.OwnerUserID, args.StaleBucketDate),
@@ -140,7 +133,7 @@ func buildRiskStaleOpenReminderNotificationRequest(
 
 func buildRiskOpenDigestNotificationRequest(args RiskOpenDigestArgs, data riskDigestNotificationData) notification.Request {
 	return newUserNotificationRequest(
-		riskOpenDigestNotificationKind,
+		notification.NotificationKindRiskOpenDigest,
 		args.RecipientUserID.String(),
 		newRiskOpenDigestNotificationModel(data),
 		newJobDispatchOptions(JobTypeRiskOpenDigest, args.Channel, args.RecipientUserID.String(), args.WindowStart, args.WindowEnd, args.WindowKind),

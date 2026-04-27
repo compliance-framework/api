@@ -35,7 +35,7 @@ func (u User) FullName() string {
 }
 
 func (u User) NotificationChannels(notificationType string) []string {
-	normalizedType, ok := NormalizeNotificationType(notificationType)
+	normalizedType, ok := NormalizeSubscriptionGate(notificationType)
 	if !ok {
 		return nil
 	}
@@ -43,7 +43,7 @@ func (u User) NotificationChannels(notificationType string) []string {
 	seen := make(map[string]struct{})
 	channels := make([]string, 0)
 	for _, subscription := range u.Subscriptions {
-		currentType, typeOK := NormalizeNotificationType(subscription.NotificationType)
+		currentType, typeOK := NormalizeSubscriptionGate(subscription.NotificationType)
 		if !typeOK || currentType != normalizedType {
 			continue
 		}
@@ -129,7 +129,7 @@ func (r *GORMUserRepository) FindUserByID(ctx context.Context, userID string) (U
 }
 
 func (r *GORMUserRepository) ListActiveUsersByNotificationType(ctx context.Context, notificationType string) ([]User, error) {
-	canonicalType, ok := NormalizeNotificationType(notificationType)
+	canonicalType, ok := NormalizeSubscriptionGate(notificationType)
 	if !ok {
 		return []User{}, nil
 	}
@@ -217,7 +217,7 @@ func (r *GORMUserRepository) ListActiveUsersByNotificationType(ctx context.Conte
 // ListActiveUserIDsByNotificationType returns IDs for active, unlocked users
 // subscribed to the given notification type on at least one valid channel.
 func (r *GORMUserRepository) ListActiveUserIDsByNotificationType(ctx context.Context, notificationType string) ([]string, error) {
-	canonicalType, ok := NormalizeNotificationType(notificationType)
+	canonicalType, ok := NormalizeSubscriptionGate(notificationType)
 	if !ok {
 		return []string{}, nil
 	}
@@ -474,7 +474,7 @@ func (r *Resolver) ResolveUser(user User, options DispatchOptions, definition De
 
 func (r *Resolver) resolveUser(user User, options DispatchOptions, definition Definition) ([]Target, error) {
 	channels := append([]string(nil), definition.SupportedChannels...)
-	if definition.SubscriptionType != NotificationTypeUngated {
+	if definition.SubscriptionType != SubscriptionGateUngated {
 		if definition.SubscriptionType == "" {
 			return nil, ErrMissingSubscriptionType
 		}

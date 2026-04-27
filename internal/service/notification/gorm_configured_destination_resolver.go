@@ -35,7 +35,7 @@ func (r *GORMConfiguredDestinationResolver) ResolveConfiguredDestination(ctx con
 
 	var record relational.SystemNotificationDestination
 	result := r.db.WithContext(ctx).
-		Where("notification_type = ? AND provider = ?", lookup.NotificationType, lookup.Provider).
+		Where("notification_type = ? AND provider = ?", lookup.NotificationKind, lookup.Provider).
 		Limit(1).
 		Find(&record)
 	if result.Error != nil {
@@ -68,7 +68,7 @@ func (r *GORMConfiguredDestinationResolver) ResolveConfiguredDestination(ctx con
 }
 
 type configuredDestinationRecordLookup struct {
-	NotificationType string
+	NotificationKind string
 	Provider         string
 }
 
@@ -76,7 +76,7 @@ func configuredDestinationLookup(key string) (configuredDestinationRecordLookup,
 	switch strings.TrimSpace(key) {
 	case configuredDestinationKeySlackDigest:
 		return configuredDestinationRecordLookup{
-			NotificationType: NotificationTypeEvidenceDigest,
+			NotificationKind: string(NotificationKindEvidenceDigest),
 			Provider:         DeliveryChannelSlack,
 		}, true
 	default:

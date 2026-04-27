@@ -122,7 +122,7 @@ func TestHasGlobalDigestDestinations_RequiresConfiguredDestination(t *testing.T)
 	assert.False(t, service.hasGlobalDigestDestinations(context.Background()))
 
 	require.NoError(t, db.Create(&relational.SystemNotificationDestination{
-		NotificationType: notification.NotificationTypeEvidenceDigest,
+		NotificationType: string(notification.NotificationKindEvidenceDigest),
 		Provider:         notification.DeliveryChannelEmail,
 		Target: datatypes.NewJSONType(relational.SystemNotificationTarget{
 			Address: map[string]string{
@@ -140,7 +140,7 @@ func TestDispatchEvidenceDigestNotificationsSupportsMultipleConfiguredDestinatio
 	require.NoError(t, db.AutoMigrate(&relational.SystemNotificationDestination{}))
 
 	require.NoError(t, db.Create(&relational.SystemNotificationDestination{
-		NotificationType: notification.NotificationTypeEvidenceDigest,
+		NotificationType: string(notification.NotificationKindEvidenceDigest),
 		Provider:         notification.DeliveryChannelSlack,
 		Target: datatypes.NewJSONType(relational.SystemNotificationTarget{
 			Address: map[string]string{
@@ -150,7 +150,7 @@ func TestDispatchEvidenceDigestNotificationsSupportsMultipleConfiguredDestinatio
 		}),
 	}).Error)
 	require.NoError(t, db.Create(&relational.SystemNotificationDestination{
-		NotificationType: notification.NotificationTypeEvidenceDigest,
+		NotificationType: string(notification.NotificationKindEvidenceDigest),
 		Provider:         notification.DeliveryChannelEmail,
 		Target: datatypes.NewJSONType(relational.SystemNotificationTarget{
 			Address: map[string]string{
@@ -160,8 +160,8 @@ func TestDispatchEvidenceDigestNotificationsSupportsMultipleConfiguredDestinatio
 	}).Error)
 
 	registry := notification.MustNewRegistry(notification.NewDefinition(
-		evidenceDigestKind,
-		notification.NotificationTypeEvidenceDigest,
+		notification.NotificationKindEvidenceDigest,
+		notification.SubscriptionGateEvidenceDigest,
 		notification.BindRenderer(notification.DeliveryChannelEmail, notification.ProviderRenderer(notification.DeliveryChannelEmail, func(context.Context, any) (any, error) {
 			return emailprovider.Content{From: "from@example.com", Subject: "Digest", TextBody: "body"}, nil
 		})),

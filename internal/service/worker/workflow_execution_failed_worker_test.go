@@ -68,7 +68,7 @@ func TestWorkflowExecutionFailedWorker_SlackSubscribedUser_SendsAllAssociatedCha
 		LastName:    "Owner",
 		SlackUserID: "UWFEXEC1",
 		NotificationSubscriptions: []NotificationSubscription{
-			{NotificationType: notification.NotificationTypeTaskAvailable, Channels: []string{"slack"}},
+			{NotificationType: notification.SubscriptionGateTaskAvailable, Channels: []string{"slack"}},
 		},
 	}
 	mockRepo.On("FindUserByID", ctx, createdByID.String()).Return(user, nil)
@@ -108,7 +108,7 @@ func TestWorkflowExecutionFailedWorker_EmailAndSlackUser_SendsBoth(t *testing.T)
 		LastName:    "Owner",
 		SlackUserID: "UWFEXEC2",
 		NotificationSubscriptions: []NotificationSubscription{
-			{NotificationType: notification.NotificationTypeTaskAvailable, Channels: []string{"email", "slack"}},
+			{NotificationType: notification.SubscriptionGateTaskAvailable, Channels: []string{"email", "slack"}},
 		},
 	}
 	mockRepo.On("FindUserByID", ctx, createdByID.String()).Return(user, nil)

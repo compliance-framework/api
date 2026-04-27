@@ -169,7 +169,7 @@ func (u NotificationUser) FullName() string {
 }
 
 func (u NotificationUser) NotificationChannels(notificationType string) []string {
-	normalizedType, ok := notification.NormalizeNotificationType(notificationType)
+	normalizedType, ok := notification.NormalizeSubscriptionGate(notificationType)
 	if !ok {
 		return nil
 	}
@@ -177,7 +177,7 @@ func (u NotificationUser) NotificationChannels(notificationType string) []string
 	seen := map[string]struct{}{}
 	channels := make([]string, 0)
 	for _, subscription := range u.NotificationSubscriptions {
-		currentType, currentTypeOK := notification.NormalizeNotificationType(subscription.NotificationType)
+		currentType, currentTypeOK := notification.NormalizeSubscriptionGate(subscription.NotificationType)
 		if !currentTypeOK || currentType != normalizedType {
 			continue
 		}

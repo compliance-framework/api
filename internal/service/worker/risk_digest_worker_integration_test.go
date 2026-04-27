@@ -54,7 +54,7 @@ func (suite *RiskOpenDigestIntegrationSuite) TestRiskOpenDigestSchedulerAndWorke
 	}).Error)
 	suite.Require().NoError(suite.DB.Create(&relational.UserNotificationSubscription{
 		UserID:           recipientID.String(),
-		NotificationType: notification.NotificationTypeRiskNotifications,
+		NotificationType: notification.SubscriptionGateRiskNotifications,
 		Channels:         []string{notification.DeliveryChannelEmail},
 	}).Error)
 

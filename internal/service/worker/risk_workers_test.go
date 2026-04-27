@@ -141,7 +141,7 @@ func createTestUserRiskChannels(t *testing.T, db *gorm.DB, id uuid.UUID, channel
 	t.Helper()
 	require.NoError(t, db.Create(&relational.UserNotificationSubscription{
 		UserID:           id.String(),
-		NotificationType: notification.NotificationTypeRiskNotifications,
+		NotificationType: notification.SubscriptionGateRiskNotifications,
 		Channels:         channels,
 	}).Error)
 	if slackUserID == "" {

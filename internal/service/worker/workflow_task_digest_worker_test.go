@@ -29,7 +29,7 @@ func TestWorkflowTaskDigestWorker_DBRequiredAfterUserLookup(t *testing.T) {
 		FirstName: "Alice",
 		NotificationSubscriptions: []NotificationSubscription{
 			{
-				NotificationType: notification.NotificationTypeTaskDailyDigest,
+				NotificationType: notification.SubscriptionGateTaskDailyDigest,
 				Channels:         []string{},
 			},
 		},

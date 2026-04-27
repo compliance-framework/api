@@ -119,7 +119,7 @@ func canonicalSubscriptionType(subscriptionType string) string {
 	if trimmed == "" {
 		return ""
 	}
-	if canonical, ok := NormalizeNotificationType(trimmed); ok {
+	if canonical, ok := NormalizeSubscriptionGate(trimmed); ok {
 		return canonical
 	}
 	return trimmed

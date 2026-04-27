@@ -16,8 +16,6 @@ import (
 	"gorm.io/gorm"
 )
 
-const evidenceDigestKind = notification.Kind(notification.NotificationTypeEvidenceDigest)
-
 type evidenceDigestNotificationModel struct {
 	UserName    string
 	GeneratedAt string
@@ -138,8 +136,8 @@ func NewNotificationService(
 	return notificationRuntime.NewRuntimeFactory(notification.NewGORMConfiguredDestinationResolver(db)).MustNewService(
 		notification.NewGORMUserRepository(db),
 		notification.NewDefinition(
-			evidenceDigestKind,
-			notification.NotificationTypeEvidenceDigest,
+			notification.NotificationKindEvidenceDigest,
+			notification.SubscriptionGateEvidenceDigest,
 			emailprovider.TemplateChannel(func(ctx context.Context, model any) (emailprovider.TemplateContent, error) {
 				return renderEvidenceDigestEmail(ctx, model)
 			}),
@@ -229,7 +227,7 @@ func (s *Service) dispatchEvidenceDigestNotifications(
 		audiences := audiencesForTargets(targets)
 		if len(audiences) > 0 {
 			request.Requests = append(request.Requests, notification.Request{
-				Kind:      evidenceDigestKind,
+				Kind:      notification.NotificationKindEvidenceDigest,
 				Audiences: audiences,
 				Model:     newEvidenceDigestNotificationModel(summary, "", webBaseURL, generatedAt),
 				Options:   dispatchOptions,
@@ -239,7 +237,7 @@ func (s *Service) dispatchEvidenceDigestNotifications(
 
 	if includeSubscribedUsers {
 		request.SubscribedUsers = append(request.SubscribedUsers, notification.SubscribedUsersRequest{
-			Kind:    evidenceDigestKind,
+			Kind:    notification.NotificationKindEvidenceDigest,
 			Options: dispatchOptions,
 			BuildModel: func(_ context.Context, user notification.User) (any, error) {
 				return newEvidenceDigestNotificationModel(summary, user.FirstName, webBaseURL, generatedAt), nil
@@ -269,7 +267,7 @@ func (s *Service) configuredDigestTargets(ctx context.Context) ([]notification.T
 	}
 
 	return notification.NewGORMSystemDestinationRepository(s.db, notificationproviders.NewLookup()).
-		ListTargetsByNotificationType(ctx, notification.NotificationTypeEvidenceDigest)
+		ListTargetsByNotificationType(ctx, string(notification.NotificationKindEvidenceDigest))
 }
 
 func audiencesForTargets(targets []notification.Target) []notification.Audience {

@@ -10,13 +10,6 @@ import (
 	slackprovider "github.com/compliance-framework/api/internal/service/notification/providers/slack"
 )
 
-const (
-	poamDeadlineReminderNotificationKind = notification.Kind(JobTypePoamDeadlineReminder)
-	poamMilestoneOverdueNotificationKind = notification.Kind(JobTypeMilestoneOverdueReminder)
-	poamOverdueNotificationKind          = notification.Kind(JobTypePoamOverdueNotification)
-	poamOpenDigestNotificationKind       = notification.Kind(JobTypePoamOpenDigest)
-)
-
 type poamDeadlineReminderNotificationModel struct {
 	RecipientName  string
 	PoamTitle      string
@@ -73,29 +66,29 @@ func NewPoamNotificationServiceFactory(
 		notificationRuntime: notificationRuntime,
 		definitions: []notification.Definition{
 			newTypedNotificationDefinition(
-				poamDeadlineReminderNotificationKind,
-				notification.NotificationTypeRiskNotifications,
+				notification.NotificationKindPoamDeadlineReminder,
+				notification.SubscriptionGateRiskNotifications,
 				newNotificationModelDecoder[poamDeadlineReminderNotificationModel]("poam deadline reminder model"),
 				renderPoamDeadlineReminderEmail,
 				renderPoamDeadlineReminderSlack,
 			),
 			newTypedNotificationDefinition(
-				poamMilestoneOverdueNotificationKind,
-				notification.NotificationTypeRiskNotifications,
+				notification.NotificationKindPoamMilestoneOverdueReminder,
+				notification.SubscriptionGateRiskNotifications,
 				newNotificationModelDecoder[poamMilestoneOverdueNotificationModel]("poam milestone overdue notification model"),
 				renderPoamMilestoneOverdueNotificationEmail,
 				renderPoamMilestoneOverdueNotificationSlack,
 			),
 			newTypedNotificationDefinition(
-				poamOverdueNotificationKind,
-				notification.NotificationTypeRiskNotifications,
+				notification.NotificationKindPoamOverdueNotification,
+				notification.SubscriptionGateRiskNotifications,
 				newNotificationModelDecoder[poamOverdueNotificationModel]("poam overdue notification model"),
 				renderPoamOverdueNotificationEmail,
 				renderPoamOverdueNotificationSlack,
 			),
 			newTypedEmailOnlyNotificationDefinition(
-				poamOpenDigestNotificationKind,
-				notification.NotificationTypeRiskNotifications,
+				notification.NotificationKindPoamOpenDigest,
+				notification.SubscriptionGateRiskNotifications,
 				newNotificationModelDecoder[poamOpenDigestNotificationModel]("poam open digest model"),
 				renderPoamOpenDigestEmail,
 			),
@@ -108,7 +101,7 @@ func buildPoamMilestoneOverdueNotificationRequest(
 	recipientName string,
 ) notification.Request {
 	return newUserNotificationRequest(
-		poamMilestoneOverdueNotificationKind,
+		notification.NotificationKindPoamMilestoneOverdueReminder,
 		args.RecipientUserID.String(),
 		newPoamMilestoneOverdueNotificationModel(args, recipientName),
 		newJobDispatchOptions(JobTypeMilestoneOverdueReminder, "", args.MilestoneID.String(), args.RecipientUserID.String(), args.WeeklyBucket),
@@ -120,7 +113,7 @@ func buildPoamOverdueNotificationRequest(
 	recipientName string,
 ) notification.Request {
 	return newUserNotificationRequest(
-		poamOverdueNotificationKind,
+		notification.NotificationKindPoamOverdueNotification,
 		args.RecipientUserID.String(),
 		newPoamOverdueNotificationModel(args, recipientName),
 		newJobDispatchOptions(JobTypePoamOverdueNotification, "", args.PoamItemID.String(), args.RecipientUserID.String(), args.OverdueWindow),
@@ -143,7 +136,7 @@ func buildPoamDeadlineReminderNotificationRequest(
 	recipientName string,
 ) notification.Request {
 	return newUserNotificationRequest(
-		poamDeadlineReminderNotificationKind,
+		notification.NotificationKindPoamDeadlineReminder,
 		args.RecipientUserID.String(),
 		newPoamDeadlineReminderNotificationModel(args, recipientName),
 		newJobDispatchOptions(JobTypePoamDeadlineReminder, "", args.PoamItemID.String(), args.RecipientUserID.String(), args.ReminderWindowBucket),
@@ -152,7 +145,7 @@ func buildPoamDeadlineReminderNotificationRequest(
 
 func buildPoamOpenDigestNotificationRequest(args PoamOpenDigestArgs, data poamOpenDigestNotificationData) notification.Request {
 	return newUserNotificationRequest(
-		poamOpenDigestNotificationKind,
+		notification.NotificationKindPoamOpenDigest,
 		args.RecipientUserID.String(),
 		newPoamOpenDigestNotificationModel(data),
 		newJobDispatchOptions(JobTypePoamOpenDigest, "", args.RecipientUserID.String(), args.WindowStart, args.WindowEnd, args.WindowKind),

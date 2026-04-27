@@ -12,13 +12,6 @@ import (
 	"github.com/compliance-framework/api/internal/service/relational/workflows"
 )
 
-const (
-	workflowTaskAssignedNotificationKind    = notification.Kind(JobTypeWorkflowTaskAssigned)
-	workflowTaskDueSoonNotificationKind     = notification.Kind(JobTypeWorkflowTaskDueSoon)
-	workflowTaskDigestNotificationKind      = notification.Kind(JobTypeWorkflowTaskDigest)
-	workflowExecutionFailedNotificationKind = notification.Kind(JobTypeWorkflowExecutionFailed)
-)
-
 type workflowTaskAssignedNotificationModel struct {
 	UserName              string
 	StepTitle             string
@@ -74,29 +67,29 @@ func newWorkflowNotificationServiceFromFactory(
 	return runtimeFactory.MustNewService(
 		users,
 		newTypedNotificationDefinition(
-			workflowTaskAssignedNotificationKind,
-			notification.NotificationTypeTaskAvailable,
+			notification.NotificationKindWorkflowTaskAssigned,
+			notification.SubscriptionGateTaskAvailable,
 			newNotificationModelDecoder[workflowTaskAssignedNotificationModel]("workflow task assigned model"),
 			renderWorkflowTaskAssignedEmail,
 			renderWorkflowTaskAssignedSlack,
 		),
 		newTypedNotificationDefinition(
-			workflowTaskDueSoonNotificationKind,
-			notification.NotificationTypeTaskAvailable,
+			notification.NotificationKindWorkflowTaskDueSoon,
+			notification.SubscriptionGateTaskAvailable,
 			newNotificationModelDecoder[workflowTaskDueSoonNotificationModel]("workflow task due soon model"),
 			renderWorkflowTaskDueSoonEmail,
 			renderWorkflowTaskDueSoonSlack,
 		),
 		newTypedNotificationDefinition(
-			workflowTaskDigestNotificationKind,
-			notification.NotificationTypeTaskDailyDigest,
+			notification.NotificationKindWorkflowTaskDigest,
+			notification.SubscriptionGateTaskDailyDigest,
 			newNotificationModelDecoder[workflowTaskDigestNotificationModel]("workflow task digest model"),
 			renderWorkflowTaskDigestEmail,
 			renderWorkflowTaskDigestSlack,
 		),
 		newTypedNotificationDefinition(
-			workflowExecutionFailedNotificationKind,
-			notification.NotificationTypeUngated,
+			notification.NotificationKindWorkflowExecutionFailed,
+			notification.SubscriptionGateUngated,
 			newNotificationModelDecoder[workflowExecutionFailedNotificationModel]("workflow execution failed model"),
 			renderWorkflowExecutionFailedEmail,
 			renderWorkflowExecutionFailedSlack,
@@ -164,19 +157,19 @@ func buildWorkflowTaskAssignedNotificationRequest(args WorkflowTaskAssignedArgs,
 	options := taskAvailableDispatchOptions(JobTypeWorkflowTaskAssigned, args.Channel, args.StepExecutionID)
 	if args.AssignedToType == workflows.AssignmentTypeEmail.String() {
 		return newDirectEmailNotificationRequest(
-			workflowTaskAssignedNotificationKind,
+			notification.NotificationKindWorkflowTaskAssigned,
 			args.UserID,
 			model,
 			options,
 		)
 	}
 
-	return newUserNotificationRequest(workflowTaskAssignedNotificationKind, args.UserID, model, options)
+	return newUserNotificationRequest(notification.NotificationKindWorkflowTaskAssigned, args.UserID, model, options)
 }
 
 func buildWorkflowTaskDueSoonNotificationRequest(args WorkflowTaskDueSoonArgs, userName, webBaseURL string) notification.Request {
 	return newUserNotificationRequest(
-		workflowTaskDueSoonNotificationKind,
+		notification.NotificationKindWorkflowTaskDueSoon,
 		args.UserID,
 		newWorkflowTaskDueSoonNotificationModel(args, userName, webBaseURL),
 		taskAvailableDispatchOptions(JobTypeWorkflowTaskDueSoon, args.Channel, args.StepExecutionID),
@@ -185,7 +178,7 @@ func buildWorkflowTaskDueSoonNotificationRequest(args WorkflowTaskDueSoonArgs, u
 
 func buildWorkflowTaskDigestNotificationRequest(args WorkflowTaskDigestArgs, data digestNotificationData) notification.Request {
 	return newUserNotificationRequest(
-		workflowTaskDigestNotificationKind,
+		notification.NotificationKindWorkflowTaskDigest,
 		args.UserID,
 		newWorkflowTaskDigestNotificationModel(data),
 		newJobDispatchOptions(
@@ -203,7 +196,7 @@ func buildWorkflowExecutionFailedNotificationRequest(
 	data workflowExecutionFailedNotificationModel,
 ) notification.Request {
 	return newUserNotificationRequest(
-		workflowExecutionFailedNotificationKind,
+		notification.NotificationKindWorkflowExecutionFailed,
 		recipientUserID,
 		newWorkflowExecutionFailedNotificationModel(data),
 		newJobDispatchOptions(JobTypeWorkflowExecutionFailed, "", args.WorkflowExecutionID),

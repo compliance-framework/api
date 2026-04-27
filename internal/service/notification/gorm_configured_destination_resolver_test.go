@@ -25,7 +25,7 @@ func TestGORMConfiguredDestinationResolverResolveConfiguredDestination(t *testin
 	require.NoError(t, db.AutoMigrate(&relational.SystemNotificationDestination{}))
 
 	record := relational.SystemNotificationDestination{
-		NotificationType: NotificationTypeEvidenceDigest,
+		NotificationType: string(NotificationKindEvidenceDigest),
 		Provider:         DeliveryChannelSlack,
 		Target: datatypes.NewJSONType(relational.SystemNotificationTarget{
 			Address: map[string]string{

@@ -18,7 +18,7 @@ func TestGORMSystemDestinationRepositoryListTargetsByNotificationTypeExpandsTarg
 	db := newNotificationSystemDestinationTestDB(t)
 
 	require.NoError(t, db.Create(&relational.SystemNotificationDestination{
-		NotificationType: notification.NotificationTypeEvidenceDigest,
+		NotificationType: string(notification.NotificationKindEvidenceDigest),
 		Provider:         notification.DeliveryChannelSlack,
 		Target: datatypes.NewJSONType(relational.SystemNotificationTarget{
 			Address: map[string]string{
@@ -29,7 +29,7 @@ func TestGORMSystemDestinationRepositoryListTargetsByNotificationTypeExpandsTarg
 	}).Error)
 
 	repo := notification.NewGORMSystemDestinationRepository(db, notificationproviders.NewLookup())
-	targets, err := repo.ListTargetsByNotificationType(context.Background(), notification.NotificationTypeEvidenceDigest)
+	targets, err := repo.ListTargetsByNotificationType(context.Background(), string(notification.NotificationKindEvidenceDigest))
 	require.NoError(t, err)
 	require.Len(t, targets, 1)
 
@@ -42,7 +42,7 @@ func TestGORMSystemDestinationRepositoryListTargetsByNotificationTypeExpandsMult
 	db := newNotificationSystemDestinationTestDB(t)
 
 	require.NoError(t, db.Create(&relational.SystemNotificationDestination{
-		NotificationType: notification.NotificationTypeEvidenceDigest,
+		NotificationType: string(notification.NotificationKindEvidenceDigest),
 		Provider:         notification.DeliveryChannelSlack,
 		Target: datatypes.NewJSONType(relational.SystemNotificationTarget{
 			Address: map[string]string{
@@ -52,7 +52,7 @@ func TestGORMSystemDestinationRepositoryListTargetsByNotificationTypeExpandsMult
 		}),
 	}).Error)
 	require.NoError(t, db.Create(&relational.SystemNotificationDestination{
-		NotificationType: notification.NotificationTypeEvidenceDigest,
+		NotificationType: string(notification.NotificationKindEvidenceDigest),
 		Provider:         notification.DeliveryChannelSlack,
 		Target: datatypes.NewJSONType(relational.SystemNotificationTarget{
 			Address: map[string]string{
@@ -63,7 +63,7 @@ func TestGORMSystemDestinationRepositoryListTargetsByNotificationTypeExpandsMult
 	}).Error)
 
 	repo := notification.NewGORMSystemDestinationRepository(db, notificationproviders.NewLookup())
-	targets, err := repo.ListTargetsByNotificationType(context.Background(), notification.NotificationTypeEvidenceDigest)
+	targets, err := repo.ListTargetsByNotificationType(context.Background(), string(notification.NotificationKindEvidenceDigest))
 	require.NoError(t, err)
 	require.Len(t, targets, 2)
 
@@ -75,7 +75,7 @@ func TestGORMSystemDestinationRepositoryListTargetsByNotificationTypeDeduplicate
 	db := newNotificationSystemDestinationTestDB(t)
 
 	require.NoError(t, db.Create(&relational.SystemNotificationDestination{
-		NotificationType: notification.NotificationTypeEvidenceDigest,
+		NotificationType: string(notification.NotificationKindEvidenceDigest),
 		Provider:         notification.DeliveryChannelSlack,
 		Target: datatypes.NewJSONType(relational.SystemNotificationTarget{
 			Address: map[string]string{
@@ -85,7 +85,7 @@ func TestGORMSystemDestinationRepositoryListTargetsByNotificationTypeDeduplicate
 		}),
 	}).Error)
 	require.NoError(t, db.Create(&relational.SystemNotificationDestination{
-		NotificationType: notification.NotificationTypeEvidenceDigest,
+		NotificationType: string(notification.NotificationKindEvidenceDigest),
 		Provider:         notification.DeliveryChannelSlack,
 		Target: datatypes.NewJSONType(relational.SystemNotificationTarget{
 			Address: map[string]string{
@@ -96,7 +96,7 @@ func TestGORMSystemDestinationRepositoryListTargetsByNotificationTypeDeduplicate
 	}).Error)
 
 	repo := notification.NewGORMSystemDestinationRepository(db, notificationproviders.NewLookup())
-	targets, err := repo.ListTargetsByNotificationType(context.Background(), notification.NotificationTypeEvidenceDigest)
+	targets, err := repo.ListTargetsByNotificationType(context.Background(), string(notification.NotificationKindEvidenceDigest))
 	require.NoError(t, err)
 	require.Len(t, targets, 1)
 	assert.Equal(t, "C-DIGEST", targets[0].Address["channel"])
@@ -106,7 +106,7 @@ func TestGORMSystemDestinationRepositoryListTargetsByNotificationTypeRejectsInva
 	db := newNotificationSystemDestinationTestDB(t)
 
 	require.NoError(t, db.Create(&relational.SystemNotificationDestination{
-		NotificationType: notification.NotificationTypeEvidenceDigest,
+		NotificationType: string(notification.NotificationKindEvidenceDigest),
 		Provider:         notification.DeliveryChannelSlack,
 		Target: datatypes.NewJSONType(relational.SystemNotificationTarget{
 			Address: map[string]string{
@@ -116,7 +116,7 @@ func TestGORMSystemDestinationRepositoryListTargetsByNotificationTypeRejectsInva
 	}).Error)
 
 	repo := notification.NewGORMSystemDestinationRepository(db, notificationproviders.NewLookup())
-	_, err := repo.ListTargetsByNotificationType(context.Background(), notification.NotificationTypeEvidenceDigest)
+	_, err := repo.ListTargetsByNotificationType(context.Background(), string(notification.NotificationKindEvidenceDigest))
 	require.Error(t, err)
 	assert.ErrorContains(t, err, "invalid system notification destination")
 }

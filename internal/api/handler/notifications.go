@@ -181,10 +181,10 @@ func (h *NotificationsHandler) ListSystemNotifications(ctx echo.Context) error {
 	seenDestinations := make(map[string]struct{})
 
 	for i := range rows {
-		name, ok := notification.NormalizeNotificationType(rows[i].NotificationType)
+		kind, ok := notification.NormalizeSystemNotificationKind(rows[i].NotificationType)
 		if !ok {
-			err := fmt.Errorf("unsupported notification type %q", rows[i].NotificationType)
-			h.sugar.Errorw("Invalid configured system notification type", "error", err, "notificationType", rows[i].NotificationType)
+			err := fmt.Errorf("unsupported notification kind %q", rows[i].NotificationType)
+			h.sugar.Errorw("Invalid configured system notification kind", "error", err, "notificationKind", rows[i].NotificationType)
 			return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 		}
 
@@ -193,12 +193,13 @@ func (h *NotificationsHandler) ListSystemNotifications(ctx echo.Context) error {
 			h.sugar.Errorw(
 				"Invalid configured system notification destination",
 				"error", err,
-				"notificationType", name,
+				"notificationKind", kind,
 				"provider", rows[i].Provider,
 			)
 			return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 		}
 
+		name := string(kind)
 		destinationKey := name + ":" + destination.ProviderType + ":" + destination.DestinationTarget
 		if _, exists := seenDestinations[destinationKey]; exists {
 			continue
@@ -251,10 +252,10 @@ func (h *NotificationsHandler) ListSystemNotifications(ctx echo.Context) error {
 //	@Router			/admin/notifications/{notificationName}/destinations [post]
 func (h *NotificationsHandler) CreateSystemNotificationDestination(ctx echo.Context) error {
 	notificationName := ctx.Param("notificationName")
-	canonicalType, ok := notification.NormalizeNotificationType(notificationName)
+	canonicalKind, ok := notification.NormalizeSystemNotificationKind(notificationName)
 	if !ok {
-		err := fmt.Errorf("unsupported notification type %q", notificationName)
-		h.sugar.Warnw("Invalid system notification type", "error", err, "notificationName", notificationName)
+		err := fmt.Errorf("unsupported notification kind %q", notificationName)
+		h.sugar.Warnw("Invalid system notification kind", "error", err, "notificationName", notificationName)
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 
@@ -280,18 +281,18 @@ func (h *NotificationsHandler) CreateSystemNotificationDestination(ctx echo.Cont
 			"Invalid system notification destination target",
 			"error", err,
 			"provider", provider,
-			"notificationType", canonicalType,
+			"notificationKind", canonicalKind,
 		)
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 
-	exists, err := h.destinationExists(ctx.Request().Context(), canonicalType, target)
+	exists, err := h.destinationExists(ctx.Request().Context(), string(canonicalKind), target)
 	if err != nil {
 		h.sugar.Errorw(
 			"Failed to check existing system notification destinations",
 			"error", err,
 			"provider", provider,
-			"notificationType", canonicalType,
+			"notificationKind", canonicalKind,
 		)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
@@ -303,7 +304,7 @@ func (h *NotificationsHandler) CreateSystemNotificationDestination(ctx echo.Cont
 	}
 
 	row := relational.SystemNotificationDestination{
-		NotificationType: canonicalType,
+		NotificationType: string(canonicalKind),
 		Provider:         provider,
 		Target: datatypes.NewJSONType(relational.SystemNotificationTarget{
 			Address: target.Address,
@@ -314,7 +315,7 @@ func (h *NotificationsHandler) CreateSystemNotificationDestination(ctx echo.Cont
 			"Failed to create system notification destination",
 			"error", err,
 			"provider", provider,
-			"notificationType", canonicalType,
+			"notificationKind", canonicalKind,
 		)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
@@ -325,7 +326,7 @@ func (h *NotificationsHandler) CreateSystemNotificationDestination(ctx echo.Cont
 			"Failed to build created system notification destination response",
 			"error", err,
 			"provider", provider,
-			"notificationType", canonicalType,
+			"notificationKind", canonicalKind,
 		)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
@@ -351,10 +352,10 @@ func (h *NotificationsHandler) CreateSystemNotificationDestination(ctx echo.Cont
 //	@Router			/admin/notifications/{notificationName}/destinations [delete]
 func (h *NotificationsHandler) DeleteSystemNotificationDestination(ctx echo.Context) error {
 	notificationName := ctx.Param("notificationName")
-	canonicalType, ok := notification.NormalizeNotificationType(notificationName)
+	canonicalKind, ok := notification.NormalizeSystemNotificationKind(notificationName)
 	if !ok {
-		err := fmt.Errorf("unsupported notification type %q", notificationName)
-		h.sugar.Warnw("Invalid system notification type", "error", err, "notificationName", notificationName)
+		err := fmt.Errorf("unsupported notification kind %q", notificationName)
+		h.sugar.Warnw("Invalid system notification kind", "error", err, "notificationName", notificationName)
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 
@@ -380,18 +381,18 @@ func (h *NotificationsHandler) DeleteSystemNotificationDestination(ctx echo.Cont
 			"Invalid system notification destination target",
 			"error", err,
 			"provider", provider,
-			"notificationType", canonicalType,
+			"notificationKind", canonicalKind,
 		)
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 
-	rows, err := h.findDestinationRows(ctx.Request().Context(), canonicalType, target)
+	rows, err := h.findDestinationRows(ctx.Request().Context(), string(canonicalKind), target)
 	if err != nil {
 		h.sugar.Errorw(
 			"Failed to find system notification destinations for delete",
 			"error", err,
 			"provider", provider,
-			"notificationType", canonicalType,
+			"notificationKind", canonicalKind,
 		)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
@@ -411,7 +412,7 @@ func (h *NotificationsHandler) DeleteSystemNotificationDestination(ctx echo.Cont
 			"Failed to delete system notification destination",
 			"error", err,
 			"provider", provider,
-			"notificationType", canonicalType,
+			"notificationKind", canonicalKind,
 		)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}

@@ -26,7 +26,7 @@ func TestRegistryRegisterNormalizesDefinition(t *testing.T) {
 
 	definition, ok := registry.Definition(Kind("risk_review_due"))
 	require.True(t, ok)
-	assert.Equal(t, NotificationTypeRiskNotifications, definition.SubscriptionType)
+	assert.Equal(t, SubscriptionGateRiskNotifications, definition.SubscriptionType)
 	assert.Equal(t, []string{DeliveryChannelEmail, DeliveryChannelSlack}, definition.SupportedChannels)
 }
 
