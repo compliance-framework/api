@@ -24,6 +24,9 @@ ENVTEST_K8S_VERSION = 1.26.1
 TEST_PATH ?= ./...
 # Number of times to run integration tests (set >1 to hunt flakes)
 INTEGRATION_RUNS ?= 1
+# Optional value for go test -parallel, e.g. `make test parallel=2`
+parallel ?=
+GO_TEST_PARALLEL_FLAG := $(if $(parallel),-parallel=$(parallel),)
 
 BLUE         := $(shell printf "\033[34m")
 YELLOW       := $(shell printf "\033[33m")
@@ -57,15 +60,15 @@ all: build
 
 ##@ Test
 .PHONY: test
-test: swag  ## Run tests
-	@if ! go test ./... -coverprofile cover.out -v; then \
+test: ## Run tests
+	@if ! go test $(GO_TEST_PARALLEL_FLAG) ./... -coverprofile cover.out -v; then \
 		$(WARN) "Tests failed"; \
 		exit 1; \
 	fi ; \
 	$(OK) Tests passed
 
 .PHONY:   test-integration
-test-integration: swag  ## Run integration tests (set INTEGRATION_RUNS>1 for flakiness detection)
+test-integration:  ## Run integration tests (set INTEGRATION_RUNS>1 for flakiness detection)
 	@failed_tests=""; \
 	any_failure=0; \
 	temp_output=$$(mktemp); \
@@ -76,7 +79,7 @@ test-integration: swag  ## Run integration tests (set INTEGRATION_RUNS>1 for fla
 		if [ "$$run" -eq "$(INTEGRATION_RUNS)" ]; then \
 			coverprofile_flag="-coverprofile cover.out"; \
 		fi; \
-		if ! go test $(TEST_PATH) -count=1 $$coverprofile_flag -v --tags integration 2>&1 | tee "$$temp_output"; then \
+		if ! go test $(GO_TEST_PARALLEL_FLAG) $(TEST_PATH) -count=1 $$coverprofile_flag -v --tags integration 2>&1 | tee "$$temp_output"; then \
 			$(WARN) "Tests failed on run $$run"; \
 			any_failure=1; \
 			run_failed_tests=$$(grep "^--- FAIL:" "$$temp_output" | sed 's/^--- FAIL: //'); \
@@ -110,7 +113,7 @@ ifndef TEST_NAME
 endif
 	@$(INFO) "Running integration test: $(TEST_NAME) in path: $(TEST_PATH)"
 
-	@if ! go test $(TEST_PATH) -coverprofile cover.out -v --tags integration --run $(TEST_NAME); then \
+	@if ! go test $(GO_TEST_PARALLEL_FLAG) $(TEST_PATH) -coverprofile cover.out -v --tags integration --run $(TEST_NAME); then \
 		$(WARN) "Tests failed"; \
 		exit 1; \
 	fi ; \
@@ -138,7 +141,7 @@ lint: lint.check ## Run golangci-lint
 
 ##@ Run
 .PHONY: reviewable
-reviewable: lint test-integration # Ensure a PR is ready for review.
+reviewable: swag lint test-integration # Ensure a PR is ready for review.
 	@go mod tidy
 
 .PHONY: check-diff
