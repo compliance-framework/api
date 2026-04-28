@@ -24,72 +24,91 @@ func TestNormalizeDeliveryChannels_EmptyIsInvalid(t *testing.T) {
 	assert.Equal(t, 1, len(invalid))
 }
 
-func TestNormalizeNotificationType(t *testing.T) {
-	normalized, ok := NormalizeNotificationType(" Task_Available ")
+func TestNormalizeSubscriptionGate(t *testing.T) {
+	normalized, ok := NormalizeSubscriptionGate(" Task_Available ")
 	assert.True(t, ok)
-	assert.Equal(t, NotificationTypeTaskAvailable, normalized)
+	assert.Equal(t, SubscriptionGateTaskAvailable, normalized)
 }
 
-func TestNormalizeNotificationType_EvidenceDigest(t *testing.T) {
-	normalized, ok := NormalizeNotificationType(" Evidence_Digest ")
+func TestNormalizeSubscriptionGate_EvidenceDigest(t *testing.T) {
+	normalized, ok := NormalizeSubscriptionGate(" Evidence_Digest ")
 	assert.True(t, ok)
-	assert.Equal(t, NotificationTypeEvidenceDigest, normalized)
+	assert.Equal(t, SubscriptionGateEvidenceDigest, normalized)
 }
 
-func TestNormalizeNotificationType_TaskDailyDigest(t *testing.T) {
-	normalized, ok := NormalizeNotificationType(" Task_Daily_Digest ")
+func TestNormalizeSubscriptionGate_TaskDailyDigest(t *testing.T) {
+	normalized, ok := NormalizeSubscriptionGate(" Task_Daily_Digest ")
 	assert.True(t, ok)
-	assert.Equal(t, NotificationTypeTaskDailyDigest, normalized)
+	assert.Equal(t, SubscriptionGateTaskDailyDigest, normalized)
 }
 
-func TestNormalizeNotificationType_RiskNotifications(t *testing.T) {
-	normalized, ok := NormalizeNotificationType(" Risk_Notifications ")
+func TestNormalizeSubscriptionGate_RiskNotifications(t *testing.T) {
+	normalized, ok := NormalizeSubscriptionGate(" Risk_Notifications ")
 	assert.True(t, ok)
-	assert.Equal(t, NotificationTypeRiskNotifications, normalized)
+	assert.Equal(t, SubscriptionGateRiskNotifications, normalized)
 }
 
-func TestNormalizeNotificationType_CamelCaseAliases(t *testing.T) {
-	normalized, ok := NormalizeNotificationType(" taskAvailable ")
+func TestNormalizeSubscriptionGate_CamelCaseAliases(t *testing.T) {
+	normalized, ok := NormalizeSubscriptionGate(" taskAvailable ")
 	assert.True(t, ok)
-	assert.Equal(t, NotificationTypeTaskAvailable, normalized)
+	assert.Equal(t, SubscriptionGateTaskAvailable, normalized)
 
-	normalized, ok = NormalizeNotificationType(" evidenceDigest ")
+	normalized, ok = NormalizeSubscriptionGate(" evidenceDigest ")
 	assert.True(t, ok)
-	assert.Equal(t, NotificationTypeEvidenceDigest, normalized)
+	assert.Equal(t, SubscriptionGateEvidenceDigest, normalized)
 
-	normalized, ok = NormalizeNotificationType(" taskDailyDigest ")
+	normalized, ok = NormalizeSubscriptionGate(" taskDailyDigest ")
 	assert.True(t, ok)
-	assert.Equal(t, NotificationTypeTaskDailyDigest, normalized)
+	assert.Equal(t, SubscriptionGateTaskDailyDigest, normalized)
 
-	normalized, ok = NormalizeNotificationType(" riskNotifications ")
+	normalized, ok = NormalizeSubscriptionGate(" riskNotifications ")
 	assert.True(t, ok)
-	assert.Equal(t, NotificationTypeRiskNotifications, normalized)
+	assert.Equal(t, SubscriptionGateRiskNotifications, normalized)
 }
 
-func TestWireNotificationType(t *testing.T) {
-	wireType, ok := WireNotificationType(" task_available ")
+func TestWireSubscriptionGate(t *testing.T) {
+	wireType, ok := WireSubscriptionGate(" task_available ")
 	assert.True(t, ok)
-	assert.Equal(t, NotificationTypeTaskAvailableWire, wireType)
+	assert.Equal(t, SubscriptionGateTaskAvailableWire, wireType)
 
-	wireType, ok = WireNotificationType(" evidenceDigest ")
+	wireType, ok = WireSubscriptionGate(" evidenceDigest ")
 	assert.True(t, ok)
-	assert.Equal(t, NotificationTypeEvidenceDigestWire, wireType)
+	assert.Equal(t, SubscriptionGateEvidenceDigestWire, wireType)
 
-	wireType, ok = WireNotificationType(" taskDailyDigest ")
+	wireType, ok = WireSubscriptionGate(" taskDailyDigest ")
 	assert.True(t, ok)
-	assert.Equal(t, NotificationTypeTaskDailyDigestWire, wireType)
+	assert.Equal(t, SubscriptionGateTaskDailyDigestWire, wireType)
 
-	wireType, ok = WireNotificationType(" risk_notifications ")
+	wireType, ok = WireSubscriptionGate(" risk_notifications ")
 	assert.True(t, ok)
-	assert.Equal(t, NotificationTypeRiskNotificationsWire, wireType)
+	assert.Equal(t, SubscriptionGateRiskNotificationsWire, wireType)
 }
 
-func TestNormalizeNotificationType_Invalid(t *testing.T) {
-	normalized, ok := NormalizeNotificationType("risk_opened")
+func TestNormalizeSubscriptionGate_Invalid(t *testing.T) {
+	normalized, ok := NormalizeSubscriptionGate("risk_opened")
 	assert.False(t, ok)
 	assert.Equal(t, "", normalized)
 }
 
-func TestSystemNotificationTypes(t *testing.T) {
-	assert.Equal(t, []string{NotificationTypeEvidenceDigest}, SystemNotificationTypes())
+func TestNormalizeSystemNotificationName(t *testing.T) {
+	normalized, ok := NormalizeSystemNotificationName(" workflowExecutionFailed ")
+	assert.True(t, ok)
+	assert.Equal(t, SystemNotificationNameWorkflowExecutionFailed, normalized)
+
+	normalized, ok = NormalizeSystemNotificationName(" TASK_AVAILABLE ")
+	assert.True(t, ok)
+	assert.Equal(t, SystemNotificationNameTaskAvailable, normalized)
+}
+
+func TestNormalizeSystemNotificationNameRejectsUnsupportedName(t *testing.T) {
+	normalized, ok := NormalizeSystemNotificationName("risk_opened")
+	assert.False(t, ok)
+	assert.Equal(t, "", normalized)
+}
+
+func TestSystemNotificationNames(t *testing.T) {
+	assert.Equal(t, []string{
+		SystemNotificationNameEvidenceDigest,
+		SystemNotificationNameWorkflowExecutionFailed,
+	}, SystemNotificationNames())
 }

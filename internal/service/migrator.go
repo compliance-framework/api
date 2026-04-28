@@ -265,14 +265,14 @@ func migrateLegacySystemNotificationDestinations(db *gorm.DB, cfg *config.Config
 
 	var existing relational.SystemNotificationDestination
 	if err := db.
-		Where("notification_type = ? AND provider = ?", notification.NotificationTypeEvidenceDigest, notification.DeliveryChannelSlack).
+		Where("notification_type = ? AND provider = ?", notification.SubscriptionGateEvidenceDigest, notification.DeliveryChannelSlack).
 		First(&existing).Error; err != nil {
 		if !errors.Is(err, gorm.ErrRecordNotFound) {
 			return fmt.Errorf("failed to query existing system notification destination %q: %w", slackprovider.ConfiguredDestinationDigestChan, err)
 		}
 
 		row := relational.SystemNotificationDestination{
-			NotificationType: notification.NotificationTypeEvidenceDigest,
+			NotificationType: notification.SubscriptionGateEvidenceDigest,
 			Provider:         notification.DeliveryChannelSlack,
 			Target: datatypes.NewJSONType(relational.SystemNotificationTarget{
 				Address: map[string]string{
@@ -322,7 +322,7 @@ func migrateLegacyTaskAvailableEmailSubscriptions(db *gorm.DB) error {
 	if err := backfillLegacyNotificationSubscriptions(
 		db,
 		"task_available_email_subscribed",
-		notification.NotificationTypeTaskAvailable,
+		notification.SubscriptionGateTaskAvailable,
 		"task-available email",
 	); err != nil {
 		return err
@@ -344,7 +344,7 @@ func migrateLegacyDigestSubscriptions(db *gorm.DB) error {
 	if err := backfillLegacyNotificationSubscriptions(
 		db,
 		"digest_subscribed",
-		notification.NotificationTypeEvidenceDigest,
+		notification.SubscriptionGateEvidenceDigest,
 		"evidence digest",
 	); err != nil {
 		return err
@@ -366,7 +366,7 @@ func migrateLegacyTaskDailyDigestSubscriptions(db *gorm.DB) error {
 	if err := backfillLegacyNotificationSubscriptions(
 		db,
 		"task_daily_digest_subscribed",
-		notification.NotificationTypeTaskDailyDigest,
+		notification.SubscriptionGateTaskDailyDigest,
 		"task daily digest",
 	); err != nil {
 		return err
@@ -388,7 +388,7 @@ func migrateLegacyRiskNotificationSubscriptions(db *gorm.DB) error {
 	if err := backfillLegacyNotificationSubscriptions(
 		db,
 		"risk_notifications_subscribed",
-		notification.NotificationTypeRiskNotifications,
+		notification.SubscriptionGateRiskNotifications,
 		"risk notifications",
 	); err != nil {
 		return err

@@ -30,7 +30,7 @@ func (t *stubTransport) byChannel(channel string) []Delivery {
 func TestServiceDispatchEnqueuesProviderReadyDeliveries(t *testing.T) {
 	registry := MustNewRegistry(Definition{
 		Kind:              Kind("risk_review_due"),
-		SubscriptionType:  NotificationTypeRiskNotifications,
+		SubscriptionGate:  SubscriptionGateRiskNotifications,
 		SupportedChannels: []string{DeliveryChannelEmail, DeliveryChannelSlack},
 		Renderers: map[string]ChannelRenderer{
 			DeliveryChannelEmail: ProviderRenderer(DeliveryChannelEmail, func(context.Context, any) (any, error) {
@@ -53,7 +53,7 @@ func TestServiceDispatchEnqueuesProviderReadyDeliveries(t *testing.T) {
 				},
 				Subscriptions: []UserSubscription{
 					{
-						NotificationType: NotificationTypeRiskNotifications,
+						NotificationType: SubscriptionGateRiskNotifications,
 						Channels:         []string{DeliveryChannelEmail, DeliveryChannelSlack},
 					},
 				},
@@ -106,7 +106,7 @@ func TestServiceDispatchEnqueuesProviderReadyDeliveries(t *testing.T) {
 func TestServiceDispatchNoTargetsBecomesNoop(t *testing.T) {
 	registry := MustNewRegistry(Definition{
 		Kind:              Kind("risk_review_due"),
-		SubscriptionType:  NotificationTypeRiskNotifications,
+		SubscriptionGate:  SubscriptionGateRiskNotifications,
 		SupportedChannels: []string{DeliveryChannelSlack},
 		Renderers: map[string]ChannelRenderer{
 			DeliveryChannelSlack: ProviderRenderer(DeliveryChannelSlack, func(context.Context, any) (any, error) {
@@ -122,7 +122,7 @@ func TestServiceDispatchNoTargetsBecomesNoop(t *testing.T) {
 				Email: "user@example.com",
 				Subscriptions: []UserSubscription{
 					{
-						NotificationType: NotificationTypeRiskNotifications,
+						NotificationType: SubscriptionGateRiskNotifications,
 						Channels:         []string{DeliveryChannelSlack},
 					},
 				},
@@ -161,7 +161,7 @@ func TestServiceDispatchReturnsDefinitionErrorForUnknownKind(t *testing.T) {
 func TestServiceDispatchFanoutSubscribedUsersBuildsPerUserDeliveries(t *testing.T) {
 	registry := MustNewRegistry(Definition{
 		Kind:              Kind("evidence_digest"),
-		SubscriptionType:  NotificationTypeEvidenceDigest,
+		SubscriptionGate:  SubscriptionGateEvidenceDigest,
 		SupportedChannels: []string{DeliveryChannelEmail, DeliveryChannelSlack},
 		Renderers: map[string]ChannelRenderer{
 			DeliveryChannelEmail: ProviderRenderer(DeliveryChannelEmail, func(_ context.Context, model any) (any, error) {
@@ -187,7 +187,7 @@ func TestServiceDispatchFanoutSubscribedUsersBuildsPerUserDeliveries(t *testing.
 				},
 				Subscriptions: []UserSubscription{
 					{
-						NotificationType: NotificationTypeEvidenceDigest,
+						NotificationType: SubscriptionGateEvidenceDigest,
 						Channels:         []string{DeliveryChannelEmail, DeliveryChannelSlack},
 					},
 				},
@@ -201,7 +201,7 @@ func TestServiceDispatchFanoutSubscribedUsersBuildsPerUserDeliveries(t *testing.
 				},
 				Subscriptions: []UserSubscription{
 					{
-						NotificationType: NotificationTypeEvidenceDigest,
+						NotificationType: SubscriptionGateEvidenceDigest,
 						Channels:         []string{DeliveryChannelEmail},
 					},
 				},
@@ -251,7 +251,7 @@ func TestServiceDispatchFanoutSubscribedUsersBuildsPerUserDeliveries(t *testing.
 func TestServiceDispatchFanoutSupportsSharedAndSubscribedRequests(t *testing.T) {
 	registry := MustNewRegistry(Definition{
 		Kind:              Kind("evidence_digest"),
-		SubscriptionType:  NotificationTypeEvidenceDigest,
+		SubscriptionGate:  SubscriptionGateEvidenceDigest,
 		SupportedChannels: []string{DeliveryChannelEmail, DeliveryChannelSlack},
 		Renderers: map[string]ChannelRenderer{
 			DeliveryChannelEmail: ProviderRenderer(DeliveryChannelEmail, func(_ context.Context, model any) (any, error) {
@@ -274,7 +274,7 @@ func TestServiceDispatchFanoutSupportsSharedAndSubscribedRequests(t *testing.T) 
 				},
 				Subscriptions: []UserSubscription{
 					{
-						NotificationType: NotificationTypeEvidenceDigest,
+						NotificationType: SubscriptionGateEvidenceDigest,
 						Channels:         []string{DeliveryChannelEmail},
 					},
 				},

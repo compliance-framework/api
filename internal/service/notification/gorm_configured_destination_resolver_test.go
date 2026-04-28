@@ -26,7 +26,7 @@ func TestGORMConfiguredDestinationResolverResolveConfiguredDestination(t *testin
 	require.NoError(t, db.AutoMigrate(&relational.SystemNotificationDestination{}))
 
 	record := relational.SystemNotificationDestination{
-		NotificationType: NotificationTypeEvidenceDigest,
+		NotificationType: SubscriptionGateEvidenceDigest,
 		Provider:         DeliveryChannelSlack,
 		Target: datatypes.NewJSONType(relational.SystemNotificationTarget{
 			Address: map[string]string{
@@ -57,7 +57,7 @@ func TestGORMConfiguredDestinationResolverResolveConfiguredDestinationUsesNewest
 	require.NoError(t, db.Create(&relational.SystemNotificationDestination{
 		CreatedAt:        older,
 		UpdatedAt:        older,
-		NotificationType: NotificationTypeEvidenceDigest,
+		NotificationType: SubscriptionGateEvidenceDigest,
 		Provider:         DeliveryChannelSlack,
 		Target: datatypes.NewJSONType(relational.SystemNotificationTarget{
 			Address: map[string]string{
@@ -69,7 +69,7 @@ func TestGORMConfiguredDestinationResolverResolveConfiguredDestinationUsesNewest
 	require.NoError(t, db.Create(&relational.SystemNotificationDestination{
 		CreatedAt:        newer,
 		UpdatedAt:        newer,
-		NotificationType: NotificationTypeEvidenceDigest,
+		NotificationType: SubscriptionGateEvidenceDigest,
 		Provider:         DeliveryChannelSlack,
 		Target: datatypes.NewJSONType(relational.SystemNotificationTarget{
 			Address: map[string]string{

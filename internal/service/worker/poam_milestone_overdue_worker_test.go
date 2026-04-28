@@ -28,7 +28,7 @@ func TestMilestoneOverdueReminderWorker_SlackSubscribedUser_SendsSlack(t *testin
 		LastName:    "Person",
 		SlackUserID: "USLACKPOAM5",
 		NotificationSubscriptions: []NotificationSubscription{
-			{NotificationType: notification.NotificationTypeRiskNotifications, Channels: []string{"slack"}},
+			{NotificationType: notification.SubscriptionGateRiskNotifications, Channels: []string{"slack"}},
 		},
 	}
 	mockRepo.On("FindUserByID", ctx, recipientUserID).Return(user, nil)
@@ -78,7 +78,7 @@ func TestMilestoneOverdueReminderWorker_EmailAndSlackSubscribedUser_SendsBoth(t 
 		LastName:    "Person",
 		SlackUserID: "USLACKPOAM6",
 		NotificationSubscriptions: []NotificationSubscription{
-			{NotificationType: notification.NotificationTypeRiskNotifications, Channels: []string{"email", "slack"}},
+			{NotificationType: notification.SubscriptionGateRiskNotifications, Channels: []string{"email", "slack"}},
 		},
 	}
 	mockRepo.On("FindUserByID", ctx, recipientUserID).Return(user, nil)

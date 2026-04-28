@@ -148,7 +148,7 @@ func (suite *NotificationsApiIntegrationSuite) TestListNotificationProviderStatu
 
 func (suite *NotificationsApiIntegrationSuite) TestListSystemNotifications() {
 	suite.Require().NoError(suite.DB.Create(&relational.SystemNotificationDestination{
-		NotificationType: notification.NotificationTypeEvidenceDigest,
+		NotificationType: notification.SubscriptionGateEvidenceDigest,
 		Provider:         notification.DeliveryChannelSlack,
 		Target: datatypes.NewJSONType(relational.SystemNotificationTarget{
 			Address: map[string]string{
@@ -159,7 +159,7 @@ func (suite *NotificationsApiIntegrationSuite) TestListSystemNotifications() {
 	}).Error)
 
 	suite.Require().NoError(suite.DB.Create(&relational.SystemNotificationDestination{
-		NotificationType: notification.NotificationTypeEvidenceDigest,
+		NotificationType: notification.SubscriptionGateEvidenceDigest,
 		Provider:         notification.DeliveryChannelEmail,
 		Target: datatypes.NewJSONType(relational.SystemNotificationTarget{
 			Address: map[string]string{
@@ -169,7 +169,7 @@ func (suite *NotificationsApiIntegrationSuite) TestListSystemNotifications() {
 	}).Error)
 
 	suite.Require().NoError(suite.DB.Create(&relational.SystemNotificationDestination{
-		NotificationType: notification.NotificationTypeEvidenceDigest,
+		NotificationType: notification.SubscriptionGateEvidenceDigest,
 		Provider:         notification.DeliveryChannelSlack,
 		Target: datatypes.NewJSONType(relational.SystemNotificationTarget{
 			Address: map[string]string{
@@ -205,7 +205,7 @@ func (suite *NotificationsApiIntegrationSuite) TestListSystemNotifications() {
 
 func (suite *NotificationsApiIntegrationSuite) TestListSystemNotificationsDeduplicatesEquivalentDestinations() {
 	suite.Require().NoError(suite.DB.Create(&relational.SystemNotificationDestination{
-		NotificationType: notification.NotificationTypeEvidenceDigest,
+		NotificationType: notification.SubscriptionGateEvidenceDigest,
 		Provider:         notification.DeliveryChannelSlack,
 		Target: datatypes.NewJSONType(relational.SystemNotificationTarget{
 			Address: map[string]string{
@@ -215,7 +215,7 @@ func (suite *NotificationsApiIntegrationSuite) TestListSystemNotificationsDedupl
 		}),
 	}).Error)
 	suite.Require().NoError(suite.DB.Create(&relational.SystemNotificationDestination{
-		NotificationType: notification.NotificationTypeEvidenceDigest,
+		NotificationType: notification.SubscriptionGateEvidenceDigest,
 		Provider:         notification.DeliveryChannelSlack,
 		Target: datatypes.NewJSONType(relational.SystemNotificationTarget{
 			Address: map[string]string{
@@ -242,7 +242,7 @@ func (suite *NotificationsApiIntegrationSuite) TestListSystemNotificationsDedupl
 
 func (suite *NotificationsApiIntegrationSuite) TestListSystemNotificationsIncludesConfiguredSupportedTypesOutsideDefaultBaseline() {
 	suite.Require().NoError(suite.DB.Create(&relational.SystemNotificationDestination{
-		NotificationType: notification.NotificationTypeTaskAvailable,
+		NotificationType: notification.SubscriptionGateTaskAvailable,
 		Provider:         notification.DeliveryChannelEmail,
 		Target: datatypes.NewJSONType(relational.SystemNotificationTarget{
 			Address: map[string]string{
@@ -262,6 +262,33 @@ func (suite *NotificationsApiIntegrationSuite) TestListSystemNotificationsInclud
 	suite.Require().Len(response.Data, 1)
 
 	suite.Equal("TASK_AVAILABLE", response.Data[0].Name)
+	suite.Equal([]configuredSystemDestinationResponse{
+		{ProviderType: "email", DestinationTarget: "alerts@example.com"},
+	}, response.Data[0].ConfiguredDestinations)
+}
+
+func (suite *NotificationsApiIntegrationSuite) TestListSystemNotificationsIncludesWorkflowExecutionFailed() {
+	suite.Require().NoError(suite.DB.Create(&relational.SystemNotificationDestination{
+		NotificationType: notification.SystemNotificationNameWorkflowExecutionFailed,
+		Provider:         notification.DeliveryChannelEmail,
+		Target: datatypes.NewJSONType(relational.SystemNotificationTarget{
+			Address: map[string]string{
+				emailprovider.AddressKeyEmail: "alerts@example.com",
+			},
+		}),
+	}).Error)
+
+	rec, req := suite.authedRequest(http.MethodGet, "/api/admin/notifications")
+
+	suite.server.E().ServeHTTP(rec, req)
+	suite.Equal(200, rec.Code, "Expected OK response for ListSystemNotifications")
+
+	var response GenericDataListResponse[systemNotificationResponse]
+	err := json.Unmarshal(rec.Body.Bytes(), &response)
+	suite.Require().NoError(err, "Failed to unmarshal notifications response")
+	suite.Require().Len(response.Data, 1)
+
+	suite.Equal("WORKFLOW_EXECUTION_FAILED", response.Data[0].Name)
 	suite.Equal([]configuredSystemDestinationResponse{
 		{ProviderType: "email", DestinationTarget: "alerts@example.com"},
 	}, response.Data[0].ConfiguredDestinations)
@@ -299,7 +326,7 @@ func (suite *NotificationsApiIntegrationSuite) TestCreateSystemNotificationDesti
 	var rows []relational.SystemNotificationDestination
 	suite.Require().NoError(suite.DB.Find(&rows).Error)
 	suite.Require().Len(rows, 1)
-	suite.Equal(notification.NotificationTypeEvidenceDigest, rows[0].NotificationType)
+	suite.Equal(notification.SubscriptionGateEvidenceDigest, rows[0].NotificationType)
 	suite.Equal(notification.DeliveryChannelEmail, rows[0].Provider)
 	suite.Equal("alerts@example.com", rows[0].Target.Data().Address[emailprovider.AddressKeyEmail])
 }
@@ -334,15 +361,32 @@ func (suite *NotificationsApiIntegrationSuite) TestCreateSystemNotificationDesti
 	var rows []relational.SystemNotificationDestination
 	suite.Require().NoError(suite.DB.Find(&rows).Error)
 	suite.Require().Len(rows, 1)
-	suite.Equal(notification.NotificationTypeTaskAvailable, rows[0].NotificationType)
+	suite.Equal(notification.SubscriptionGateTaskAvailable, rows[0].NotificationType)
 	suite.Equal(notification.DeliveryChannelSlack, rows[0].Provider)
 	suite.Equal("ccf-slack-int", rows[0].Target.Data().Address[slackprovider.AddressKeyChannel])
 	suite.Equal(slackprovider.TargetTypeChannel, rows[0].Target.Data().Address[slackprovider.AddressKeyTargetType])
 }
 
+func (suite *NotificationsApiIntegrationSuite) TestCreateSystemNotificationDestinationWorkflowExecutionFailed() {
+	rec, req := suite.authedJSONRequest(http.MethodPost, "/api/admin/notifications/WORKFLOW_EXECUTION_FAILED/destinations", map[string]string{
+		"providerType":      "email",
+		"destinationTarget": "alerts@example.com",
+	})
+
+	suite.server.E().ServeHTTP(rec, req)
+	suite.Equal(http.StatusCreated, rec.Code, "Expected Created response for workflow-execution-failed destination")
+
+	var rows []relational.SystemNotificationDestination
+	suite.Require().NoError(suite.DB.Find(&rows).Error)
+	suite.Require().Len(rows, 1)
+	suite.Equal(notification.SystemNotificationNameWorkflowExecutionFailed, rows[0].NotificationType)
+	suite.Equal(notification.DeliveryChannelEmail, rows[0].Provider)
+	suite.Equal("alerts@example.com", rows[0].Target.Data().Address[emailprovider.AddressKeyEmail])
+}
+
 func (suite *NotificationsApiIntegrationSuite) TestCreateSystemNotificationDestinationRejectsDuplicateDestination() {
 	suite.Require().NoError(suite.DB.Create(&relational.SystemNotificationDestination{
-		NotificationType: notification.NotificationTypeEvidenceDigest,
+		NotificationType: notification.SubscriptionGateEvidenceDigest,
 		Provider:         notification.DeliveryChannelEmail,
 		Target: datatypes.NewJSONType(relational.SystemNotificationTarget{
 			Address: map[string]string{
@@ -398,7 +442,7 @@ func (suite *NotificationsApiIntegrationSuite) TestCreateSystemNotificationDesti
 
 func (suite *NotificationsApiIntegrationSuite) TestDeleteSystemNotificationDestination() {
 	suite.Require().NoError(suite.DB.Create(&relational.SystemNotificationDestination{
-		NotificationType: notification.NotificationTypeEvidenceDigest,
+		NotificationType: notification.SubscriptionGateEvidenceDigest,
 		Provider:         notification.DeliveryChannelEmail,
 		Target: datatypes.NewJSONType(relational.SystemNotificationTarget{
 			Address: map[string]string{
@@ -422,7 +466,7 @@ func (suite *NotificationsApiIntegrationSuite) TestDeleteSystemNotificationDesti
 
 func (suite *NotificationsApiIntegrationSuite) TestDeleteSystemNotificationDestinationAcceptsKebabCasePayload() {
 	suite.Require().NoError(suite.DB.Create(&relational.SystemNotificationDestination{
-		NotificationType: notification.NotificationTypeEvidenceDigest,
+		NotificationType: notification.SubscriptionGateEvidenceDigest,
 		Provider:         notification.DeliveryChannelEmail,
 		Target: datatypes.NewJSONType(relational.SystemNotificationTarget{
 			Address: map[string]string{
@@ -442,7 +486,7 @@ func (suite *NotificationsApiIntegrationSuite) TestDeleteSystemNotificationDesti
 
 func (suite *NotificationsApiIntegrationSuite) TestDeleteSystemNotificationDestinationRemovesDuplicateRows() {
 	suite.Require().NoError(suite.DB.Create(&relational.SystemNotificationDestination{
-		NotificationType: notification.NotificationTypeEvidenceDigest,
+		NotificationType: notification.SubscriptionGateEvidenceDigest,
 		Provider:         notification.DeliveryChannelSlack,
 		Target: datatypes.NewJSONType(relational.SystemNotificationTarget{
 			Address: map[string]string{
@@ -452,7 +496,7 @@ func (suite *NotificationsApiIntegrationSuite) TestDeleteSystemNotificationDesti
 		}),
 	}).Error)
 	suite.Require().NoError(suite.DB.Create(&relational.SystemNotificationDestination{
-		NotificationType: notification.NotificationTypeEvidenceDigest,
+		NotificationType: notification.SubscriptionGateEvidenceDigest,
 		Provider:         notification.DeliveryChannelSlack,
 		Target: datatypes.NewJSONType(relational.SystemNotificationTarget{
 			Address: map[string]string{
@@ -462,7 +506,7 @@ func (suite *NotificationsApiIntegrationSuite) TestDeleteSystemNotificationDesti
 		}),
 	}).Error)
 	suite.Require().NoError(suite.DB.Create(&relational.SystemNotificationDestination{
-		NotificationType: notification.NotificationTypeEvidenceDigest,
+		NotificationType: notification.SubscriptionGateEvidenceDigest,
 		Provider:         notification.DeliveryChannelSlack,
 		Target: datatypes.NewJSONType(relational.SystemNotificationTarget{
 			Address: map[string]string{

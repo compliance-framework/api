@@ -181,7 +181,7 @@ func (h *NotificationsHandler) ListSystemNotifications(ctx echo.Context) error {
 	seenDestinations := make(map[string]struct{})
 
 	for i := range rows {
-		name, ok := notification.NormalizeNotificationType(rows[i].NotificationType)
+		name, ok := notification.NormalizeSystemNotificationName(rows[i].NotificationType)
 		if !ok {
 			err := fmt.Errorf("unsupported notification type %q", rows[i].NotificationType)
 			h.sugar.Errorw("Invalid configured system notification type", "error", err, "notificationType", rows[i].NotificationType)
@@ -251,7 +251,7 @@ func (h *NotificationsHandler) ListSystemNotifications(ctx echo.Context) error {
 //	@Router			/admin/notifications/{notificationName}/destinations [post]
 func (h *NotificationsHandler) CreateSystemNotificationDestination(ctx echo.Context) error {
 	notificationName := ctx.Param("notificationName")
-	canonicalType, ok := notification.NormalizeNotificationType(notificationName)
+	canonicalType, ok := notification.NormalizeSystemNotificationName(notificationName)
 	if !ok {
 		err := fmt.Errorf("unsupported notification type %q", notificationName)
 		h.sugar.Warnw("Invalid system notification type", "error", err, "notificationName", notificationName)
@@ -351,7 +351,7 @@ func (h *NotificationsHandler) CreateSystemNotificationDestination(ctx echo.Cont
 //	@Router			/admin/notifications/{notificationName}/destinations [delete]
 func (h *NotificationsHandler) DeleteSystemNotificationDestination(ctx echo.Context) error {
 	notificationName := ctx.Param("notificationName")
-	canonicalType, ok := notification.NormalizeNotificationType(notificationName)
+	canonicalType, ok := notification.NormalizeSystemNotificationName(notificationName)
 	if !ok {
 		err := fmt.Errorf("unsupported notification type %q", notificationName)
 		h.sugar.Warnw("Invalid system notification type", "error", err, "notificationName", notificationName)

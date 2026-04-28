@@ -74,28 +74,28 @@ func NewPoamNotificationServiceFactory(
 		definitions: []notification.Definition{
 			newTypedNotificationDefinition(
 				poamDeadlineReminderNotificationKind,
-				notification.NotificationTypeRiskNotifications,
+				notification.SubscriptionGateRiskNotifications,
 				newNotificationModelDecoder[poamDeadlineReminderNotificationModel]("poam deadline reminder model"),
 				renderPoamDeadlineReminderEmail,
 				renderPoamDeadlineReminderSlack,
 			),
 			newTypedNotificationDefinition(
 				poamMilestoneOverdueNotificationKind,
-				notification.NotificationTypeRiskNotifications,
+				notification.SubscriptionGateRiskNotifications,
 				newNotificationModelDecoder[poamMilestoneOverdueNotificationModel]("poam milestone overdue notification model"),
 				renderPoamMilestoneOverdueNotificationEmail,
 				renderPoamMilestoneOverdueNotificationSlack,
 			),
 			newTypedNotificationDefinition(
 				poamOverdueNotificationKind,
-				notification.NotificationTypeRiskNotifications,
+				notification.SubscriptionGateRiskNotifications,
 				newNotificationModelDecoder[poamOverdueNotificationModel]("poam overdue notification model"),
 				renderPoamOverdueNotificationEmail,
 				renderPoamOverdueNotificationSlack,
 			),
 			newTypedEmailOnlyNotificationDefinition(
 				poamOpenDigestNotificationKind,
-				notification.NotificationTypeRiskNotifications,
+				notification.SubscriptionGateRiskNotifications,
 				newNotificationModelDecoder[poamOpenDigestNotificationModel]("poam open digest model"),
 				renderPoamOpenDigestEmail,
 			),

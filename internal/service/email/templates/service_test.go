@@ -199,6 +199,8 @@ func TestTemplateService_WorkflowExecutionFailed_WithData(t *testing.T) {
 		"CompletedSteps":       3,
 		"TotalSteps":           5,
 		"WorkflowURL":          "https://app.example.com/workflows/abc",
+		"MyTasksURL":           "https://app.example.com/my-tasks",
+		"IsSystemAudience":     false,
 	}
 
 	html, text, err := service.Use("workflow-execution-failed", data)
@@ -210,6 +212,7 @@ func TestTemplateService_WorkflowExecutionFailed_WithData(t *testing.T) {
 	require.Contains(t, html, "SOC2 2026")
 	require.Contains(t, html, "2 of 5 steps failed")
 	require.Contains(t, html, "exec-abc-123")
+	require.Contains(t, html, "View all my tasks")
 	require.Contains(t, text, "Alice Smith")
 	require.Contains(t, text, "SOC2 Audit")
 	require.Contains(t, text, "2 of 5 steps failed")
@@ -239,6 +242,38 @@ func TestTemplateService_WorkflowExecutionFailed_NoURL(t *testing.T) {
 	require.NotEmpty(t, text)
 	require.Contains(t, html, "Bob")
 	require.NotContains(t, html, "View Workflow Instance")
+}
+
+func TestTemplateService_WorkflowExecutionFailed_SystemAudience(t *testing.T) {
+	service, err := NewTemplateService()
+	require.NoError(t, err)
+
+	data := TemplateData{
+		"RecipientName":        "",
+		"WorkflowTitle":        "Annual Audit",
+		"WorkflowInstanceName": "Audit 2026",
+		"ExecutionID":          "exec-system-123",
+		"FailureReason":        "step execution failed",
+		"FailedAt":             "Wed, 19 Feb 2026 09:00:00 UTC",
+		"FailedSteps":          1,
+		"CompletedSteps":       2,
+		"TotalSteps":           3,
+		"WorkflowURL":          "https://app.example.com/workflow-executions/exec-system-123",
+		"MyTasksURL":           "",
+		"IsSystemAudience":     true,
+	}
+
+	html, text, err := service.Use("workflow-execution-failed", data)
+	require.NoError(t, err)
+	require.NotEmpty(t, html)
+	require.NotEmpty(t, text)
+	require.Contains(t, html, "A workflow execution has failed and may require your attention.")
+	require.Contains(t, html, "configured for workflow failure alerts")
+	require.NotContains(t, html, "Hi ,")
+	require.NotContains(t, html, "View all my tasks")
+	require.Contains(t, text, "A workflow execution has failed and may require your attention.")
+	require.Contains(t, text, "configured for workflow failure alerts")
+	require.NotContains(t, text, "Hi ,")
 }
 
 func TestTemplateService_WorkflowTaskDigest_WithTasks(t *testing.T) {

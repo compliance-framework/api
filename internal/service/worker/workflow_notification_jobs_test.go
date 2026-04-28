@@ -99,7 +99,7 @@ func TestDueSoonCheckerWorker_EnqueuesOneJobPerChannel(t *testing.T) {
 	createWorkflowNotificationUser(t, db, userID, "alice@example.com", "UALICE")
 	require.NoError(t, db.Create(&relational.UserNotificationSubscription{
 		UserID:           userID.String(),
-		NotificationType: notification.NotificationTypeTaskAvailable,
+		NotificationType: notification.SubscriptionGateTaskAvailable,
 		Channels: datatypes.JSONSlice[string]{
 			notification.DeliveryChannelEmail,
 			notification.DeliveryChannelSlack,
@@ -202,7 +202,7 @@ func TestDueSoonCheckerWorker_CachesFetchedUsersAcrossDispatches(t *testing.T) {
 				LastName:  "User",
 				NotificationSubscriptions: []NotificationSubscription{
 					{
-						NotificationType: notification.NotificationTypeTaskAvailable,
+						NotificationType: notification.SubscriptionGateTaskAvailable,
 						Channels:         []string{notification.DeliveryChannelEmail},
 					},
 				},
@@ -282,7 +282,7 @@ func TestWorkflowTaskDigestCheckerWorker_EnqueuesOneJobPerSubscribedUser(t *test
 
 	require.NoError(t, db.Create(&relational.UserNotificationSubscription{
 		UserID:           userOneID.String(),
-		NotificationType: notification.NotificationTypeTaskDailyDigest,
+		NotificationType: notification.SubscriptionGateTaskDailyDigest,
 		Channels: datatypes.JSONSlice[string]{
 			notification.DeliveryChannelEmail,
 			notification.DeliveryChannelSlack,
@@ -290,12 +290,12 @@ func TestWorkflowTaskDigestCheckerWorker_EnqueuesOneJobPerSubscribedUser(t *test
 	}).Error)
 	require.NoError(t, db.Create(&relational.UserNotificationSubscription{
 		UserID:           userTwoID.String(),
-		NotificationType: notification.NotificationTypeTaskDailyDigest,
+		NotificationType: notification.SubscriptionGateTaskDailyDigest,
 		Channels:         datatypes.JSONSlice[string]{notification.DeliveryChannelEmail},
 	}).Error)
 	require.NoError(t, db.Create(&relational.UserNotificationSubscription{
 		UserID:           missingUserID.String(),
-		NotificationType: notification.NotificationTypeTaskDailyDigest,
+		NotificationType: notification.SubscriptionGateTaskDailyDigest,
 		Channels:         datatypes.JSONSlice[string]{notification.DeliveryChannelSlack},
 	}).Error)
 
@@ -325,6 +325,7 @@ func newWorkflowNotificationJobsTestDB(t *testing.T) *gorm.DB {
 		&relational.User{},
 		&relational.SlackUserLink{},
 		&relational.UserNotificationSubscription{},
+		&relational.SystemNotificationDestination{},
 		&relational.SystemSecurityPlan{},
 		&workflows.WorkflowDefinition{},
 		&workflows.WorkflowInstance{},

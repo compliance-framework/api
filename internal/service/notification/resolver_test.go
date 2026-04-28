@@ -21,12 +21,12 @@ func (r stubUserRepository) FindUserByID(_ context.Context, userID string) (User
 	return r.users[userID], nil
 }
 
-func (r stubUserRepository) ListActiveUsersByNotificationType(_ context.Context, notificationType string) ([]User, error) {
+func (r stubUserRepository) ListActiveUsersBySubscriptionGate(_ context.Context, notificationType string) ([]User, error) {
 	if r.err != nil {
 		return nil, r.err
 	}
 
-	canonicalType, ok := NormalizeNotificationType(notificationType)
+	canonicalType, ok := NormalizeSubscriptionGate(notificationType)
 	if !ok {
 		return []User{}, nil
 	}
@@ -86,7 +86,7 @@ func TestResolverResolveUserAudienceUsesSubscriptionsAndSkipsMissingSlackLink(t 
 				},
 				Subscriptions: []UserSubscription{
 					{
-						NotificationType: NotificationTypeRiskNotifications,
+						NotificationType: SubscriptionGateRiskNotifications,
 						Channels:         []string{DeliveryChannelEmail, DeliveryChannelSlack},
 					},
 				},
@@ -101,7 +101,7 @@ func TestResolverResolveUserAudienceUsesSubscriptionsAndSkipsMissingSlackLink(t 
 		},
 	}, Definition{
 		Kind:              Kind("risk_review_due"),
-		SubscriptionType:  NotificationTypeRiskNotifications,
+		SubscriptionGate:  SubscriptionGateRiskNotifications,
 		SupportedChannels: []string{DeliveryChannelEmail, DeliveryChannelSlack},
 		Renderers: map[string]ChannelRenderer{
 			DeliveryChannelEmail: ProviderRenderer(DeliveryChannelEmail, func(context.Context, any) (any, error) {
@@ -153,7 +153,7 @@ func TestResolverResolveUserAudienceSupportsUngatedDefinitions(t *testing.T) {
 				},
 				Subscriptions: []UserSubscription{
 					{
-						NotificationType: NotificationTypeTaskAvailable,
+						NotificationType: SubscriptionGateTaskAvailable,
 						Channels:         []string{DeliveryChannelSlack},
 					},
 				},
@@ -168,7 +168,7 @@ func TestResolverResolveUserAudienceSupportsUngatedDefinitions(t *testing.T) {
 		},
 	}, Definition{
 		Kind:              Kind("workflow_execution_failed"),
-		SubscriptionType:  NotificationTypeUngated,
+		SubscriptionGate:  SubscriptionGateUngated,
 		SupportedChannels: []string{DeliveryChannelEmail, DeliveryChannelSlack},
 		Renderers: map[string]ChannelRenderer{
 			DeliveryChannelEmail: ProviderRenderer(DeliveryChannelEmail, func(context.Context, any) (any, error) {
@@ -258,7 +258,7 @@ func TestResolverListSubscribedUsers(t *testing.T) {
 				},
 				Subscriptions: []UserSubscription{
 					{
-						NotificationType: NotificationTypeEvidenceDigest,
+						NotificationType: SubscriptionGateEvidenceDigest,
 						Channels:         []string{DeliveryChannelEmail},
 					},
 				},
@@ -268,7 +268,7 @@ func TestResolverListSubscribedUsers(t *testing.T) {
 				Email: "bob@example.com",
 				Subscriptions: []UserSubscription{
 					{
-						NotificationType: NotificationTypeRiskNotifications,
+						NotificationType: SubscriptionGateRiskNotifications,
 						Channels:         []string{DeliveryChannelEmail},
 					},
 				},
@@ -278,7 +278,7 @@ func TestResolverListSubscribedUsers(t *testing.T) {
 
 	users, err := resolver.ListSubscribedUsers(context.Background(), Definition{
 		Kind:              Kind("evidence_digest"),
-		SubscriptionType:  NotificationTypeEvidenceDigest,
+		SubscriptionGate:  SubscriptionGateEvidenceDigest,
 		SupportedChannels: []string{DeliveryChannelEmail},
 		Renderers: map[string]ChannelRenderer{
 			DeliveryChannelEmail: ProviderRenderer(DeliveryChannelEmail, func(context.Context, any) (any, error) {
@@ -303,7 +303,7 @@ func TestResolverListSubscribedUsersSupportsUngatedDefinitions(t *testing.T) {
 				Email: "bob@example.com",
 				Subscriptions: []UserSubscription{
 					{
-						NotificationType: NotificationTypeRiskNotifications,
+						NotificationType: SubscriptionGateRiskNotifications,
 						Channels:         []string{DeliveryChannelEmail},
 					},
 				},
@@ -313,7 +313,7 @@ func TestResolverListSubscribedUsersSupportsUngatedDefinitions(t *testing.T) {
 
 	users, err := resolver.ListSubscribedUsers(context.Background(), Definition{
 		Kind:              Kind("workflow_execution_failed"),
-		SubscriptionType:  NotificationTypeUngated,
+		SubscriptionGate:  SubscriptionGateUngated,
 		SupportedChannels: []string{DeliveryChannelEmail},
 		Renderers: map[string]ChannelRenderer{
 			DeliveryChannelEmail: ProviderRenderer(DeliveryChannelEmail, func(context.Context, any) (any, error) {

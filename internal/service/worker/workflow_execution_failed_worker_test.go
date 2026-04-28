@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
+	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
 
@@ -68,7 +69,7 @@ func TestWorkflowExecutionFailedWorker_SlackSubscribedUser_SendsAllAssociatedCha
 		LastName:    "Owner",
 		SlackUserID: "UWFEXEC1",
 		NotificationSubscriptions: []NotificationSubscription{
-			{NotificationType: notification.NotificationTypeTaskAvailable, Channels: []string{"slack"}},
+			{NotificationType: notification.SubscriptionGateTaskAvailable, Channels: []string{"slack"}},
 		},
 	}
 	mockRepo.On("FindUserByID", ctx, createdByID.String()).Return(user, nil)
@@ -108,7 +109,7 @@ func TestWorkflowExecutionFailedWorker_EmailAndSlackUser_SendsBoth(t *testing.T)
 		LastName:    "Owner",
 		SlackUserID: "UWFEXEC2",
 		NotificationSubscriptions: []NotificationSubscription{
-			{NotificationType: notification.NotificationTypeTaskAvailable, Channels: []string{"email", "slack"}},
+			{NotificationType: notification.SubscriptionGateTaskAvailable, Channels: []string{"email", "slack"}},
 		},
 	}
 	mockRepo.On("FindUserByID", ctx, createdByID.String()).Return(user, nil)
@@ -128,6 +129,61 @@ func TestWorkflowExecutionFailedWorker_EmailAndSlackUser_SendsBoth(t *testing.T)
 	assert.NoError(t, err)
 	mockEmail.AssertExpectations(t)
 	mockSlack.AssertExpectations(t)
+	mockRepo.AssertExpectations(t)
+}
+
+func TestWorkflowExecutionFailedWorker_ConfiguredSystemEmailDestination_SendsSystemAudience(t *testing.T) {
+	ctx := context.Background()
+	db := newWorkflowNotificationJobsTestDB(t)
+	createdByID := uuid.New()
+	executionID := seedWorkflowExecutionFailedFixture(t, db, createdByID)
+
+	require.NoError(t, db.Create(&relational.SystemNotificationDestination{
+		NotificationType: notification.SystemNotificationNameWorkflowExecutionFailed,
+		Provider:         notification.DeliveryChannelEmail,
+		Target: datatypes.NewJSONType(relational.SystemNotificationTarget{
+			Address: map[string]string{"email": "alerts@example.com"},
+		}),
+	}).Error)
+
+	mockEmail := &MockEmailService{}
+	mockRepo := &MockUserRepository{}
+	mockLog := zap.NewNop().Sugar()
+
+	user := NotificationUser{
+		ID:        createdByID.String(),
+		Email:     "owner@example.com",
+		FirstName: "Workflow",
+		LastName:  "Owner",
+		NotificationSubscriptions: []NotificationSubscription{
+			{NotificationType: notification.SubscriptionGateTaskAvailable, Channels: []string{"email"}},
+		},
+	}
+	mockRepo.On("FindUserByID", ctx, createdByID.String()).Return(user, nil)
+
+	mockEmail.On("UseTemplate", "workflow-execution-failed", mock.MatchedBy(func(data map[string]interface{}) bool {
+		return data["IsSystemAudience"] == false &&
+			data["RecipientName"] == "Workflow Owner" &&
+			data["MyTasksURL"] == "http://localhost:8000/my-tasks"
+	})).Return("<html>failed</html>", "failed text", nil).Once()
+	mockEmail.On("UseTemplate", "workflow-execution-failed", mock.MatchedBy(func(data map[string]interface{}) bool {
+		return data["IsSystemAudience"] == true &&
+			data["RecipientName"] == "" &&
+			data["MyTasksURL"] == ""
+	})).Return("<html>system failed</html>", "system failed text", nil).Once()
+	mockEmail.On("GetDefaultFromAddress").Return("noreply@example.com").Twice()
+	mockEmail.On("Send", ctx, mock.MatchedBy(func(msg *types.Message) bool {
+		return len(msg.To) == 1 && msg.To[0] == "owner@example.com"
+	})).Return(&types.SendResult{Success: true, MessageID: "wf-exec-email-user"}, nil).Once()
+	mockEmail.On("Send", ctx, mock.MatchedBy(func(msg *types.Message) bool {
+		return len(msg.To) == 1 && msg.To[0] == "alerts@example.com"
+	})).Return(&types.SendResult{Success: true, MessageID: "wf-exec-email-system"}, nil).Once()
+
+	w := NewWorkflowExecutionFailedWorker(db, mockRepo, "http://localhost:8000", newTestNotificationRuntimeProvider(mockEmail, nil), mockLog)
+
+	err := w.Work(ctx, makeFailedJob(WorkflowExecutionFailedArgs{WorkflowExecutionID: executionID.String()}))
+	assert.NoError(t, err)
+	mockEmail.AssertExpectations(t)
 	mockRepo.AssertExpectations(t)
 }
 

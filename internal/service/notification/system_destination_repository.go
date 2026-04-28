@@ -9,7 +9,8 @@ import (
 )
 
 type SystemDestinationRepository interface {
-	ListTargetsByNotificationType(ctx context.Context, notificationType string) ([]Target, error)
+	ListTargetsBySubscriptionGate(ctx context.Context, subscriptionGate string) ([]Target, error)
+	ListTargetsBySystemNotificationName(ctx context.Context, notificationName string) ([]Target, error)
 }
 
 type GORMSystemDestinationRepository struct {
@@ -24,21 +25,38 @@ func NewGORMSystemDestinationRepository(db *gorm.DB, providers ProviderLookup) *
 	}
 }
 
-func (r *GORMSystemDestinationRepository) ListTargetsByNotificationType(ctx context.Context, notificationType string) ([]Target, error) {
-	if r == nil || r.db == nil || r.providers == nil {
+func (r *GORMSystemDestinationRepository) ListTargetsBySubscriptionGate(ctx context.Context, subscriptionGate string) ([]Target, error) {
+	if r.db == nil || r.providers == nil {
 		return nil, fmt.Errorf("system notification destination repository is not configured")
 	}
 
-	canonicalType, ok := NormalizeNotificationType(notificationType)
+	canonicalGate, ok := NormalizeSubscriptionGate(subscriptionGate)
 	if !ok {
 		return []Target{}, nil
 	}
 
+	return r.listTargetsBySystemNotificationName(ctx, canonicalGate)
+}
+
+func (r *GORMSystemDestinationRepository) ListTargetsBySystemNotificationName(ctx context.Context, notificationName string) ([]Target, error) {
+	if r.db == nil || r.providers == nil {
+		return nil, fmt.Errorf("system notification destination repository is not configured")
+	}
+
+	canonicalName, ok := NormalizeSystemNotificationName(notificationName)
+	if !ok {
+		return []Target{}, nil
+	}
+
+	return r.listTargetsBySystemNotificationName(ctx, canonicalName)
+}
+
+func (r *GORMSystemDestinationRepository) listTargetsBySystemNotificationName(ctx context.Context, notificationName string) ([]Target, error) {
 	var records []relational.SystemNotificationDestination
 	if err := r.db.WithContext(ctx).
-		Where("notification_type = ?", canonicalType).
+		Where("notification_type = ?", notificationName).
 		Find(&records).Error; err != nil {
-		return nil, fmt.Errorf("failed to fetch system notification destinations for type %s: %w", canonicalType, err)
+		return nil, fmt.Errorf("failed to fetch system notification destinations for %s: %w", notificationName, err)
 	}
 
 	targets := make([]Target, 0, len(records))
@@ -75,18 +93,18 @@ func (r *GORMSystemDestinationRepository) ListTargetsByNotificationType(ctx cont
 		})
 		if err != nil {
 			return nil, fmt.Errorf(
-				"invalid system notification destination %s for type %s provider %s: %w",
+				"invalid system notification destination %s for %s provider %s: %w",
 				recordID,
-				canonicalType,
+				notificationName,
 				provider,
 				err,
 			)
 		}
 		if err := target.Validate(); err != nil {
 			return nil, fmt.Errorf(
-				"invalid system notification destination %s for type %s provider %s: %w",
+				"invalid system notification destination %s for %s provider %s: %w",
 				recordID,
-				canonicalType,
+				notificationName,
 				provider,
 				err,
 			)

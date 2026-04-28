@@ -43,7 +43,7 @@ func decodeNotificationModel[T any](model any, modelName string) (T, error) {
 
 func newTypedNotificationDefinition[T any](
 	kind notification.Kind,
-	subscriptionType string,
+	subscriptionGate string,
 	decode notificationModelDecoder[T],
 	emailRender emailTemplateNotificationRenderer[T],
 	slackRender slackMessageNotificationRenderer[T],
@@ -70,16 +70,16 @@ func newTypedNotificationDefinition[T any](
 		}))
 	}
 
-	return notification.NewDefinition(kind, subscriptionType, bindings...)
+	return notification.NewDefinition(kind, subscriptionGate, bindings...)
 }
 
 func newTypedEmailOnlyNotificationDefinition[T any](
 	kind notification.Kind,
-	subscriptionType string,
+	subscriptionGate string,
 	decode notificationModelDecoder[T],
 	emailRender emailTemplateNotificationRenderer[T],
 ) notification.Definition {
-	return newTypedNotificationDefinition(kind, subscriptionType, decode, emailRender, nil)
+	return newTypedNotificationDefinition(kind, subscriptionGate, decode, emailRender, nil)
 }
 
 func newNotificationRequest(

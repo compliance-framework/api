@@ -282,7 +282,7 @@ func TestRiskOpenDigestWorker_SendsGroupedDigest(t *testing.T) {
 		LastName:  "Owner",
 		NotificationSubscriptions: []NotificationSubscription{
 			{
-				NotificationType: notification.NotificationTypeRiskNotifications,
+				NotificationType: notification.SubscriptionGateRiskNotifications,
 				Channels:         []string{notification.DeliveryChannelEmail},
 			},
 		},
@@ -404,7 +404,7 @@ func TestRiskOpenDigestWorker_SlackSubscribed_SendsSlack(t *testing.T) {
 		SlackUserID: "URISKDIGEST",
 		NotificationSubscriptions: []NotificationSubscription{
 			{
-				NotificationType: notification.NotificationTypeRiskNotifications,
+				NotificationType: notification.SubscriptionGateRiskNotifications,
 				Channels:         []string{notification.DeliveryChannelSlack},
 			},
 		},

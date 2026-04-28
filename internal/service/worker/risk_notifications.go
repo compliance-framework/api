@@ -58,28 +58,28 @@ func NewRiskNotificationServiceFactory(
 		definitions: []notification.Definition{
 			newTypedNotificationDefinition(
 				riskReviewDueReminderNotificationKind,
-				notification.NotificationTypeRiskNotifications,
+				notification.SubscriptionGateRiskNotifications,
 				newNotificationModelDecoder[riskReminderNotificationModel]("risk reminder model"),
 				renderRiskReviewDueReminderEmail,
 				renderRiskReviewDueReminderSlack,
 			),
 			newTypedNotificationDefinition(
 				riskReviewOverdueEscalationNotificationKind,
-				notification.NotificationTypeRiskNotifications,
+				notification.SubscriptionGateRiskNotifications,
 				newNotificationModelDecoder[riskReminderNotificationModel]("risk reminder model"),
 				renderRiskReviewOverdueEscalationEmail,
 				renderRiskReviewOverdueEscalationSlack,
 			),
 			newTypedNotificationDefinition(
 				riskStaleOpenReminderNotificationKind,
-				notification.NotificationTypeRiskNotifications,
+				notification.SubscriptionGateRiskNotifications,
 				newNotificationModelDecoder[riskReminderNotificationModel]("risk reminder model"),
 				renderRiskStaleOpenReminderEmail,
 				renderRiskStaleOpenReminderSlack,
 			),
 			newTypedNotificationDefinition(
 				riskOpenDigestNotificationKind,
-				notification.NotificationTypeRiskNotifications,
+				notification.SubscriptionGateRiskNotifications,
 				newNotificationModelDecoder[riskOpenDigestNotificationModel]("risk open digest model"),
 				renderRiskOpenDigestEmail,
 				renderRiskOpenDigestSlack,

@@ -649,10 +649,10 @@ func (suite *UserApiIntegrationSuite) TestSubscriptions() {
 		// Test subscribing to digest notifications.
 		payload := map[string]interface{}{
 			"notifications": map[string][]string{
-				notification.NotificationTypeTaskAvailableWire:   {"email", "slack", "email"},
-				notification.NotificationTypeEvidenceDigestWire:  {"email", "email"},
-				notification.NotificationTypeTaskDailyDigestWire: {"email", "email"},
-				notification.NotificationTypeRiskNotifications:   {"email", "slack", "email"},
+				notification.SubscriptionGateTaskAvailableWire:   {"email", "slack", "email"},
+				notification.SubscriptionGateEvidenceDigestWire:  {"email", "email"},
+				notification.SubscriptionGateTaskDailyDigestWire: {"email", "email"},
+				notification.SubscriptionGateRiskNotifications:   {"email", "slack", "email"},
 			},
 		}
 		payloadJSON, err := json.Marshal(payload)
@@ -674,16 +674,16 @@ func (suite *UserApiIntegrationSuite) TestSubscriptions() {
 		err = json.Unmarshal(rec.Body.Bytes(), &response)
 		suite.Require().NoError(err, "Failed to unmarshal UpdateSubscriptions response")
 
-		suite.Equal([]string{"email", "slack"}, response.Data.Notifications[notification.NotificationTypeTaskAvailableWire], "Expected notifications to be normalized and persisted")
-		suite.Equal([]string{"email"}, response.Data.Notifications[notification.NotificationTypeEvidenceDigestWire], "Expected evidence digest notifications to be normalized and persisted")
-		suite.Equal([]string{"email"}, response.Data.Notifications[notification.NotificationTypeTaskDailyDigestWire], "Expected task daily digest notifications to be normalized and persisted")
-		suite.Equal([]string{"email", "slack"}, response.Data.Notifications[notification.NotificationTypeRiskNotificationsWire], "Expected risk notifications to be normalized and persisted")
+		suite.Equal([]string{"email", "slack"}, response.Data.Notifications[notification.SubscriptionGateTaskAvailableWire], "Expected notifications to be normalized and persisted")
+		suite.Equal([]string{"email"}, response.Data.Notifications[notification.SubscriptionGateEvidenceDigestWire], "Expected evidence digest notifications to be normalized and persisted")
+		suite.Equal([]string{"email"}, response.Data.Notifications[notification.SubscriptionGateTaskDailyDigestWire], "Expected task daily digest notifications to be normalized and persisted")
+		suite.Equal([]string{"email", "slack"}, response.Data.Notifications[notification.SubscriptionGateRiskNotificationsWire], "Expected risk notifications to be normalized and persisted")
 		suite.Equal(int64(4), countStoredSubscriptions(), "Expected exactly one stored row per active notification type")
 
 		// Test unsubscribing by omitting previously-configured notification types from the map.
 		payload = map[string]interface{}{
 			"notifications": map[string][]string{
-				notification.NotificationTypeTaskAvailableWire: {"email", "slack"},
+				notification.SubscriptionGateTaskAvailableWire: {"email", "slack"},
 			},
 		}
 		payloadJSON, err = json.Marshal(payload)
@@ -705,12 +705,12 @@ func (suite *UserApiIntegrationSuite) TestSubscriptions() {
 		err = json.Unmarshal(rec.Body.Bytes(), &response)
 		suite.Require().NoError(err, "Failed to unmarshal unsubscribe response")
 
-		suite.Equal([]string{"email", "slack"}, response.Data.Notifications[notification.NotificationTypeTaskAvailableWire], "Expected task-available notifications to remain configured")
-		_, hasDigestSubscription := response.Data.Notifications[notification.NotificationTypeEvidenceDigestWire]
+		suite.Equal([]string{"email", "slack"}, response.Data.Notifications[notification.SubscriptionGateTaskAvailableWire], "Expected task-available notifications to remain configured")
+		_, hasDigestSubscription := response.Data.Notifications[notification.SubscriptionGateEvidenceDigestWire]
 		suite.False(hasDigestSubscription, "Expected digest subscription to be removed when evidence_digest is omitted")
-		_, hasTaskDailyDigestSubscription := response.Data.Notifications[notification.NotificationTypeTaskDailyDigestWire]
+		_, hasTaskDailyDigestSubscription := response.Data.Notifications[notification.SubscriptionGateTaskDailyDigestWire]
 		suite.False(hasTaskDailyDigestSubscription, "Expected task daily digest subscription to be removed when taskDailyDigest is omitted")
-		_, hasRiskNotificationSubscription := response.Data.Notifications[notification.NotificationTypeRiskNotificationsWire]
+		_, hasRiskNotificationSubscription := response.Data.Notifications[notification.SubscriptionGateRiskNotificationsWire]
 		suite.False(hasRiskNotificationSubscription, "Expected risk notification subscription to be removed when risk_notifications is omitted")
 		suite.Equal(int64(1), countStoredSubscriptions(), "Expected old notification rows to be replaced rather than soft-deleted")
 
@@ -737,8 +737,8 @@ func (suite *UserApiIntegrationSuite) TestSubscriptions() {
 		err = json.Unmarshal(rec.Body.Bytes(), &response)
 		suite.Require().NoError(err, "Failed to unmarshal response for request without notifications")
 
-		suite.Equal([]string{"email", "slack"}, response.Data.Notifications[notification.NotificationTypeTaskAvailableWire], "Expected notifications to remain unchanged when omitted")
-		_, hasDigestSubscription = response.Data.Notifications[notification.NotificationTypeEvidenceDigestWire]
+		suite.Equal([]string{"email", "slack"}, response.Data.Notifications[notification.SubscriptionGateTaskAvailableWire], "Expected notifications to remain unchanged when omitted")
+		_, hasDigestSubscription = response.Data.Notifications[notification.SubscriptionGateEvidenceDigestWire]
 		suite.False(hasDigestSubscription, "Expected digest notification subscription to remain unchanged when notifications are omitted")
 		suite.Equal(int64(1), countStoredSubscriptions(), "Expected notification row count to remain stable when notifications are omitted")
 	})
@@ -747,7 +747,7 @@ func (suite *UserApiIntegrationSuite) TestSubscriptions() {
 		// Test with malformed notifications payload
 		payload := map[string]interface{}{
 			"notifications": map[string]interface{}{
-				notification.NotificationTypeRiskNotifications: "invalid",
+				notification.SubscriptionGateRiskNotifications: "invalid",
 			},
 		}
 		payloadJSON, err := json.Marshal(payload)
@@ -764,7 +764,7 @@ func (suite *UserApiIntegrationSuite) TestSubscriptions() {
 		// Test with unsupported notification channel
 		payload2 := map[string]interface{}{
 			"notifications": map[string][]string{
-				notification.NotificationTypeTaskAvailable: {"email", "pagerduty"},
+				notification.SubscriptionGateTaskAvailable: {"email", "pagerduty"},
 			},
 		}
 		payloadJSON2, err := json.Marshal(payload2)

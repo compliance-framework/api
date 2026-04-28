@@ -34,8 +34,8 @@ func (u User) FullName() string {
 	return strings.TrimSpace(u.FirstName) + " " + strings.TrimSpace(u.LastName)
 }
 
-func (u User) NotificationChannels(notificationType string) []string {
-	normalizedType, ok := NormalizeNotificationType(notificationType)
+func (u User) NotificationChannels(subscriptionGate string) []string {
+	normalizedGate, ok := NormalizeSubscriptionGate(subscriptionGate)
 	if !ok {
 		return nil
 	}
@@ -43,8 +43,8 @@ func (u User) NotificationChannels(notificationType string) []string {
 	seen := make(map[string]struct{})
 	channels := make([]string, 0)
 	for _, subscription := range u.Subscriptions {
-		currentType, typeOK := NormalizeNotificationType(subscription.NotificationType)
-		if !typeOK || currentType != normalizedType {
+		currentGate, gateOK := NormalizeSubscriptionGate(subscription.NotificationType)
+		if !gateOK || currentGate != normalizedGate {
 			continue
 		}
 
@@ -66,7 +66,7 @@ func (u User) NotificationChannels(notificationType string) []string {
 
 type UserRepository interface {
 	FindUserByID(ctx context.Context, userID string) (User, error)
-	ListActiveUsersByNotificationType(ctx context.Context, notificationType string) ([]User, error)
+	ListActiveUsersBySubscriptionGate(ctx context.Context, subscriptionGate string) ([]User, error)
 }
 
 type ActiveUserRepository interface {
@@ -128,17 +128,17 @@ func (r *GORMUserRepository) FindUserByID(ctx context.Context, userID string) (U
 	}, nil
 }
 
-func (r *GORMUserRepository) ListActiveUsersByNotificationType(ctx context.Context, notificationType string) ([]User, error) {
-	canonicalType, ok := NormalizeNotificationType(notificationType)
+func (r *GORMUserRepository) ListActiveUsersBySubscriptionGate(ctx context.Context, subscriptionGate string) ([]User, error) {
+	canonicalGate, ok := NormalizeSubscriptionGate(subscriptionGate)
 	if !ok {
 		return []User{}, nil
 	}
 
 	var subscriptions []relational.UserNotificationSubscription
 	if err := r.db.WithContext(ctx).
-		Where("notification_type = ?", canonicalType).
+		Where("notification_type = ?", canonicalGate).
 		Find(&subscriptions).Error; err != nil {
-		return nil, fmt.Errorf("failed to fetch notification subscriptions for type %s: %w", canonicalType, err)
+		return nil, fmt.Errorf("failed to fetch notification subscriptions for gate %s: %w", canonicalGate, err)
 	}
 
 	userIDSet := make(map[string]struct{}, len(subscriptions))
@@ -170,12 +170,12 @@ func (r *GORMUserRepository) ListActiveUsersByNotificationType(ctx context.Conte
 		Where("id IN ?", userIDs).
 		Where("is_active = ? AND is_locked = ?", true, false).
 		Find(&records).Error; err != nil {
-		return nil, fmt.Errorf("failed to fetch subscribed users for type %s: %w", canonicalType, err)
+		return nil, fmt.Errorf("failed to fetch subscribed users for gate %s: %w", canonicalGate, err)
 	}
 
 	identitiesByUserID, err := r.loadProviderIdentitiesByUserID(ctx, userIDs)
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch notification identities for type %s: %w", canonicalType, err)
+		return nil, fmt.Errorf("failed to fetch notification identities for gate %s: %w", canonicalGate, err)
 	}
 
 	subscriptionsByUserID := make(map[string][]UserSubscription, len(subscriptions))
@@ -214,19 +214,19 @@ func (r *GORMUserRepository) ListActiveUsersByNotificationType(ctx context.Conte
 	return users, nil
 }
 
-// ListActiveUserIDsByNotificationType returns IDs for active, unlocked users
-// subscribed to the given notification type on at least one valid channel.
-func (r *GORMUserRepository) ListActiveUserIDsByNotificationType(ctx context.Context, notificationType string) ([]string, error) {
-	canonicalType, ok := NormalizeNotificationType(notificationType)
+// ListActiveUserIDsBySubscriptionGate returns IDs for active, unlocked users
+// subscribed to the given subscription gate on at least one valid channel.
+func (r *GORMUserRepository) ListActiveUserIDsBySubscriptionGate(ctx context.Context, subscriptionGate string) ([]string, error) {
+	canonicalGate, ok := NormalizeSubscriptionGate(subscriptionGate)
 	if !ok {
 		return []string{}, nil
 	}
 
 	var subscriptions []relational.UserNotificationSubscription
 	if err := r.db.WithContext(ctx).
-		Where("notification_type = ?", canonicalType).
+		Where("notification_type = ?", canonicalGate).
 		Find(&subscriptions).Error; err != nil {
-		return nil, fmt.Errorf("failed to fetch notification subscriptions for type %s: %w", canonicalType, err)
+		return nil, fmt.Errorf("failed to fetch notification subscriptions for gate %s: %w", canonicalGate, err)
 	}
 
 	userIDSet := make(map[string]struct{}, len(subscriptions))
@@ -260,7 +260,7 @@ func (r *GORMUserRepository) ListActiveUserIDsByNotificationType(ctx context.Con
 		Where("id IN ?", userIDs).
 		Where("is_active = ? AND is_locked = ?", true, false).
 		Pluck("id", &activeUserIDs).Error; err != nil {
-		return nil, fmt.Errorf("failed to fetch subscribed users for type %s: %w", canonicalType, err)
+		return nil, fmt.Errorf("failed to fetch subscribed users for gate %s: %w", canonicalGate, err)
 	}
 
 	sort.Strings(activeUserIDs)
@@ -420,11 +420,11 @@ func (r *Resolver) ListSubscribedUsers(ctx context.Context, definition Definitio
 	if err != nil {
 		return nil, err
 	}
-	if normalizedDefinition.SubscriptionType == "" {
+	if normalizedDefinition.SubscriptionGate == "" {
 		return r.listActiveUsers(ctx)
 	}
 
-	return r.users.ListActiveUsersByNotificationType(ctx, normalizedDefinition.SubscriptionType)
+	return r.users.ListActiveUsersBySubscriptionGate(ctx, normalizedDefinition.SubscriptionGate)
 }
 
 func (r *Resolver) listActiveUsers(ctx context.Context) ([]User, error) {
@@ -474,12 +474,12 @@ func (r *Resolver) ResolveUser(user User, options DispatchOptions, definition De
 
 func (r *Resolver) resolveUser(user User, options DispatchOptions, definition Definition) ([]Target, error) {
 	channels := append([]string(nil), definition.SupportedChannels...)
-	if definition.SubscriptionType != NotificationTypeUngated {
-		if definition.SubscriptionType == "" {
-			return nil, ErrMissingSubscriptionType
+	if definition.SubscriptionGate != SubscriptionGateUngated {
+		if definition.SubscriptionGate == "" {
+			return nil, ErrMissingSubscriptionGate
 		}
 
-		channels = user.NotificationChannels(definition.SubscriptionType)
+		channels = user.NotificationChannels(definition.SubscriptionGate)
 	}
 	channels = applyRequestedChannelFilter(channels, options.RequestedChannel)
 	if len(channels) == 0 {

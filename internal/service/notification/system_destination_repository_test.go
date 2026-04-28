@@ -14,11 +14,11 @@ import (
 	"gorm.io/gorm"
 )
 
-func TestGORMSystemDestinationRepositoryListTargetsByNotificationTypeExpandsTargets(t *testing.T) {
+func TestGORMSystemDestinationRepositoryListTargetsBySubscriptionGateExpandsTargets(t *testing.T) {
 	db := newNotificationSystemDestinationTestDB(t)
 
 	require.NoError(t, db.Create(&relational.SystemNotificationDestination{
-		NotificationType: notification.NotificationTypeEvidenceDigest,
+		NotificationType: notification.SubscriptionGateEvidenceDigest,
 		Provider:         notification.DeliveryChannelSlack,
 		Target: datatypes.NewJSONType(relational.SystemNotificationTarget{
 			Address: map[string]string{
@@ -29,7 +29,7 @@ func TestGORMSystemDestinationRepositoryListTargetsByNotificationTypeExpandsTarg
 	}).Error)
 
 	repo := notification.NewGORMSystemDestinationRepository(db, notificationproviders.NewLookup())
-	targets, err := repo.ListTargetsByNotificationType(context.Background(), notification.NotificationTypeEvidenceDigest)
+	targets, err := repo.ListTargetsBySubscriptionGate(context.Background(), notification.SubscriptionGateEvidenceDigest)
 	require.NoError(t, err)
 	require.Len(t, targets, 1)
 
@@ -38,11 +38,33 @@ func TestGORMSystemDestinationRepositoryListTargetsByNotificationTypeExpandsTarg
 	assert.Equal(t, "channel", targets[0].Address["target_type"])
 }
 
-func TestGORMSystemDestinationRepositoryListTargetsByNotificationTypeExpandsMultipleRowsForSameProvider(t *testing.T) {
+func TestGORMSystemDestinationRepositoryListTargetsBySystemNotificationNameExpandsWorkflowFailureTargets(t *testing.T) {
 	db := newNotificationSystemDestinationTestDB(t)
 
 	require.NoError(t, db.Create(&relational.SystemNotificationDestination{
-		NotificationType: notification.NotificationTypeEvidenceDigest,
+		NotificationType: notification.SystemNotificationNameWorkflowExecutionFailed,
+		Provider:         notification.DeliveryChannelEmail,
+		Target: datatypes.NewJSONType(relational.SystemNotificationTarget{
+			Address: map[string]string{
+				"email": " alerts@example.com ",
+			},
+		}),
+	}).Error)
+
+	repo := notification.NewGORMSystemDestinationRepository(db, notificationproviders.NewLookup())
+	targets, err := repo.ListTargetsBySystemNotificationName(context.Background(), " workflowExecutionFailed ")
+	require.NoError(t, err)
+	require.Len(t, targets, 1)
+
+	assert.Equal(t, notification.DeliveryChannelEmail, targets[0].Provider)
+	assert.Equal(t, "alerts@example.com", targets[0].Address["email"])
+}
+
+func TestGORMSystemDestinationRepositoryListTargetsBySubscriptionGateExpandsMultipleRowsForSameProvider(t *testing.T) {
+	db := newNotificationSystemDestinationTestDB(t)
+
+	require.NoError(t, db.Create(&relational.SystemNotificationDestination{
+		NotificationType: notification.SubscriptionGateEvidenceDigest,
 		Provider:         notification.DeliveryChannelSlack,
 		Target: datatypes.NewJSONType(relational.SystemNotificationTarget{
 			Address: map[string]string{
@@ -52,7 +74,7 @@ func TestGORMSystemDestinationRepositoryListTargetsByNotificationTypeExpandsMult
 		}),
 	}).Error)
 	require.NoError(t, db.Create(&relational.SystemNotificationDestination{
-		NotificationType: notification.NotificationTypeEvidenceDigest,
+		NotificationType: notification.SubscriptionGateEvidenceDigest,
 		Provider:         notification.DeliveryChannelSlack,
 		Target: datatypes.NewJSONType(relational.SystemNotificationTarget{
 			Address: map[string]string{
@@ -63,7 +85,7 @@ func TestGORMSystemDestinationRepositoryListTargetsByNotificationTypeExpandsMult
 	}).Error)
 
 	repo := notification.NewGORMSystemDestinationRepository(db, notificationproviders.NewLookup())
-	targets, err := repo.ListTargetsByNotificationType(context.Background(), notification.NotificationTypeEvidenceDigest)
+	targets, err := repo.ListTargetsBySubscriptionGate(context.Background(), notification.SubscriptionGateEvidenceDigest)
 	require.NoError(t, err)
 	require.Len(t, targets, 2)
 
@@ -71,11 +93,11 @@ func TestGORMSystemDestinationRepositoryListTargetsByNotificationTypeExpandsMult
 	assert.ElementsMatch(t, []string{"C-PRIMARY", "C-SECONDARY"}, channels)
 }
 
-func TestGORMSystemDestinationRepositoryListTargetsByNotificationTypeDeduplicatesTargets(t *testing.T) {
+func TestGORMSystemDestinationRepositoryListTargetsBySubscriptionGateDeduplicatesTargets(t *testing.T) {
 	db := newNotificationSystemDestinationTestDB(t)
 
 	require.NoError(t, db.Create(&relational.SystemNotificationDestination{
-		NotificationType: notification.NotificationTypeEvidenceDigest,
+		NotificationType: notification.SubscriptionGateEvidenceDigest,
 		Provider:         notification.DeliveryChannelSlack,
 		Target: datatypes.NewJSONType(relational.SystemNotificationTarget{
 			Address: map[string]string{
@@ -85,7 +107,7 @@ func TestGORMSystemDestinationRepositoryListTargetsByNotificationTypeDeduplicate
 		}),
 	}).Error)
 	require.NoError(t, db.Create(&relational.SystemNotificationDestination{
-		NotificationType: notification.NotificationTypeEvidenceDigest,
+		NotificationType: notification.SubscriptionGateEvidenceDigest,
 		Provider:         notification.DeliveryChannelSlack,
 		Target: datatypes.NewJSONType(relational.SystemNotificationTarget{
 			Address: map[string]string{
@@ -96,17 +118,17 @@ func TestGORMSystemDestinationRepositoryListTargetsByNotificationTypeDeduplicate
 	}).Error)
 
 	repo := notification.NewGORMSystemDestinationRepository(db, notificationproviders.NewLookup())
-	targets, err := repo.ListTargetsByNotificationType(context.Background(), notification.NotificationTypeEvidenceDigest)
+	targets, err := repo.ListTargetsBySubscriptionGate(context.Background(), notification.SubscriptionGateEvidenceDigest)
 	require.NoError(t, err)
 	require.Len(t, targets, 1)
 	assert.Equal(t, "C-DIGEST", targets[0].Address["channel"])
 }
 
-func TestGORMSystemDestinationRepositoryListTargetsByNotificationTypeRejectsInvalidTargets(t *testing.T) {
+func TestGORMSystemDestinationRepositoryListTargetsBySubscriptionGateRejectsInvalidTargets(t *testing.T) {
 	db := newNotificationSystemDestinationTestDB(t)
 
 	require.NoError(t, db.Create(&relational.SystemNotificationDestination{
-		NotificationType: notification.NotificationTypeEvidenceDigest,
+		NotificationType: notification.SubscriptionGateEvidenceDigest,
 		Provider:         notification.DeliveryChannelSlack,
 		Target: datatypes.NewJSONType(relational.SystemNotificationTarget{
 			Address: map[string]string{
@@ -116,7 +138,7 @@ func TestGORMSystemDestinationRepositoryListTargetsByNotificationTypeRejectsInva
 	}).Error)
 
 	repo := notification.NewGORMSystemDestinationRepository(db, notificationproviders.NewLookup())
-	_, err := repo.ListTargetsByNotificationType(context.Background(), notification.NotificationTypeEvidenceDigest)
+	_, err := repo.ListTargetsBySubscriptionGate(context.Background(), notification.SubscriptionGateEvidenceDigest)
 	require.Error(t, err)
 	assert.ErrorContains(t, err, "invalid system notification destination")
 }

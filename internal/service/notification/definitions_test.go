@@ -24,5 +24,5 @@ func TestNewDefinitionBuildsSupportedChannelsAndRenderers(t *testing.T) {
 	assert.Equal(t, []string{"email", "slack"}, definition.SupportedChannels)
 	assert.Contains(t, definition.Renderers, "email")
 	assert.Contains(t, definition.Renderers, "slack")
-	assert.Equal(t, " taskAvailable ", definition.SubscriptionType)
+	assert.Equal(t, " taskAvailable ", definition.SubscriptionGate)
 }

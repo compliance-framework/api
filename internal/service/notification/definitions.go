@@ -30,7 +30,7 @@ func BindRenderer(provider string, renderer ChannelRenderer) RendererBinding {
 	}
 }
 
-func NewDefinition(kind Kind, subscriptionType string, bindings ...RendererBinding) Definition {
+func NewDefinition(kind Kind, subscriptionGate string, bindings ...RendererBinding) Definition {
 	supportedChannels := make([]string, 0, len(bindings))
 	renderers := make(map[string]ChannelRenderer, len(bindings))
 
@@ -42,7 +42,7 @@ func NewDefinition(kind Kind, subscriptionType string, bindings ...RendererBindi
 
 	return Definition{
 		Kind:              kind,
-		SubscriptionType:  subscriptionType,
+		SubscriptionGate:  subscriptionGate,
 		SupportedChannels: supportedChannels,
 		Renderers:         renderers,
 	}
@@ -50,7 +50,7 @@ func NewDefinition(kind Kind, subscriptionType string, bindings ...RendererBindi
 
 type Definition struct {
 	Kind              Kind
-	SubscriptionType  string
+	SubscriptionGate  string
 	SupportedChannels []string
 	Renderers         map[string]ChannelRenderer
 }
@@ -95,7 +95,7 @@ func (d Definition) normalized() (Definition, error) {
 	normalized := d
 	normalized.Kind = Kind(strings.TrimSpace(string(d.Kind)))
 	normalized.SupportedChannels = append([]string(nil), channels...)
-	normalized.SubscriptionType = canonicalSubscriptionType(d.SubscriptionType)
+	normalized.SubscriptionGate = canonicalSubscriptionGate(d.SubscriptionGate)
 	normalized.Renderers = make(map[string]ChannelRenderer, len(d.Renderers))
 	for key, renderer := range d.Renderers {
 		channel, ok := NormalizeDeliveryChannel(key)
@@ -114,12 +114,12 @@ func (d Definition) normalized() (Definition, error) {
 	return normalized, nil
 }
 
-func canonicalSubscriptionType(subscriptionType string) string {
-	trimmed := strings.TrimSpace(subscriptionType)
+func canonicalSubscriptionGate(subscriptionGate string) string {
+	trimmed := strings.TrimSpace(subscriptionGate)
 	if trimmed == "" {
 		return ""
 	}
-	if canonical, ok := NormalizeNotificationType(trimmed); ok {
+	if canonical, ok := NormalizeSubscriptionGate(trimmed); ok {
 		return canonical
 	}
 	return trimmed

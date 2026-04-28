@@ -16,7 +16,7 @@ import (
 	"gorm.io/gorm"
 )
 
-const evidenceDigestKind = notification.Kind(notification.NotificationTypeEvidenceDigest)
+const evidenceDigestKind = notification.NotificationKindEvidenceDigest
 
 type evidenceDigestNotificationModel struct {
 	UserName    string
@@ -139,7 +139,7 @@ func NewNotificationService(
 		notification.NewGORMUserRepository(db),
 		notification.NewDefinition(
 			evidenceDigestKind,
-			notification.NotificationTypeEvidenceDigest,
+			notification.SubscriptionGateEvidenceDigest,
 			emailprovider.TemplateChannel(func(ctx context.Context, model any) (emailprovider.TemplateContent, error) {
 				return renderEvidenceDigestEmail(ctx, model)
 			}),
@@ -269,7 +269,7 @@ func (s *Service) configuredDigestTargets(ctx context.Context) ([]notification.T
 	}
 
 	return notification.NewGORMSystemDestinationRepository(s.db, notificationproviders.NewLookup()).
-		ListTargetsByNotificationType(ctx, notification.NotificationTypeEvidenceDigest)
+		ListTargetsBySubscriptionGate(ctx, notification.SubscriptionGateEvidenceDigest)
 }
 
 func audiencesForTargets(targets []notification.Target) []notification.Audience {
