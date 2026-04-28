@@ -38,6 +38,28 @@ func TestGORMSystemDestinationRepositoryListTargetsBySubscriptionGateExpandsTarg
 	assert.Equal(t, "channel", targets[0].Address["target_type"])
 }
 
+func TestGORMSystemDestinationRepositoryListTargetsBySystemNotificationNameExpandsWorkflowFailureTargets(t *testing.T) {
+	db := newNotificationSystemDestinationTestDB(t)
+
+	require.NoError(t, db.Create(&relational.SystemNotificationDestination{
+		NotificationType: notification.SystemNotificationNameWorkflowExecutionFailed,
+		Provider:         notification.DeliveryChannelEmail,
+		Target: datatypes.NewJSONType(relational.SystemNotificationTarget{
+			Address: map[string]string{
+				"email": " alerts@example.com ",
+			},
+		}),
+	}).Error)
+
+	repo := notification.NewGORMSystemDestinationRepository(db, notificationproviders.NewLookup())
+	targets, err := repo.ListTargetsBySystemNotificationName(context.Background(), " workflowExecutionFailed ")
+	require.NoError(t, err)
+	require.Len(t, targets, 1)
+
+	assert.Equal(t, notification.DeliveryChannelEmail, targets[0].Provider)
+	assert.Equal(t, "alerts@example.com", targets[0].Address["email"])
+}
+
 func TestGORMSystemDestinationRepositoryListTargetsBySubscriptionGateExpandsMultipleRowsForSameProvider(t *testing.T) {
 	db := newNotificationSystemDestinationTestDB(t)
 

@@ -16,7 +16,7 @@ const (
 	workflowTaskAssignedNotificationKind    = notification.Kind(JobTypeWorkflowTaskAssigned)
 	workflowTaskDueSoonNotificationKind     = notification.Kind(JobTypeWorkflowTaskDueSoon)
 	workflowTaskDigestNotificationKind      = notification.Kind(JobTypeWorkflowTaskDigest)
-	workflowExecutionFailedNotificationKind = notification.Kind(JobTypeWorkflowExecutionFailed)
+	workflowExecutionFailedNotificationKind = notification.NotificationKindWorkflowExecutionFailed
 )
 
 type workflowTaskAssignedNotificationModel struct {
@@ -60,6 +60,7 @@ type workflowExecutionFailedNotificationModel struct {
 	TotalSteps           int
 	WorkflowURL          string
 	MyTasksURL           string
+	IsSystemAudience     bool
 }
 
 type notificationUserRepositoryAdapter struct {
@@ -152,6 +153,7 @@ func newWorkflowExecutionFailedNotificationModel(data workflowExecutionFailedNot
 		TotalSteps:           data.TotalSteps,
 		WorkflowURL:          strings.TrimSpace(data.WorkflowURL),
 		MyTasksURL:           strings.TrimSpace(data.MyTasksURL),
+		IsSystemAudience:     data.IsSystemAudience,
 	}
 }
 
@@ -210,6 +212,40 @@ func buildWorkflowExecutionFailedNotificationRequest(
 	)
 }
 
+func buildWorkflowExecutionFailedSystemNotificationRequest(
+	args WorkflowExecutionFailedArgs,
+	targets []notification.Target,
+	data workflowExecutionFailedNotificationModel,
+) (notification.Request, bool) {
+	audiences := make([]notification.Audience, 0, len(targets))
+	for i := range targets {
+		// Directly assign the map since no mutation is needed
+		audiences = append(audiences, notification.Audience{
+			Direct: &notification.DirectAudience{
+				Provider: targets[i].Provider,
+				Address:  targets[i].Address,
+			},
+		})
+	}
+
+	if len(audiences) == 0 {
+		return notification.Request{}, false
+	}
+
+	// Use the provided data directly and only modify necessary fields
+	systemModel := data
+	systemModel.RecipientName = ""
+	systemModel.MyTasksURL = ""
+	systemModel.IsSystemAudience = true
+
+	return notification.Request{
+		Kind:      workflowExecutionFailedNotificationKind,
+		Audiences: audiences,
+		Model:     systemModel,
+		Options:   newJobDispatchOptions(JobTypeWorkflowExecutionFailed, "", args.WorkflowExecutionID),
+	}, true
+}
+
 func (m workflowTaskDigestNotificationModel) templateData() map[string]interface{} {
 	return map[string]interface{}{
 		"UserName":     m.UserName,
@@ -233,6 +269,7 @@ func (m workflowExecutionFailedNotificationModel) templateData() map[string]inte
 		"TotalSteps":           m.TotalSteps,
 		"WorkflowURL":          m.WorkflowURL,
 		"MyTasksURL":           m.MyTasksURL,
+		"IsSystemAudience":     m.IsSystemAudience,
 	}
 }
 
@@ -395,11 +432,18 @@ func renderWorkflowExecutionFailedEmail(failedModel workflowExecutionFailedNotif
 		instanceName = failedModel.WorkflowTitle
 	}
 
+	subject := fmt.Sprintf("Workflow execution failed: %s", instanceName)
+	textBody := fmt.Sprintf("Workflow execution failed for %s. Open: %s", instanceName, failedModel.WorkflowURL)
+	if failedModel.IsSystemAudience {
+		subject = fmt.Sprintf("Workflow execution failed: %s", instanceName)
+		textBody = fmt.Sprintf("Workflow execution failed for %s. Review details: %s", instanceName, failedModel.WorkflowURL)
+	}
+
 	return emailprovider.TemplateContent{
 		TemplateName: "workflow-execution-failed",
 		TemplateData: failedModel.templateData(),
-		Subject:      fmt.Sprintf("Workflow execution failed: %s", instanceName),
-		TextBody:     fmt.Sprintf("Workflow execution failed for %s. Open: %s", instanceName, failedModel.WorkflowURL),
+		Subject:      subject,
+		TextBody:     textBody,
 	}, nil
 }
 
@@ -451,6 +495,11 @@ func renderWorkflowTaskDigestSlack(digestModel workflowTaskDigestNotificationMod
 }
 
 func renderWorkflowExecutionFailedSlack(failedModel workflowExecutionFailedNotificationModel) (*slackprovider.Message, error) {
+	myTasksURL := failedModel.MyTasksURL
+	if failedModel.IsSystemAudience {
+		myTasksURL = ""
+	}
+
 	message, err := slackprovider.FormatWorkflowExecutionFailedMessage(
 		failedModel.RecipientName,
 		failedModel.WorkflowTitle,
@@ -462,7 +511,7 @@ func renderWorkflowExecutionFailedSlack(failedModel workflowExecutionFailedNotif
 		failedModel.CompletedSteps,
 		failedModel.TotalSteps,
 		failedModel.WorkflowURL,
-		failedModel.MyTasksURL,
+		myTasksURL,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to format workflow-execution-failed slack message: %w", err)

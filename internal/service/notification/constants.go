@@ -5,12 +5,27 @@ import (
 )
 
 const (
+	notificationNameEvidenceDigest          = "evidence_digest"
+	notificationNameTaskAvailable           = "task_available"
+	notificationNameTaskDailyDigest         = "task_daily_digest"
+	notificationNameRiskNotifications       = "risk_notifications"
+	notificationNameWorkflowExecutionFailed = "workflow_execution_failed"
+
+	NotificationKindEvidenceDigest          = Kind(notificationNameEvidenceDigest)
+	NotificationKindWorkflowExecutionFailed = Kind(notificationNameWorkflowExecutionFailed)
+
+	SystemNotificationNameEvidenceDigest          = notificationNameEvidenceDigest
+	SystemNotificationNameTaskAvailable           = notificationNameTaskAvailable
+	SystemNotificationNameTaskDailyDigest         = notificationNameTaskDailyDigest
+	SystemNotificationNameRiskNotifications       = notificationNameRiskNotifications
+	SystemNotificationNameWorkflowExecutionFailed = notificationNameWorkflowExecutionFailed
+
 	SubscriptionGateUngated = ""
 
-	SubscriptionGateEvidenceDigest    = "evidence_digest"
-	SubscriptionGateTaskAvailable     = "task_available"
-	SubscriptionGateTaskDailyDigest   = "task_daily_digest"
-	SubscriptionGateRiskNotifications = "risk_notifications"
+	SubscriptionGateEvidenceDigest    = notificationNameEvidenceDigest
+	SubscriptionGateTaskAvailable     = notificationNameTaskAvailable
+	SubscriptionGateTaskDailyDigest   = notificationNameTaskDailyDigest
+	SubscriptionGateRiskNotifications = notificationNameRiskNotifications
 
 	SubscriptionGateEvidenceDigestWire    = "evidenceDigest"
 	SubscriptionGateTaskAvailableWire     = "taskAvailable"
@@ -21,6 +36,8 @@ const (
 	subscriptionGateTaskAvailableWireNormalized     = "taskavailable"
 	subscriptionGateTaskDailyDigestWireNormalized   = "taskdailydigest"
 	subscriptionGateRiskNotificationsWireNormalized = "risknotifications"
+
+	systemNotificationWorkflowExecutionFailedWireNormalized = "workflowexecutionfailed"
 )
 
 var subscriptionGateInputAliases = map[string]string{
@@ -41,8 +58,22 @@ var subscriptionGateWireValues = map[string]string{
 	SubscriptionGateRiskNotifications: SubscriptionGateRiskNotificationsWire,
 }
 
-var systemSubscriptionGates = []string{
-	SubscriptionGateEvidenceDigest,
+var systemNotificationInputAliases = map[string]string{
+	SubscriptionGateEvidenceDigest:                          SystemNotificationNameEvidenceDigest,
+	SubscriptionGateTaskAvailable:                           SystemNotificationNameTaskAvailable,
+	SubscriptionGateTaskDailyDigest:                         SystemNotificationNameTaskDailyDigest,
+	SubscriptionGateRiskNotifications:                       SystemNotificationNameRiskNotifications,
+	notificationNameWorkflowExecutionFailed:                 SystemNotificationNameWorkflowExecutionFailed,
+	subscriptionGateEvidenceDigestWireNormalized:            SystemNotificationNameEvidenceDigest,
+	subscriptionGateTaskAvailableWireNormalized:             SystemNotificationNameTaskAvailable,
+	subscriptionGateTaskDailyDigestWireNormalized:           SystemNotificationNameTaskDailyDigest,
+	subscriptionGateRiskNotificationsWireNormalized:         SystemNotificationNameRiskNotifications,
+	systemNotificationWorkflowExecutionFailedWireNormalized: SystemNotificationNameWorkflowExecutionFailed,
+}
+
+var systemNotificationNames = []string{
+	SystemNotificationNameEvidenceDigest,
+	SystemNotificationNameWorkflowExecutionFailed,
 }
 
 func normalizeToken(value string) string {
@@ -79,6 +110,21 @@ func WireSubscriptionGate(subscriptionGate string) (string, bool) {
 	return wireValue, true
 }
 
-func SystemSubscriptionGates() []string {
-	return append([]string(nil), systemSubscriptionGates...)
+// NormalizeSystemNotificationName canonicalizes a system notification name and verifies support.
+func NormalizeSystemNotificationName(notificationName string) (string, bool) {
+	normalized := normalizeToken(notificationName)
+	if normalized == "" {
+		return "", false
+	}
+
+	canonical, ok := systemNotificationInputAliases[normalized]
+	if !ok {
+		return "", false
+	}
+
+	return canonical, true
+}
+
+func SystemNotificationNames() []string {
+	return append([]string(nil), systemNotificationNames...)
 }

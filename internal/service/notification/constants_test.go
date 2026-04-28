@@ -90,6 +90,25 @@ func TestNormalizeSubscriptionGate_Invalid(t *testing.T) {
 	assert.Equal(t, "", normalized)
 }
 
-func TestSystemSubscriptionGates(t *testing.T) {
-	assert.Equal(t, []string{SubscriptionGateEvidenceDigest}, SystemSubscriptionGates())
+func TestNormalizeSystemNotificationName(t *testing.T) {
+	normalized, ok := NormalizeSystemNotificationName(" workflowExecutionFailed ")
+	assert.True(t, ok)
+	assert.Equal(t, SystemNotificationNameWorkflowExecutionFailed, normalized)
+
+	normalized, ok = NormalizeSystemNotificationName(" TASK_AVAILABLE ")
+	assert.True(t, ok)
+	assert.Equal(t, SystemNotificationNameTaskAvailable, normalized)
+}
+
+func TestNormalizeSystemNotificationNameRejectsUnsupportedName(t *testing.T) {
+	normalized, ok := NormalizeSystemNotificationName("risk_opened")
+	assert.False(t, ok)
+	assert.Equal(t, "", normalized)
+}
+
+func TestSystemNotificationNames(t *testing.T) {
+	assert.Equal(t, []string{
+		SystemNotificationNameEvidenceDigest,
+		SystemNotificationNameWorkflowExecutionFailed,
+	}, SystemNotificationNames())
 }

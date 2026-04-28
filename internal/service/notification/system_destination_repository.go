@@ -10,6 +10,7 @@ import (
 
 type SystemDestinationRepository interface {
 	ListTargetsBySubscriptionGate(ctx context.Context, subscriptionGate string) ([]Target, error)
+	ListTargetsBySystemNotificationName(ctx context.Context, notificationName string) ([]Target, error)
 }
 
 type GORMSystemDestinationRepository struct {
@@ -25,7 +26,7 @@ func NewGORMSystemDestinationRepository(db *gorm.DB, providers ProviderLookup) *
 }
 
 func (r *GORMSystemDestinationRepository) ListTargetsBySubscriptionGate(ctx context.Context, subscriptionGate string) ([]Target, error) {
-	if r == nil || r.db == nil || r.providers == nil {
+	if r.db == nil || r.providers == nil {
 		return nil, fmt.Errorf("system notification destination repository is not configured")
 	}
 
@@ -34,11 +35,28 @@ func (r *GORMSystemDestinationRepository) ListTargetsBySubscriptionGate(ctx cont
 		return []Target{}, nil
 	}
 
+	return r.listTargetsBySystemNotificationName(ctx, canonicalGate)
+}
+
+func (r *GORMSystemDestinationRepository) ListTargetsBySystemNotificationName(ctx context.Context, notificationName string) ([]Target, error) {
+	if r.db == nil || r.providers == nil {
+		return nil, fmt.Errorf("system notification destination repository is not configured")
+	}
+
+	canonicalName, ok := NormalizeSystemNotificationName(notificationName)
+	if !ok {
+		return []Target{}, nil
+	}
+
+	return r.listTargetsBySystemNotificationName(ctx, canonicalName)
+}
+
+func (r *GORMSystemDestinationRepository) listTargetsBySystemNotificationName(ctx context.Context, notificationName string) ([]Target, error) {
 	var records []relational.SystemNotificationDestination
 	if err := r.db.WithContext(ctx).
-		Where("notification_type = ?", canonicalGate).
+		Where("notification_type = ?", notificationName).
 		Find(&records).Error; err != nil {
-		return nil, fmt.Errorf("failed to fetch system notification destinations for gate %s: %w", canonicalGate, err)
+		return nil, fmt.Errorf("failed to fetch system notification destinations for %s: %w", notificationName, err)
 	}
 
 	targets := make([]Target, 0, len(records))
@@ -75,18 +93,18 @@ func (r *GORMSystemDestinationRepository) ListTargetsBySubscriptionGate(ctx cont
 		})
 		if err != nil {
 			return nil, fmt.Errorf(
-				"invalid system notification destination %s for gate %s provider %s: %w",
+				"invalid system notification destination %s for %s provider %s: %w",
 				recordID,
-				canonicalGate,
+				notificationName,
 				provider,
 				err,
 			)
 		}
 		if err := target.Validate(); err != nil {
 			return nil, fmt.Errorf(
-				"invalid system notification destination %s for gate %s provider %s: %w",
+				"invalid system notification destination %s for %s provider %s: %w",
 				recordID,
-				canonicalGate,
+				notificationName,
 				provider,
 				err,
 			)

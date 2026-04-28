@@ -43,3 +43,41 @@ func TestFormatWorkflowExecutionFailedMessage_DefaultsMissingFields(t *testing.T
 	assert.Contains(t, msg.Text, "Workflow execution failed: Workflow")
 	require.NotEmpty(t, msg.Blocks)
 }
+
+func TestFormatWorkflowExecutionFailedMessage_GenericAudienceOmitsMyTasksLink(t *testing.T) {
+	msg, err := FormatWorkflowExecutionFailedMessage(
+		"",
+		"Annual Audit",
+		"Audit 2026",
+		"exec-123",
+		"step execution failed",
+		"17 Apr 2026",
+		1,
+		3,
+		4,
+		"https://app.example.com/workflow-executions/exec-123",
+		"",
+	)
+	require.NoError(t, err)
+	assert.Contains(t, msg.Text, "Workflow execution failed")
+	require.NotEmpty(t, msg.Blocks)
+
+	blockText := workflowExecutionFailedSectionText(msg.Blocks)
+	assert.Contains(t, blockText, "A workflow execution has failed and may require your attention.")
+	assert.Contains(t, blockText, "View Workflow Instance")
+	assert.NotContains(t, blockText, "Hi ")
+	assert.NotContains(t, blockText, "View My Tasks")
+}
+
+func workflowExecutionFailedSectionText(blocks []slack.Block) string {
+	parts := []string{}
+	for _, block := range blocks {
+		section, ok := block.(*slack.SectionBlock)
+		if !ok || section.Text == nil {
+			continue
+		}
+		parts = append(parts, section.Text.Text)
+	}
+
+	return strings.Join(parts, "\n")
+}

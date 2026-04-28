@@ -141,7 +141,11 @@
     </div>
 
     <div class="content">
+        {{if .RecipientName}}
         <p class="greeting">Hi {{.RecipientName}},</p>
+        {{else}}
+        <p class="greeting">A workflow execution has failed and may require your attention.</p>
+        {{end}}
 
         <div class="alert-banner">
             <div class="alert-title">{{.WorkflowInstanceName}} — execution failed</div>
@@ -182,13 +186,17 @@
         </div>
 
         {{if .WorkflowURL}}<a href="{{.WorkflowURL}}" class="cta-button">View Workflow Instance</a>{{end}}
-        <div style="text-align: center; margin-top: 12px;">
+        {{if .MyTasksURL}}<div style="text-align: center; margin-top: 12px;">
             <a href="{{.MyTasksURL}}" style="color: #dc2626; font-size: 14px;">View all my tasks &rarr;</a>
-        </div>
+        </div>{{end}}
     </div>
 
     <div class="footer">
+        {{if .IsSystemAudience}}
+        <p>You are receiving this because this destination is configured for workflow failure alerts.</p>
+        {{else}}
         <p>You are receiving this because you are the owner of this workflow instance.</p>
+        {{end}}
         <p style="margin-top: 8px;">Compliance Framework</p>
     </div>
 </div>

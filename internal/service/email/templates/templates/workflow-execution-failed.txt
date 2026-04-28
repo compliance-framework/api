@@ -1,8 +1,9 @@
 WORKFLOW EXECUTION FAILED
 =========================
 
-Hi {{.RecipientName}},
+{{if .RecipientName}}Hi {{.RecipientName}},
 
+{{end}}
 A workflow execution has failed and may require your attention.
 
 WORKFLOW:  {{.WorkflowTitle}}
@@ -28,5 +29,7 @@ VIEW WORKFLOW INSTANCE
 {{.WorkflowURL}}
 {{end}}
 ---
-You are receiving this because you are the owner of this workflow instance.
+{{if .IsSystemAudience}}You are receiving this because this destination is configured for workflow failure alerts.
+{{else}}You are receiving this because you are the owner of this workflow instance.
+{{end}}
 Compliance Framework

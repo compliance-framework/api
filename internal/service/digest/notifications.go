@@ -16,7 +16,7 @@ import (
 	"gorm.io/gorm"
 )
 
-const evidenceDigestKind = notification.Kind("evidence_digest")
+const evidenceDigestKind = notification.NotificationKindEvidenceDigest
 
 type evidenceDigestNotificationModel struct {
 	UserName    string

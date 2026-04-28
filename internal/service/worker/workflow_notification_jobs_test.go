@@ -325,6 +325,7 @@ func newWorkflowNotificationJobsTestDB(t *testing.T) *gorm.DB {
 		&relational.User{},
 		&relational.SlackUserLink{},
 		&relational.UserNotificationSubscription{},
+		&relational.SystemNotificationDestination{},
 		&relational.SystemSecurityPlan{},
 		&workflows.WorkflowDefinition{},
 		&workflows.WorkflowInstance{},
