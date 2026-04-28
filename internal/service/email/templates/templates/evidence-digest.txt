@@ -1,9 +1,13 @@
 Evidence Compliance Digest
 ==========================
 
-Hello {{.UserName}},
+{{if .UserName}}Hello {{.UserName}},
 
 Here's your evidence compliance summary. This digest highlights evidence that requires your attention.
+{{else}}Evidence compliance summary
+
+Here's the latest evidence compliance summary. This digest highlights evidence that requires attention.
+{{end}}
 
 SUMMARY
 -------

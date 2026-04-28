@@ -555,12 +555,28 @@ definitions:
           $ref: '#/definitions/handler.StatusInterval'
         type: array
     type: object
+  handler.GenericDataListResponse-handler_availableNotificationProviderResponse:
+    properties:
+      data:
+        description: Items from the list response
+        items:
+          $ref: '#/definitions/handler.availableNotificationProviderResponse'
+        type: array
+    type: object
   handler.GenericDataListResponse-handler_milestoneResponse:
     properties:
       data:
         description: Items from the list response
         items:
           $ref: '#/definitions/handler.milestoneResponse'
+        type: array
+    type: object
+  handler.GenericDataListResponse-handler_notificationProviderStatusResponse:
+    properties:
+      data:
+        description: Items from the list response
+        items:
+          $ref: '#/definitions/handler.notificationProviderStatusResponse'
         type: array
     type: object
   handler.GenericDataListResponse-handler_poamItemResponse:
@@ -585,6 +601,14 @@ definitions:
         description: Items from the list response
         items:
           $ref: '#/definitions/handler.selectableUserResponse'
+        type: array
+    type: object
+  handler.GenericDataListResponse-handler_systemNotificationResponse:
+    properties:
+      data:
+        description: Items from the list response
+        items:
+          $ref: '#/definitions/handler.systemNotificationResponse'
         type: array
     type: object
   handler.GenericDataListResponse-oscal_InventoryItemWithSource:
@@ -986,6 +1010,13 @@ definitions:
       data:
         allOf:
         - $ref: '#/definitions/handler.SubscriptionsResponse'
+        description: Items from the list response
+    type: object
+  handler.GenericDataResponse-handler_configuredSystemDestinationResponse:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/handler.configuredSystemDestinationResponse'
         description: Items from the list response
     type: object
   handler.GenericDataResponse-handler_milestoneResponse:
@@ -1641,6 +1672,28 @@ definitions:
       subject-id:
         type: string
     type: object
+  handler.availableNotificationProviderResponse:
+    properties:
+      description:
+        type: string
+      displayName:
+        type: string
+      enabled:
+        type: boolean
+      metadata:
+        additionalProperties:
+          type: string
+        type: object
+      providerType:
+        type: string
+    type: object
+  handler.configuredSystemDestinationResponse:
+    properties:
+      destinationTarget:
+        type: string
+      providerType:
+        type: string
+    type: object
   handler.controlLinkResponse:
     properties:
       catalog-id:
@@ -1773,6 +1826,16 @@ definitions:
       title:
         type: string
     type: object
+  handler.createSystemNotificationDestinationRequest:
+    properties:
+      destinationTarget:
+        type: string
+      providerType:
+        type: string
+    required:
+    - destinationTarget
+    - providerType
+    type: object
   handler.evidenceLinkResponse:
     properties:
       created-at:
@@ -1823,6 +1886,13 @@ definitions:
       title:
         type: string
       updatedAt:
+        type: string
+    type: object
+  handler.notificationProviderStatusResponse:
+    properties:
+      enabled:
+        type: boolean
+      providerType:
         type: string
     type: object
   handler.poamControlRefRequest:
@@ -2119,6 +2189,15 @@ definitions:
       displayName:
         type: string
       id:
+        type: string
+    type: object
+  handler.systemNotificationResponse:
+    properties:
+      configuredDestinations:
+        items:
+          $ref: '#/definitions/handler.configuredSystemDestinationResponse'
+        type: array
+      name:
         type: string
     type: object
   handler.threatIDRequest:
@@ -9094,6 +9173,142 @@ paths:
       summary: Trigger evidence digest
       tags:
       - Digest
+  /admin/notifications:
+    get:
+      description: Returns system notification destination configurations for admin
+        management
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-handler_systemNotificationResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: List system notification destinations
+      tags:
+      - Notifications
+  /admin/notifications/{notificationName}/destinations:
+    delete:
+      consumes:
+      - application/json
+      description: Deletes a stored system notification destination configuration
+        for an admin-managed notification
+      parameters:
+      - description: Notification name
+        in: path
+        name: notificationName
+        required: true
+        type: string
+      - description: Destination details
+        in: body
+        name: destination
+        required: true
+        schema:
+          $ref: '#/definitions/handler.createSystemNotificationDestinationRequest'
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Delete system notification destination
+      tags:
+      - Notifications
+    post:
+      consumes:
+      - application/json
+      description: Creates a new system notification destination configuration for
+        an admin-managed notification
+      parameters:
+      - description: Notification name
+        in: path
+        name: notificationName
+        required: true
+        type: string
+      - description: Destination details
+        in: body
+        name: destination
+        required: true
+        schema:
+          $ref: '#/definitions/handler.createSystemNotificationDestinationRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-handler_configuredSystemDestinationResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Create system notification destination
+      tags:
+      - Notifications
+  /admin/notifications/providers:
+    get:
+      description: Returns notification providers registered in the backend
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-handler_availableNotificationProviderResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: List available notification providers
+      tags:
+      - Notifications
   /admin/risk-templates:
     get:
       description: List risk templates with optional filters and pagination.
@@ -10465,6 +10680,29 @@ paths:
       summary: Import dashboard filters
       tags:
       - Filters
+  /notifications/providers:
+    get:
+      description: Returns notification provider availability for authenticated users
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-handler_notificationProviderStatusResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: List notification provider status
+      tags:
+      - Notifications
   /oscal/activities:
     post:
       consumes:

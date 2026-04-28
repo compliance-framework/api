@@ -9,8 +9,9 @@ import (
 )
 
 type SlackConfig struct {
-	Enabled       bool   `mapstructure:"enabled" yaml:"enabled" json:"enabled"`
-	Token         string `mapstructure:"token" yaml:"token" json:"token"`
+	Enabled bool   `mapstructure:"enabled" yaml:"enabled" json:"enabled"`
+	Token   string `mapstructure:"token" yaml:"token" json:"token"`
+	// DigestChannel is kept for one-time migration into ccf_system_notification_destinations.
 	DigestChannel string `mapstructure:"digest_channel" yaml:"digest_channel" json:"digest_channel"`
 	ClientID      string `mapstructure:"client_id" yaml:"client_id" json:"client_id"`
 	ClientSecret  string `mapstructure:"client_secret" yaml:"client_secret" json:"client_secret"`

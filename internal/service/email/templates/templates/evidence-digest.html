@@ -268,11 +268,19 @@
         
         <!-- Content -->
         <div class="content">
+            {{if .UserName}}
             <p class="greeting">Hello {{.UserName}},</p>
-            
+
             <p class="message">
                 Here's your evidence compliance summary. This digest highlights evidence that requires your attention.
             </p>
+            {{else}}
+            <p class="greeting">Evidence compliance summary</p>
+
+            <p class="message">
+                Here's the latest evidence compliance summary. This digest highlights evidence that requires attention.
+            </p>
+            {{end}}
             
             <!-- Stats Grid -->
             <table class="stats-grid" cellspacing="12">

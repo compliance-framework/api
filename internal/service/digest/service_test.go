@@ -1,16 +1,43 @@
 package digest
 
 import (
+	"context"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/compliance-framework/api/internal/config"
 	"github.com/compliance-framework/api/internal/service/notification"
+	emailprovider "github.com/compliance-framework/api/internal/service/notification/providers/email"
+	slackprovider "github.com/compliance-framework/api/internal/service/notification/providers/slack"
+	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
+	"gorm.io/datatypes"
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
 )
+
+type digestStubTransport struct {
+	deliveries []notification.Delivery
+}
+
+func (t *digestStubTransport) Enqueue(_ context.Context, deliveries []notification.Delivery) error {
+	t.deliveries = append(t.deliveries, deliveries...)
+	return nil
+}
+
+func (t *digestStubTransport) byProvider(provider string) []notification.Delivery {
+	out := make([]notification.Delivery, 0)
+	for i := range t.deliveries {
+		if t.deliveries[i].Provider == provider {
+			out = append(out, t.deliveries[i])
+		}
+	}
+	return out
+}
 
 func TestConvertToEvidenceItems(t *testing.T) {
 	// Test the conversion logic without database dependencies
@@ -80,13 +107,81 @@ func TestEvidenceDigestDispatchOptions_UsesCorrelationAndSourceJobKind(t *testin
 	assert.True(t, strings.HasPrefix(options.CorrelationID, "evidence-digest:"))
 }
 
-func TestGlobalDigestSlackEnabled_RequiresConfiguredChannel(t *testing.T) {
+func TestHasGlobalDigestDestinations_RequiresConfiguredDestination(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	require.NoError(t, db.AutoMigrate(&relational.SystemNotificationDestination{}))
+
 	service := NewService(
+		db,
 		nil,
-		nil,
-		&config.Config{Slack: &config.SlackConfig{Enabled: true, DigestChannel: ""}},
+		&config.Config{Slack: &config.SlackConfig{Enabled: true}},
 		zap.NewNop().Sugar(),
 	)
 
-	assert.False(t, service.globalDigestSlackEnabled())
+	assert.False(t, service.hasGlobalDigestDestinations(context.Background()))
+
+	require.NoError(t, db.Create(&relational.SystemNotificationDestination{
+		NotificationType: notification.NotificationTypeEvidenceDigest,
+		Provider:         notification.DeliveryChannelEmail,
+		Target: datatypes.NewJSONType(relational.SystemNotificationTarget{
+			Address: map[string]string{
+				emailprovider.AddressKeyEmail: "alerts@example.com",
+			},
+		}),
+	}).Error)
+
+	assert.True(t, service.hasGlobalDigestDestinations(context.Background()))
+}
+
+func TestDispatchEvidenceDigestNotificationsSupportsMultipleConfiguredDestinations(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	require.NoError(t, db.AutoMigrate(&relational.SystemNotificationDestination{}))
+
+	require.NoError(t, db.Create(&relational.SystemNotificationDestination{
+		NotificationType: notification.NotificationTypeEvidenceDigest,
+		Provider:         notification.DeliveryChannelSlack,
+		Target: datatypes.NewJSONType(relational.SystemNotificationTarget{
+			Address: map[string]string{
+				slackprovider.AddressKeyChannel:    "ccf-alerts",
+				slackprovider.AddressKeyTargetType: slackprovider.TargetTypeChannel,
+			},
+		}),
+	}).Error)
+	require.NoError(t, db.Create(&relational.SystemNotificationDestination{
+		NotificationType: notification.NotificationTypeEvidenceDigest,
+		Provider:         notification.DeliveryChannelEmail,
+		Target: datatypes.NewJSONType(relational.SystemNotificationTarget{
+			Address: map[string]string{
+				emailprovider.AddressKeyEmail: "alerts@example.com",
+			},
+		}),
+	}).Error)
+
+	registry := notification.MustNewRegistry(notification.NewDefinition(
+		evidenceDigestKind,
+		notification.NotificationTypeEvidenceDigest,
+		notification.BindRenderer(notification.DeliveryChannelEmail, notification.ProviderRenderer(notification.DeliveryChannelEmail, func(context.Context, any) (any, error) {
+			return emailprovider.Content{From: "from@example.com", Subject: "Digest", TextBody: "body"}, nil
+		})),
+		notification.BindRenderer(notification.DeliveryChannelSlack, notification.ProviderRenderer(notification.DeliveryChannelSlack, func(context.Context, any) (any, error) {
+			return slackprovider.Content{Text: "body"}, nil
+		})),
+	))
+	transport := &digestStubTransport{}
+	notifier := notification.NewService(transport, registry, notification.NewResolver(nil, nil, nil))
+
+	service := NewService(db, notifier, &config.Config{}, zap.NewNop().Sugar())
+	err = service.dispatchEvidenceDigestNotifications(context.Background(), &EvidenceSummary{TotalCount: 1}, "", time.Now().UTC(), true, false)
+	require.NoError(t, err)
+
+	emails := transport.byProvider(notification.DeliveryChannelEmail)
+	slacks := transport.byProvider(notification.DeliveryChannelSlack)
+
+	require.Len(t, emails, 1)
+	assert.Equal(t, "alerts@example.com", emails[0].Target.Address[emailprovider.AddressKeyEmail])
+
+	require.Len(t, slacks, 1)
+	assert.Equal(t, "ccf-alerts", slacks[0].Target.Address[slackprovider.AddressKeyChannel])
 }

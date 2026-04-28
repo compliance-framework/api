@@ -89,3 +89,7 @@ func TestNormalizeNotificationType_Invalid(t *testing.T) {
 	assert.False(t, ok)
 	assert.Equal(t, "", normalized)
 }
+
+func TestSystemNotificationTypes(t *testing.T) {
+	assert.Equal(t, []string{NotificationTypeEvidenceDigest}, SystemNotificationTypes())
+}

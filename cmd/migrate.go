@@ -60,7 +60,7 @@ func migrateUp(cmd *cobra.Command, args []string) {
 		panic("failed to connect database")
 	}
 
-	err = service.MigrateUp(db)
+	err = service.MigrateUpWithConfig(db, cfg)
 	if err != nil {
 		panic(err)
 	}

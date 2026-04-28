@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
 
 	"github.com/compliance-framework/api/internal/config"
 	"github.com/compliance-framework/api/internal/service/slack/types"
@@ -11,10 +12,29 @@ import (
 	"go.uber.org/zap"
 )
 
+type apiClient interface {
+	SendMessageContext(ctx context.Context, channelID string, options ...slack.MsgOption) (string, string, string, error)
+	AuthTestContext(ctx context.Context) (*slack.AuthTestResponse, error)
+	GetTeamInfoContext(ctx context.Context) (*slack.TeamInfo, error)
+	GetBotInfoContext(ctx context.Context, parameters slack.GetBotInfoParameters) (*slack.Bot, error)
+}
+
+type WorkspaceConfiguration struct {
+	WorkspaceName   string
+	WorkspaceURL    string
+	WorkspaceDomain string
+	EmailDomain     string
+	TeamID          string
+	BotID           string
+	BotName         string
+	EnterpriseID    string
+}
+
 type Service struct {
-	config *config.SlackConfig
-	logger *zap.SugaredLogger
-	client *slack.Client
+	config   *config.SlackConfig
+	logger   *zap.SugaredLogger
+	clientMu sync.Mutex
+	client   apiClient
 }
 
 func NewService(cfg *config.SlackConfig, logger *zap.SugaredLogger) (*Service, error) {
@@ -26,6 +46,76 @@ func NewService(cfg *config.SlackConfig, logger *zap.SugaredLogger) (*Service, e
 		service.client = slack.New(cfg.Token)
 	}
 	return service, nil
+}
+
+func (s *Service) GetConfiguration(ctx context.Context) (WorkspaceConfiguration, error) {
+	if s == nil || s.config == nil {
+		return WorkspaceConfiguration{}, fmt.Errorf("slack service is not configured")
+	}
+
+	return s.GetConfigurationForToken(ctx, s.config.Token)
+}
+
+func (s *Service) GetConfigurationForToken(ctx context.Context, token string) (WorkspaceConfiguration, error) {
+	if s == nil || s.config == nil {
+		return WorkspaceConfiguration{}, fmt.Errorf("slack service is not configured")
+	}
+
+	if !s.config.Enabled {
+		return WorkspaceConfiguration{}, fmt.Errorf("slack service is not enabled")
+	}
+
+	trimmedToken := strings.TrimSpace(token)
+	if trimmedToken == "" {
+		return WorkspaceConfiguration{}, fmt.Errorf("slack token is required")
+	}
+
+	api := s.clientForToken(trimmedToken)
+	auth, err := api.AuthTestContext(ctx)
+	if err != nil {
+		return WorkspaceConfiguration{}, err
+	}
+
+	configuration := WorkspaceConfiguration{
+		WorkspaceName: strings.TrimSpace(auth.Team),
+		WorkspaceURL:  strings.TrimSpace(auth.URL),
+		TeamID:        strings.TrimSpace(auth.TeamID),
+		BotID:         strings.TrimSpace(auth.BotID),
+		EnterpriseID:  strings.TrimSpace(auth.EnterpriseID),
+	}
+
+	teamInfo, err := api.GetTeamInfoContext(ctx)
+	if err != nil {
+		if s != nil && s.logger != nil {
+			s.logger.Warnw("Failed to retrieve Slack team info", "error", err)
+		}
+	} else if teamInfo != nil {
+		if name := strings.TrimSpace(teamInfo.Name); name != "" {
+			configuration.WorkspaceName = name
+		}
+		configuration.WorkspaceDomain = strings.TrimSpace(teamInfo.Domain)
+		configuration.EmailDomain = strings.TrimSpace(teamInfo.EmailDomain)
+	}
+
+	if configuration.BotID == "" {
+		return configuration, nil
+	}
+
+	botInfo, err := api.GetBotInfoContext(ctx, slack.GetBotInfoParameters{
+		Bot:    configuration.BotID,
+		TeamID: configuration.TeamID,
+	})
+	if err != nil {
+		if s != nil && s.logger != nil {
+			s.logger.Warnw("Failed to retrieve Slack bot info", "error", err, "botID", configuration.BotID)
+		}
+		return configuration, nil
+	}
+	if botInfo != nil {
+		configuration.BotName = strings.TrimSpace(botInfo.Name)
+	}
+
+	return configuration, nil
 }
 
 func (s *Service) SendMessage(ctx context.Context, channel string, message *types.Message) (*types.SendResult, error) {
@@ -41,11 +131,7 @@ func (s *Service) SendMessage(ctx context.Context, channel string, message *type
 		return sendFailureResult(err), err
 	}
 
-	api := s.client
-	if api == nil {
-		api = slack.New(s.config.Token)
-		s.client = api
-	}
+	api := s.clientForToken(s.config.Token)
 
 	opts := []slack.MsgOption{
 		slack.MsgOptionText(message.Text, false),
@@ -75,6 +161,26 @@ func (s *Service) SendMessage(ctx context.Context, channel string, message *type
 // IsEnabled returns true if the slack service is enabled
 func (s *Service) IsEnabled() bool {
 	return s.config != nil && s.config.Enabled
+}
+
+func (s *Service) clientForToken(token string) apiClient {
+	trimmedToken := strings.TrimSpace(token)
+	if s == nil || s.config == nil {
+		return slack.New(trimmedToken)
+	}
+
+	if trimmedToken != strings.TrimSpace(s.config.Token) {
+		return slack.New(trimmedToken)
+	}
+
+	s.clientMu.Lock()
+	defer s.clientMu.Unlock()
+
+	if s.client == nil {
+		s.client = slack.New(trimmedToken)
+	}
+
+	return s.client
 }
 
 func validateSendInput(channel string, message *types.Message) error {

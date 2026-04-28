@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/compliance-framework/api/internal/config"
 	emailtypes "github.com/compliance-framework/api/internal/service/email/types"
 	"github.com/compliance-framework/api/internal/service/notification"
 	"github.com/stretchr/testify/assert"
@@ -65,6 +66,56 @@ func TestResolveUserTargetFallsBackToUserEmail(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, ChannelID, target.Provider)
 	assert.Equal(t, map[string]string{AddressKeyEmail: "alice@example.com"}, target.Address)
+}
+
+func TestBuildTargetNormalizesEmailAddress(t *testing.T) {
+	provider := NewProvider(nil, nil)
+
+	target, err := provider.BuildTarget(" Alice <alice@example.com> ")
+	require.NoError(t, err)
+	assert.Equal(t, ChannelID, target.Provider)
+	assert.Equal(t, map[string]string{AddressKeyEmail: "alice@example.com"}, target.Address)
+}
+
+func TestProviderMetadataUsesConfiguredEmailProvider(t *testing.T) {
+	provider := NewCatalogProvider(&config.Config{
+		Email: &config.EmailConfig{
+			Enabled:  true,
+			Provider: "smtp",
+			Providers: &config.SupportedEmailProviders{
+				SMTP: &config.SMTPConfig{
+					Name:    "smtp-primary",
+					Enabled: true,
+					Host:    "smtp.example.com",
+					Port:    587,
+					From:    "alerts@example.com",
+				},
+			},
+		},
+	})
+
+	metadata := provider.ProviderMetadata()
+	assert.Equal(t, notification.ProviderMetadata{
+		ProviderType: ChannelID,
+		DisplayName:  "Email",
+		Description:  "Configured SMTP provider for email service",
+		Enabled:      true,
+		Metadata: map[string]string{
+			MetadataKeyServiceProviderName: "smtp-primary",
+			MetadataKeyServiceProviderType: "smtp",
+		},
+	}, metadata)
+}
+
+func TestDisplayTargetRejectsInvalidEmailAddress(t *testing.T) {
+	provider := NewProvider(nil, nil)
+
+	_, err := provider.DisplayTarget(notification.Target{
+		Provider: ChannelID,
+		Address:  map[string]string{AddressKeyEmail: "not-an-email"},
+	})
+	require.Error(t, err)
+	assert.ErrorIs(t, err, notification.ErrInvalidTarget)
 }
 
 func TestDeliverUsesEnqueuerWhenStarted(t *testing.T) {

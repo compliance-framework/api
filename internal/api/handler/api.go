@@ -121,6 +121,16 @@ func RegisterHandlers(server *api.Server, logger *zap.SugaredLogger, db *gorm.DB
 	userGroup.Use(middleware.JWTMiddleware(config.JWTPublicKey))
 	userHandler.RegisterPublicRoutes(userGroup)
 
+	notificationsHandler := NewNotificationsHandler(logger, db, config)
+	notificationsPublicGroup := server.API().Group("/notifications")
+	notificationsPublicGroup.Use(middleware.JWTMiddleware(config.JWTPublicKey))
+	notificationsHandler.RegisterPublic(notificationsPublicGroup)
+
+	notificationsGroup := server.API().Group("/admin/notifications")
+	notificationsGroup.Use(middleware.JWTMiddleware(config.JWTPublicKey))
+	notificationsGroup.Use(middleware.RequireAdminGroups(db, config, logger))
+	notificationsHandler.Register(notificationsGroup)
+
 	// Digest handler (admin only)
 	if services.DigestService != nil {
 		digestHandler := NewDigestHandler(services.DigestService, logger)

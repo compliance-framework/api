@@ -100,6 +100,215 @@ const docTemplate = `{
                 ]
             }
         },
+        "/admin/notifications": {
+            "get": {
+                "description": "Returns system notification destination configurations for admin management",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Notifications"
+                ],
+                "summary": "List system notification destinations",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataListResponse-handler_systemNotificationResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/admin/notifications/providers": {
+            "get": {
+                "description": "Returns notification providers registered in the backend",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Notifications"
+                ],
+                "summary": "List available notification providers",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataListResponse-handler_availableNotificationProviderResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/admin/notifications/{notificationName}/destinations": {
+            "post": {
+                "description": "Creates a new system notification destination configuration for an admin-managed notification",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Notifications"
+                ],
+                "summary": "Create system notification destination",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Notification name",
+                        "name": "notificationName",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Destination details",
+                        "name": "destination",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.createSystemNotificationDestinationRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-handler_configuredSystemDestinationResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            },
+            "delete": {
+                "description": "Deletes a stored system notification destination configuration for an admin-managed notification",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Notifications"
+                ],
+                "summary": "Delete system notification destination",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Notification name",
+                        "name": "notificationName",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Destination details",
+                        "name": "destination",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.createSystemNotificationDestinationRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
         "/admin/risk-templates": {
             "get": {
                 "description": "List risk templates with optional filters and pagination.",
@@ -2185,6 +2394,43 @@ const docTemplate = `{
                         }
                     }
                 }
+            }
+        },
+        "/notifications/providers": {
+            "get": {
+                "description": "Returns notification provider availability for authenticated users",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Notifications"
+                ],
+                "summary": "List notification provider status",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataListResponse-handler_notificationProviderStatusResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
             }
         },
         "/oscal/activities": {
@@ -27159,6 +27405,18 @@ const docTemplate = `{
                 }
             }
         },
+        "handler.GenericDataListResponse-handler_availableNotificationProviderResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handler.availableNotificationProviderResponse"
+                    }
+                }
+            }
+        },
         "handler.GenericDataListResponse-handler_milestoneResponse": {
             "type": "object",
             "properties": {
@@ -27167,6 +27425,18 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/handler.milestoneResponse"
+                    }
+                }
+            }
+        },
+        "handler.GenericDataListResponse-handler_notificationProviderStatusResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handler.notificationProviderStatusResponse"
                     }
                 }
             }
@@ -27203,6 +27473,18 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/handler.selectableUserResponse"
+                    }
+                }
+            }
+        },
+        "handler.GenericDataListResponse-handler_systemNotificationResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handler.systemNotificationResponse"
                     }
                 }
             }
@@ -27821,6 +28103,19 @@ const docTemplate = `{
                     "allOf": [
                         {
                             "$ref": "#/definitions/handler.SubscriptionsResponse"
+                        }
+                    ]
+                }
+            }
+        },
+        "handler.GenericDataResponse-handler_configuredSystemDestinationResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/handler.configuredSystemDestinationResponse"
                         }
                     ]
                 }
@@ -28984,6 +29279,40 @@ const docTemplate = `{
                 }
             }
         },
+        "handler.availableNotificationProviderResponse": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "displayName": {
+                    "type": "string"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "metadata": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "providerType": {
+                    "type": "string"
+                }
+            }
+        },
+        "handler.configuredSystemDestinationResponse": {
+            "type": "object",
+            "properties": {
+                "destinationTarget": {
+                    "type": "string"
+                },
+                "providerType": {
+                    "type": "string"
+                }
+            }
+        },
         "handler.controlLinkResponse": {
             "type": "object",
             "properties": {
@@ -29180,6 +29509,21 @@ const docTemplate = `{
                 }
             }
         },
+        "handler.createSystemNotificationDestinationRequest": {
+            "type": "object",
+            "required": [
+                "destinationTarget",
+                "providerType"
+            ],
+            "properties": {
+                "destinationTarget": {
+                    "type": "string"
+                },
+                "providerType": {
+                    "type": "string"
+                }
+            }
+        },
         "handler.evidenceLinkResponse": {
             "type": "object",
             "properties": {
@@ -29256,6 +29600,17 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "updatedAt": {
+                    "type": "string"
+                }
+            }
+        },
+        "handler.notificationProviderStatusResponse": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean"
+                },
+                "providerType": {
                     "type": "string"
                 }
             }
@@ -29695,6 +30050,20 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "id": {
+                    "type": "string"
+                }
+            }
+        },
+        "handler.systemNotificationResponse": {
+            "type": "object",
+            "properties": {
+                "configuredDestinations": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handler.configuredSystemDestinationResponse"
+                    }
+                },
+                "name": {
                     "type": "string"
                 }
             }

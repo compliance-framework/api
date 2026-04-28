@@ -4,10 +4,15 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
+	"time"
 
+	"github.com/compliance-framework/api/internal/config"
 	"github.com/compliance-framework/api/internal/service/notification"
+	slacksvc "github.com/compliance-framework/api/internal/service/slack"
 	slacktypes "github.com/compliance-framework/api/internal/service/slack/types"
 	"github.com/slack-go/slack"
+	"go.uber.org/zap"
 )
 
 const (
@@ -71,16 +76,167 @@ type SenderProvider func() Sender
 
 type EnqueuerProvider func() Enqueuer
 
+type WorkspaceConfigurationResolver func(context.Context) (slacksvc.WorkspaceConfiguration, error)
+
+type EnabledResolver func() bool
+
+type ProviderOption func(*Provider)
+
 type Provider struct {
-	senderProvider   SenderProvider
-	enqueuerProvider EnqueuerProvider
+	senderProvider                 SenderProvider
+	enqueuerProvider               EnqueuerProvider
+	enabledResolver                EnabledResolver
+	workspaceConfigurationResolver WorkspaceConfigurationResolver
+	workspaceConfigurationMu       sync.Mutex
+	workspaceConfigurationLoaded   bool
+	workspaceConfiguration         slacksvc.WorkspaceConfiguration
 }
 
-func NewProvider(senderProvider SenderProvider, enqueuerProvider EnqueuerProvider) *Provider {
-	return &Provider{senderProvider: senderProvider, enqueuerProvider: enqueuerProvider}
+const (
+	MetadataKeyWorkspaceName   = "workspace-name"
+	MetadataKeyWorkspaceURL    = "workspace-url"
+	MetadataKeyWorkspaceDomain = "workspace-domain"
+	MetadataKeyEmailDomain     = "email-domain"
+	MetadataKeyTeamID          = "team-id"
+	MetadataKeyBotID           = "bot-id"
+	MetadataKeyBotName         = "bot-name"
+	MetadataKeyEnterpriseID    = "enterprise-id"
+)
+
+func NewCatalogProvider(cfg *config.Config) *Provider {
+	return NewProvider(
+		nil,
+		nil,
+		WithEnabledResolver(func() bool {
+			return slackEnabledFromConfig(cfg)
+		}),
+		WithWorkspaceConfigurationResolver(func(ctx context.Context) (slacksvc.WorkspaceConfiguration, error) {
+			if cfg == nil || cfg.Slack == nil || !cfg.Slack.Enabled || strings.TrimSpace(cfg.Slack.Token) == "" {
+				return slacksvc.WorkspaceConfiguration{}, nil
+			}
+
+			service, err := slacksvc.NewService(cfg.Slack, zap.NewNop().Sugar())
+			if err != nil {
+				return slacksvc.WorkspaceConfiguration{}, err
+			}
+
+			return service.GetConfiguration(ctx)
+		}),
+	)
+}
+
+func NewProvider(senderProvider SenderProvider, enqueuerProvider EnqueuerProvider, opts ...ProviderOption) *Provider {
+	provider := &Provider{senderProvider: senderProvider, enqueuerProvider: enqueuerProvider}
+	for _, opt := range opts {
+		if opt != nil {
+			opt(provider)
+		}
+	}
+	return provider
 }
 
 func (p *Provider) ID() string { return ChannelID }
+
+func WithEnabledResolver(resolver EnabledResolver) ProviderOption {
+	return func(provider *Provider) {
+		if provider == nil {
+			return
+		}
+		provider.enabledResolver = resolver
+	}
+}
+
+func WithWorkspaceConfigurationResolver(resolver WorkspaceConfigurationResolver) ProviderOption {
+	return func(provider *Provider) {
+		if provider == nil {
+			return
+		}
+		provider.workspaceConfigurationResolver = resolver
+	}
+}
+
+func (p *Provider) ProviderMetadata() notification.ProviderMetadata {
+	metadata := notification.ProviderMetadata{
+		ProviderType: ChannelID,
+		DisplayName:  "Slack",
+		Description:  "Configured Slack workspace",
+		Enabled:      p.enabled(),
+	}
+
+	configuration := p.workspaceConfigurationDetails()
+	if configuration.WorkspaceName != "" {
+		metadata.Description = fmt.Sprintf("Configured Slack workspace %s", configuration.WorkspaceName)
+	}
+
+	metadataMap := map[string]string{}
+	if configuration.WorkspaceName != "" {
+		metadataMap[MetadataKeyWorkspaceName] = configuration.WorkspaceName
+	}
+	if configuration.WorkspaceURL != "" {
+		metadataMap[MetadataKeyWorkspaceURL] = configuration.WorkspaceURL
+	}
+	if configuration.WorkspaceDomain != "" {
+		metadataMap[MetadataKeyWorkspaceDomain] = configuration.WorkspaceDomain
+	}
+	if configuration.EmailDomain != "" {
+		metadataMap[MetadataKeyEmailDomain] = configuration.EmailDomain
+	}
+	if configuration.TeamID != "" {
+		metadataMap[MetadataKeyTeamID] = configuration.TeamID
+	}
+	if configuration.BotID != "" {
+		metadataMap[MetadataKeyBotID] = configuration.BotID
+	}
+	if configuration.BotName != "" {
+		metadataMap[MetadataKeyBotName] = configuration.BotName
+	}
+	if configuration.EnterpriseID != "" {
+		metadataMap[MetadataKeyEnterpriseID] = configuration.EnterpriseID
+	}
+	if len(metadataMap) > 0 {
+		metadata.Metadata = metadataMap
+	}
+
+	return metadata
+}
+
+func slackEnabledFromConfig(cfg *config.Config) bool {
+	return cfg != nil && cfg.Slack != nil && cfg.Slack.Enabled
+}
+
+func (p *Provider) enabled() bool {
+	if p != nil && p.enabledResolver != nil {
+		return p.enabledResolver()
+	}
+
+	sender := p.sender()
+	return sender != nil && sender.IsEnabled()
+}
+
+func (p *Provider) workspaceConfigurationDetails() slacksvc.WorkspaceConfiguration {
+	if p == nil || p.workspaceConfigurationResolver == nil {
+		return slacksvc.WorkspaceConfiguration{}
+	}
+
+	p.workspaceConfigurationMu.Lock()
+	defer p.workspaceConfigurationMu.Unlock()
+
+	if p.workspaceConfigurationLoaded {
+		return p.workspaceConfiguration
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	configuration, err := p.workspaceConfigurationResolver(ctx)
+	if err != nil {
+		return p.workspaceConfiguration
+	}
+
+	p.workspaceConfiguration = configuration
+	p.workspaceConfigurationLoaded = true
+	return p.workspaceConfiguration
+}
 
 func (p *Provider) ResolveUserTarget(user notification.User) (notification.Target, bool, error) {
 	if len(user.Identities) == 0 {
@@ -105,6 +261,51 @@ func (p *Provider) ResolveUserTarget(user notification.User) (notification.Targe
 		UserID:   user.ID,
 		Address:  address,
 	}, true, nil
+}
+
+func (p *Provider) BuildTarget(rawTarget string) (notification.Target, error) {
+	return p.NormalizeTarget(notification.Target{
+		Provider: ChannelID,
+		Address: map[string]string{
+			AddressKeyChannel:    rawTarget,
+			AddressKeyTargetType: TargetTypeChannel,
+		},
+	})
+}
+
+func (p *Provider) NormalizeTarget(target notification.Target) (notification.Target, error) {
+	channel := strings.TrimSpace(target.Address[AddressKeyChannel])
+	if channel == "" {
+		return notification.Target{}, fmt.Errorf("%w: slack provider requires channel address", notification.ErrInvalidTarget)
+	}
+
+	targetType, ok := NormalizeTargetType(target.Address[AddressKeyTargetType])
+	if !ok {
+		return notification.Target{}, fmt.Errorf("%w: slack target requires a supported target type", notification.ErrInvalidTarget)
+	}
+
+	normalized := notification.Target{
+		Provider: ChannelID,
+		UserID:   strings.TrimSpace(target.UserID),
+		Address: map[string]string{
+			AddressKeyChannel:    channel,
+			AddressKeyTargetType: targetType,
+		},
+	}
+	if err := p.ValidateTarget(normalized); err != nil {
+		return notification.Target{}, err
+	}
+
+	return normalized, nil
+}
+
+func (p *Provider) DisplayTarget(target notification.Target) (string, error) {
+	normalized, err := p.NormalizeTarget(target)
+	if err != nil {
+		return "", err
+	}
+
+	return normalized.Address[AddressKeyChannel], nil
 }
 
 func (p *Provider) ValidateTarget(target notification.Target) error {

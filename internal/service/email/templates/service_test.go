@@ -45,6 +45,58 @@ func TestTemplateService_UseHTMLAndUseText(t *testing.T) {
 	require.Contains(t, textContent, data["ResetURL"].(string))
 }
 
+func TestTemplateService_EvidenceDigest_WithUserName(t *testing.T) {
+	service, err := NewTemplateService()
+	require.NoError(t, err)
+
+	data := TemplateData{
+		"UserName":          "Alice",
+		"TotalCount":        int64(3),
+		"SatisfiedCount":    int64(2),
+		"NotSatisfiedCount": int64(1),
+		"ExpiredCount":      int64(0),
+		"TopNotSatisfied":   []map[string]interface{}{},
+		"TopExpired":        []map[string]interface{}{},
+		"WebBaseURL":        "https://app.example.com",
+		"GeneratedAt":       "Mon, 27 Apr 2026 10:00:00 UTC",
+	}
+
+	html, text, err := service.Use("evidence-digest", data)
+	require.NoError(t, err)
+	require.Contains(t, html, "Hello Alice,")
+	require.Contains(t, html, "Here's your evidence compliance summary.")
+	require.Contains(t, text, "Hello Alice,")
+	require.Contains(t, text, "Here's your evidence compliance summary.")
+}
+
+func TestTemplateService_EvidenceDigest_WithoutUserName(t *testing.T) {
+	service, err := NewTemplateService()
+	require.NoError(t, err)
+
+	data := TemplateData{
+		"UserName":          "",
+		"TotalCount":        int64(3),
+		"SatisfiedCount":    int64(2),
+		"NotSatisfiedCount": int64(1),
+		"ExpiredCount":      int64(0),
+		"TopNotSatisfied":   []map[string]interface{}{},
+		"TopExpired":        []map[string]interface{}{},
+		"WebBaseURL":        "https://app.example.com",
+		"GeneratedAt":       "Mon, 27 Apr 2026 10:00:00 UTC",
+	}
+
+	html, text, err := service.Use("evidence-digest", data)
+	require.NoError(t, err)
+	require.Contains(t, html, "Evidence compliance summary")
+	require.Contains(t, html, "Here's the latest evidence compliance summary.")
+	require.NotContains(t, html, "Hello ,")
+	require.NotContains(t, html, "Here's your evidence compliance summary.")
+	require.Contains(t, text, "Evidence compliance summary")
+	require.Contains(t, text, "Here's the latest evidence compliance summary.")
+	require.NotContains(t, text, "Hello ,")
+	require.NotContains(t, text, "Here's your evidence compliance summary.")
+}
+
 func TestTemplateService_MissingTemplates(t *testing.T) {
 	service, err := NewTemplateService()
 	require.NoError(t, err, "Failed to create template service")
