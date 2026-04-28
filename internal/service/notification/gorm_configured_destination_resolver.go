@@ -77,7 +77,7 @@ func configuredDestinationLookup(key string) (configuredDestinationRecordLookup,
 	switch strings.TrimSpace(key) {
 	case configuredDestinationKeySlackDigest:
 		return configuredDestinationRecordLookup{
-			NotificationType: NotificationTypeEvidenceDigest,
+			NotificationType: SubscriptionGateEvidenceDigest,
 			Provider:         DeliveryChannelSlack,
 		}, true
 	default:

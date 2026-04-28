@@ -168,8 +168,8 @@ func (u NotificationUser) FullName() string {
 	return u.FirstName + " " + u.LastName
 }
 
-func (u NotificationUser) NotificationChannels(notificationType string) []string {
-	normalizedType, ok := notification.NormalizeNotificationType(notificationType)
+func (u NotificationUser) NotificationChannels(subscriptionGate string) []string {
+	normalizedGate, ok := notification.NormalizeSubscriptionGate(subscriptionGate)
 	if !ok {
 		return nil
 	}
@@ -177,8 +177,8 @@ func (u NotificationUser) NotificationChannels(notificationType string) []string
 	seen := map[string]struct{}{}
 	channels := make([]string, 0)
 	for _, subscription := range u.NotificationSubscriptions {
-		currentType, currentTypeOK := notification.NormalizeNotificationType(subscription.NotificationType)
-		if !currentTypeOK || currentType != normalizedType {
+		currentGate, currentGateOK := notification.NormalizeSubscriptionGate(subscription.NotificationType)
+		if !currentGateOK || currentGate != normalizedGate {
 			continue
 		}
 

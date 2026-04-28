@@ -26,7 +26,7 @@ func TestGORMUserRepositoryFindUserByIDIncludesSlackIdentity(t *testing.T) {
 	}).Error)
 	require.NoError(t, db.Create(&relational.UserNotificationSubscription{
 		UserID:           userID.String(),
-		NotificationType: NotificationTypeEvidenceDigest,
+		NotificationType: SubscriptionGateEvidenceDigest,
 		Channels:         datatypes.JSONSlice[string]{DeliveryChannelEmail, DeliveryChannelSlack},
 	}).Error)
 	require.NoError(t, db.Create(&relational.SlackUserLink{
@@ -45,7 +45,7 @@ func TestGORMUserRepositoryFindUserByIDIncludesSlackIdentity(t *testing.T) {
 	assert.Equal(t, "direct_message", identity["target_type"])
 }
 
-func TestGORMUserRepositoryListActiveUsersByNotificationTypeIncludesSlackIdentity(t *testing.T) {
+func TestGORMUserRepositoryListActiveUsersBySubscriptionGateIncludesSlackIdentity(t *testing.T) {
 	db := newNotificationTestDB(t)
 	userID := uuid.New()
 
@@ -57,7 +57,7 @@ func TestGORMUserRepositoryListActiveUsersByNotificationTypeIncludesSlackIdentit
 	}).Error)
 	require.NoError(t, db.Create(&relational.UserNotificationSubscription{
 		UserID:           userID.String(),
-		NotificationType: NotificationTypeTaskDailyDigest,
+		NotificationType: SubscriptionGateTaskDailyDigest,
 		Channels:         datatypes.JSONSlice[string]{DeliveryChannelSlack},
 	}).Error)
 	require.NoError(t, db.Create(&relational.SlackUserLink{
@@ -67,7 +67,7 @@ func TestGORMUserRepositoryListActiveUsersByNotificationTypeIncludesSlackIdentit
 	}).Error)
 
 	repo := NewGORMUserRepository(db)
-	users, err := repo.ListActiveUsersByNotificationType(context.Background(), NotificationTypeTaskDailyDigest)
+	users, err := repo.ListActiveUsersBySubscriptionGate(context.Background(), SubscriptionGateTaskDailyDigest)
 	require.NoError(t, err)
 	require.Len(t, users, 1)
 
@@ -77,7 +77,7 @@ func TestGORMUserRepositoryListActiveUsersByNotificationTypeIncludesSlackIdentit
 	assert.Equal(t, "direct_message", identity["target_type"])
 }
 
-func TestGORMUserRepositoryListActiveUserIDsByNotificationType(t *testing.T) {
+func TestGORMUserRepositoryListActiveUserIDsBySubscriptionGate(t *testing.T) {
 	db := newNotificationTestDB(t)
 	activeID := uuid.New()
 	inactiveID := uuid.New()
@@ -115,27 +115,27 @@ func TestGORMUserRepositoryListActiveUserIDsByNotificationType(t *testing.T) {
 
 	require.NoError(t, db.Create(&relational.UserNotificationSubscription{
 		UserID:           activeID.String(),
-		NotificationType: NotificationTypeTaskDailyDigest,
+		NotificationType: SubscriptionGateTaskDailyDigest,
 		Channels:         datatypes.JSONSlice[string]{DeliveryChannelEmail},
 	}).Error)
 	require.NoError(t, db.Create(&relational.UserNotificationSubscription{
 		UserID:           inactiveID.String(),
-		NotificationType: NotificationTypeTaskDailyDigest,
+		NotificationType: SubscriptionGateTaskDailyDigest,
 		Channels:         datatypes.JSONSlice[string]{DeliveryChannelEmail},
 	}).Error)
 	require.NoError(t, db.Create(&relational.UserNotificationSubscription{
 		UserID:           lockedID.String(),
-		NotificationType: NotificationTypeTaskDailyDigest,
+		NotificationType: SubscriptionGateTaskDailyDigest,
 		Channels:         datatypes.JSONSlice[string]{DeliveryChannelSlack},
 	}).Error)
 	require.NoError(t, db.Create(&relational.UserNotificationSubscription{
 		UserID:           invalidChannelID.String(),
-		NotificationType: NotificationTypeTaskDailyDigest,
+		NotificationType: SubscriptionGateTaskDailyDigest,
 		Channels:         datatypes.JSONSlice[string]{"invalid-channel"},
 	}).Error)
 
 	repo := NewGORMUserRepository(db)
-	userIDs, err := repo.ListActiveUserIDsByNotificationType(context.Background(), NotificationTypeTaskDailyDigest)
+	userIDs, err := repo.ListActiveUserIDsBySubscriptionGate(context.Background(), SubscriptionGateTaskDailyDigest)
 	require.NoError(t, err)
 	require.Len(t, userIDs, 1)
 	assert.Equal(t, activeID.String(), userIDs[0])

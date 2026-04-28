@@ -28,7 +28,7 @@ func TestPoamDeadlineReminderWorker_SlackSubscribedUser_SendsSlack(t *testing.T)
 		LastName:    "Person",
 		SlackUserID: "USLACKPOAM1",
 		NotificationSubscriptions: []NotificationSubscription{
-			{NotificationType: notification.NotificationTypeRiskNotifications, Channels: []string{"slack"}},
+			{NotificationType: notification.SubscriptionGateRiskNotifications, Channels: []string{"slack"}},
 		},
 	}
 	mockRepo.On("FindUserByID", ctx, recipientUserID).Return(user, nil)
@@ -78,7 +78,7 @@ func TestPoamDeadlineReminderWorker_EmailAndSlackSubscribedUser_SendsBoth(t *tes
 		LastName:    "Person",
 		SlackUserID: "USLACKPOAM2",
 		NotificationSubscriptions: []NotificationSubscription{
-			{NotificationType: notification.NotificationTypeRiskNotifications, Channels: []string{"email", "slack"}},
+			{NotificationType: notification.SubscriptionGateRiskNotifications, Channels: []string{"email", "slack"}},
 		},
 	}
 	mockRepo.On("FindUserByID", ctx, recipientUserID).Return(user, nil)

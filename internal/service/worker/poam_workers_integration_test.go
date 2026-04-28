@@ -72,7 +72,7 @@ func (suite *PoamWorkersIntegrationSuite) seedUser(email string) uuid.UUID {
 	}).Error)
 	suite.Require().NoError(suite.DB.Create(&relational.UserNotificationSubscription{
 		UserID:           id.String(),
-		NotificationType: notification.NotificationTypeRiskNotifications,
+		NotificationType: notification.SubscriptionGateRiskNotifications,
 		Channels:         []string{notification.DeliveryChannelEmail},
 	}).Error)
 	return id

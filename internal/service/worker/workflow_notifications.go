@@ -75,28 +75,28 @@ func newWorkflowNotificationServiceFromFactory(
 		users,
 		newTypedNotificationDefinition(
 			workflowTaskAssignedNotificationKind,
-			notification.NotificationTypeTaskAvailable,
+			notification.SubscriptionGateTaskAvailable,
 			newNotificationModelDecoder[workflowTaskAssignedNotificationModel]("workflow task assigned model"),
 			renderWorkflowTaskAssignedEmail,
 			renderWorkflowTaskAssignedSlack,
 		),
 		newTypedNotificationDefinition(
 			workflowTaskDueSoonNotificationKind,
-			notification.NotificationTypeTaskAvailable,
+			notification.SubscriptionGateTaskAvailable,
 			newNotificationModelDecoder[workflowTaskDueSoonNotificationModel]("workflow task due soon model"),
 			renderWorkflowTaskDueSoonEmail,
 			renderWorkflowTaskDueSoonSlack,
 		),
 		newTypedNotificationDefinition(
 			workflowTaskDigestNotificationKind,
-			notification.NotificationTypeTaskDailyDigest,
+			notification.SubscriptionGateTaskDailyDigest,
 			newNotificationModelDecoder[workflowTaskDigestNotificationModel]("workflow task digest model"),
 			renderWorkflowTaskDigestEmail,
 			renderWorkflowTaskDigestSlack,
 		),
 		newTypedNotificationDefinition(
 			workflowExecutionFailedNotificationKind,
-			notification.NotificationTypeUngated,
+			notification.SubscriptionGateUngated,
 			newNotificationModelDecoder[workflowExecutionFailedNotificationModel]("workflow execution failed model"),
 			renderWorkflowExecutionFailedEmail,
 			renderWorkflowExecutionFailedSlack,
@@ -292,7 +292,7 @@ func (a *notificationUserRepositoryAdapter) cacheUsers(users ...NotificationUser
 	}
 }
 
-func (a *notificationUserRepositoryAdapter) ListActiveUsersByNotificationType(_ context.Context, notificationType string) ([]notification.User, error) {
+func (a *notificationUserRepositoryAdapter) ListActiveUsersBySubscriptionGate(_ context.Context, notificationType string) ([]notification.User, error) {
 	if a == nil || len(a.cached) == 0 {
 		return []notification.User{}, nil
 	}

@@ -33,7 +33,7 @@ func TestWorkflowTaskDueSoonWorker_SubscribedUser_SendsEmail(t *testing.T) {
 		FirstName: "Alice",
 		LastName:  "Smith",
 		NotificationSubscriptions: []NotificationSubscription{
-			{NotificationType: notification.NotificationTypeTaskAvailable, Channels: []string{"email"}},
+			{NotificationType: notification.SubscriptionGateTaskAvailable, Channels: []string{"email"}},
 		},
 	}
 	mockRepo.On("FindUserByID", ctx, "user-1").Return(user, nil)
@@ -78,7 +78,7 @@ func TestWorkflowTaskDueSoonWorker_UnsubscribedUser_Skips(t *testing.T) {
 		Email:     "bob@example.com",
 		FirstName: "Bob",
 		NotificationSubscriptions: []NotificationSubscription{
-			{NotificationType: notification.NotificationTypeTaskAvailable, Channels: []string{}},
+			{NotificationType: notification.SubscriptionGateTaskAvailable, Channels: []string{}},
 		},
 	}
 	mockRepo.On("FindUserByID", ctx, "user-2").Return(user, nil)
@@ -142,7 +142,7 @@ func TestWorkflowTaskDueSoonWorker_TemplateError_ReturnsError(t *testing.T) {
 		Email:     "carol@example.com",
 		FirstName: "Carol",
 		NotificationSubscriptions: []NotificationSubscription{
-			{NotificationType: notification.NotificationTypeTaskAvailable, Channels: []string{"email"}},
+			{NotificationType: notification.SubscriptionGateTaskAvailable, Channels: []string{"email"}},
 		},
 	}
 	mockRepo.On("FindUserByID", ctx, "user-3").Return(user, nil)
@@ -184,7 +184,7 @@ func TestWorkflowTaskDueSoonWorker_MultiChannel_EmailChannelJob_SendsOnlyEmail(t
 		FirstName:   "Dora",
 		SlackUserID: "U12345",
 		NotificationSubscriptions: []NotificationSubscription{
-			{NotificationType: notification.NotificationTypeTaskAvailable, Channels: []string{"slack", "email"}},
+			{NotificationType: notification.SubscriptionGateTaskAvailable, Channels: []string{"slack", "email"}},
 		},
 	}
 	mockRepo.On("FindUserByID", ctx, "user-4").Return(user, nil)
@@ -235,7 +235,7 @@ func TestWorkflowTaskDueSoonWorker_MultiChannel_SlackChannelJob_SendsOnlySlack(t
 		FirstName:   "Fran",
 		SlackUserID: "USLACK6",
 		NotificationSubscriptions: []NotificationSubscription{
-			{NotificationType: notification.NotificationTypeTaskAvailable, Channels: []string{"slack", "email"}},
+			{NotificationType: notification.SubscriptionGateTaskAvailable, Channels: []string{"slack", "email"}},
 		},
 	}
 	mockRepo.On("FindUserByID", ctx, "user-6").Return(user, nil)
@@ -285,7 +285,7 @@ func TestWorkflowTaskDueSoonWorker_SlackOnlyUser_SendsSlack(t *testing.T) {
 		FirstName:   "Eve",
 		SlackUserID: "USLACK1",
 		NotificationSubscriptions: []NotificationSubscription{
-			{NotificationType: notification.NotificationTypeTaskAvailable, Channels: []string{"slack"}},
+			{NotificationType: notification.SubscriptionGateTaskAvailable, Channels: []string{"slack"}},
 		},
 	}
 	mockRepo.On("FindUserByID", ctx, "user-5").Return(user, nil)

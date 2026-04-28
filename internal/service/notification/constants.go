@@ -5,58 +5,58 @@ import (
 )
 
 const (
-	NotificationTypeUngated = ""
+	SubscriptionGateUngated = ""
 
-	NotificationTypeEvidenceDigest    = "evidence_digest"
-	NotificationTypeTaskAvailable     = "task_available"
-	NotificationTypeTaskDailyDigest   = "task_daily_digest"
-	NotificationTypeRiskNotifications = "risk_notifications"
+	SubscriptionGateEvidenceDigest    = "evidence_digest"
+	SubscriptionGateTaskAvailable     = "task_available"
+	SubscriptionGateTaskDailyDigest   = "task_daily_digest"
+	SubscriptionGateRiskNotifications = "risk_notifications"
 
-	NotificationTypeEvidenceDigestWire    = "evidenceDigest"
-	NotificationTypeTaskAvailableWire     = "taskAvailable"
-	NotificationTypeTaskDailyDigestWire   = "taskDailyDigest"
-	NotificationTypeRiskNotificationsWire = "riskNotifications"
+	SubscriptionGateEvidenceDigestWire    = "evidenceDigest"
+	SubscriptionGateTaskAvailableWire     = "taskAvailable"
+	SubscriptionGateTaskDailyDigestWire   = "taskDailyDigest"
+	SubscriptionGateRiskNotificationsWire = "riskNotifications"
 
-	notificationTypeEvidenceDigestWireNormalized    = "evidencedigest"
-	notificationTypeTaskAvailableWireNormalized     = "taskavailable"
-	notificationTypeTaskDailyDigestWireNormalized   = "taskdailydigest"
-	notificationTypeRiskNotificationsWireNormalized = "risknotifications"
+	subscriptionGateEvidenceDigestWireNormalized    = "evidencedigest"
+	subscriptionGateTaskAvailableWireNormalized     = "taskavailable"
+	subscriptionGateTaskDailyDigestWireNormalized   = "taskdailydigest"
+	subscriptionGateRiskNotificationsWireNormalized = "risknotifications"
 )
 
-var notificationTypeInputAliases = map[string]string{
-	NotificationTypeEvidenceDigest:                  NotificationTypeEvidenceDigest,
-	NotificationTypeTaskAvailable:                   NotificationTypeTaskAvailable,
-	NotificationTypeTaskDailyDigest:                 NotificationTypeTaskDailyDigest,
-	NotificationTypeRiskNotifications:               NotificationTypeRiskNotifications,
-	notificationTypeEvidenceDigestWireNormalized:    NotificationTypeEvidenceDigest,
-	notificationTypeTaskAvailableWireNormalized:     NotificationTypeTaskAvailable,
-	notificationTypeTaskDailyDigestWireNormalized:   NotificationTypeTaskDailyDigest,
-	notificationTypeRiskNotificationsWireNormalized: NotificationTypeRiskNotifications,
+var subscriptionGateInputAliases = map[string]string{
+	SubscriptionGateEvidenceDigest:                  SubscriptionGateEvidenceDigest,
+	SubscriptionGateTaskAvailable:                   SubscriptionGateTaskAvailable,
+	SubscriptionGateTaskDailyDigest:                 SubscriptionGateTaskDailyDigest,
+	SubscriptionGateRiskNotifications:               SubscriptionGateRiskNotifications,
+	subscriptionGateEvidenceDigestWireNormalized:    SubscriptionGateEvidenceDigest,
+	subscriptionGateTaskAvailableWireNormalized:     SubscriptionGateTaskAvailable,
+	subscriptionGateTaskDailyDigestWireNormalized:   SubscriptionGateTaskDailyDigest,
+	subscriptionGateRiskNotificationsWireNormalized: SubscriptionGateRiskNotifications,
 }
 
-var notificationTypeWireValues = map[string]string{
-	NotificationTypeEvidenceDigest:    NotificationTypeEvidenceDigestWire,
-	NotificationTypeTaskAvailable:     NotificationTypeTaskAvailableWire,
-	NotificationTypeTaskDailyDigest:   NotificationTypeTaskDailyDigestWire,
-	NotificationTypeRiskNotifications: NotificationTypeRiskNotificationsWire,
+var subscriptionGateWireValues = map[string]string{
+	SubscriptionGateEvidenceDigest:    SubscriptionGateEvidenceDigestWire,
+	SubscriptionGateTaskAvailable:     SubscriptionGateTaskAvailableWire,
+	SubscriptionGateTaskDailyDigest:   SubscriptionGateTaskDailyDigestWire,
+	SubscriptionGateRiskNotifications: SubscriptionGateRiskNotificationsWire,
 }
 
-var systemNotificationTypes = []string{
-	NotificationTypeEvidenceDigest,
+var systemSubscriptionGates = []string{
+	SubscriptionGateEvidenceDigest,
 }
 
 func normalizeToken(value string) string {
 	return strings.ToLower(strings.TrimSpace(value))
 }
 
-// NormalizeNotificationType canonicalizes a notification type and verifies support.
-func NormalizeNotificationType(notificationType string) (string, bool) {
-	normalized := normalizeToken(notificationType)
+// NormalizeSubscriptionGate canonicalizes a subscription gate and verifies support.
+func NormalizeSubscriptionGate(subscriptionGate string) (string, bool) {
+	normalized := normalizeToken(subscriptionGate)
 	if normalized == "" {
 		return "", false
 	}
 
-	canonical, ok := notificationTypeInputAliases[normalized]
+	canonical, ok := subscriptionGateInputAliases[normalized]
 	if !ok {
 		return "", false
 	}
@@ -64,14 +64,14 @@ func NormalizeNotificationType(notificationType string) (string, bool) {
 	return canonical, true
 }
 
-// WireNotificationType returns camelCase for a supported notification type.
-func WireNotificationType(notificationType string) (string, bool) {
-	canonical, ok := NormalizeNotificationType(notificationType)
+// WireSubscriptionGate returns camelCase for a supported subscription gate.
+func WireSubscriptionGate(subscriptionGate string) (string, bool) {
+	canonical, ok := NormalizeSubscriptionGate(subscriptionGate)
 	if !ok {
 		return "", false
 	}
 
-	wireValue, ok := notificationTypeWireValues[canonical]
+	wireValue, ok := subscriptionGateWireValues[canonical]
 	if !ok {
 		return "", false
 	}
@@ -79,6 +79,6 @@ func WireNotificationType(notificationType string) (string, bool) {
 	return wireValue, true
 }
 
-func SystemNotificationTypes() []string {
-	return append([]string(nil), systemNotificationTypes...)
+func SystemSubscriptionGates() []string {
+	return append([]string(nil), systemSubscriptionGates...)
 }

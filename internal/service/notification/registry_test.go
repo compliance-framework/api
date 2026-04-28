@@ -11,7 +11,7 @@ import (
 func TestRegistryRegisterNormalizesDefinition(t *testing.T) {
 	registry, err := NewRegistry(Definition{
 		Kind:              Kind("risk_review_due"),
-		SubscriptionType:  " riskNotifications ",
+		SubscriptionGate:  " riskNotifications ",
 		SupportedChannels: []string{" Slack ", "email", "slack"},
 		Renderers: map[string]ChannelRenderer{
 			DeliveryChannelEmail: ProviderRenderer(DeliveryChannelEmail, func(context.Context, any) (any, error) {
@@ -26,7 +26,7 @@ func TestRegistryRegisterNormalizesDefinition(t *testing.T) {
 
 	definition, ok := registry.Definition(Kind("risk_review_due"))
 	require.True(t, ok)
-	assert.Equal(t, NotificationTypeRiskNotifications, definition.SubscriptionType)
+	assert.Equal(t, SubscriptionGateRiskNotifications, definition.SubscriptionGate)
 	assert.Equal(t, []string{DeliveryChannelEmail, DeliveryChannelSlack}, definition.SupportedChannels)
 }
 

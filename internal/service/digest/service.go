@@ -175,7 +175,7 @@ func (s *Service) convertToEvidenceItems(evidences []relational.Evidence) []Evid
 func (s *Service) GetDigestRecipients(ctx context.Context) ([]DigestRecipient, error) {
 	var subscriptions []relational.UserNotificationSubscription
 	if err := s.db.WithContext(ctx).
-		Where("notification_type = ?", notification.NotificationTypeEvidenceDigest).
+		Where("notification_type = ?", notification.SubscriptionGateEvidenceDigest).
 		Find(&subscriptions).Error; err != nil {
 		return nil, fmt.Errorf("failed to fetch evidence digest subscriptions: %w", err)
 	}

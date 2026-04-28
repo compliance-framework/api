@@ -20,7 +20,7 @@ var (
 	ErrRegistryNotConfigured          = errors.New("notification registry is not configured")
 	ErrTransportNotConfigured         = errors.New("notification transport is not configured")
 	ErrConfiguredDestinationNotFound  = errors.New("configured notification destination not found")
-	ErrMissingSubscriptionType        = errors.New("notification definition requires a subscription type for user audiences")
+	ErrMissingSubscriptionGate        = errors.New("notification definition requires a subscription gate for user audiences")
 	ErrUngatedUserListingNotSupported = errors.New("notification user repository does not support ungated audience listing")
 )
 

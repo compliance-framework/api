@@ -43,7 +43,7 @@ func (w *WorkflowTaskDigestCheckerWorker) Work(ctx context.Context, job *river.J
 		return fmt.Errorf("WorkflowTaskDigestCheckerWorker: db is nil")
 	}
 
-	userIDs, err := notification.NewGORMUserRepository(w.db).ListActiveUserIDsByNotificationType(ctx, notification.NotificationTypeTaskDailyDigest)
+	userIDs, err := notification.NewGORMUserRepository(w.db).ListActiveUserIDsBySubscriptionGate(ctx, notification.SubscriptionGateTaskDailyDigest)
 	if err != nil {
 		return fmt.Errorf("workflow-task-digest-checker: failed to load subscribed users: %w", err)
 	}
