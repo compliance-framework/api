@@ -58,6 +58,100 @@ func TestBaseOIDCProvider_GetUserInfo(t *testing.T) {
 	require.ElementsMatch(t, []string{"ccf-admins", "ccf-engineering"}, userInfo.Groups)
 }
 
+func TestBaseOIDCProvider_GetUserInfoSplitsNameWhenStructuredNameMissing(t *testing.T) {
+	mock := testutil.NewMockOIDCServer(t)
+	defer mock.Close()
+
+	claims := map[string]any{
+		"email": "alice@example.com",
+		"name":  "Alice Dex Admin",
+	}
+
+	rawIDToken, err := mock.SignIDToken(claims)
+	require.NoError(t, err)
+
+	cfg := &config.SSOProviderConfig{
+		Name:      "test-oidc",
+		ClientID:  "test-client",
+		IssuerURL: mock.IssuerURL,
+	}
+	logger := zap.NewNop().Sugar()
+	provider, err := NewBaseOIDCProvider(context.Background(), cfg, "https://app.example.com/callback", logger)
+	require.NoError(t, err)
+
+	token := (&oauth2.Token{AccessToken: "token"}).WithExtra(map[string]any{
+		"id_token": rawIDToken,
+	})
+
+	userInfo, err := provider.GetUserInfo(context.Background(), token)
+	require.NoError(t, err)
+
+	require.Equal(t, "Alice Dex Admin", userInfo.Name)
+	require.Equal(t, "Alice", userInfo.FirstName)
+	require.Equal(t, "Dex Admin", userInfo.LastName)
+}
+
+func TestBaseOIDCProvider_GetUserInfoKeepsStructuredNameClaims(t *testing.T) {
+	mock := testutil.NewMockOIDCServer(t)
+	defer mock.Close()
+
+	claims := map[string]any{
+		"email":       "dev@example.com",
+		"name":        "Display Name",
+		"given_name":  "Structured",
+		"family_name": "Person",
+	}
+
+	rawIDToken, err := mock.SignIDToken(claims)
+	require.NoError(t, err)
+
+	cfg := &config.SSOProviderConfig{
+		Name:      "test-oidc",
+		ClientID:  "test-client",
+		IssuerURL: mock.IssuerURL,
+	}
+	logger := zap.NewNop().Sugar()
+	provider, err := NewBaseOIDCProvider(context.Background(), cfg, "https://app.example.com/callback", logger)
+	require.NoError(t, err)
+
+	token := (&oauth2.Token{AccessToken: "token"}).WithExtra(map[string]any{
+		"id_token": rawIDToken,
+	})
+
+	userInfo, err := provider.GetUserInfo(context.Background(), token)
+	require.NoError(t, err)
+
+	require.Equal(t, "Display Name", userInfo.Name)
+	require.Equal(t, "Structured", userInfo.FirstName)
+	require.Equal(t, "Person", userInfo.LastName)
+}
+
+func TestSplitDisplayName(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		firstName string
+		lastName  string
+	}{
+		{name: "", firstName: "", lastName: ""},
+		{name: "Alice", firstName: "Alice", lastName: ""},
+		{name: "Alice Admin", firstName: "Alice", lastName: "Admin"},
+		{name: "  Alice   Dex Admin  ", firstName: "Alice", lastName: "Dex Admin"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			firstName, lastName := splitDisplayName(tt.name)
+
+			require.Equal(t, tt.firstName, firstName)
+			require.Equal(t, tt.lastName, lastName)
+		})
+	}
+}
+
 func TestBaseOIDCProvider_GetUserInfoMissingIDToken(t *testing.T) {
 	cfg := &config.SSOProviderConfig{
 		Name:      "test-oidc",
