@@ -3,6 +3,7 @@ package providers
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/compliance-framework/api/internal/config"
 	"github.com/compliance-framework/api/internal/service/sso/types"
@@ -92,6 +93,9 @@ func (p *BaseOIDCProvider) GetUserInfo(ctx context.Context, token *oauth2.Token)
 	if familyName, ok := claims["family_name"].(string); ok {
 		userInfo.LastName = familyName
 	}
+	if userInfo.FirstName == "" && userInfo.LastName == "" {
+		userInfo.FirstName, userInfo.LastName = splitDisplayName(userInfo.Name)
+	}
 	if hd, ok := claims["hd"].(string); ok {
 		userInfo.HostedDomain = hd
 	}
@@ -100,6 +104,17 @@ func (p *BaseOIDCProvider) GetUserInfo(ctx context.Context, token *oauth2.Token)
 	userInfo.Groups = p.extractGroups(claims)
 
 	return userInfo, nil
+}
+
+func splitDisplayName(name string) (string, string) {
+	parts := strings.Fields(name)
+	if len(parts) == 0 {
+		return "", ""
+	}
+	if len(parts) == 1 {
+		return parts[0], ""
+	}
+	return parts[0], strings.Join(parts[1:], " ")
 }
 
 func (p *BaseOIDCProvider) extractGroups(claims map[string]interface{}) []string {
