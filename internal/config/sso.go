@@ -19,6 +19,7 @@ type SSOProviderConfig struct {
 	ClientID            string              `yaml:"client_id" json:"clientId" mapstructure:"client_id"`
 	ClientSecret        string              `yaml:"client_secret" json:"clientSecret" mapstructure:"client_secret"`
 	IssuerURL           string              `yaml:"issuer_url" json:"issuerUrl" mapstructure:"issuer_url"`
+	WellKnownURL        string              `yaml:"well_known_url" json:"wellKnownUrl" mapstructure:"well_known_url"`
 	AuthURL             string              `yaml:"auth_url" json:"authUrl" mapstructure:"auth_url"`
 	TokenURL            string              `yaml:"token_url" json:"tokenUrl" mapstructure:"token_url"`
 	UserInfoURL         string              `yaml:"user_info_url" json:"userInfoUrl" mapstructure:"user_info_url"`
