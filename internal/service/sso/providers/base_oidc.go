@@ -2,7 +2,11 @@ package providers
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/compliance-framework/api/internal/config"
@@ -23,7 +27,7 @@ type BaseOIDCProvider struct {
 
 // NewBaseOIDCProvider creates a new generic OIDC provider
 func NewBaseOIDCProvider(ctx context.Context, cfg *config.SSOProviderConfig, callbackURL string, logger *zap.SugaredLogger) (*BaseOIDCProvider, error) {
-	provider, err := oidc.NewProvider(ctx, cfg.IssuerURL)
+	provider, err := newOIDCProvider(ctx, cfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create OIDC provider: %w", err)
 	}
@@ -50,6 +54,100 @@ func NewBaseOIDCProvider(ctx context.Context, cfg *config.SSOProviderConfig, cal
 		verifier:     verifier,
 		logger:       logger,
 	}, nil
+}
+
+func newOIDCProvider(ctx context.Context, cfg *config.SSOProviderConfig) (*oidc.Provider, error) {
+	wellKnownURL := strings.TrimSpace(cfg.WellKnownURL)
+	if wellKnownURL == "" {
+		return oidc.NewProvider(ctx, cfg.IssuerURL)
+	}
+
+	providerConfig, err := fetchOIDCProviderConfig(ctx, wellKnownURL)
+	if err != nil {
+		return nil, err
+	}
+	if providerConfig.IssuerURL != cfg.IssuerURL {
+		return nil, fmt.Errorf("oidc: configured issuer URL %q did not match the issuer URL returned by provider %q", cfg.IssuerURL, providerConfig.IssuerURL)
+	}
+	internalIssuerURL, err := issuerURLFromWellKnownURL(wellKnownURL)
+	if err != nil {
+		return nil, err
+	}
+	rewriteServerSideOIDCEndpoints(providerConfig, cfg.IssuerURL, internalIssuerURL)
+
+	return providerConfig.NewProvider(ctx), nil
+}
+
+func fetchOIDCProviderConfig(ctx context.Context, wellKnownURL string) (*oidc.ProviderConfig, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, wellKnownURL, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	client := http.DefaultClient
+	if configuredClient, ok := ctx.Value(oauth2.HTTPClient).(*http.Client); ok && configuredClient != nil {
+		client = configuredClient
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		_ = resp.Body.Close()
+	}()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("unable to read response body: %w", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("%s: %s", resp.Status, body)
+	}
+
+	var providerConfig oidc.ProviderConfig
+	if err := json.Unmarshal(body, &providerConfig); err != nil {
+		return nil, fmt.Errorf("oidc: failed to decode provider discovery object: %w", err)
+	}
+	return &providerConfig, nil
+}
+
+func issuerURLFromWellKnownURL(wellKnownURL string) (string, error) {
+	parsedURL, err := url.Parse(wellKnownURL)
+	if err != nil {
+		return "", err
+	}
+
+	wellKnownPath := "/.well-known/openid-configuration"
+	if !strings.HasSuffix(parsedURL.Path, wellKnownPath) {
+		return "", fmt.Errorf("well_known_url %q must end with %s", wellKnownURL, wellKnownPath)
+	}
+
+	parsedURL.Path = strings.TrimSuffix(parsedURL.Path, wellKnownPath)
+	parsedURL.RawQuery = ""
+	parsedURL.Fragment = ""
+	return strings.TrimSuffix(parsedURL.String(), "/"), nil
+}
+
+func rewriteServerSideOIDCEndpoints(providerConfig *oidc.ProviderConfig, publicIssuerURL string, internalIssuerURL string) {
+	providerConfig.TokenURL = rewriteIssuerURL(providerConfig.TokenURL, publicIssuerURL, internalIssuerURL)
+	providerConfig.UserInfoURL = rewriteIssuerURL(providerConfig.UserInfoURL, publicIssuerURL, internalIssuerURL)
+	providerConfig.JWKSURL = rewriteIssuerURL(providerConfig.JWKSURL, publicIssuerURL, internalIssuerURL)
+}
+
+func rewriteIssuerURL(value string, publicIssuerURL string, internalIssuerURL string) string {
+	if value == "" {
+		return ""
+	}
+
+	publicIssuerURL = strings.TrimSuffix(publicIssuerURL, "/")
+	if value == publicIssuerURL {
+		return internalIssuerURL
+	}
+	if strings.HasPrefix(value, publicIssuerURL+"/") {
+		return internalIssuerURL + strings.TrimPrefix(value, publicIssuerURL)
+	}
+	return value
 }
 
 func (p *BaseOIDCProvider) GetAuthURL(state string) string {

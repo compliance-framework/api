@@ -63,6 +63,8 @@ providers:
   #   client_id: "${OIDC_CLIENT_ID}"
   #   client_secret: "${OIDC_CLIENT_SECRET}"
   #   issuer_url: "${OIDC_ISSUER_URL}"
+  #   # Optional: fetch discovery from an internal URL while preserving issuer_url for ID token validation.
+  #   well_known_url: "${OIDC_WELL_KNOWN_URL}"
   #   scopes:
   #     - "openid"
   #     - "email"
