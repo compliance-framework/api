@@ -590,12 +590,19 @@ func TestWorkflowInstanceService_ValidateInstanceGracePeriodHierarchy(t *testing
 
 	err := service.ValidateInstance(missingDefinitionInstance)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "workflow definition not found")
+	assert.Contains(t, err.Error(), "workflow definition with id")
+	assert.Contains(t, err.Error(), missingDefinitionID.String())
 
 	definitionGrace := 5
 	definition := createTestWorkflowDefinition()
 	definition.GracePeriodDays = &definitionGrace
 	require.NoError(t, db.Create(definition).Error)
+
+	validInstanceGrace := 5
+	validInstance := createTestWorkflowInstance(definition.ID)
+	validInstance.GracePeriodDays = &validInstanceGrace
+	err = service.ValidateInstance(validInstance)
+	require.NoError(t, err)
 
 	instanceGrace := 6
 	instance := createTestWorkflowInstance(definition.ID)

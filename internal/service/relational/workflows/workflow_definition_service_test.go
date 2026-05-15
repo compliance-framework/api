@@ -297,6 +297,24 @@ func TestWorkflowDefinitionService_ValidateDefinitionGracePeriodHierarchy(t *tes
 	db := setupTestDB(t)
 	service := NewWorkflowDefinitionService(db)
 
+	validDefinitionGrace := 10
+	validDefinition := createTestWorkflowDefinition()
+	validDefinition.GracePeriodDays = &validDefinitionGrace
+	require.NoError(t, db.Create(validDefinition).Error)
+
+	validInstanceGrace := 7
+	validInstance := createTestWorkflowInstance(validDefinition.ID)
+	validInstance.GracePeriodDays = &validInstanceGrace
+	require.NoError(t, db.Create(validInstance).Error)
+
+	validStepGrace := 6
+	validStep := createTestWorkflowStepDefinition(validDefinition.ID)
+	validStep.GracePeriodDays = &validStepGrace
+	require.NoError(t, db.Create(validStep).Error)
+
+	err := service.ValidateDefinition(validDefinition)
+	require.NoError(t, err)
+
 	definition := createTestWorkflowDefinition()
 	grace := 5
 	definition.GracePeriodDays = &grace
@@ -307,7 +325,7 @@ func TestWorkflowDefinitionService_ValidateDefinitionGracePeriodHierarchy(t *tes
 	instance.GracePeriodDays = &instanceGrace
 	require.NoError(t, db.Create(instance).Error)
 
-	err := service.ValidateDefinition(definition)
+	err = service.ValidateDefinition(definition)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "workflow definition grace period days must be greater than or equal")
 
