@@ -551,6 +551,15 @@ func TestWorkflowStepDefinitionService_ValidateStepGracePeriodHierarchy(t *testi
 	db := setupTestDB(t)
 	service := NewWorkflowStepDefinitionService(db)
 
+	missingDefinitionID := uuid.New()
+	missingDefinitionGrace := 1
+	missingDefinitionStep := createTestWorkflowStepDefinition(&missingDefinitionID)
+	missingDefinitionStep.GracePeriodDays = &missingDefinitionGrace
+
+	err := service.ValidateStep(missingDefinitionStep)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "workflow definition not found")
+
 	definitionGrace := 5
 	definition := createTestWorkflowDefinition()
 	definition.GracePeriodDays = &definitionGrace
@@ -560,7 +569,7 @@ func TestWorkflowStepDefinitionService_ValidateStepGracePeriodHierarchy(t *testi
 	step := createTestWorkflowStepDefinition(definition.ID)
 	step.GracePeriodDays = &stepGrace
 
-	err := service.ValidateStep(step)
+	err = service.ValidateStep(step)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "workflow step grace period days must be less than or equal")
 

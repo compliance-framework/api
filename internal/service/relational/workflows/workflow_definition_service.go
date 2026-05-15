@@ -130,24 +130,26 @@ func (s *WorkflowDefinitionService) validateGracePeriodHierarchy(definition *Wor
 		return nil
 	}
 
-	var instanceCount int64
-	if err := s.db.Model(&WorkflowInstance{}).
+	var instance WorkflowInstance
+	err := s.db.Select("id").
 		Where("workflow_definition_id = ? AND grace_period_days IS NOT NULL AND grace_period_days > ?", definition.ID, *definition.GracePeriodDays).
-		Count(&instanceCount).Error; err != nil {
-		return err
-	}
-	if instanceCount > 0 {
+		First(&instance).Error
+	if err == nil {
 		return fmt.Errorf("workflow definition grace period days must be greater than or equal to explicit workflow instance grace period days")
 	}
-
-	var stepCount int64
-	if err := s.db.Model(&WorkflowStepDefinition{}).
-		Where("workflow_definition_id = ? AND grace_period_days IS NOT NULL AND grace_period_days > ?", definition.ID, *definition.GracePeriodDays).
-		Count(&stepCount).Error; err != nil {
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
 		return err
 	}
-	if stepCount > 0 {
+
+	var step WorkflowStepDefinition
+	err = s.db.Select("id").
+		Where("workflow_definition_id = ? AND grace_period_days IS NOT NULL AND grace_period_days > ?", definition.ID, *definition.GracePeriodDays).
+		First(&step).Error
+	if err == nil {
 		return fmt.Errorf("workflow definition grace period days must be greater than or equal to explicit workflow step grace period days")
+	}
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return err
 	}
 
 	return nil

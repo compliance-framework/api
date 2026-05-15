@@ -231,7 +231,7 @@ func (s *WorkflowInstanceService) validateGracePeriodHierarchy(instance *Workflo
 	var definition WorkflowDefinition
 	if err := s.db.Select("id", "grace_period_days").First(&definition, instance.WorkflowDefinitionID).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil
+			return fmt.Errorf("workflow definition not found")
 		}
 		return err
 	}
