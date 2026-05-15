@@ -174,6 +174,7 @@ func TestWorkflowStepDefinitionService_Update(t *testing.T) {
 		UUIDModel:            relational.UUIDModel{ID: &nonExistentID},
 		WorkflowDefinitionID: workflowDef.ID, // Include the workflow definition ID
 		Name:                 "Updated Step Definition",
+		ResponsibleRole:      "updated_role",
 	}
 	err = service.Update(&nonExistentID, updatesWithNonExistentID)
 	assert.Error(t, err)

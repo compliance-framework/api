@@ -239,14 +239,15 @@ func (s *WorkflowInstanceService) validateGracePeriodHierarchy(instance *Workflo
 		return fmt.Errorf("workflow instance grace period days must be less than or equal to workflow definition grace period days")
 	}
 
-	var stepCount int64
-	if err := s.db.Model(&WorkflowStepDefinition{}).
+	var step WorkflowStepDefinition
+	err := s.db.Select("id").
 		Where("workflow_definition_id = ? AND grace_period_days IS NOT NULL AND grace_period_days > ?", instance.WorkflowDefinitionID, *instance.GracePeriodDays).
-		Count(&stepCount).Error; err != nil {
-		return err
-	}
-	if stepCount > 0 {
+		First(&step).Error
+	if err == nil {
 		return fmt.Errorf("workflow instance grace period days must be greater than or equal to explicit workflow step grace period days")
+	}
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return err
 	}
 
 	return nil

@@ -63,20 +63,10 @@ func (s *WorkflowStepDefinitionService) GetByWorkflowDefinitionID(workflowDefID 
 
 // Update updates an existing workflow step definition
 func (s *WorkflowStepDefinitionService) Update(id *uuid.UUID, updates *WorkflowStepDefinition) error {
-	if err := s.base.ValidateUpdatesNotNil(updates); err != nil {
-		return err
-	}
-
 	var existing WorkflowStepDefinition
-	if err := s.base.CheckEntityExists(&existing, id, "workflow step definition"); err != nil {
-		return err
-	}
-
-	if err := s.ValidateStep(updates); err != nil {
-		return err
-	}
-
-	return s.db.Model(&existing).Updates(updates).Error
+	return s.base.ValidateAndUpdate(&existing, updates, id, "workflow step definition", func() error {
+		return s.ValidateStep(updates)
+	})
 }
 
 // Delete soft deletes a workflow step definition
@@ -226,14 +216,15 @@ func (s *WorkflowStepDefinitionService) validateGracePeriodHierarchy(step *Workf
 		return fmt.Errorf("workflow step grace period days must be less than or equal to workflow definition grace period days")
 	}
 
-	var instanceCount int64
-	if err := s.db.Model(&WorkflowInstance{}).
+	var instance WorkflowInstance
+	err := s.db.Select("id").
 		Where("workflow_definition_id = ? AND grace_period_days IS NOT NULL AND grace_period_days < ?", step.WorkflowDefinitionID, *step.GracePeriodDays).
-		Count(&instanceCount).Error; err != nil {
-		return err
-	}
-	if instanceCount > 0 {
+		First(&instance).Error
+	if err == nil {
 		return fmt.Errorf("workflow step grace period days must be less than or equal to explicit workflow instance grace period days")
+	}
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return err
 	}
 
 	return nil
