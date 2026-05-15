@@ -70,8 +70,9 @@ func (s *WorkflowDefinitionService) Update(id *uuid.UUID, updates *WorkflowDefin
 		return err
 	}
 
-	updates.ID = id
-	if err := s.ValidateDefinition(updates); err != nil {
+	updatesForValidation := *updates
+	updatesForValidation.ID = id
+	if err := s.ValidateDefinition(&updatesForValidation); err != nil {
 		return err
 	}
 
