@@ -146,6 +146,33 @@ func TestWorkflowDefinitionService_Update(t *testing.T) {
 	assert.Contains(t, err.Error(), "not found")
 }
 
+func TestWorkflowDefinitionService_UpdateValidatesGracePeriodHierarchyWithRouteID(t *testing.T) {
+	db := setupTestDB(t)
+	service := NewWorkflowDefinitionService(db)
+
+	definition := createTestWorkflowDefinition()
+	grace := 10
+	definition.GracePeriodDays = &grace
+	require.NoError(t, db.Create(definition).Error)
+
+	stepGrace := 7
+	step := createTestWorkflowStepDefinition(definition.ID)
+	step.GracePeriodDays = &stepGrace
+	require.NoError(t, db.Create(step).Error)
+
+	invalidGrace := 5
+	updates := &WorkflowDefinition{
+		Name:             definition.Name,
+		Version:          definition.Version,
+		SuggestedCadence: definition.SuggestedCadence,
+		GracePeriodDays:  &invalidGrace,
+	}
+
+	err := service.Update(definition.ID, updates)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "workflow definition grace period days must be greater than or equal")
+}
+
 // TestWorkflowDefinitionService_Delete tests the Delete method
 func TestWorkflowDefinitionService_Delete(t *testing.T) {
 	db := setupTestDB(t)
