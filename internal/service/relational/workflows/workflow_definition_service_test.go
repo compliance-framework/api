@@ -293,6 +293,37 @@ func TestWorkflowDefinitionService_ValidateDefinition(t *testing.T) {
 	assert.Contains(t, err.Error(), "invalid cadence")
 }
 
+func TestWorkflowDefinitionService_ValidateDefinitionGracePeriodHierarchy(t *testing.T) {
+	db := setupTestDB(t)
+	service := NewWorkflowDefinitionService(db)
+
+	definition := createTestWorkflowDefinition()
+	grace := 5
+	definition.GracePeriodDays = &grace
+	require.NoError(t, db.Create(definition).Error)
+
+	instanceGrace := 7
+	instance := createTestWorkflowInstance(definition.ID)
+	instance.GracePeriodDays = &instanceGrace
+	require.NoError(t, db.Create(instance).Error)
+
+	err := service.ValidateDefinition(definition)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "workflow definition grace period days must be greater than or equal")
+
+	instance.GracePeriodDays = nil
+	require.NoError(t, db.Save(instance).Error)
+
+	stepGrace := 6
+	step := createTestWorkflowStepDefinition(definition.ID)
+	step.GracePeriodDays = &stepGrace
+	require.NoError(t, db.Create(step).Error)
+
+	err = service.ValidateDefinition(definition)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "workflow definition grace period days must be greater than or equal")
+}
+
 // TestWorkflowDefinitionService_CountInstances tests the CountInstances method
 func TestWorkflowDefinitionService_CountInstances(t *testing.T) {
 	db := setupTestDB(t)

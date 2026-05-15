@@ -3,6 +3,7 @@ package workflows
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -209,6 +210,9 @@ func (s *WorkflowInstanceService) ValidateInstance(instance *WorkflowInstance) e
 	if instance.GracePeriodDays != nil && *instance.GracePeriodDays < 0 {
 		return errors.New("grace period days must be non-negative")
 	}
+	if err := s.validateGracePeriodHierarchy(instance); err != nil {
+		return err
+	}
 
 	return CombineErrors(
 		ValidateStringRequired(instance.Name, "instance name"),
@@ -217,6 +221,35 @@ func (s *WorkflowInstanceService) ValidateInstance(instance *WorkflowInstance) e
 		ValidateUUIDRequired(instance.WorkflowDefinitionID, "workflow definition ID"),
 		ValidateCadence(instance.Cadence),
 	)
+}
+
+func (s *WorkflowInstanceService) validateGracePeriodHierarchy(instance *WorkflowInstance) error {
+	if instance.WorkflowDefinitionID == nil || instance.GracePeriodDays == nil {
+		return nil
+	}
+
+	var definition WorkflowDefinition
+	if err := s.db.Select("id", "grace_period_days").First(&definition, instance.WorkflowDefinitionID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil
+		}
+		return err
+	}
+	if definition.GracePeriodDays != nil && *instance.GracePeriodDays > *definition.GracePeriodDays {
+		return fmt.Errorf("workflow instance grace period days must be less than or equal to workflow definition grace period days")
+	}
+
+	var stepCount int64
+	if err := s.db.Model(&WorkflowStepDefinition{}).
+		Where("workflow_definition_id = ? AND grace_period_days IS NOT NULL AND grace_period_days > ?", instance.WorkflowDefinitionID, *instance.GracePeriodDays).
+		Count(&stepCount).Error; err != nil {
+		return err
+	}
+	if stepCount > 0 {
+		return fmt.Errorf("workflow instance grace period days must be greater than or equal to explicit workflow step grace period days")
+	}
+
+	return nil
 }
 
 // CalculateNextSchedule calculates the next scheduled time based on cadence

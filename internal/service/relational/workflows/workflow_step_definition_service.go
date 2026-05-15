@@ -63,8 +63,20 @@ func (s *WorkflowStepDefinitionService) GetByWorkflowDefinitionID(workflowDefID 
 
 // Update updates an existing workflow step definition
 func (s *WorkflowStepDefinitionService) Update(id *uuid.UUID, updates *WorkflowStepDefinition) error {
+	if err := s.base.ValidateUpdatesNotNil(updates); err != nil {
+		return err
+	}
+
 	var existing WorkflowStepDefinition
-	return s.base.ValidateAndUpdate(&existing, updates, id, "workflow step definition", nil)
+	if err := s.base.CheckEntityExists(&existing, id, "workflow step definition"); err != nil {
+		return err
+	}
+
+	if err := s.ValidateStep(updates); err != nil {
+		return err
+	}
+
+	return s.db.Model(&existing).Updates(updates).Error
 }
 
 // Delete soft deletes a workflow step definition
@@ -190,6 +202,38 @@ func (s *WorkflowStepDefinitionService) ValidateStep(step *WorkflowStepDefinitio
 	}
 	if step.GracePeriodDays != nil && *step.GracePeriodDays < 0 {
 		return errors.New("grace period days must be non-negative")
+	}
+	if err := s.validateGracePeriodHierarchy(step); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (s *WorkflowStepDefinitionService) validateGracePeriodHierarchy(step *WorkflowStepDefinition) error {
+	if step.WorkflowDefinitionID == nil || step.GracePeriodDays == nil {
+		return nil
+	}
+
+	var definition WorkflowDefinition
+	if err := s.db.Select("id", "grace_period_days").First(&definition, step.WorkflowDefinitionID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil
+		}
+		return err
+	}
+	if definition.GracePeriodDays != nil && *step.GracePeriodDays > *definition.GracePeriodDays {
+		return fmt.Errorf("workflow step grace period days must be less than or equal to workflow definition grace period days")
+	}
+
+	var instanceCount int64
+	if err := s.db.Model(&WorkflowInstance{}).
+		Where("workflow_definition_id = ? AND grace_period_days IS NOT NULL AND grace_period_days < ?", step.WorkflowDefinitionID, *step.GracePeriodDays).
+		Count(&instanceCount).Error; err != nil {
+		return err
+	}
+	if instanceCount > 0 {
+		return fmt.Errorf("workflow step grace period days must be less than or equal to explicit workflow instance grace period days")
 	}
 
 	return nil

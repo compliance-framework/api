@@ -2,6 +2,7 @@ package workflows
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -24,10 +25,7 @@ func NewWorkflowDefinitionService(db *gorm.DB) *WorkflowDefinitionService {
 // Create creates a new workflow definition
 func (s *WorkflowDefinitionService) Create(definition *WorkflowDefinition) error {
 	return s.base.ValidateAndCreate(definition, "workflow definition", func() error {
-		if definition != nil && definition.Name == "" {
-			return errors.New("workflow definition name is required")
-		}
-		return nil
+		return s.ValidateDefinition(definition)
 	})
 }
 
@@ -72,6 +70,10 @@ func (s *WorkflowDefinitionService) Update(id *uuid.UUID, updates *WorkflowDefin
 		return err
 	}
 
+	if err := s.ValidateDefinition(updates); err != nil {
+		return err
+	}
+
 	var existing WorkflowDefinition
 	// Don't modify the updates object, just pass it to UpdateEntity
 	return s.base.UpdateEntity(&existing, updates, id, "workflow definition")
@@ -112,12 +114,43 @@ func (s *WorkflowDefinitionService) ValidateDefinition(definition *WorkflowDefin
 	if definition.GracePeriodDays != nil && *definition.GracePeriodDays < 0 {
 		return errors.New("grace period days must be non-negative")
 	}
+	if err := s.validateGracePeriodHierarchy(definition); err != nil {
+		return err
+	}
 
 	return CombineErrors(
 		ValidateStringRequired(definition.Name, "workflow definition name"),
 		ValidateStringLength(definition.Name, "workflow definition name", MaxNameLength),
 		ValidateCadence(definition.SuggestedCadence),
 	)
+}
+
+func (s *WorkflowDefinitionService) validateGracePeriodHierarchy(definition *WorkflowDefinition) error {
+	if definition.ID == nil || definition.GracePeriodDays == nil {
+		return nil
+	}
+
+	var instanceCount int64
+	if err := s.db.Model(&WorkflowInstance{}).
+		Where("workflow_definition_id = ? AND grace_period_days IS NOT NULL AND grace_period_days > ?", definition.ID, *definition.GracePeriodDays).
+		Count(&instanceCount).Error; err != nil {
+		return err
+	}
+	if instanceCount > 0 {
+		return fmt.Errorf("workflow definition grace period days must be greater than or equal to explicit workflow instance grace period days")
+	}
+
+	var stepCount int64
+	if err := s.db.Model(&WorkflowStepDefinition{}).
+		Where("workflow_definition_id = ? AND grace_period_days IS NOT NULL AND grace_period_days > ?", definition.ID, *definition.GracePeriodDays).
+		Count(&stepCount).Error; err != nil {
+		return err
+	}
+	if stepCount > 0 {
+		return fmt.Errorf("workflow definition grace period days must be greater than or equal to explicit workflow step grace period days")
+	}
+
+	return nil
 }
 
 // CountInstances counts the number of instances for a workflow definition

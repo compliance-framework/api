@@ -546,6 +546,35 @@ func TestWorkflowStepDefinitionService_ValidateStep(t *testing.T) {
 	assert.Contains(t, err.Error(), "workflow definition ID is required")
 }
 
+func TestWorkflowStepDefinitionService_ValidateStepGracePeriodHierarchy(t *testing.T) {
+	db := setupTestDB(t)
+	service := NewWorkflowStepDefinitionService(db)
+
+	definitionGrace := 5
+	definition := createTestWorkflowDefinition()
+	definition.GracePeriodDays = &definitionGrace
+	require.NoError(t, db.Create(definition).Error)
+
+	stepGrace := 6
+	step := createTestWorkflowStepDefinition(definition.ID)
+	step.GracePeriodDays = &stepGrace
+
+	err := service.ValidateStep(step)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "workflow step grace period days must be less than or equal")
+
+	stepGrace = 4
+	step.GracePeriodDays = &stepGrace
+	instanceGrace := 3
+	instance := createTestWorkflowInstance(definition.ID)
+	instance.GracePeriodDays = &instanceGrace
+	require.NoError(t, db.Create(instance).Error)
+
+	err = service.ValidateStep(step)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "workflow step grace period days must be less than or equal")
+}
+
 // TestWorkflowStepDefinitionService_Integration tests integration scenarios
 func TestWorkflowStepDefinitionService_Integration(t *testing.T) {
 	db := setupTestDB(t)

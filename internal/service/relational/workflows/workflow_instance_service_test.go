@@ -579,6 +579,35 @@ func TestWorkflowInstanceService_ValidateInstance(t *testing.T) {
 	assert.Contains(t, err.Error(), "invalid cadence")
 }
 
+func TestWorkflowInstanceService_ValidateInstanceGracePeriodHierarchy(t *testing.T) {
+	db := setupTestDB(t)
+	service := NewWorkflowInstanceService(db)
+
+	definitionGrace := 5
+	definition := createTestWorkflowDefinition()
+	definition.GracePeriodDays = &definitionGrace
+	require.NoError(t, db.Create(definition).Error)
+
+	instanceGrace := 6
+	instance := createTestWorkflowInstance(definition.ID)
+	instance.GracePeriodDays = &instanceGrace
+
+	err := service.ValidateInstance(instance)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "workflow instance grace period days must be less than or equal")
+
+	instanceGrace = 4
+	instance.GracePeriodDays = &instanceGrace
+	stepGrace := 5
+	step := createTestWorkflowStepDefinition(definition.ID)
+	step.GracePeriodDays = &stepGrace
+	require.NoError(t, db.Create(step).Error)
+
+	err = service.ValidateInstance(instance)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "workflow instance grace period days must be greater than or equal")
+}
+
 // TestWorkflowInstanceService_calculateNextSchedule tests the calculateNextSchedule method
 func TestWorkflowInstanceService_calculateNextSchedule(t *testing.T) {
 	db := setupTestDB(t)
