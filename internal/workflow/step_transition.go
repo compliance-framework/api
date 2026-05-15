@@ -31,6 +31,7 @@ type StepTransitionService struct {
 }
 
 var ErrInvalidStepTransition = errors.New("invalid step transition")
+var ErrInvalidEvidenceSubmission = errors.New("invalid evidence submission")
 var errTransitionForbidden = errors.New("forbidden")
 
 // WorkflowDefinitionServiceInterface defines the interface for workflow definition operations
@@ -293,6 +294,9 @@ func (s *StepTransitionService) validateEvidenceRequirements(stepDef *workflows.
 	// Build a map of submitted evidence types
 	submittedTypes := make(map[string]int)
 	for _, evidence := range submittedEvidence {
+		if err := validateEvidenceSubmissionFileType(evidence); err != nil {
+			return err
+		}
 		submittedTypes[evidence.EvidenceType]++
 	}
 
@@ -311,6 +315,63 @@ func (s *StepTransitionService) validateEvidenceRequirements(stepDef *workflows.
 	}
 
 	return nil
+}
+
+func validateEvidenceSubmissionFileType(evidence EvidenceSubmission) error {
+	if !strings.EqualFold(strings.TrimSpace(evidence.EvidenceType), "screenshot") {
+		return nil
+	}
+
+	allowedMediaTypes := map[string]struct{}{
+		"image/png":  {},
+		"image/jpg":  {},
+		"image/jpeg": {},
+		"image/gif":  {},
+		"image/webp": {},
+	}
+	allowedExtensions := map[string]struct{}{
+		".png":  {},
+		".jpg":  {},
+		".jpeg": {},
+		".gif":  {},
+		".webp": {},
+	}
+
+	mediaType := strings.ToLower(strings.TrimSpace(strings.Split(evidence.MediaType, ";")[0]))
+	if mediaType != "" {
+		if _, ok := allowedMediaTypes[mediaType]; !ok {
+			return fmt.Errorf("%w: screenshot evidence file type %q is not supported", ErrInvalidEvidenceSubmission, evidence.MediaType)
+		}
+	}
+
+	filename := evidence.Name
+	if evidence.FilePath != "" {
+		filename = evidence.FilePath
+	}
+	extension := strings.ToLower(strings.TrimSpace(fileExtension(filename)))
+	if extension != "" {
+		if _, ok := allowedExtensions[extension]; !ok {
+			return fmt.Errorf("%w: screenshot evidence file extension %q is not supported", ErrInvalidEvidenceSubmission, extension)
+		}
+	}
+
+	if mediaType == "" && extension == "" && evidence.FileContent != "" {
+		return fmt.Errorf("%w: screenshot evidence requires an image media type or file extension", ErrInvalidEvidenceSubmission)
+	}
+
+	return nil
+}
+
+func fileExtension(filename string) string {
+	lastSlash := strings.LastIndexAny(filename, `/\`)
+	if lastSlash >= 0 {
+		filename = filename[lastSlash+1:]
+	}
+	lastDot := strings.LastIndex(filename, ".")
+	if lastDot < 0 {
+		return ""
+	}
+	return filename[lastDot:]
 }
 
 // storeStepEvidence stores the submitted evidence for a step execution as relational.Evidence

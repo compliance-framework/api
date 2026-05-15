@@ -216,6 +216,76 @@ func TestVerifyTransitionActorPermission_UnexpectedRoleLookupErrorBubbles(t *tes
 	mockRole.AssertExpectations(t)
 }
 
+func TestValidateEvidenceRequirements_ScreenshotFileTypes(t *testing.T) {
+	svc := &StepTransitionService{}
+	stepDef := &workflows.WorkflowStepDefinition{}
+
+	tests := []struct {
+		name      string
+		evidence  EvidenceSubmission
+		wantError bool
+	}{
+		{
+			name: "allows screenshot image media type and extension",
+			evidence: EvidenceSubmission{
+				EvidenceType: "screenshot",
+				Name:         "screen.PNG",
+				MediaType:    "image/png",
+				FileContent:  "ZmFrZQ==",
+			},
+		},
+		{
+			name: "allows screenshot jpg alias",
+			evidence: EvidenceSubmission{
+				EvidenceType: "screenshot",
+				Name:         "screen.jpg",
+				MediaType:    "image/jpg",
+				FileContent:  "ZmFrZQ==",
+			},
+		},
+		{
+			name: "rejects screenshot document media type",
+			evidence: EvidenceSubmission{
+				EvidenceType: "screenshot",
+				Name:         "screen.pdf",
+				MediaType:    "application/pdf",
+				FileContent:  "ZmFrZQ==",
+			},
+			wantError: true,
+		},
+		{
+			name: "rejects screenshot document extension",
+			evidence: EvidenceSubmission{
+				EvidenceType: "screenshot",
+				Name:         "screen.doc",
+				MediaType:    "image/png",
+				FileContent:  "ZmFrZQ==",
+			},
+			wantError: true,
+		},
+		{
+			name: "keeps document evidence broad",
+			evidence: EvidenceSubmission{
+				EvidenceType: "document",
+				Name:         "attestation.pdf",
+				MediaType:    "application/pdf",
+				FileContent:  "ZmFrZQ==",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := svc.validateEvidenceRequirements(stepDef, []EvidenceSubmission{tt.evidence})
+			if tt.wantError {
+				require.ErrorIs(t, err, ErrInvalidEvidenceSubmission)
+				return
+			}
+			require.NoError(t, err)
+		})
+	}
+}
+
 func TestTransitionStepStatus_UnexpectedPermissionLookupErrorBubbles(t *testing.T) {
 	stepExecutionID := uuid.New()
 	stepDefID := uuid.New()

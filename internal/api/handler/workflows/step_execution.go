@@ -333,6 +333,9 @@ func (h *StepExecutionHandler) TransitionStep(ctx echo.Context) error {
 		if errors.Is(err, workflow.ErrInvalidStepTransition) {
 			return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 		}
+		if errors.Is(err, workflow.ErrInvalidEvidenceSubmission) {
+			return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+		}
 		// Check if it's a permission error
 		if isPermissionError(err) {
 			return ctx.JSON(http.StatusForbidden, api.NewError(err))
