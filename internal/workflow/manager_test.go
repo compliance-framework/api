@@ -18,6 +18,15 @@ import (
 	"go.uber.org/zap"
 )
 
+type MockWorkflowExecutionEvidenceCreator struct {
+	mock.Mock
+}
+
+func (m *MockWorkflowExecutionEvidenceCreator) AddWorkflowExecutionEvidence(ctx context.Context, workflowExecutionID *uuid.UUID, status string) error {
+	args := m.Called(ctx, workflowExecutionID, status)
+	return args.Error(0)
+}
+
 type MockRiverClient struct {
 	mock.Mock
 }
@@ -178,4 +187,63 @@ func TestManager_CancelExecution_CancelsOverdueSteps(t *testing.T) {
 	mockStepExecService.AssertNotCalled(t, "UpdateStatus", ctx, &completedStepID, StatusCancelled.String())
 	mockWorkflowExecService.AssertExpectations(t)
 	mockStepExecService.AssertExpectations(t)
+}
+
+// TestManager_StartWorkflowExecution_EmitsStartedEvidenceImmediately verifies that "started"
+// evidence is emitted at trigger time (when the execution is created as pending), not deferred
+// until the async transition to in_progress. Without this guarantee there is a timing window
+// where an execution exists in the system but has no evidence of having started.
+func TestManager_StartWorkflowExecution_EmitsStartedEvidenceImmediately(t *testing.T) {
+	ctx := context.Background()
+	logger := zap.NewNop().Sugar()
+
+	instanceID := uuid.New()
+	executionID := uuid.New()
+
+	mockClient := &MockRiverClient{}
+	mockWorkflowExecService := &MockWorkflowExecutionService{}
+	mockWorkflowInstService := &MockWorkflowInstanceService{}
+	mockStepExecService := &MockStepExecutionService{}
+	mockEvidenceCreator := &MockWorkflowExecutionEvidenceCreator{}
+
+	manager := NewManager(
+		mockClient,
+		mockWorkflowExecService,
+		mockWorkflowInstService,
+		mockStepExecService,
+		logger,
+		nil,
+	)
+	manager.SetEvidenceCreator(mockEvidenceCreator)
+
+	mockWorkflowInstService.On("GetByID", &instanceID).Return(&workflows.WorkflowInstance{IsActive: true}, nil).Once()
+
+	// Simulate database assigning an ID on Create (normally done by UUIDModel.BeforeCreate GORM hook).
+	mockWorkflowExecService.On("Create", mock.AnythingOfType("*workflows.WorkflowExecution")).
+		Run(func(args mock.Arguments) {
+			exec := args.Get(0).(*workflows.WorkflowExecution)
+			id := executionID
+			exec.ID = &id
+		}).
+		Return(nil).Once()
+
+	mockClient.On("InsertMany", ctx, mock.Anything).Return([]*rivertype.JobInsertResult{}, nil).Once()
+
+	// The key assertion: evidence creator MUST be called at trigger time (while still pending),
+	// not deferred to the async in_progress transition.
+	mockEvidenceCreator.On("AddWorkflowExecutionEvidence", ctx, &executionID, "started").Return(nil).Once()
+
+	opts := StartWorkflowOptions{
+		TriggeredBy: workflows.TriggerManual.String(),
+	}
+
+	execution, err := manager.StartWorkflowExecution(ctx, &instanceID, opts)
+	require.NoError(t, err)
+	require.NotNil(t, execution)
+
+	// This assertion fails because Manager currently does not call the evidence creator —
+	// "started" evidence is only emitted later when the River job transitions to in_progress.
+	mockEvidenceCreator.AssertExpectations(t)
+	mockWorkflowExecService.AssertExpectations(t)
+	mockWorkflowInstService.AssertExpectations(t)
 }

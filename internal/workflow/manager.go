@@ -27,7 +27,8 @@ type Manager struct {
 	workflowExecutionService WorkflowExecutionServiceInterface
 	workflowInstanceService  WorkflowInstanceServiceInterface
 	stepExecutionService     StepExecutionServiceInterface
-	notificationEnqueuer     NotificationEnqueuer // Optional: for workflow notification emails
+	notificationEnqueuer     NotificationEnqueuer                        // Optional: for workflow notification emails
+	evidenceCreator          workflows.WorkflowExecutionEvidenceCreator  // Optional: for emitting started/completed evidence
 	logger                   *zap.SugaredLogger
 }
 
@@ -48,6 +49,11 @@ func NewManager(
 		logger:                   logger,
 		notificationEnqueuer:     notificationEnqueuer,
 	}
+}
+
+// SetEvidenceCreator sets the evidence creator for emitting execution-level evidence at trigger time.
+func (m *Manager) SetEvidenceCreator(creator workflows.WorkflowExecutionEvidenceCreator) {
+	m.evidenceCreator = creator
 }
 
 // StartWorkflowOptions contains options for starting a workflow execution
@@ -131,6 +137,15 @@ func (m *Manager) StartWorkflowExecution(ctx context.Context, workflowInstanceID
 		"execution_id", execution.ID,
 		"job_kind", JobTypeExecuteWorkflow,
 	)
+
+	if m.evidenceCreator != nil {
+		if err := m.evidenceCreator.AddWorkflowExecutionEvidence(ctx, execution.ID, "started"); err != nil {
+			m.logger.Warnw("Failed to emit started evidence at trigger time",
+				"execution_id", execution.ID,
+				"error", err,
+			)
+		}
+	}
 
 	return execution, nil
 }
