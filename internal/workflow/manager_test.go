@@ -229,7 +229,9 @@ func TestManager_StartWorkflowExecution_EmitsStartedEvidenceViaConstructor(t *te
 		}).
 		Return(nil).Once()
 	mockClient.On("InsertMany", ctx, mock.Anything).Return([]*rivertype.JobInsertResult{}, nil).Once()
-	mockEvidenceCreator.On("AddWorkflowExecutionEvidence", ctx, &executionID, "started").Return(nil).Once()
+	mockEvidenceCreator.On("AddWorkflowExecutionEvidence", ctx, mock.MatchedBy(func(id *uuid.UUID) bool {
+		return id != nil && *id == executionID
+	}), "started").Return(nil).Once()
 
 	opts := StartWorkflowOptions{TriggeredBy: workflows.TriggerManual.String()}
 
@@ -285,7 +287,9 @@ func TestManager_StartWorkflowExecution_EmitsStartedEvidenceImmediately(t *testi
 
 	// The key assertion: evidence creator MUST be called at trigger time (while still pending),
 	// not deferred to the async in_progress transition.
-	mockEvidenceCreator.On("AddWorkflowExecutionEvidence", ctx, &executionID, "started").Return(nil).Once()
+	mockEvidenceCreator.On("AddWorkflowExecutionEvidence", ctx, mock.MatchedBy(func(id *uuid.UUID) bool {
+		return id != nil && *id == executionID
+	}), "started").Return(nil).Once()
 
 	opts := StartWorkflowOptions{
 		TriggeredBy: workflows.TriggerManual.String(),
@@ -295,8 +299,6 @@ func TestManager_StartWorkflowExecution_EmitsStartedEvidenceImmediately(t *testi
 	require.NoError(t, err)
 	require.NotNil(t, execution)
 
-	// This assertion fails because Manager currently does not call the evidence creator —
-	// "started" evidence is only emitted later when the River job transitions to in_progress.
 	mockEvidenceCreator.AssertExpectations(t)
 	mockWorkflowExecService.AssertExpectations(t)
 	mockWorkflowInstService.AssertExpectations(t)
