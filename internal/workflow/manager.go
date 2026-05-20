@@ -27,8 +27,8 @@ type Manager struct {
 	workflowExecutionService WorkflowExecutionServiceInterface
 	workflowInstanceService  WorkflowInstanceServiceInterface
 	stepExecutionService     StepExecutionServiceInterface
-	notificationEnqueuer     NotificationEnqueuer                        // Optional: for workflow notification emails
-	evidenceCreator          workflows.WorkflowExecutionEvidenceCreator  // Optional: for emitting started/completed evidence
+	notificationEnqueuer     NotificationEnqueuer                       // Optional: for workflow notification emails
+	evidenceCreator          workflows.WorkflowExecutionEvidenceCreator // Optional: for emitting started/completed evidence
 	logger                   *zap.SugaredLogger
 }
 
