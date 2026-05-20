@@ -179,3 +179,55 @@ func TestManager_CancelExecution_CancelsOverdueSteps(t *testing.T) {
 	mockWorkflowExecService.AssertExpectations(t)
 	mockStepExecService.AssertExpectations(t)
 }
+
+func TestManager_GetExecutionMetrics_PopulatesStepMetrics(t *testing.T) {
+	ctx := context.Background()
+	logger := zap.NewNop().Sugar()
+
+	executionID := uuid.New()
+	stepDefID := uuid.New()
+	startedAt := time.Now().Add(-30 * time.Minute)
+	completedAt := time.Now()
+
+	mockClient := &MockRiverClient{}
+	mockWorkflowExecService := &MockWorkflowExecutionService{}
+	mockWorkflowInstService := &MockWorkflowInstanceService{}
+	mockStepExecService := &MockStepExecutionService{}
+
+	manager := NewManager(
+		mockClient,
+		mockWorkflowExecService,
+		mockWorkflowInstService,
+		mockStepExecService,
+		logger,
+		nil,
+	)
+
+	mockWorkflowExecService.On("GetByID", &executionID).Return(&workflows.WorkflowExecution{
+		UUIDModel:   relational.UUIDModel{ID: &executionID},
+		Status:      workflows.WorkflowStatusCompleted.String(),
+		StartedAt:   &startedAt,
+		CompletedAt: &completedAt,
+	}, nil).Once()
+
+	mockStepExecService.On("GetByWorkflowExecutionID", &executionID).Return([]workflows.StepExecution{
+		{
+			WorkflowStepDefinitionID: &stepDefID,
+			WorkflowStepDefinition: &workflows.WorkflowStepDefinition{
+				UUIDModel: relational.UUIDModel{ID: &stepDefID},
+				Name:      "Review Documentation",
+			},
+			StartedAt:   &startedAt,
+			CompletedAt: &completedAt,
+		},
+	}, nil).Once()
+
+	metrics, err := manager.GetExecutionMetrics(ctx, &executionID)
+	require.NoError(t, err)
+	require.Len(t, metrics.StepMetrics, 1)
+	assert.Equal(t, stepDefID, metrics.StepMetrics[0].StepDefinitionID)
+	assert.Equal(t, "Review Documentation", metrics.StepMetrics[0].StepName)
+	assert.NotNil(t, metrics.StepMetrics[0].DurationMinutes)
+	assert.Equal(t, startedAt, *metrics.StepMetrics[0].StartedAt)
+	assert.Equal(t, completedAt, *metrics.StepMetrics[0].CompletedAt)
+}

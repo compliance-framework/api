@@ -8265,6 +8265,10 @@ definitions:
         type: string
       longestStepDuration:
         $ref: '#/definitions/time.Duration'
+      step_metrics:
+        items:
+          $ref: '#/definitions/workflow.StepMetric'
+        type: array
       totalSteps:
         type: integer
     type: object
@@ -8298,6 +8302,19 @@ definitions:
         type: string
       totalSteps:
         type: integer
+    type: object
+  workflow.StepMetric:
+    properties:
+      completed_at:
+        type: string
+      duration_minutes:
+        type: number
+      started_at:
+        type: string
+      step_definition_id:
+        type: string
+      step_name:
+        type: string
     type: object
   workflows.BulkReassignRoleResponse:
     properties:
