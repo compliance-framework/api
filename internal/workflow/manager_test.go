@@ -86,6 +86,7 @@ func TestManager_StartWorkflowExecution_UniqueViolationScheduledReturnsAlreadyEx
 		mockStepExecService,
 		logger,
 		nil,
+		nil,
 	)
 
 	mockWorkflowInstService.On("GetByID", &instanceID).Return(&workflows.WorkflowInstance{IsActive: true}, nil).Once()
@@ -122,6 +123,7 @@ func TestManager_StartWorkflowExecution_UniqueViolationManualDoesNotReturnAlread
 		mockWorkflowInstService,
 		mockStepExecService,
 		logger,
+		nil,
 		nil,
 	)
 
@@ -161,6 +163,7 @@ func TestManager_CancelExecution_CancelsOverdueSteps(t *testing.T) {
 		mockStepExecService,
 		logger,
 		nil,
+		nil,
 	)
 
 	mockWorkflowExecService.On("GetByID", &executionID).Return(&workflows.WorkflowExecution{
@@ -189,6 +192,56 @@ func TestManager_CancelExecution_CancelsOverdueSteps(t *testing.T) {
 	mockStepExecService.AssertExpectations(t)
 }
 
+// TestManager_StartWorkflowExecution_EmitsStartedEvidenceViaConstructor verifies that the
+// evidence creator passed to NewManager is used to emit "started" evidence at trigger time.
+// This is the regression test for the production wiring gap: neither cmd/run.go nor
+// worker/service.go ever calls SetEvidenceCreator, so evidence is silently dropped in production.
+// Fix: assign the evidenceCreator constructor arg to m.evidenceCreator inside NewManager.
+func TestManager_StartWorkflowExecution_EmitsStartedEvidenceViaConstructor(t *testing.T) {
+	ctx := context.Background()
+	logger := zap.NewNop().Sugar()
+
+	instanceID := uuid.New()
+	executionID := uuid.New()
+
+	mockClient := &MockRiverClient{}
+	mockWorkflowExecService := &MockWorkflowExecutionService{}
+	mockWorkflowInstService := &MockWorkflowInstanceService{}
+	mockStepExecService := &MockStepExecutionService{}
+	mockEvidenceCreator := &MockWorkflowExecutionEvidenceCreator{}
+
+	manager := NewManager(
+		mockClient,
+		mockWorkflowExecService,
+		mockWorkflowInstService,
+		mockStepExecService,
+		logger,
+		nil,                 // notificationEnqueuer
+		mockEvidenceCreator, // evidenceCreator
+	)
+
+	mockWorkflowInstService.On("GetByID", &instanceID).Return(&workflows.WorkflowInstance{IsActive: true}, nil).Once()
+	mockWorkflowExecService.On("Create", mock.AnythingOfType("*workflows.WorkflowExecution")).
+		Run(func(args mock.Arguments) {
+			exec := args.Get(0).(*workflows.WorkflowExecution)
+			id := executionID
+			exec.ID = &id
+		}).
+		Return(nil).Once()
+	mockClient.On("InsertMany", ctx, mock.Anything).Return([]*rivertype.JobInsertResult{}, nil).Once()
+	mockEvidenceCreator.On("AddWorkflowExecutionEvidence", ctx, &executionID, "started").Return(nil).Once()
+
+	opts := StartWorkflowOptions{TriggeredBy: workflows.TriggerManual.String()}
+
+	execution, err := manager.StartWorkflowExecution(ctx, &instanceID, opts)
+	require.NoError(t, err)
+	require.NotNil(t, execution)
+
+	mockEvidenceCreator.AssertExpectations(t)
+	mockWorkflowExecService.AssertExpectations(t)
+	mockWorkflowInstService.AssertExpectations(t)
+}
+
 // TestManager_StartWorkflowExecution_EmitsStartedEvidenceImmediately verifies that "started"
 // evidence is emitted at trigger time (when the execution is created as pending), not deferred
 // until the async transition to in_progress. Without this guarantee there is a timing window
@@ -212,6 +265,7 @@ func TestManager_StartWorkflowExecution_EmitsStartedEvidenceImmediately(t *testi
 		mockWorkflowInstService,
 		mockStepExecService,
 		logger,
+		nil,
 		nil,
 	)
 	manager.SetEvidenceCreator(mockEvidenceCreator)

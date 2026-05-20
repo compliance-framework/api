@@ -188,6 +188,7 @@ func NewServiceWithDigest(
 		stepExecService,
 		logger,
 		enqueuerProxy,
+		evidenceIntegration,
 	)
 
 	// Determine grace period days for the workflow scheduler, with safe defaults.

@@ -142,6 +142,7 @@ func RunServer(cmd *cobra.Command, args []string) {
 	workflowExecService := workflows.NewWorkflowExecutionService(db)
 	workflowInstService := workflows.NewWorkflowInstanceService(db)
 	stepExecService := workflows.NewStepExecutionService(db, nil)
+	workflowEvidenceIntegration := workflow.NewEvidenceIntegration(db, sugar)
 	workflowManager := workflow.NewManager(
 		workerService.GetClient(),
 		workflowExecService,
@@ -149,6 +150,7 @@ func RunServer(cmd *cobra.Command, args []string) {
 		stepExecService,
 		sugar,
 		workerService,
+		workflowEvidenceIntegration,
 	)
 
 	metrics := api.NewMetricsHandler(ctx, sugar)

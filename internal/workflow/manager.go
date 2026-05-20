@@ -40,6 +40,7 @@ func NewManager(
 	stepExecutionService StepExecutionServiceInterface,
 	logger *zap.SugaredLogger,
 	notificationEnqueuer NotificationEnqueuer,
+	evidenceCreator workflows.WorkflowExecutionEvidenceCreator,
 ) *Manager {
 	return &Manager{
 		riverClient:              riverClient,
@@ -48,6 +49,7 @@ func NewManager(
 		stepExecutionService:     stepExecutionService,
 		logger:                   logger,
 		notificationEnqueuer:     notificationEnqueuer,
+		evidenceCreator:          evidenceCreator,
 	}
 }
 

@@ -62,6 +62,7 @@ func setupExecutionTestHandler(t *testing.T) (*WorkflowExecutionHandler, *gorm.D
 		stepExecService,
 		logger,
 		nil,
+		nil,
 	)
 
 	handler := NewWorkflowExecutionHandler(logger, db, manager, assignmentService)
