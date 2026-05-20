@@ -309,6 +309,7 @@ func (m *Manager) GetExecutionMetrics(ctx context.Context, executionID *uuid.UUI
 	metrics := &ExecutionMetrics{
 		ExecutionID: *executionID,
 		TotalSteps:  len(stepExecutions),
+		StepMetrics: []StepMetric{},
 	}
 
 	// Calculate execution duration
@@ -374,19 +375,19 @@ type ExecutionStatus struct {
 
 // StepMetric holds per-step timing data for the metrics response
 type StepMetric struct {
-	StepDefinitionID uuid.UUID  `json:"step_definition_id"`
-	StepName         string     `json:"step_name"`
-	StartedAt        *time.Time `json:"started_at,omitempty"`
-	CompletedAt      *time.Time `json:"completed_at,omitempty"`
-	DurationMinutes  *float64   `json:"duration_minutes,omitempty"`
+	StepDefinitionID uuid.UUID  `json:"stepDefinitionId"`
+	StepName         string     `json:"stepName"`
+	StartedAt        *time.Time `json:"startedAt,omitempty"`
+	CompletedAt      *time.Time `json:"completedAt,omitempty"`
+	DurationMinutes  *float64   `json:"durationMinutes,omitempty"`
 }
 
 // ExecutionMetrics represents metrics for a workflow execution
 type ExecutionMetrics struct {
-	ExecutionID         uuid.UUID
-	TotalSteps          int
-	Duration            time.Duration
-	AverageStepDuration time.Duration
-	LongestStepDuration time.Duration
-	StepMetrics         []StepMetric `json:"step_metrics"`
+	ExecutionID         uuid.UUID     `json:"executionId"`
+	TotalSteps          int           `json:"totalSteps"`
+	Duration            time.Duration `json:"duration"`
+	AverageStepDuration time.Duration `json:"averageStepDuration"`
+	LongestStepDuration time.Duration `json:"longestStepDuration"`
+	StepMetrics         []StepMetric  `json:"stepMetrics"`
 }

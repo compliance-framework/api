@@ -8261,11 +8261,11 @@ definitions:
         $ref: '#/definitions/time.Duration'
       duration:
         $ref: '#/definitions/time.Duration'
-      executionID:
+      executionId:
         type: string
       longestStepDuration:
         $ref: '#/definitions/time.Duration'
-      step_metrics:
+      stepMetrics:
         items:
           $ref: '#/definitions/workflow.StepMetric'
         type: array
@@ -8305,15 +8305,15 @@ definitions:
     type: object
   workflow.StepMetric:
     properties:
-      completed_at:
+      completedAt:
         type: string
-      duration_minutes:
+      durationMinutes:
         type: number
-      started_at:
+      startedAt:
         type: string
-      step_definition_id:
+      stepDefinitionId:
         type: string
-      step_name:
+      stepName:
         type: string
     type: object
   workflows.BulkReassignRoleResponse:

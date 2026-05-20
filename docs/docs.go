@@ -39234,13 +39234,13 @@ const docTemplate = `{
                 "duration": {
                     "$ref": "#/definitions/time.Duration"
                 },
-                "executionID": {
+                "executionId": {
                     "type": "string"
                 },
                 "longestStepDuration": {
                     "$ref": "#/definitions/time.Duration"
                 },
-                "step_metrics": {
+                "stepMetrics": {
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/workflow.StepMetric"
@@ -39301,19 +39301,19 @@ const docTemplate = `{
         "workflow.StepMetric": {
             "type": "object",
             "properties": {
-                "completed_at": {
+                "completedAt": {
                     "type": "string"
                 },
-                "duration_minutes": {
+                "durationMinutes": {
                     "type": "number"
                 },
-                "started_at": {
+                "startedAt": {
                     "type": "string"
                 },
-                "step_definition_id": {
+                "stepDefinitionId": {
                     "type": "string"
                 },
-                "step_name": {
+                "stepName": {
                     "type": "string"
                 }
             }
