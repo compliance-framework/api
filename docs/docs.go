@@ -40166,6 +40166,10 @@ const docTemplate = `{
                     "description": "Basic Information",
                     "type": "string"
                 },
+                "step_count": {
+                    "description": "Computed fields (not persisted)",
+                    "type": "integer"
+                },
                 "steps": {
                     "description": "Relationships",
                     "type": "array",

@@ -98,6 +98,25 @@ func TestWorkflowDefinitionService_GetAll(t *testing.T) {
 	assert.Len(t, retrieved, 2)
 }
 
+// TestWorkflowDefinitionService_GetAll_StepCount tests that GetAll populates StepCount from associated steps
+func TestWorkflowDefinitionService_GetAll_StepCount(t *testing.T) {
+	db := setupTestDB(t)
+	service := NewWorkflowDefinitionService(db)
+
+	def := createTestWorkflowDefinition()
+	require.NoError(t, db.Create(def).Error)
+
+	step1 := createTestWorkflowStepDefinition(def.ID)
+	step2 := createTestWorkflowStepDefinition(def.ID)
+	require.NoError(t, db.Create(step1).Error)
+	require.NoError(t, db.Create(step2).Error)
+
+	retrieved, _, err := service.GetAll(10, 0)
+	require.NoError(t, err)
+	require.Len(t, retrieved, 1)
+	assert.Equal(t, 2, retrieved[0].StepCount)
+}
+
 // TestWorkflowDefinitionService_Update tests the Update method
 func TestWorkflowDefinitionService_Update(t *testing.T) {
 	db := setupTestDB(t)

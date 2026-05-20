@@ -63,6 +63,10 @@ func (s *WorkflowDefinitionService) GetAll(limit, offset int) ([]WorkflowDefinit
 		return nil, 0, err
 	}
 
+	for i := range definitions {
+		definitions[i].StepCount = len(definitions[i].Steps)
+	}
+
 	return definitions, total, nil
 }
 
