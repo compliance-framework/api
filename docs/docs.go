@@ -39302,13 +39302,15 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "completedAt": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "date-time"
                 },
                 "durationMinutes": {
                     "type": "number"
                 },
                 "startedAt": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "date-time"
                 },
                 "stepDefinitionId": {
                     "type": "string"

@@ -8306,10 +8306,12 @@ definitions:
   workflow.StepMetric:
     properties:
       completedAt:
+        format: date-time
         type: string
       durationMinutes:
         type: number
       startedAt:
+        format: date-time
         type: string
       stepDefinitionId:
         type: string

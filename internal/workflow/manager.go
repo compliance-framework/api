@@ -326,9 +326,18 @@ func (m *Manager) GetExecutionMetrics(ctx context.Context, executionID *uuid.UUI
 	// Calculate step metrics
 	var totalStepDuration time.Duration
 	for _, step := range stepExecutions {
+		if step.WorkflowStepDefinitionID == nil {
+			continue
+		}
+
+		stepName := ""
+		if step.WorkflowStepDefinition != nil {
+			stepName = step.WorkflowStepDefinition.Name
+		}
+
 		sm := StepMetric{
 			StepDefinitionID: *step.WorkflowStepDefinitionID,
-			StepName:         step.WorkflowStepDefinition.Name,
+			StepName:         stepName,
 			StartedAt:        step.StartedAt,
 			CompletedAt:      step.CompletedAt,
 		}
@@ -377,8 +386,8 @@ type ExecutionStatus struct {
 type StepMetric struct {
 	StepDefinitionID uuid.UUID  `json:"stepDefinitionId"`
 	StepName         string     `json:"stepName"`
-	StartedAt        *time.Time `json:"startedAt,omitempty"`
-	CompletedAt      *time.Time `json:"completedAt,omitempty"`
+	StartedAt        *time.Time `json:"startedAt,omitempty" swaggertype:"string" format:"date-time"`
+	CompletedAt      *time.Time `json:"completedAt,omitempty" swaggertype:"string" format:"date-time"`
 	DurationMinutes  *float64   `json:"durationMinutes,omitempty"`
 }
 
