@@ -189,6 +189,7 @@ func NewServiceWithDigest(
 		logger,
 		enqueuerProxy,
 	)
+	workflowManager.SetEvidenceCreator(evidenceIntegration)
 
 	// Determine grace period days for the workflow scheduler, with safe defaults.
 	gracePeriodDays := config.DefaultWorkflowConfig().GracePeriodDays
