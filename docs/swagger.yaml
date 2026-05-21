@@ -8880,7 +8880,8 @@ definitions:
         description: Basic Information
         type: string
       step_count:
-        description: Computed fields (not persisted)
+        description: Computed field (not persisted)
+        minimum: 0
         type: integer
       steps:
         description: Relationships

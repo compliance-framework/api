@@ -103,18 +103,27 @@ func TestWorkflowDefinitionService_GetAll_StepCount(t *testing.T) {
 	db := setupTestDB(t)
 	service := NewWorkflowDefinitionService(db)
 
-	def := createTestWorkflowDefinition()
-	require.NoError(t, db.Create(def).Error)
+	defWithSteps := createTestWorkflowDefinition()
+	require.NoError(t, db.Create(defWithSteps).Error)
 
-	step1 := createTestWorkflowStepDefinition(def.ID)
-	step2 := createTestWorkflowStepDefinition(def.ID)
+	step1 := createTestWorkflowStepDefinition(defWithSteps.ID)
+	step2 := createTestWorkflowStepDefinition(defWithSteps.ID)
 	require.NoError(t, db.Create(step1).Error)
 	require.NoError(t, db.Create(step2).Error)
 
+	defWithoutSteps := createTestWorkflowDefinition()
+	require.NoError(t, db.Create(defWithoutSteps).Error)
+
 	retrieved, _, err := service.GetAll(10, 0)
 	require.NoError(t, err)
-	require.Len(t, retrieved, 1)
-	assert.Equal(t, 2, retrieved[0].StepCount)
+	require.Len(t, retrieved, 2)
+
+	counts := make(map[string]int)
+	for _, d := range retrieved {
+		counts[d.ID.String()] = d.StepCount
+	}
+	assert.Equal(t, 2, counts[defWithSteps.ID.String()])
+	assert.Equal(t, 0, counts[defWithoutSteps.ID.String()])
 }
 
 // TestWorkflowDefinitionService_Update tests the Update method

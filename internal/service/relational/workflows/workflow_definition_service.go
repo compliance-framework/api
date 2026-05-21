@@ -39,6 +39,7 @@ func (s *WorkflowDefinitionService) GetByID(id *uuid.UUID) (*WorkflowDefinition,
 	if err != nil {
 		return nil, err
 	}
+	definition.StepCount = len(definition.Steps)
 	return &definition, nil
 }
 
@@ -93,8 +94,15 @@ func (s *WorkflowDefinitionService) FindByName(name string) ([]WorkflowDefinitio
 		Preload("Steps").
 		Preload("ControlRelationships").
 		Find(&definitions).Error
+	if err != nil {
+		return nil, err
+	}
 
-	return definitions, err
+	for i := range definitions {
+		definitions[i].StepCount = len(definitions[i].Steps)
+	}
+
+	return definitions, nil
 }
 
 // GetWithInstances retrieves a workflow definition with all its instances
@@ -105,6 +113,7 @@ func (s *WorkflowDefinitionService) GetWithInstances(id *uuid.UUID) (*WorkflowDe
 	if err != nil {
 		return nil, err
 	}
+	definition.StepCount = len(definition.Steps)
 	return &definition, nil
 }
 
