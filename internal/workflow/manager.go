@@ -325,6 +325,7 @@ func (m *Manager) GetExecutionMetrics(ctx context.Context, executionID *uuid.UUI
 
 	// Calculate step metrics
 	var totalStepDuration time.Duration
+	var timedStepCount int
 	for _, step := range stepExecutions {
 		if step.WorkflowStepDefinitionID == nil {
 			continue
@@ -345,6 +346,7 @@ func (m *Manager) GetExecutionMetrics(ctx context.Context, executionID *uuid.UUI
 		if step.StartedAt != nil && step.CompletedAt != nil {
 			stepDuration := step.CompletedAt.Sub(*step.StartedAt)
 			totalStepDuration += stepDuration
+			timedStepCount++
 
 			if stepDuration > metrics.LongestStepDuration {
 				metrics.LongestStepDuration = stepDuration
@@ -357,8 +359,8 @@ func (m *Manager) GetExecutionMetrics(ctx context.Context, executionID *uuid.UUI
 		metrics.StepMetrics = append(metrics.StepMetrics, sm)
 	}
 
-	if len(stepExecutions) > 0 {
-		metrics.AverageStepDuration = totalStepDuration / time.Duration(len(stepExecutions))
+	if timedStepCount > 0 {
+		metrics.AverageStepDuration = totalStepDuration / time.Duration(timedStepCount)
 	}
 
 	return metrics, nil
@@ -384,7 +386,7 @@ type ExecutionStatus struct {
 
 // StepMetric holds per-step timing data for the metrics response
 type StepMetric struct {
-	StepDefinitionID uuid.UUID  `json:"stepDefinitionId"`
+	StepDefinitionID uuid.UUID  `json:"stepDefinitionId" swaggertype:"string" format:"uuid"`
 	StepName         string     `json:"stepName"`
 	StartedAt        *time.Time `json:"startedAt,omitempty" swaggertype:"string" format:"date-time"`
 	CompletedAt      *time.Time `json:"completedAt,omitempty" swaggertype:"string" format:"date-time"`

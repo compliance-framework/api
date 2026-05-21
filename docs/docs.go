@@ -39313,7 +39313,8 @@ const docTemplate = `{
                     "format": "date-time"
                 },
                 "stepDefinitionId": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "uuid"
                 },
                 "stepName": {
                     "type": "string"

@@ -8314,6 +8314,7 @@ definitions:
         format: date-time
         type: string
       stepDefinitionId:
+        format: uuid
         type: string
       stepName:
         type: string
