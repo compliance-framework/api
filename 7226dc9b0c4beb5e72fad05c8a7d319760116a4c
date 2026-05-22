@@ -1,0 +1,16 @@
+lisa-addressed:
+---
+Comment (internal/service/notificationtroubleshooting/service.go:1461):
+providerJobSourcePredicate uses latestSource.CreatedAt as the lower bound for the legacy fallback (source_job_kind == '' AND created_at >= ?). When latestSource.CreatedAt is the zero time (e.g., Diagnostics when no source job exists), this predicate effectively matches all legacy provider jobs and can make downstream diagnostics misleading. Consider guarding against a zero CreatedAt (skip the created_at fallback or use a bounded window / only run this query when hasSource is true).
+
+---
+Comment (internal/api/handler/notifications.go:168):
+OpenAPI annotations for this endpoint omit a 500 response, but the handler returns http.StatusInternalServerError for non-validation failures from the troubleshooting service. Add `@Failure` 500 {object} api.Error (or adjust the handler) so the spec matches behavior.
+
+---
+Comment (internal/api/handler/notifications.go:253):
+OpenAPI annotations list 400/401/503, but the handler can also return http.StatusInternalServerError when enqueueing fails. Document the 500 response (or change the status) so OpenAPI matches runtime behavior.
+
+Implementation guidance: In internal/service/notificationtroubleshooting/service.go, update providerJobSourcePredicate so the legacy created_at fallback is not applied when latestSource.CreatedAt is zero. Keep the current source_job_kind/source_job_id matching behavior for latestSource.ID > 0. For the latestSource.ID == 0 branch, if latestSource.CreatedAt.IsZero(), return only the source kind predicate, e.g. "<sourceJobKindExpr> IN ?" with []any{sourceKinds}; otherwise keep the bounded legacy fallback "(<sourceJobKindExpr> IN ?) OR (<sourceJobKindExpr> = '' AND created_at >= ?)". Do not remove the 30-day synthetic latestSource behavior used by providerQueueProblems; that path passes a non-zero CreatedAt and should still include legacy metadata-missing rows within that window.
+Implementation guidance: In internal/api/handler/notifications.go, add a Swagger annotation for ListTroubleshootingJobs documenting the internal-error path: add `//	@Failure		500					{object}	api.Error` alongside the existing 400 and 401 failures. The handler already returns http.StatusInternalServerError when h.troubleshooting.Jobs returns a non-validation error, so only the annotation needs to change. If this repo expects generated OpenAPI files to be committed, regenerate docs so docs/docs.go, docs/swagger.json, and docs/swagger.yaml include the 500 response for GET /admin/notifications/jobs.
+Implementation guidance: In internal/api/handler/notifications.go, add a Swagger annotation for SendTestNotification documenting the enqueue failure path: add `//	@Failure		500		{object}	api.Error` alongside the existing 400, 401, and 503 failures. The handler already returns http.StatusInternalServerError when EnqueueNotificationEmail or EnqueueNotificationSlack fails, so do not change runtime behavior unless tests require it. If generated OpenAPI files are committed in this repo, regenerate docs so docs/docs.go, docs/swagger.json, and docs/swagger.yaml include the 500 response for POST /admin/notifications/test.
