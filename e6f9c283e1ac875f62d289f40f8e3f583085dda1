@@ -1,0 +1,79 @@
+lisa-addressed:
+---
+Comment (internal/service/notificationtroubleshooting/service.go:736):
+**🔴 BUG-API-1: `missing_destination` warnings fire for user-fanout-only notification types.**
+
+During e2e testing the Health tab showed `missing_destination` warnings for `TASK_AVAILABLE`, `TASK_DAILY_DIGEST`, `RISK_NOTIFICATIONS`, and `WORKFLOW_EXECUTION_FAILED`. These are user-fanout types — they don't use system destinations at all, so the warning is a false positive.
+
+The guard here (`supportsSystemDestination(name)`) delegates to `notification.NormalizeSystemNotificationName`, which appears to return `ok=true` for those types because they are valid normalized notification names, not because they support system destinations.
+
+**Fix:** `supportsSystemDestination` must be narrowed to only return `true` for notification types that actually accept a configured system destination. Based on the current destination model that is only `EVIDENCE_DIGEST` (and `WORKFLOW_EXECUTION_FAILED` if that is intentional — please clarify). All user-fanout types (`TASK_AVAILABLE`, `TASK_DAILY_DIGEST`, `RISK_NOTIFICATIONS`, `POAM_*`) must return `false`.
+
+Example:
+```go
+func supportsSystemDestination(name string) bool {
+    switch strings.ToLower(name) {
+    case notification.SystemNotificationNameEvidenceDigest:
+        return true
+    default:
+        return false
+    }
+}
+```
+---
+Comment (internal/service/notificationtroubleshooting/service.go:239):
+**🟡 BUG-API-7: `DiagnosticsResponse` is missing `subscriberCounts` and `configuredDestinations`.**
+
+The UI's Diagnostics tab renders two panels — a subscriber-count chip row and a configured-destinations list — by reading `diagnostics.subscriberCounts` and `diagnostics.configuredDestinations` from this response. Neither field exists in this struct, so both panels are always empty.
+
+These fields are available on `NotificationHealth` (the health endpoint's per-notification object) but are not included here.
+
+**Fix:** add them to this struct:
+```go
+type DiagnosticsResponse struct {
+    NotificationName       string                              `json:"notificationName"`
+    Status                 string                              `json:"status"`
+    Checks                 []DiagnosticCheck                   `json:"checks"`
+    RecommendedActions     []string                            `json:"recommendedActions"`
+    SubscriberCounts       SubscriberCounts                    `json:"subscriberCounts"`
+    ConfiguredDestinations []ConfiguredSystemDestinationResponse `json:"configuredDestinations"`
+}
+```
+And populate them in `Diagnostics()` using the existing `subscriberCounts()` and `configuredDestinations()` helpers.
+---
+Comment (internal/service/notificationtroubleshooting/service.go:1301):
+**🟠 BUG-API-4: POAM diagnostics uses the risk subscription gate — copy-paste bug.**
+
+This `case` maps both `"risk"` and `"poam"` to `notification.SubscriptionGateRiskNotifications`. As a result, the subscriber diagnostic check for POAM gets the code `"subscribers_risk_notifications"` instead of `"subscribers_poam_notifications"`, and the check label reads as if it belongs to the risk family.
+
+**Fix:** give POAM its own case:
+```go
+case "risk":
+    return []string{notification.SubscriptionGateRiskNotifications}
+case "poam":
+    return []string{notification.SubscriptionGatePOAMNotifications} // or whichever gate is correct for POAM
+```
+If POAM and risk genuinely share a subscription gate, the check code should still produce `"subscribers_poam_notifications"` for POAM — which requires a label or code override rather than sharing the gate constant directly.
+---
+Comment (internal/service/notificationtroubleshooting/service.go:441):
+**🟠 BUG-API-5: All subscriber checks share the same label `"Subscribed users"`.**
+
+For the `workflow` family, `subscriptionGatesForFamily` returns two gates: `SubscriptionGateTaskAvailable` and `SubscriptionGateTaskDailyDigest`. Both iteration passes produce a `DiagnosticCheck` with `Label: "Subscribed users"`, so the Diagnostics UI shows two identically-labelled checks with no way to distinguish them.
+
+**Fix:** derive the label from the gate name rather than hardcoding it, or use a lookup map:
+```go
+gateLabels := map[string]string{
+    notification.SubscriptionGateTaskAvailable:    "Task Available subscribers",
+    notification.SubscriptionGateTaskDailyDigest:  "Task Daily Digest subscribers",
+    notification.SubscriptionGateRiskNotifications: "Risk Notification subscribers",
+    notification.SubscriptionGateEvidenceDigest:   "Evidence Digest subscribers",
+}
+label := gateLabels[gate]
+if label == "" {
+    label = "Subscribed users" // fallback
+}
+```
+Implementation guidance: In internal/service/notificationtroubleshooting/service.go, narrow supportsSystemDestination so it returns true only for notification types that actually use configured system destinations. Do not use notification.NormalizeSystemNotificationName as a proxy because it accepts user subscription gates too. Implement an explicit switch over the canonical lower-case name and return true for notification.SystemNotificationNameEvidenceDigest and notification.SystemNotificationNameWorkflowExecutionFailed, since workflow execution failed has a configured system destination path in WorkflowExecutionFailedWorker. Return false for task_available, task_daily_digest, risk_notifications, POAM-related names, and any unknown name. Add or update a focused test that TASK_AVAILABLE, TASK_DAILY_DIGEST, RISK_NOTIFICATIONS, and POAM names do not produce missing_destination warnings while EVIDENCE_DIGEST and WORKFLOW_EXECUTION_FAILED still can.
+Implementation guidance: In internal/service/notificationtroubleshooting/service.go, extend DiagnosticsResponse with SubscriberCounts SubscriberCounts `json:"subscriberCounts"` and ConfiguredDestinations []ConfiguredSystemDestinationResponse `json:"configuredDestinations"`. In Service.Diagnostics, populate these response fields using the existing subscriberCounts and configuredDestinations helpers. Avoid duplicating queries unnecessarily: collect subscriber counts while iterating subscriptionGatesForFamily, aggregating or selecting the relevant counts for the family response, and collect configured destinations while iterating systemNotificationsForFamily. Preserve existing error propagation from those helpers. Update generated OpenAPI docs if this repo commits them.
+Implementation guidance: In internal/service/notificationtroubleshooting/service.go, fix subscriptionGatesForFamily so the poam family does not reuse notification.SubscriptionGateRiskNotifications. First check whether a POAM subscription gate constant exists in internal/service/notification; if it exists, return that constant for case "poam". If no POAM gate exists, keep whatever underlying gate is required for the count query but change the diagnostics check code generation in Service.Diagnostics so POAM checks use code "subscribers_poam_notifications" and POAM-specific label text rather than "subscribers_risk_notifications". Keep the risk case returning notification.SubscriptionGateRiskNotifications.
+Implementation guidance: In internal/service/notificationtroubleshooting/service.go, replace the hardcoded subscriber diagnostic label "Subscribed users" in Service.Diagnostics with a helper or lookup that returns distinct labels per subscription gate. Add a small function such as subscriptionGateLabel(gate string) string with labels for notification.SubscriptionGateTaskAvailable, notification.SubscriptionGateTaskDailyDigest, notification.SubscriptionGateRiskNotifications, and notification.SubscriptionGateEvidenceDigest; include any POAM gate if present. Use the helper when appending subscriber DiagnosticCheck entries. Preserve the existing check codes and status/message behavior except where POAM is separately fixed.
