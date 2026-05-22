@@ -190,6 +190,10 @@
                         "in": "query"
                     },
                     {
+                        "enum": [
+                            "email",
+                            "slack"
+                        ],
                         "type": "string",
                         "description": "Provider filter: email or slack",
                         "name": "provider",
@@ -204,6 +208,16 @@
                     {
                         "type": "array",
                         "items": {
+                            "enum": [
+                                "available",
+                                "cancelled",
+                                "completed",
+                                "discarded",
+                                "pending",
+                                "retryable",
+                                "running",
+                                "scheduled"
+                            ],
                             "type": "string"
                         },
                         "collectionFormat": "csv",
@@ -213,11 +227,14 @@
                     },
                     {
                         "type": "string",
+                        "format": "date-time",
                         "description": "RFC3339 lower bound for job creation time",
                         "name": "since",
                         "in": "query"
                     },
                     {
+                        "maximum": 200,
+                        "minimum": 1,
                         "type": "integer",
                         "description": "Page size, default 50, max 200",
                         "name": "limit",
@@ -578,6 +595,18 @@
                     },
                     "401": {
                         "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
                         "schema": {
                             "$ref": "#/definitions/api.Error"
                         }
@@ -27482,7 +27511,7 @@
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/evidence.SignatureDetail"
@@ -27495,7 +27524,7 @@
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/evidence.VerificationResult"
@@ -28266,7 +28295,7 @@
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/oscalTypes_1_1_3.AssessmentAssets"
@@ -28278,7 +28307,7 @@
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/oscalTypes_1_1_3.AssessmentSubject"
@@ -28290,7 +28319,7 @@
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/oscalTypes_1_1_3.Task"
@@ -28302,7 +28331,7 @@
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/auth.AuthHandler"
@@ -28315,7 +28344,7 @@
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/digest.EvidenceSummary"
@@ -28328,7 +28357,7 @@
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/handler.CreatedEvidenceResponse"
@@ -28341,7 +28370,7 @@
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/handler.FilterImportResponse"
@@ -28354,7 +28383,7 @@
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/handler.FilterWithAssociations"
@@ -28367,7 +28396,7 @@
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/handler.PublicEvidenceResponse"
@@ -28380,7 +28409,7 @@
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/handler.SubscriptionsResponse"
@@ -28393,7 +28422,7 @@
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/handler.configuredSystemDestinationResponse"
@@ -28406,7 +28435,7 @@
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/handler.milestoneResponse"
@@ -28419,7 +28448,7 @@
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/handler.poamItemResponse"
@@ -28432,7 +28461,7 @@
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/handler.publicUserResponse"
@@ -28445,7 +28474,7 @@
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/handler.remediationTemplateResponse"
@@ -28458,7 +28487,7 @@
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/handler.riskResponse"
@@ -28471,7 +28500,7 @@
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/handler.testNotificationResponse"
@@ -28484,7 +28513,7 @@
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/handler.threatIDResponse"
@@ -28497,7 +28526,7 @@
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/notificationtroubleshooting.DiagnosticsResponse"
@@ -28510,7 +28539,7 @@
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/notificationtroubleshooting.HealthResponse"
@@ -28523,7 +28552,7 @@
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/notificationtroubleshooting.JobDetail"
@@ -28536,7 +28565,7 @@
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.Activity"
@@ -28549,7 +28578,7 @@
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.AssessmentAssets"
@@ -28562,7 +28591,7 @@
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.AssessmentPlan"
@@ -28575,7 +28604,7 @@
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.AssessmentPlanTermsAndConditions"
@@ -28588,7 +28617,7 @@
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.AssessmentResults"
@@ -28601,7 +28630,7 @@
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.AssessmentSubject"
@@ -28614,7 +28643,7 @@
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.AttestationStatements"
@@ -28627,7 +28656,7 @@
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.AuthorizationBoundary"
@@ -28640,7 +28669,7 @@
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.BackMatter"
@@ -28653,7 +28682,7 @@
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.ByComponent"
@@ -28666,7 +28695,7 @@
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.Capability"
@@ -28679,7 +28708,7 @@
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.Catalog"
@@ -28692,7 +28721,7 @@
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.ComponentDefinition"
@@ -28705,7 +28734,7 @@
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.Control"
@@ -28718,7 +28747,7 @@
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.ControlImplementation"
@@ -28731,7 +28760,7 @@
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.ControlImplementationSet"
@@ -28744,7 +28773,7 @@
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.DataFlow"
@@ -28757,7 +28786,7 @@
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.DefinedComponent"
@@ -28770,7 +28799,7 @@
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.Diagram"
@@ -28783,7 +28812,7 @@
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.Finding"
@@ -28796,7 +28825,7 @@
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.Group"
@@ -28809,7 +28838,7 @@
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.ImplementedRequirement"
@@ -28822,7 +28851,7 @@
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.Import"
@@ -28835,7 +28864,7 @@
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.ImportAp"
@@ -28848,7 +28877,7 @@
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.ImportProfile"
@@ -28861,7 +28890,7 @@
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.ImportSsp"
@@ -28874,7 +28903,7 @@
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.InventoryItem"
@@ -28887,7 +28916,7 @@
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.LeveragedAuthorization"
@@ -28900,7 +28929,7 @@
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.LocalDefinitions"
@@ -28913,7 +28942,7 @@
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.Merge"
@@ -28926,7 +28955,7 @@
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.Metadata"
@@ -28939,7 +28968,7 @@
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.Modify"
@@ -28952,7 +28981,7 @@
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.NetworkArchitecture"
@@ -28965,7 +28994,7 @@
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.Observation"
@@ -28978,7 +29007,7 @@
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.Party"
@@ -28991,7 +29020,7 @@
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.PlanOfActionAndMilestones"
@@ -29004,7 +29033,7 @@
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.PlanOfActionAndMilestonesLocalDefinitions"
@@ -29017,7 +29046,7 @@
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.PoamItem"
@@ -29030,7 +29059,7 @@
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.Profile"
@@ -29043,7 +29072,7 @@
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.Resource"
@@ -29056,7 +29085,7 @@
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.Result"
@@ -29069,7 +29098,7 @@
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.Risk"
@@ -29082,7 +29111,7 @@
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.Role"
@@ -29095,7 +29124,7 @@
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.Statement"
@@ -29108,7 +29137,7 @@
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.SystemCharacteristics"
@@ -29121,7 +29150,7 @@
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.SystemComponent"
@@ -29134,7 +29163,7 @@
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.SystemId"
@@ -29147,7 +29176,7 @@
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.SystemImplementation"
@@ -29160,7 +29189,7 @@
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.SystemSecurityPlan"
@@ -29173,7 +29202,7 @@
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.SystemUser"
@@ -29186,7 +29215,7 @@
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.Task"
@@ -29199,7 +29228,7 @@
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscal.BuildByPropsResponse"
@@ -29212,7 +29241,7 @@
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscal.ImportResponse"
@@ -29225,7 +29254,7 @@
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscal.InventoryItemWithSource"
@@ -29238,7 +29267,7 @@
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscal.ProfileComplianceProgress"
@@ -29251,7 +29280,7 @@
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscal.ProfileHandler"
@@ -29264,7 +29293,7 @@
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/poam.PoamItemControlLink"
@@ -29277,7 +29306,7 @@
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/poam.PoamItemEvidenceLink"
@@ -29290,7 +29319,7 @@
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/poam.PoamItemFindingLink"
@@ -29303,7 +29332,7 @@
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/poam.PoamItemRiskLink"
@@ -29316,7 +29345,7 @@
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/relational.Filter"
@@ -29329,7 +29358,7 @@
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/relational.User"
@@ -29342,7 +29371,7 @@
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/risks.RiskComponentLink"
@@ -29355,7 +29384,7 @@
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/risks.RiskControlLink"
@@ -29368,7 +29397,7 @@
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/risks.RiskEvidenceLink"
@@ -29381,7 +29410,7 @@
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/risks.RiskSubjectLink"
@@ -29394,7 +29423,7 @@
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "type": "string"
                 }
             }
@@ -30412,10 +30441,17 @@
                     "type": "string"
                 },
                 "mode": {
-                    "type": "string"
+                    "type": "string",
+                    "enum": [
+                        "enqueue"
+                    ]
                 },
                 "providerType": {
-                    "type": "string"
+                    "type": "string",
+                    "enum": [
+                        "email",
+                        "slack"
+                    ]
                 }
             }
         },
@@ -30782,13 +30818,15 @@
                     "type": "integer"
                 },
                 "attemptedAt": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "date-time"
                 },
                 "correlationId": {
                     "type": "string"
                 },
                 "createdAt": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "date-time"
                 },
                 "errors": {
                     "type": "array",
@@ -30797,7 +30835,8 @@
                     }
                 },
                 "finalizedAt": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "date-time"
                 },
                 "id": {
                     "type": "integer"
@@ -30827,7 +30866,8 @@
                     "type": "string"
                 },
                 "scheduledAt": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "date-time"
                 },
                 "sourceJobId": {
                     "type": "string"
@@ -30853,16 +30893,19 @@
                     "type": "integer"
                 },
                 "attemptedAt": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "date-time"
                 },
                 "correlationId": {
                     "type": "string"
                 },
                 "createdAt": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "date-time"
                 },
                 "finalizedAt": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "date-time"
                 },
                 "id": {
                     "type": "integer"
@@ -30886,7 +30929,8 @@
                     "type": "string"
                 },
                 "scheduledAt": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "date-time"
                 },
                 "sourceJobId": {
                     "type": "string"
@@ -30909,10 +30953,12 @@
             "type": "object",
             "properties": {
                 "createdAt": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "date-time"
                 },
                 "finalizedAt": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "date-time"
                 },
                 "id": {
                     "type": "integer"

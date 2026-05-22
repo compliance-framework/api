@@ -70,9 +70,9 @@ type createSystemNotificationDestinationRequest struct {
 }
 
 type testNotificationRequest struct {
-	ProviderType      string `json:"providerType" validate:"required"`
+	ProviderType      string `json:"providerType" validate:"required,oneof=email slack" enums:"email,slack"`
 	DestinationTarget string `json:"destinationTarget" validate:"required"`
-	Mode              string `json:"mode"`
+	Mode              string `json:"mode" validate:"omitempty,oneof=enqueue" enums:"enqueue"`
 }
 
 type testNotificationResponse struct {
@@ -157,11 +157,11 @@ func (h *NotificationsHandler) GetTroubleshootingHealth(ctx echo.Context) error 
 //	@Tags			Notifications
 //	@Produce		json
 //	@Param			queue				query		[]string	false	"Queue filter; repeat or comma-separate values"
-//	@Param			provider			query		string		false	"Provider filter: email or slack"
+//	@Param			provider			query		string		false	"Provider filter: email or slack"	Enums(email, slack)
 //	@Param			notificationKind	query		string		false	"Notification kind filter"
-//	@Param			state				query		[]string	false	"River state filter; repeat or comma-separate values"
-//	@Param			since				query		string		false	"RFC3339 lower bound for job creation time"
-//	@Param			limit				query		int			false	"Page size, default 50, max 200"
+//	@Param			state				query		[]string	false	"River state filter; repeat or comma-separate values"	Enums(available, cancelled, completed, discarded, pending, retryable, running, scheduled)
+//	@Param			since				query		string		false	"RFC3339 lower bound for job creation time"				Format(date-time)
+//	@Param			limit				query		int			false	"Page size, default 50, max 200"						minimum(1)	maximum(200)
 //	@Param			cursor				query		string		false	"Opaque pagination cursor"
 //	@Success		200					{object}	notificationtroubleshooting.JobsListResponse
 //	@Failure		400					{object}	api.Error
@@ -176,7 +176,10 @@ func (h *NotificationsHandler) ListTroubleshootingJobs(ctx echo.Context) error {
 	response, err := h.troubleshooting.Jobs(ctx.Request().Context(), query)
 	if err != nil {
 		h.sugar.Warnw("Failed to list notification troubleshooting jobs", "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+		if notificationtroubleshooting.IsInvalidJobsQuery(err) {
+			return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+		}
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 	return ctx.JSON(http.StatusOK, response)
 }
@@ -221,12 +224,18 @@ func (h *NotificationsHandler) GetTroubleshootingJob(ctx echo.Context) error {
 //	@Success		200					{object}	handler.GenericDataResponse[notificationtroubleshooting.DiagnosticsResponse]
 //	@Failure		400					{object}	api.Error
 //	@Failure		401					{object}	api.Error
+//	@Failure		404					{object}	api.Error	"Not Found"
+//	@Failure		500					{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/admin/notifications/{notificationName}/diagnostics [get]
 func (h *NotificationsHandler) GetNotificationDiagnostics(ctx echo.Context) error {
 	response, err := h.troubleshooting.Diagnostics(ctx.Request().Context(), ctx.Param("notificationName"))
 	if err != nil {
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+		if notificationtroubleshooting.IsUnsupportedNotificationName(err) {
+			return ctx.JSON(http.StatusNotFound, api.NotFound())
+		}
+		h.sugar.Errorw("Failed to get notification diagnostics", "error", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 	return ctx.JSON(http.StatusOK, GenericDataResponse[notificationtroubleshooting.DiagnosticsResponse]{Data: response})
 }

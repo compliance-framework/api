@@ -196,6 +196,10 @@ const docTemplate = `{
                         "in": "query"
                     },
                     {
+                        "enum": [
+                            "email",
+                            "slack"
+                        ],
                         "type": "string",
                         "description": "Provider filter: email or slack",
                         "name": "provider",
@@ -210,6 +214,16 @@ const docTemplate = `{
                     {
                         "type": "array",
                         "items": {
+                            "enum": [
+                                "available",
+                                "cancelled",
+                                "completed",
+                                "discarded",
+                                "pending",
+                                "retryable",
+                                "running",
+                                "scheduled"
+                            ],
                             "type": "string"
                         },
                         "collectionFormat": "csv",
@@ -219,11 +233,14 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
+                        "format": "date-time",
                         "description": "RFC3339 lower bound for job creation time",
                         "name": "since",
                         "in": "query"
                     },
                     {
+                        "maximum": 200,
+                        "minimum": 1,
                         "type": "integer",
                         "description": "Page size, default 50, max 200",
                         "name": "limit",
@@ -584,6 +601,18 @@ const docTemplate = `{
                     },
                     "401": {
                         "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
                         "schema": {
                             "$ref": "#/definitions/api.Error"
                         }
@@ -27488,7 +27517,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/evidence.SignatureDetail"
@@ -27501,7 +27530,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/evidence.VerificationResult"
@@ -28272,7 +28301,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/oscalTypes_1_1_3.AssessmentAssets"
@@ -28284,7 +28313,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/oscalTypes_1_1_3.AssessmentSubject"
@@ -28296,7 +28325,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/oscalTypes_1_1_3.Task"
@@ -28308,7 +28337,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/auth.AuthHandler"
@@ -28321,7 +28350,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/digest.EvidenceSummary"
@@ -28334,7 +28363,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/handler.CreatedEvidenceResponse"
@@ -28347,7 +28376,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/handler.FilterImportResponse"
@@ -28360,7 +28389,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/handler.FilterWithAssociations"
@@ -28373,7 +28402,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/handler.PublicEvidenceResponse"
@@ -28386,7 +28415,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/handler.SubscriptionsResponse"
@@ -28399,7 +28428,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/handler.configuredSystemDestinationResponse"
@@ -28412,7 +28441,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/handler.milestoneResponse"
@@ -28425,7 +28454,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/handler.poamItemResponse"
@@ -28438,7 +28467,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/handler.publicUserResponse"
@@ -28451,7 +28480,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/handler.remediationTemplateResponse"
@@ -28464,7 +28493,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/handler.riskResponse"
@@ -28477,7 +28506,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/handler.testNotificationResponse"
@@ -28490,7 +28519,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/handler.threatIDResponse"
@@ -28503,7 +28532,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/notificationtroubleshooting.DiagnosticsResponse"
@@ -28516,7 +28545,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/notificationtroubleshooting.HealthResponse"
@@ -28529,7 +28558,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/notificationtroubleshooting.JobDetail"
@@ -28542,7 +28571,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.Activity"
@@ -28555,7 +28584,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.AssessmentAssets"
@@ -28568,7 +28597,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.AssessmentPlan"
@@ -28581,7 +28610,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.AssessmentPlanTermsAndConditions"
@@ -28594,7 +28623,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.AssessmentResults"
@@ -28607,7 +28636,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.AssessmentSubject"
@@ -28620,7 +28649,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.AttestationStatements"
@@ -28633,7 +28662,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.AuthorizationBoundary"
@@ -28646,7 +28675,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.BackMatter"
@@ -28659,7 +28688,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.ByComponent"
@@ -28672,7 +28701,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.Capability"
@@ -28685,7 +28714,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.Catalog"
@@ -28698,7 +28727,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.ComponentDefinition"
@@ -28711,7 +28740,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.Control"
@@ -28724,7 +28753,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.ControlImplementation"
@@ -28737,7 +28766,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.ControlImplementationSet"
@@ -28750,7 +28779,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.DataFlow"
@@ -28763,7 +28792,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.DefinedComponent"
@@ -28776,7 +28805,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.Diagram"
@@ -28789,7 +28818,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.Finding"
@@ -28802,7 +28831,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.Group"
@@ -28815,7 +28844,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.ImplementedRequirement"
@@ -28828,7 +28857,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.Import"
@@ -28841,7 +28870,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.ImportAp"
@@ -28854,7 +28883,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.ImportProfile"
@@ -28867,7 +28896,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.ImportSsp"
@@ -28880,7 +28909,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.InventoryItem"
@@ -28893,7 +28922,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.LeveragedAuthorization"
@@ -28906,7 +28935,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.LocalDefinitions"
@@ -28919,7 +28948,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.Merge"
@@ -28932,7 +28961,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.Metadata"
@@ -28945,7 +28974,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.Modify"
@@ -28958,7 +28987,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.NetworkArchitecture"
@@ -28971,7 +29000,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.Observation"
@@ -28984,7 +29013,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.Party"
@@ -28997,7 +29026,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.PlanOfActionAndMilestones"
@@ -29010,7 +29039,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.PlanOfActionAndMilestonesLocalDefinitions"
@@ -29023,7 +29052,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.PoamItem"
@@ -29036,7 +29065,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.Profile"
@@ -29049,7 +29078,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.Resource"
@@ -29062,7 +29091,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.Result"
@@ -29075,7 +29104,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.Risk"
@@ -29088,7 +29117,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.Role"
@@ -29101,7 +29130,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.Statement"
@@ -29114,7 +29143,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.SystemCharacteristics"
@@ -29127,7 +29156,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.SystemComponent"
@@ -29140,7 +29169,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.SystemId"
@@ -29153,7 +29182,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.SystemImplementation"
@@ -29166,7 +29195,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.SystemSecurityPlan"
@@ -29179,7 +29208,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.SystemUser"
@@ -29192,7 +29221,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.Task"
@@ -29205,7 +29234,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscal.BuildByPropsResponse"
@@ -29218,7 +29247,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscal.ImportResponse"
@@ -29231,7 +29260,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscal.InventoryItemWithSource"
@@ -29244,7 +29273,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscal.ProfileComplianceProgress"
@@ -29257,7 +29286,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscal.ProfileHandler"
@@ -29270,7 +29299,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/poam.PoamItemControlLink"
@@ -29283,7 +29312,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/poam.PoamItemEvidenceLink"
@@ -29296,7 +29325,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/poam.PoamItemFindingLink"
@@ -29309,7 +29338,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/poam.PoamItemRiskLink"
@@ -29322,7 +29351,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/relational.Filter"
@@ -29335,7 +29364,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/relational.User"
@@ -29348,7 +29377,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/risks.RiskComponentLink"
@@ -29361,7 +29390,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/risks.RiskControlLink"
@@ -29374,7 +29403,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/risks.RiskEvidenceLink"
@@ -29387,7 +29416,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/risks.RiskSubjectLink"
@@ -29400,7 +29429,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "type": "string"
                 }
             }
@@ -30418,10 +30447,17 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "mode": {
-                    "type": "string"
+                    "type": "string",
+                    "enum": [
+                        "enqueue"
+                    ]
                 },
                 "providerType": {
-                    "type": "string"
+                    "type": "string",
+                    "enum": [
+                        "email",
+                        "slack"
+                    ]
                 }
             }
         },
@@ -30788,13 +30824,15 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "attemptedAt": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "date-time"
                 },
                 "correlationId": {
                     "type": "string"
                 },
                 "createdAt": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "date-time"
                 },
                 "errors": {
                     "type": "array",
@@ -30803,7 +30841,8 @@ const docTemplate = `{
                     }
                 },
                 "finalizedAt": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "date-time"
                 },
                 "id": {
                     "type": "integer"
@@ -30833,7 +30872,8 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "scheduledAt": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "date-time"
                 },
                 "sourceJobId": {
                     "type": "string"
@@ -30859,16 +30899,19 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "attemptedAt": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "date-time"
                 },
                 "correlationId": {
                     "type": "string"
                 },
                 "createdAt": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "date-time"
                 },
                 "finalizedAt": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "date-time"
                 },
                 "id": {
                     "type": "integer"
@@ -30892,7 +30935,8 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "scheduledAt": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "date-time"
                 },
                 "sourceJobId": {
                     "type": "string"
@@ -30915,10 +30959,12 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "createdAt": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "date-time"
                 },
                 "finalizedAt": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "date-time"
                 },
                 "id": {
                     "type": "integer"

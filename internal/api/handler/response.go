@@ -1,7 +1,7 @@
 package handler
 
 type GenericDataResponse[T any] struct {
-	// Items from the list response
+	// Wrapped response data
 	Data T `json:"data" yaml:"data"`
 }
 

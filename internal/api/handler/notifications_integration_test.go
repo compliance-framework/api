@@ -249,6 +249,14 @@ func (suite *NotificationsApiIntegrationSuite) TestTroubleshootingHealthIncludes
 	suite.NotEmpty(response.Data.Warnings)
 }
 
+func (suite *NotificationsApiIntegrationSuite) TestNotificationDiagnosticsReturnsNotFoundForUnsupportedName() {
+	rec, req := suite.authedRequest(http.MethodGet, "/api/admin/notifications/not_real/diagnostics")
+
+	suite.server.E().ServeHTTP(rec, req)
+
+	suite.Equal(http.StatusNotFound, rec.Code, rec.Body.String())
+}
+
 func (suite *NotificationsApiIntegrationSuite) TestListNotificationProviderStatus() {
 	rec, req := suite.authedRequest(http.MethodGet, "/api/notifications/providers")
 

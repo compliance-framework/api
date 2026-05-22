@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sort"
 	"strconv"
@@ -68,6 +69,19 @@ var providerJobKinds = map[string]struct{}{
 	worker.JobTypeSendEmailFrom:    {},
 	worker.JobTypeSendSlackChannel: {},
 	worker.JobTypeSendSlackDM:      {},
+}
+
+var (
+	ErrInvalidJobsQuery            = errors.New("invalid notification troubleshooting jobs query")
+	ErrUnsupportedNotificationName = errors.New("unsupported notification name")
+)
+
+func IsInvalidJobsQuery(err error) bool {
+	return errors.Is(err, ErrInvalidJobsQuery)
+}
+
+func IsUnsupportedNotificationName(err error) bool {
+	return errors.Is(err, ErrUnsupportedNotificationName)
 }
 
 type Service struct {
@@ -155,8 +169,8 @@ type ScheduleHealth struct {
 type JobSummary struct {
 	ID          int64      `json:"id"`
 	State       string     `json:"state"`
-	CreatedAt   time.Time  `json:"createdAt"`
-	FinalizedAt *time.Time `json:"finalizedAt"`
+	CreatedAt   time.Time  `json:"createdAt" format:"date-time"`
+	FinalizedAt *time.Time `json:"finalizedAt" format:"date-time"`
 }
 
 type TroubleshootingWarning struct {
@@ -192,10 +206,10 @@ type JobListItem struct {
 	Kind             string     `json:"kind"`
 	Attempt          int        `json:"attempt"`
 	MaxAttempts      int        `json:"maxAttempts"`
-	CreatedAt        time.Time  `json:"createdAt"`
-	ScheduledAt      time.Time  `json:"scheduledAt"`
-	AttemptedAt      *time.Time `json:"attemptedAt"`
-	FinalizedAt      *time.Time `json:"finalizedAt"`
+	CreatedAt        time.Time  `json:"createdAt" format:"date-time"`
+	ScheduledAt      time.Time  `json:"scheduledAt" format:"date-time"`
+	AttemptedAt      *time.Time `json:"attemptedAt" format:"date-time"`
+	FinalizedAt      *time.Time `json:"finalizedAt" format:"date-time"`
 	NotificationKind string     `json:"notificationKind,omitempty"`
 	Provider         string     `json:"provider,omitempty"`
 	Target           string     `json:"target,omitempty"`
@@ -282,7 +296,7 @@ func (s *Service) Health(ctx context.Context) (HealthResponse, error) {
 
 func (s *Service) Jobs(ctx context.Context, query JobsQuery) (JobsListResponse, error) {
 	if err := validateJobsQuery(&query); err != nil {
-		return JobsListResponse{}, err
+		return JobsListResponse{}, fmt.Errorf("%w: %w", ErrInvalidJobsQuery, err)
 	}
 	if !s.hasRiverJobsTable() {
 		return JobsListResponse{Data: []JobListItem{}}, nil
@@ -374,7 +388,7 @@ func (s *Service) Job(ctx context.Context, id int64) (JobDetail, bool, error) {
 func (s *Service) Diagnostics(ctx context.Context, rawName string) (DiagnosticsResponse, error) {
 	family, displayName, ok := normalizeDiagnosticsName(rawName)
 	if !ok {
-		return DiagnosticsResponse{}, fmt.Errorf("unsupported notification name %q", rawName)
+		return DiagnosticsResponse{}, fmt.Errorf("%w %q", ErrUnsupportedNotificationName, rawName)
 	}
 
 	checks := []DiagnosticCheck{}
@@ -586,17 +600,23 @@ func (s *Service) queueSummaries(ctx context.Context) ([]QueueSummary, error) {
 				summary.Scheduled = row.Count
 			}
 		}
-		_ = s.db.WithContext(ctx).Table("river_job").
+		if err := s.db.WithContext(ctx).Table("river_job").
 			Where("queue = ? AND kind IN ? AND state = 'completed' AND finalized_at >= ?", queue, notificationJobKinds, now.Add(-24*time.Hour)).
-			Count(&summary.Completed24h).Error
-		_ = s.db.WithContext(ctx).Table("river_job").
+			Count(&summary.Completed24h).Error; err != nil {
+			return nil, fmt.Errorf("computing queue health for %s: %w", queue, err)
+		}
+		if err := s.db.WithContext(ctx).Table("river_job").
 			Where("queue = ? AND kind IN ? AND state = 'discarded' AND finalized_at >= ?", queue, notificationJobKinds, now.Add(-24*time.Hour)).
-			Count(&summary.Discarded24h).Error
+			Count(&summary.Discarded24h).Error; err != nil {
+			return nil, fmt.Errorf("computing queue health for %s: %w", queue, err)
+		}
 		var oldest *time.Time
-		_ = s.db.WithContext(ctx).Table("river_job").
+		if err := s.db.WithContext(ctx).Table("river_job").
 			Select("min(scheduled_at)").
 			Where("queue = ? AND kind IN ? AND state IN ? AND scheduled_at <= ?", queue, notificationJobKinds, waitingStates(), now).
-			Scan(&oldest).Error
+			Scan(&oldest).Error; err != nil {
+			return nil, fmt.Errorf("computing queue health for %s: %w", queue, err)
+		}
 		summary.OldestAvailableAt = oldest
 		summary.StaleCount = s.staleCount(ctx, queue)
 		summaries = append(summaries, summary)
@@ -1334,7 +1354,15 @@ func (s *Service) scheduleCheck(ctx context.Context, def scheduleDefinition) Dia
 			Message: "Schedule cannot be parsed: " + err.Error(),
 		}
 	}
-	last, ok, _ := s.latestJobForKind(ctx, def.JobKind)
+	last, ok, err := s.latestJobForKind(ctx, def.JobKind)
+	if err != nil {
+		return DiagnosticCheck{
+			Code:    "schedule_" + strings.ToLower(def.Name),
+			Label:   def.Name + " schedule",
+			Status:  StatusFail,
+			Message: "Failed to read latest schedule job: " + err.Error(),
+		}
+	}
 	message := "Next scheduled run is " + next.Format(time.RFC3339) + "."
 	check := DiagnosticCheck{
 		Code:    "schedule_" + strings.ToLower(def.Name),
