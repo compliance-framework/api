@@ -15,6 +15,7 @@ import (
 	"github.com/compliance-framework/api/internal/service/notification"
 	emailprovider "github.com/compliance-framework/api/internal/service/notification/providers/email"
 	slackprovider "github.com/compliance-framework/api/internal/service/notification/providers/slack"
+	"github.com/compliance-framework/api/internal/service/notificationtroubleshooting"
 	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/compliance-framework/api/internal/tests"
 	"github.com/stretchr/testify/suite"
@@ -48,6 +49,13 @@ func (suite *NotificationsApiIntegrationSuite) SetupSuite() {
 			},
 		},
 	}
+	suite.Config.Worker = &config.WorkerConfig{
+		Enabled:    true,
+		Workers:    7,
+		UsePolling: true,
+	}
+	suite.Config.DigestEnabled = true
+	suite.Config.DigestSchedule = "@daily"
 
 	logger, _ := zap.NewDevelopment()
 	suite.logger = logger.Sugar()
@@ -121,6 +129,124 @@ func (suite *NotificationsApiIntegrationSuite) TestListNotificationProvidersUnau
 
 	suite.server.E().ServeHTTP(rec, req)
 	suite.Equal(http.StatusUnauthorized, rec.Code, "Expected Unauthorized response for missing token")
+}
+
+func (suite *NotificationsApiIntegrationSuite) TestTroubleshootingRoutesUnauthorized() {
+	routes := []struct {
+		method string
+		path   string
+		body   []byte
+	}{
+		{http.MethodGet, "/api/admin/notifications/health", nil},
+		{http.MethodGet, "/api/admin/notifications/jobs", nil},
+		{http.MethodGet, "/api/admin/notifications/jobs/1", nil},
+		{http.MethodGet, "/api/admin/notifications/EVIDENCE_DIGEST/diagnostics", nil},
+		{http.MethodPost, "/api/admin/notifications/test", []byte(`{"providerType":"slack","destinationTarget":"ccf-alerts"}`)},
+	}
+
+	for _, route := range routes {
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(route.method, route.path, bytes.NewReader(route.body))
+		if route.body != nil {
+			req.Header.Set("Content-Type", "application/json")
+		}
+
+		suite.server.E().ServeHTTP(rec, req)
+		suite.Equal(http.StatusUnauthorized, rec.Code, "Expected Unauthorized response for "+route.path)
+	}
+}
+
+func (suite *NotificationsApiIntegrationSuite) TestTroubleshootingHealthIncludesOperationalState() {
+	user := relational.User{
+		Email:      "digest-subscriber@example.com",
+		FirstName:  "Digest",
+		LastName:   "Subscriber",
+		IsActive:   true,
+		IsLocked:   false,
+		AuthMethod: "password",
+	}
+	suite.Require().NoError(user.SetPassword("password"))
+	suite.Require().NoError(suite.DB.Create(&user).Error)
+	suite.Require().NotNil(user.ID)
+
+	suite.Require().NoError(suite.DB.Create(&relational.UserNotificationSubscription{
+		UserID:           user.ID.String(),
+		NotificationType: notification.SubscriptionGateEvidenceDigest,
+		Channels:         []string{notification.DeliveryChannelEmail, notification.DeliveryChannelSlack},
+	}).Error)
+	suite.Require().NoError(suite.DB.Create(&relational.SystemNotificationDestination{
+		NotificationType: notification.SystemNotificationNameEvidenceDigest,
+		Provider:         notification.DeliveryChannelSlack,
+		Target: datatypes.NewJSONType(relational.SystemNotificationTarget{
+			Address: map[string]string{
+				slackprovider.AddressKeyChannel:    "ccf-alerts",
+				slackprovider.AddressKeyTargetType: slackprovider.TargetTypeChannel,
+			},
+		}),
+	}).Error)
+
+	rec, req := suite.authedRequest(http.MethodGet, "/api/admin/notifications/health")
+	suite.server.E().ServeHTTP(rec, req)
+	suite.Equal(http.StatusOK, rec.Code, rec.Body.String())
+
+	var response GenericDataResponse[notificationtroubleshooting.HealthResponse]
+	suite.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &response))
+
+	suite.True(response.Data.Worker.Enabled)
+	suite.Equal("polling", response.Data.Worker.Mode)
+	suite.True(response.Data.Worker.PollOnly)
+	suite.NotEmpty(response.Data.Worker.Queues)
+
+	var slackQueue notificationtroubleshooting.QueueSummary
+	for _, queue := range response.Data.Worker.Queues {
+		if queue.Name == notification.DeliveryChannelSlack {
+			slackQueue = queue
+			break
+		}
+	}
+	suite.Equal(int64(notificationtroubleshooting.ProviderStaleThresholdSeconds), slackQueue.StaleThresholdSeconds)
+	suite.Equal(7, slackQueue.MaxWorkers)
+
+	var emailProvider, slackProvider *notificationtroubleshooting.ProviderStatus
+	for i := range response.Data.Providers {
+		switch response.Data.Providers[i].ProviderType {
+		case notification.DeliveryChannelEmail:
+			emailProvider = &response.Data.Providers[i]
+		case notification.DeliveryChannelSlack:
+			slackProvider = &response.Data.Providers[i]
+		}
+	}
+	suite.Require().NotNil(emailProvider)
+	suite.True(emailProvider.Enabled)
+	suite.Require().NotNil(slackProvider)
+	suite.False(slackProvider.Enabled)
+
+	var digestHealth *notificationtroubleshooting.NotificationHealth
+	for i := range response.Data.Notifications {
+		if response.Data.Notifications[i].Name == "EVIDENCE_DIGEST" {
+			digestHealth = &response.Data.Notifications[i]
+			break
+		}
+	}
+	suite.Require().NotNil(digestHealth)
+	suite.Equal(int64(1), digestHealth.SubscriberCounts.Email)
+	suite.Equal(int64(1), digestHealth.SubscriberCounts.Slack)
+	suite.Equal(int64(1), digestHealth.SubscriberCounts.TotalUsers)
+	suite.Len(digestHealth.ConfiguredDestinations, 1)
+	suite.Equal("ccf-alerts", digestHealth.ConfiguredDestinations[0].DestinationTarget)
+
+	var digestSchedule *notificationtroubleshooting.ScheduleHealth
+	for i := range response.Data.Schedules {
+		if response.Data.Schedules[i].Name == "EVIDENCE_DIGEST" {
+			digestSchedule = &response.Data.Schedules[i]
+			break
+		}
+	}
+	suite.Require().NotNil(digestSchedule)
+	suite.True(digestSchedule.Enabled)
+	suite.Equal("send_global_digest", digestSchedule.JobKind)
+	suite.NotNil(digestSchedule.NextRunAt)
+	suite.NotEmpty(response.Data.Warnings)
 }
 
 func (suite *NotificationsApiIntegrationSuite) TestListNotificationProviderStatus() {

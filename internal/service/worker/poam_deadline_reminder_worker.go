@@ -193,7 +193,7 @@ func (w *PoamDeadlineReminderWorker) Work(
 
 	if err := notificationService.Dispatch(
 		ctx,
-		buildPoamDeadlineReminderNotificationRequest(args, user.FullName()),
+		requestWithSourceJobID(buildPoamDeadlineReminderNotificationRequest(args, user.FullName()), riverJobID(job)),
 	); err != nil {
 		return fmt.Errorf("dispatch poam-deadline-reminder notification: %w", err)
 	}

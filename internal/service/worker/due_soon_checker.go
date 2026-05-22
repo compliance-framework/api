@@ -121,7 +121,7 @@ func (w *DueSoonCheckerWorker) Work(ctx context.Context, job *river.Job[DueSoonC
 
 		if err := notifier.Dispatch(
 			ctx,
-			buildWorkflowTaskDueSoonNotificationRequest(baseArgs, userName, w.webBaseURL),
+			requestWithSourceJobID(buildWorkflowTaskDueSoonNotificationRequest(baseArgs, userName, w.webBaseURL), riverJobID(job)),
 		); err != nil {
 			return fmt.Errorf("due-soon checker: failed to dispatch reminder for step %s: %w", step.ID.String(), err)
 		}

@@ -543,7 +543,7 @@ func (w *PoamOpenDigestWorker) Work(ctx context.Context, job *river.Job[PoamOpen
 
 	if err := notificationService.Dispatch(
 		ctx,
-		buildPoamOpenDigestNotificationRequest(args, data),
+		requestWithSourceJobID(buildPoamOpenDigestNotificationRequest(args, data), riverJobID(job)),
 	); err != nil {
 		return fmt.Errorf("dispatch poam-open-digest notification: %w", err)
 	}

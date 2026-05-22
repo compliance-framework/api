@@ -8,12 +8,17 @@ import (
 	"net/http"
 	"reflect"
 	"sort"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/compliance-framework/api/internal/api"
 	"github.com/compliance-framework/api/internal/config"
 	"github.com/compliance-framework/api/internal/service/notification"
 	notificationproviders "github.com/compliance-framework/api/internal/service/notification/providers"
+	emailprovider "github.com/compliance-framework/api/internal/service/notification/providers/email"
+	slackprovider "github.com/compliance-framework/api/internal/service/notification/providers/slack"
+	notificationtroubleshooting "github.com/compliance-framework/api/internal/service/notificationtroubleshooting"
 	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/labstack/echo/v4"
 	"go.uber.org/zap"
@@ -22,9 +27,18 @@ import (
 )
 
 type NotificationsHandler struct {
-	sugar     *zap.SugaredLogger
-	db        *gorm.DB
-	providers notification.ProviderLookup
+	sugar           *zap.SugaredLogger
+	db              *gorm.DB
+	cfg             *config.Config
+	providers       notification.ProviderLookup
+	troubleshooting *notificationtroubleshooting.Service
+	enqueuer        notificationTestEnqueuer
+}
+
+type notificationTestEnqueuer interface {
+	notification.WorkerEnqueuer
+	emailprovider.Enqueuer
+	slackprovider.Enqueuer
 }
 
 type configuredSystemDestinationResponse struct {
@@ -55,6 +69,21 @@ type createSystemNotificationDestinationRequest struct {
 	DestinationTarget string `json:"destinationTarget" validate:"required"`
 }
 
+type testNotificationRequest struct {
+	ProviderType      string `json:"providerType" validate:"required"`
+	DestinationTarget string `json:"destinationTarget" validate:"required"`
+	Mode              string `json:"mode"`
+}
+
+type testNotificationResponse struct {
+	Accepted          bool    `json:"accepted"`
+	Mode              string  `json:"mode"`
+	ProviderType      string  `json:"providerType"`
+	DestinationTarget string  `json:"destinationTarget"`
+	JobIDs            []int64 `json:"jobIds"`
+	Message           string  `json:"message"`
+}
+
 func (r *createSystemNotificationDestinationRequest) UnmarshalJSON(data []byte) error {
 	type requestAlias struct {
 		ProviderTypeCamel      string `json:"providerType"`
@@ -73,15 +102,24 @@ func (r *createSystemNotificationDestinationRequest) UnmarshalJSON(data []byte) 
 	return nil
 }
 
-func NewNotificationsHandler(sugar *zap.SugaredLogger, db *gorm.DB, cfg *config.Config) *NotificationsHandler {
+func NewNotificationsHandler(sugar *zap.SugaredLogger, db *gorm.DB, cfg *config.Config, enqueuer notification.WorkerEnqueuer) *NotificationsHandler {
+	testEnqueuer, _ := enqueuer.(notificationTestEnqueuer)
 	return &NotificationsHandler{
-		sugar:     sugar,
-		db:        db,
-		providers: notificationproviders.NewLookup(notificationproviders.WithConfig(cfg)),
+		sugar:           sugar,
+		db:              db,
+		cfg:             cfg,
+		providers:       notificationproviders.NewLookup(notificationproviders.WithConfig(cfg)),
+		troubleshooting: notificationtroubleshooting.New(db, cfg),
+		enqueuer:        testEnqueuer,
 	}
 }
 
 func (h *NotificationsHandler) Register(api *echo.Group) {
+	api.GET("/health", h.GetTroubleshootingHealth)
+	api.GET("/jobs", h.ListTroubleshootingJobs)
+	api.GET("/jobs/:id", h.GetTroubleshootingJob)
+	api.POST("/test", h.SendTestNotification)
+	api.GET("/:notificationName/diagnostics", h.GetNotificationDiagnostics)
 	api.GET("", h.ListSystemNotifications)
 	api.GET("/providers", h.ListNotificationProviders)
 	api.POST("/:notificationName/destinations", h.CreateSystemNotificationDestination)
@@ -90,6 +128,196 @@ func (h *NotificationsHandler) Register(api *echo.Group) {
 
 func (h *NotificationsHandler) RegisterPublic(api *echo.Group) {
 	api.GET("/providers", h.ListNotificationProviderStatus)
+}
+
+// GetTroubleshootingHealth godoc
+//
+//	@Summary		Get notification troubleshooting health
+//	@Description	Returns provider, worker, queue, subscriber, destination, and schedule health for admin notification troubleshooting
+//	@Tags			Notifications
+//	@Produce		json
+//	@Success		200	{object}	handler.GenericDataResponse[notificationtroubleshooting.HealthResponse]
+//	@Failure		401	{object}	api.Error
+//	@Failure		500	{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/admin/notifications/health [get]
+func (h *NotificationsHandler) GetTroubleshootingHealth(ctx echo.Context) error {
+	response, err := h.troubleshooting.Health(ctx.Request().Context())
+	if err != nil {
+		h.sugar.Errorw("Failed to get notification troubleshooting health", "error", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+	return ctx.JSON(http.StatusOK, GenericDataResponse[notificationtroubleshooting.HealthResponse]{Data: response})
+}
+
+// ListTroubleshootingJobs godoc
+//
+//	@Summary		List notification River jobs
+//	@Description	Lists recent notification-related River jobs with sanitized notification metadata
+//	@Tags			Notifications
+//	@Produce		json
+//	@Param			queue				query		[]string	false	"Queue filter; repeat or comma-separate values"
+//	@Param			provider			query		string		false	"Provider filter: email or slack"
+//	@Param			notificationKind	query		string		false	"Notification kind filter"
+//	@Param			state				query		[]string	false	"River state filter; repeat or comma-separate values"
+//	@Param			since				query		string		false	"RFC3339 lower bound for job creation time"
+//	@Param			limit				query		int			false	"Page size, default 50, max 200"
+//	@Param			cursor				query		string		false	"Opaque pagination cursor"
+//	@Success		200					{object}	notificationtroubleshooting.JobsListResponse
+//	@Failure		400					{object}	api.Error
+//	@Failure		401					{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/admin/notifications/jobs [get]
+func (h *NotificationsHandler) ListTroubleshootingJobs(ctx echo.Context) error {
+	query, err := parseTroubleshootingJobsQuery(ctx)
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	response, err := h.troubleshooting.Jobs(ctx.Request().Context(), query)
+	if err != nil {
+		h.sugar.Warnw("Failed to list notification troubleshooting jobs", "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	return ctx.JSON(http.StatusOK, response)
+}
+
+// GetTroubleshootingJob godoc
+//
+//	@Summary		Get notification River job detail
+//	@Description	Returns one sanitized notification-related River job with attempt errors
+//	@Tags			Notifications
+//	@Produce		json
+//	@Param			id	path		int	true	"River job ID"
+//	@Success		200	{object}	handler.GenericDataResponse[notificationtroubleshooting.JobDetail]
+//	@Failure		400	{object}	api.Error
+//	@Failure		401	{object}	api.Error
+//	@Failure		404	{object}	api.Error
+//	@Failure		500	{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/admin/notifications/jobs/{id} [get]
+func (h *NotificationsHandler) GetTroubleshootingJob(ctx echo.Context) error {
+	id, err := strconv.ParseInt(ctx.Param("id"), 10, 64)
+	if err != nil || id <= 0 {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(errors.New("invalid job id")))
+	}
+	response, ok, err := h.troubleshooting.Job(ctx.Request().Context(), id)
+	if err != nil {
+		h.sugar.Errorw("Failed to get notification troubleshooting job", "error", err, "jobID", id)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+	if !ok {
+		return ctx.JSON(http.StatusNotFound, api.NotFound())
+	}
+	return ctx.JSON(http.StatusOK, GenericDataResponse[notificationtroubleshooting.JobDetail]{Data: response})
+}
+
+// GetNotificationDiagnostics godoc
+//
+//	@Summary		Get notification diagnostics
+//	@Description	Runs read-only diagnostics for evidence digest, workflow, risk, or POAM notifications
+//	@Tags			Notifications
+//	@Produce		json
+//	@Param			notificationName	path		string	true	"Notification name or family"
+//	@Success		200					{object}	handler.GenericDataResponse[notificationtroubleshooting.DiagnosticsResponse]
+//	@Failure		400					{object}	api.Error
+//	@Failure		401					{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/admin/notifications/{notificationName}/diagnostics [get]
+func (h *NotificationsHandler) GetNotificationDiagnostics(ctx echo.Context) error {
+	response, err := h.troubleshooting.Diagnostics(ctx.Request().Context(), ctx.Param("notificationName"))
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	return ctx.JSON(http.StatusOK, GenericDataResponse[notificationtroubleshooting.DiagnosticsResponse]{Data: response})
+}
+
+// SendTestNotification godoc
+//
+//	@Summary		Enqueue fixed test notification
+//	@Description	Enqueues a fixed server-side test notification to a validated admin-supplied destination
+//	@Tags			Notifications
+//	@Accept			json
+//	@Produce		json
+//	@Param			request	body		handler.testNotificationRequest	true	"Test destination"
+//	@Success		202		{object}	handler.GenericDataResponse[handler.testNotificationResponse]
+//	@Failure		400		{object}	api.Error
+//	@Failure		401		{object}	api.Error
+//	@Failure		503		{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/admin/notifications/test [post]
+func (h *NotificationsHandler) SendTestNotification(ctx echo.Context) error {
+	if h.enqueuer == nil || !h.enqueuer.IsStarted() {
+		return ctx.JSON(http.StatusServiceUnavailable, api.NewError(errors.New("notification worker enqueuer is not available")))
+	}
+
+	var req testNotificationRequest
+	if err := ctx.Bind(&req); err != nil {
+		h.sugar.Errorw("Failed to bind test notification request", "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	if err := ctx.Validate(&req); err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.Validator(err))
+	}
+
+	mode := strings.ToLower(strings.TrimSpace(req.Mode))
+	if mode == "" {
+		mode = "enqueue"
+	}
+	if mode != "enqueue" {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(errors.New("unsupported test notification mode")))
+	}
+
+	provider, ok := notification.NormalizeDeliveryChannel(req.ProviderType)
+	if !ok || (provider != notification.DeliveryChannelEmail && provider != notification.DeliveryChannelSlack) {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("unsupported notification provider %q", req.ProviderType)))
+	}
+	target, err := h.buildTarget(provider, req.DestinationTarget)
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	metadata := notification.TransportMetadata{
+		NotificationKind: notification.Kind("admin_test_notification"),
+		Provider:         provider,
+		Channel:          provider,
+		Target:           req.DestinationTarget,
+		CorrelationID:    "admin-test-notification:" + time.Now().UTC().Format(time.RFC3339Nano),
+		SourceJobKind:    "admin_test_notification",
+	}
+	switch provider {
+	case notification.DeliveryChannelEmail:
+		err = h.enqueuer.EnqueueNotificationEmail(ctx.Request().Context(), emailprovider.Delivery{
+			To: target.Address[emailprovider.AddressKeyEmail],
+			Content: emailprovider.Content{
+				From:     h.defaultTestEmailFrom(),
+				Subject:  "Compliance Framework test notification",
+				TextBody: "This is a fixed test notification from Compliance Framework.",
+			},
+			Metadata: metadata,
+		})
+	case notification.DeliveryChannelSlack:
+		err = h.enqueuer.EnqueueNotificationSlack(ctx.Request().Context(), slackprovider.Delivery{
+			Channel:    target.Address[slackprovider.AddressKeyChannel],
+			TargetType: target.Address[slackprovider.AddressKeyTargetType],
+			Content: slackprovider.Content{
+				Text: "Compliance Framework test notification.",
+			},
+			Metadata: metadata,
+		})
+	}
+	if err != nil {
+		h.sugar.Errorw("Failed to enqueue test notification", "error", err, "provider", provider)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	return ctx.JSON(http.StatusAccepted, GenericDataResponse[testNotificationResponse]{Data: testNotificationResponse{
+		Accepted:          true,
+		Mode:              mode,
+		ProviderType:      provider,
+		DestinationTarget: req.DestinationTarget,
+		JobIDs:            []int64{},
+		Message:           "Test notification enqueued.",
+	}})
 }
 
 // ListNotificationProviders godoc
@@ -541,6 +769,53 @@ func (h *NotificationsHandler) targetsMatch(left notification.Target, right noti
 	}
 
 	return strings.EqualFold(leftResponse.DestinationTarget, rightResponse.DestinationTarget), nil
+}
+
+func parseTroubleshootingJobsQuery(ctx echo.Context) (notificationtroubleshooting.JobsQuery, error) {
+	query := notificationtroubleshooting.JobsQuery{
+		Queues:           ctx.QueryParams()["queue"],
+		Provider:         strings.TrimSpace(ctx.QueryParam("provider")),
+		NotificationKind: strings.TrimSpace(ctx.QueryParam("notificationKind")),
+		States:           ctx.QueryParams()["state"],
+		Cursor:           strings.TrimSpace(ctx.QueryParam("cursor")),
+	}
+	if since := strings.TrimSpace(ctx.QueryParam("since")); since != "" {
+		parsed, err := time.Parse(time.RFC3339, since)
+		if err != nil {
+			return query, fmt.Errorf("since must be an RFC3339 timestamp")
+		}
+		query.Since = &parsed
+	}
+	if limit := strings.TrimSpace(ctx.QueryParam("limit")); limit != "" {
+		parsed, err := strconv.Atoi(limit)
+		if err != nil {
+			return query, fmt.Errorf("limit must be an integer")
+		}
+		query.Limit = parsed
+	}
+	return query, nil
+}
+
+func (h *NotificationsHandler) defaultTestEmailFrom() string {
+	if h.cfg != nil && h.cfg.Email != nil {
+		if provider := h.cfg.Email.GetDefaultProvider(); provider != nil {
+			if from := emailFromAddress(provider); from != "" {
+				return from
+			}
+		}
+	}
+	return "noreply@localhost"
+}
+
+func emailFromAddress(provider config.EmailProviderSettings) string {
+	switch typed := provider.(type) {
+	case *config.SMTPConfig:
+		return strings.TrimSpace(typed.From)
+	case *config.SESConfig:
+		return strings.TrimSpace(typed.From)
+	default:
+		return ""
+	}
 }
 
 func firstNonEmpty(values ...string) string {
