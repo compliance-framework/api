@@ -97,6 +97,35 @@ func TestWorkflowExecutionService_GetByID(t *testing.T) {
 	assert.Contains(t, err.Error(), "not found")
 }
 
+// TestWorkflowExecutionService_GetByID_PopulatesExecutionStreamUUID tests that GetByID computes
+// and populates ExecutionStreamUUID so callers can link to the evidence stream without extra queries.
+// BCH-1155: terminal evidence is created in a stream but there was no navigable link to it.
+func TestWorkflowExecutionService_GetByID_PopulatesExecutionStreamUUID(t *testing.T) {
+	db := setupTestDB(t)
+	service := NewWorkflowExecutionService(db)
+
+	workflowDef := createTestWorkflowDefinition()
+	require.NoError(t, db.Create(workflowDef).Error)
+
+	instance := createTestWorkflowInstance(workflowDef.ID)
+	require.NoError(t, db.Create(instance).Error)
+
+	execution := createTestWorkflowExecution(instance.ID)
+	require.NoError(t, db.Create(execution).Error)
+
+	retrieved, err := service.GetByID(execution.ID)
+	require.NoError(t, err)
+
+	// ExecutionStreamUUID must be populated and deterministic
+	require.NotNil(t, retrieved.ExecutionStreamUUID)
+	assert.NotEqual(t, uuid.Nil, *retrieved.ExecutionStreamUUID)
+
+	// Calling again should produce the same UUID
+	retrieved2, err := service.GetByID(execution.ID)
+	require.NoError(t, err)
+	assert.Equal(t, *retrieved.ExecutionStreamUUID, *retrieved2.ExecutionStreamUUID)
+}
+
 // TestWorkflowExecutionService_GetByWorkflowInstanceID tests the GetByWorkflowInstanceID method
 func TestWorkflowExecutionService_GetByWorkflowInstanceID(t *testing.T) {
 	db := setupTestDB(t)

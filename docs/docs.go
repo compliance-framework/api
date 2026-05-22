@@ -40226,6 +40226,10 @@ const docTemplate = `{
                 "due_date": {
                     "type": "string"
                 },
+                "execution_stream_uuid": {
+                    "description": "Computed field (not persisted)",
+                    "type": "string"
+                },
                 "failed-at": {
                     "type": "string"
                 },
