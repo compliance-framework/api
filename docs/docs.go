@@ -40195,6 +40195,11 @@ const docTemplate = `{
                     "description": "Basic Information",
                     "type": "string"
                 },
+                "step_count": {
+                    "description": "Computed field (not persisted)",
+                    "type": "integer",
+                    "minimum": 0
+                },
                 "steps": {
                     "description": "Relationships",
                     "type": "array",

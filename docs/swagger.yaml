@@ -8899,6 +8899,10 @@ definitions:
       name:
         description: Basic Information
         type: string
+      step_count:
+        description: Computed field (not persisted)
+        minimum: 0
+        type: integer
       steps:
         description: Relationships
         items:

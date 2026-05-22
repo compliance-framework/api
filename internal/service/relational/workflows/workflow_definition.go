@@ -30,6 +30,9 @@ type WorkflowDefinition struct {
 	CreatedByID *uuid.UUID `gorm:"index" json:"created_by_id,omitempty"`
 	UpdatedByID *uuid.UUID `gorm:"index" json:"updated_by_id,omitempty"`
 
+	// Computed field (not persisted)
+	StepCount int `gorm:"-" json:"step_count" validate:"min=0"`
+
 	// Relationships
 	Steps                []WorkflowStepDefinition `gorm:"foreignKey:WorkflowDefinitionID;constraint:OnDelete:CASCADE" json:"steps,omitempty"`
 	ControlRelationships []ControlRelationship    `gorm:"foreignKey:WorkflowDefinitionID;constraint:OnDelete:CASCADE" json:"control_relationships,omitempty"`
