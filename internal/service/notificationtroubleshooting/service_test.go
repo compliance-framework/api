@@ -78,3 +78,37 @@ func TestNextRunParsesDescriptorSchedules(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, time.Date(2026, 5, 23, 0, 0, 0, 0, time.UTC), next)
 }
+
+func TestProviderJobSourcePredicateConstrainsLatestSourceJob(t *testing.T) {
+	createdAt := time.Date(2026, 5, 22, 12, 0, 0, 0, time.UTC)
+
+	predicate, args := providerJobSourcePredicate(
+		[]string{worker.JobTypeWorkflowTaskDueSoon},
+		riverJobRecord{ID: 241582, CreatedAt: createdAt},
+	)
+
+	assert.Contains(t, predicate, "source_job_kind")
+	assert.Contains(t, predicate, "source_job_id")
+	assert.Contains(t, predicate, "source_job_id', ''), NULLIF(metadata ->> 'source_job_id'")
+	assert.Contains(t, predicate, "created_at >= ?")
+	require.Len(t, args, 3)
+	assert.Equal(t, []string{worker.JobTypeWorkflowTaskDueSoon}, args[0])
+	assert.Equal(t, "241582", args[1])
+	assert.Equal(t, createdAt, args[2])
+}
+
+func TestProviderJobSourcePredicateKeepsLegacyWindowForSyntheticSource(t *testing.T) {
+	createdAt := time.Date(2026, 5, 22, 12, 0, 0, 0, time.UTC)
+
+	predicate, args := providerJobSourcePredicate(
+		[]string{worker.JobTypeWorkflowTaskDueSoon},
+		riverJobRecord{CreatedAt: createdAt},
+	)
+
+	assert.Contains(t, predicate, "source_job_kind")
+	assert.NotContains(t, predicate, "source_job_id")
+	assert.Contains(t, predicate, "created_at >= ?")
+	require.Len(t, args, 2)
+	assert.Equal(t, []string{worker.JobTypeWorkflowTaskDueSoon}, args[0])
+	assert.Equal(t, createdAt, args[1])
+}

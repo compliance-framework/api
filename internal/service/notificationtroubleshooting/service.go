@@ -41,7 +41,7 @@ var notificationJobKinds = []string{
 	worker.JobTypeWorkflowTaskDueSoon,
 	worker.JobTypeWorkflowTaskDigest,
 	worker.JobTypeWorkflowExecutionFailed,
-	"workflow_due_soon_checker",
+	worker.JobTypeWorkflowDueSoonChecker,
 	"workflow_task_digest_checker",
 	"schedule_workflows",
 	worker.JobTypeRiskReviewDeadlineReminderScanner,
@@ -466,6 +466,8 @@ func (s *Service) Diagnostics(ctx context.Context, rawName string) (DiagnosticsR
 	}
 
 	sourceKinds, deliveryKinds := jobKindsForFamily(family)
+	providerSourceKinds := append([]string{}, sourceKinds...)
+	providerSourceKinds = append(providerSourceKinds, deliveryKinds...)
 	latestSource, hasSource, err := s.latestJobForKinds(ctx, append(sourceKinds, deliveryKinds...))
 	if err != nil {
 		return DiagnosticsResponse{}, err
@@ -487,7 +489,7 @@ func (s *Service) Diagnostics(ctx context.Context, rawName string) (DiagnosticsR
 		})
 	}
 
-	providerJobs, err := s.recentProviderJobs(ctx, deliveryKinds, latestSource)
+	providerJobs, err := s.recentProviderJobs(ctx, providerSourceKinds, latestSource)
 	if err != nil {
 		return DiagnosticsResponse{}, err
 	}
@@ -508,7 +510,7 @@ func (s *Service) Diagnostics(ctx context.Context, rawName string) (DiagnosticsR
 		})
 	}
 
-	staleCount, discardedCount, latestError, err := s.providerQueueProblems(ctx, deliveryKinds)
+	staleCount, discardedCount, latestError, err := s.providerQueueProblems(ctx, providerSourceKinds)
 	if err != nil {
 		return DiagnosticsResponse{}, err
 	}
@@ -1344,7 +1346,7 @@ func jobKindsForFamily(family string) ([]string, []string) {
 	case "evidence":
 		return []string{worker.JobTypeSendGlobalDigest}, []string{worker.JobTypeSendGlobalDigest}
 	case "workflow":
-		return []string{"workflow_due_soon_checker", "workflow_task_digest_checker"}, []string{
+		return []string{worker.JobTypeWorkflowDueSoonChecker, "workflow_task_digest_checker"}, []string{
 			worker.JobTypeWorkflowTaskAssigned,
 			worker.JobTypeWorkflowTaskDueSoon,
 			worker.JobTypeWorkflowTaskDigest,
@@ -1430,7 +1432,8 @@ func (s *Service) recentProviderJobs(ctx context.Context, sourceKinds []string, 
 		Order("id DESC").
 		Limit(50)
 	if len(sourceKinds) > 0 {
-		q = q.Where("(args ->> 'source_job_kind' IN ?) OR (created_at >= ?)", sourceKinds, latestSource.CreatedAt)
+		predicate, args := providerJobSourcePredicate(sourceKinds, latestSource)
+		q = q.Where(predicate, args...)
 	}
 	var rows []riverJobRecord
 	if err := q.Find(&rows).Error; err != nil {
@@ -1441,6 +1444,17 @@ func (s *Service) recentProviderJobs(ctx context.Context, sourceKinds []string, 
 		items = append(items, s.jobListItem(row))
 	}
 	return items, nil
+}
+
+func providerJobSourcePredicate(sourceKinds []string, latestSource riverJobRecord) (string, []any) {
+	sourceJobKindExpr := "COALESCE(NULLIF(args ->> 'source_job_kind', ''), NULLIF(metadata ->> 'source_job_kind', ''), '')"
+	sourceJobIDExpr := "COALESCE(NULLIF(args ->> 'source_job_id', ''), NULLIF(metadata ->> 'source_job_id', ''), '')"
+	if latestSource.ID > 0 {
+		return fmt.Sprintf("((%s IN ? AND (%s = ? OR %s = '')) OR (%s = '' AND created_at >= ?))", sourceJobKindExpr, sourceJobIDExpr, sourceJobIDExpr, sourceJobKindExpr),
+			[]any{sourceKinds, strconv.FormatInt(latestSource.ID, 10), latestSource.CreatedAt}
+	}
+	return fmt.Sprintf("(%s IN ?) OR (%s = '' AND created_at >= ?)", sourceJobKindExpr, sourceJobKindExpr),
+		[]any{sourceKinds, latestSource.CreatedAt}
 }
 
 func (s *Service) providerQueueProblems(ctx context.Context, sourceKinds []string) (int64, int64, string, error) {

@@ -910,6 +910,11 @@ func notificationDeliveryUniqueOpts(metadata notification.TransportMetadata) (ri
 			ByArgs:   true,
 			ByPeriod: 24 * time.Hour,
 		}, true
+	case JobTypeWorkflowDueSoonChecker:
+		return river.UniqueOpts{
+			ByArgs:   true,
+			ByPeriod: 24 * time.Hour,
+		}, true
 	case JobTypeWorkflowTaskDigest,
 		JobTypeWorkflowExecutionFailed,
 		JobTypeRiskReviewDueReminder,
