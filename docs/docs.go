@@ -271,6 +271,12 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/api.Error"
                         }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
                     }
                 },
                 "security": [
@@ -414,6 +420,12 @@ const docTemplate = `{
                     },
                     "401": {
                         "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
                         "schema": {
                             "$ref": "#/definitions/api.Error"
                         }

@@ -166,6 +166,7 @@ func (h *NotificationsHandler) GetTroubleshootingHealth(ctx echo.Context) error 
 //	@Success		200					{object}	notificationtroubleshooting.JobsListResponse
 //	@Failure		400					{object}	api.Error
 //	@Failure		401					{object}	api.Error
+//	@Failure		500					{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/admin/notifications/jobs [get]
 func (h *NotificationsHandler) ListTroubleshootingJobs(ctx echo.Context) error {
@@ -251,6 +252,7 @@ func (h *NotificationsHandler) GetNotificationDiagnostics(ctx echo.Context) erro
 //	@Success		202		{object}	handler.GenericDataResponse[handler.testNotificationResponse]
 //	@Failure		400		{object}	api.Error
 //	@Failure		401		{object}	api.Error
+//	@Failure		500		{object}	api.Error
 //	@Failure		503		{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/admin/notifications/test [post]

@@ -9797,6 +9797,10 @@ paths:
           description: Unauthorized
           schema:
             $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
       security:
       - OAuth2Password: []
       summary: List notification River jobs
@@ -9889,6 +9893,10 @@ paths:
             $ref: '#/definitions/api.Error'
         "401":
           description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
           schema:
             $ref: '#/definitions/api.Error'
         "503":

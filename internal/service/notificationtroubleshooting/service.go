@@ -1457,6 +1457,9 @@ func providerJobSourcePredicate(sourceKinds []string, latestSource riverJobRecor
 		return fmt.Sprintf("((%s IN ? AND (%s = ? OR %s = '')) OR (%s = '' AND created_at >= ?))", sourceJobKindExpr, sourceJobIDExpr, sourceJobIDExpr, sourceJobKindExpr),
 			[]any{sourceKinds, strconv.FormatInt(latestSource.ID, 10), latestSource.CreatedAt}
 	}
+	if latestSource.CreatedAt.IsZero() {
+		return fmt.Sprintf("%s IN ?", sourceJobKindExpr), []any{sourceKinds}
+	}
 	return fmt.Sprintf("(%s IN ?) OR (%s = '' AND created_at >= ?)", sourceJobKindExpr, sourceJobKindExpr),
 		[]any{sourceKinds, latestSource.CreatedAt}
 }
