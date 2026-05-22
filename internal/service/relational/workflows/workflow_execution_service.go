@@ -186,12 +186,6 @@ func (s *WorkflowExecutionService) UpdateStatus(ctx context.Context, id *uuid.UU
 					"workflow_execution_id", id,
 					"error", err)
 			}
-		case "completed":
-			if err := s.evidenceCreator.AddWorkflowExecutionEvidence(ctx, id, "completed"); err != nil {
-				s.logger.Warnw("Failed to create workflow execution completed evidence",
-					"workflow_execution_id", id,
-					"error", err)
-			}
 		}
 	}
 
