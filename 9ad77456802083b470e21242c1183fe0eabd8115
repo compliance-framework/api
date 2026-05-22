@@ -1,0 +1,22 @@
+lisa-addressed:
+---
+Comment (internal/api/handler/notifications.go:85):
+**🟡 BUG-API-6: Test-send response returns `correlationId` instead of `jobIds`.**
+
+The spec for `POST /api/admin/notifications/test` requires the response to include `jobIds: [...]` — an array of the River job IDs that were enqueued — so the UI can link directly to those jobs in the Deliveries tab.
+
+This response struct returns `correlationId` (a string) instead. The UI uses `jobIds` to navigate to the newly created test jobs; without it, there is no way to confirm the jobs were created or to inspect them.
+
+**Fix:**
+```go
+type testNotificationResponse struct {
+    Accepted          bool    `json:"accepted"`
+    Mode              string  `json:"mode"`
+    ProviderType      string  `json:"providerType"`
+    DestinationTarget string  `json:"destinationTarget"`
+    JobIDs            []int64 `json:"jobIds"`       // ← replace CorrelationID with this
+    Message           string  `json:"message"`
+}
+```
+The enqueue calls at lines 300 and 310 will need to return the created job ID (River's `InsertResult.Job.ID`), which should then be collected and returned in `JobIDs`.
+Implementation guidance: In internal/api/handler/notifications.go, replace testNotificationResponse.CorrelationID with JobIDs []int64 `json:"jobIds"` and return jobIds in SendTestNotification instead of correlationId. To make this possible, update the provider enqueue interfaces in internal/service/notification/providers/email/provider.go and internal/service/notification/providers/slack/provider.go so EnqueueNotificationEmail and EnqueueNotificationSlack return ([]int64, error) or an equivalent concrete job ID slice, then update all implementations and test stubs. In internal/service/worker/service.go and internal/service/worker/notification_bridge.go, capture the River InsertMany result from notificationEmailInsertParams/notificationSlackInsertParams and extract each InsertResult.Job.ID into []int64; do not return correlation IDs as a substitute. Update provider callers that only care about errors to ignore the returned IDs, for example _, err := enqueuer.EnqueueNotificationEmail(...). In SendTestNotification, collect the single provider call result into jobIDs, set JobIDs: jobIDs, and update the success message so it references jobIds/Deliveries lookup rather than correlationId. Add or update handler tests to assert POST /admin/notifications/test returns data.jobIds as an array and no data.correlationId.
