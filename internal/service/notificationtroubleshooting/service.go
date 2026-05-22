@@ -307,7 +307,7 @@ func (s *Service) Jobs(ctx context.Context, query JobsQuery) (JobsListResponse, 
 	limit := normalizeLimit(query.Limit)
 	cursorID, err := decodeCursor(query.Cursor)
 	if err != nil {
-		return JobsListResponse{}, err
+		return JobsListResponse{}, fmt.Errorf("%w: %w", ErrInvalidJobsQuery, err)
 	}
 
 	dbq := s.db.WithContext(ctx).Table("river_job").
@@ -869,7 +869,7 @@ func allScheduleDefinitions(cfg *config.Config) []scheduleDefinition {
 	}
 	return []scheduleDefinition{
 		{"EVIDENCE_DIGEST", worker.JobTypeSendGlobalDigest, "", "digest", digestEnabled, digestSchedule},
-		{"WORKFLOW_DUE_SOON", "workflow_due_soon_checker", worker.JobTypeWorkflowTaskDueSoon, "email", workflowCfg.DueSoonEnabled, workflowCfg.DueSoonSchedule},
+		{"WORKFLOW_DUE_SOON", worker.JobTypeWorkflowDueSoonChecker, worker.JobTypeWorkflowTaskDueSoon, "email", workflowCfg.DueSoonEnabled, workflowCfg.DueSoonSchedule},
 		{"WORKFLOW_TASK_DIGEST", "workflow_task_digest_checker", worker.JobTypeWorkflowTaskDigest, "digest", workflowCfg.TaskDigestEnabled, workflowCfg.TaskDigestSchedule},
 		{"RISK_REVIEW_DEADLINE_REMINDER", worker.JobTypeRiskReviewDeadlineReminderScanner, worker.JobTypeRiskReviewDueReminder, "risk", riskCfg.ReviewDeadlineReminderEnabled, riskCfg.ReviewDeadlineReminderSchedule},
 		{"RISK_REVIEW_OVERDUE_ESCALATION", worker.JobTypeRiskReviewOverdueEscalationScanner, worker.JobTypeRiskReviewOverdueEscalation, "risk", riskCfg.ReviewOverdueEscalationEnabled, riskCfg.ReviewOverdueEscalationSchedule},
@@ -1353,29 +1353,33 @@ func jobKindsForFamily(family string) ([]string, []string) {
 			worker.JobTypeWorkflowExecutionFailed,
 		}
 	case "risk":
-		return []string{
-				worker.JobTypeRiskReviewDeadlineReminderScanner,
-				worker.JobTypeRiskReviewOverdueEscalationScanner,
-				worker.JobTypeRiskStaleRiskScanner,
-				worker.JobTypeRiskOpenDigestScheduler,
-			}, []string{
-				worker.JobTypeRiskReviewDueReminder,
-				worker.JobTypeRiskReviewOverdueEscalation,
-				worker.JobTypeRiskStaleOpenReminder,
-				worker.JobTypeRiskOpenDigest,
-			}
+		sourceKinds := []string{
+			worker.JobTypeRiskReviewDeadlineReminderScanner,
+			worker.JobTypeRiskReviewOverdueEscalationScanner,
+			worker.JobTypeRiskStaleRiskScanner,
+			worker.JobTypeRiskOpenDigestScheduler,
+		}
+		deliveryKinds := []string{
+			worker.JobTypeRiskReviewDueReminder,
+			worker.JobTypeRiskReviewOverdueEscalation,
+			worker.JobTypeRiskStaleOpenReminder,
+			worker.JobTypeRiskOpenDigest,
+		}
+		return sourceKinds, deliveryKinds
 	case "poam":
-		return []string{
-				worker.JobTypePoamDeadlineReminderScanner,
-				worker.JobTypePoamOverdueTransitionScanner,
-				worker.JobTypeMilestoneOverdueScannerScanner,
-				worker.JobTypePoamOpenDigestScheduler,
-			}, []string{
-				worker.JobTypePoamDeadlineReminder,
-				worker.JobTypePoamOverdueNotification,
-				worker.JobTypeMilestoneOverdueReminder,
-				worker.JobTypePoamOpenDigest,
-			}
+		sourceKinds := []string{
+			worker.JobTypePoamDeadlineReminderScanner,
+			worker.JobTypePoamOverdueTransitionScanner,
+			worker.JobTypeMilestoneOverdueScannerScanner,
+			worker.JobTypePoamOpenDigestScheduler,
+		}
+		deliveryKinds := []string{
+			worker.JobTypePoamDeadlineReminder,
+			worker.JobTypePoamOverdueNotification,
+			worker.JobTypeMilestoneOverdueReminder,
+			worker.JobTypePoamOpenDigest,
+		}
+		return sourceKinds, deliveryKinds
 	default:
 		return nil, nil
 	}
