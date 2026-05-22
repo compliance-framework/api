@@ -132,6 +132,99 @@ func TestManager_StartWorkflowExecution_UniqueViolationManualDoesNotReturnAlread
 	assert.Contains(t, err.Error(), "failed to create workflow execution")
 }
 
+// MockEvidenceCreator is a mock for workflows.WorkflowExecutionEvidenceCreator
+type MockEvidenceCreator struct {
+	mock.Mock
+}
+
+func (m *MockEvidenceCreator) AddWorkflowExecutionEvidence(ctx context.Context, executionID *uuid.UUID, status string) error {
+	args := m.Called(ctx, executionID, status)
+	return args.Error(0)
+}
+
+func TestManager_StartWorkflowExecution_EmitsStartedEvidenceAtTriggerTime(t *testing.T) {
+	ctx := context.Background()
+	logger := zap.NewNop().Sugar()
+
+	instanceID := uuid.New()
+	executionID := uuid.New()
+	mockClient := &MockRiverClient{}
+	mockWorkflowExecService := &MockWorkflowExecutionService{}
+	mockWorkflowInstService := &MockWorkflowInstanceService{}
+	mockStepExecService := &MockStepExecutionService{}
+	mockEvidence := &MockEvidenceCreator{}
+
+	manager := NewManager(
+		mockClient,
+		mockWorkflowExecService,
+		mockWorkflowInstService,
+		mockStepExecService,
+		logger,
+		nil,
+	)
+	manager.SetEvidenceCreator(mockEvidence)
+
+	mockWorkflowInstService.On("GetByID", &instanceID).Return(&workflows.WorkflowInstance{IsActive: true}, nil).Once()
+	mockWorkflowExecService.On("Create", mock.AnythingOfType("*workflows.WorkflowExecution")).
+		Run(func(args mock.Arguments) {
+			exec := args.Get(0).(*workflows.WorkflowExecution)
+			exec.ID = &executionID
+		}).
+		Return(nil).Once()
+	mockClient.On("InsertMany", ctx, mock.Anything).Return([]*rivertype.JobInsertResult{}, nil).Once()
+	mockEvidence.On("AddWorkflowExecutionEvidence", ctx, &executionID, "started").Return(nil).Once()
+
+	opts := StartWorkflowOptions{
+		TriggeredBy: workflows.TriggerManual.String(),
+	}
+
+	execution, err := manager.StartWorkflowExecution(ctx, &instanceID, opts)
+	require.NoError(t, err)
+	require.NotNil(t, execution)
+
+	mockEvidence.AssertCalled(t, "AddWorkflowExecutionEvidence", ctx, &executionID, "started")
+	mockEvidence.AssertExpectations(t)
+	mockWorkflowExecService.AssertExpectations(t)
+}
+
+func TestManager_StartWorkflowExecution_NilEvidenceCreator_DoesNotPanic(t *testing.T) {
+	ctx := context.Background()
+	logger := zap.NewNop().Sugar()
+
+	instanceID := uuid.New()
+	mockClient := &MockRiverClient{}
+	mockWorkflowExecService := &MockWorkflowExecutionService{}
+	mockWorkflowInstService := &MockWorkflowInstanceService{}
+	mockStepExecService := &MockStepExecutionService{}
+
+	manager := NewManager(
+		mockClient,
+		mockWorkflowExecService,
+		mockWorkflowInstService,
+		mockStepExecService,
+		logger,
+		nil,
+	)
+	// evidenceCreator intentionally not set (nil)
+
+	noopID := uuid.New()
+	mockWorkflowInstService.On("GetByID", &instanceID).Return(&workflows.WorkflowInstance{IsActive: true}, nil).Once()
+	mockWorkflowExecService.On("Create", mock.AnythingOfType("*workflows.WorkflowExecution")).
+		Run(func(args mock.Arguments) {
+			args.Get(0).(*workflows.WorkflowExecution).ID = &noopID
+		}).
+		Return(nil).Once()
+	mockClient.On("InsertMany", ctx, mock.Anything).Return([]*rivertype.JobInsertResult{}, nil).Once()
+
+	opts := StartWorkflowOptions{
+		TriggeredBy: workflows.TriggerManual.String(),
+	}
+
+	execution, err := manager.StartWorkflowExecution(ctx, &instanceID, opts)
+	require.NoError(t, err)
+	require.NotNil(t, execution)
+}
+
 func TestManager_CancelExecution_CancelsOverdueSteps(t *testing.T) {
 	ctx := context.Background()
 	logger := zap.NewNop().Sugar()
