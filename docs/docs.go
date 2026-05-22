@@ -30776,6 +30776,12 @@ const docTemplate = `{
                         "$ref": "#/definitions/notificationtroubleshooting.DiagnosticCheck"
                     }
                 },
+                "configuredDestinations": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/notificationtroubleshooting.ConfiguredSystemDestinationResponse"
+                    }
+                },
                 "notificationName": {
                     "type": "string"
                 },
@@ -30787,6 +30793,9 @@ const docTemplate = `{
                 },
                 "status": {
                     "type": "string"
+                },
+                "subscriberCounts": {
+                    "$ref": "#/definitions/notificationtroubleshooting.SubscriberCounts"
                 }
             }
         },

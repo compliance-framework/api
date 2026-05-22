@@ -232,10 +232,12 @@ type SanitizedAttemptError struct {
 }
 
 type DiagnosticsResponse struct {
-	NotificationName   string            `json:"notificationName"`
-	Status             string            `json:"status"`
-	Checks             []DiagnosticCheck `json:"checks"`
-	RecommendedActions []string          `json:"recommendedActions"`
+	NotificationName       string                                `json:"notificationName"`
+	Status                 string                                `json:"status"`
+	Checks                 []DiagnosticCheck                     `json:"checks"`
+	RecommendedActions     []string                              `json:"recommendedActions"`
+	SubscriberCounts       SubscriberCounts                      `json:"subscriberCounts"`
+	ConfiguredDestinations []ConfiguredSystemDestinationResponse `json:"configuredDestinations"`
 }
 
 type DiagnosticCheck struct {
@@ -421,11 +423,13 @@ func (s *Service) Diagnostics(ctx context.Context, rawName string) (DiagnosticsR
 		})
 	}
 
-	for _, gate := range subscriptionGatesForFamily(family) {
-		counts, err := s.subscriberCounts(ctx, gate)
+	var responseCounts SubscriberCounts
+	for _, subscription := range subscriptionDiagnosticsForFamily(family) {
+		counts, err := s.subscriberCounts(ctx, subscription.Gate)
 		if err != nil {
 			return DiagnosticsResponse{}, err
 		}
+		responseCounts = addSubscriberCounts(responseCounts, counts)
 		status := StatusPass
 		message := fmt.Sprintf("%d active users are subscribed.", counts.TotalUsers)
 		if counts.TotalUsers == 0 {
@@ -434,18 +438,20 @@ func (s *Service) Diagnostics(ctx context.Context, rawName string) (DiagnosticsR
 			actions = append(actions, "Review user notification subscriptions for "+displayName+".")
 		}
 		checks = append(checks, DiagnosticCheck{
-			Code:    "subscribers_" + gate,
-			Label:   "Subscribed users",
+			Code:    "subscribers_" + subscription.CodeSuffix,
+			Label:   subscription.Label,
 			Status:  status,
 			Message: message,
 		})
 	}
 
+	configuredDestinations := []ConfiguredSystemDestinationResponse{}
 	for _, name := range systemNotificationsForFamily(family) {
 		destinations, err := s.configuredDestinations(ctx, name)
 		if err != nil {
 			return DiagnosticsResponse{}, err
 		}
+		configuredDestinations = append(configuredDestinations, destinations...)
 		status := StatusPass
 		message := fmt.Sprintf("%d configured system destinations found.", len(destinations))
 		if len(destinations) == 0 {
@@ -534,10 +540,12 @@ func (s *Service) Diagnostics(ctx context.Context, rawName string) (DiagnosticsR
 	checks = append(checks, s.correlationCoverageCheck(providerJobs))
 
 	return DiagnosticsResponse{
-		NotificationName:   displayName,
-		Status:             aggregateStatus(checks),
-		Checks:             checks,
-		RecommendedActions: dedupeStrings(actions),
+		NotificationName:       displayName,
+		Status:                 aggregateStatus(checks),
+		Checks:                 checks,
+		RecommendedActions:     dedupeStrings(actions),
+		SubscriberCounts:       responseCounts,
+		ConfiguredDestinations: configuredDestinations,
 	}, nil
 }
 
@@ -1224,8 +1232,13 @@ func subscriptionGateForSystemName(name string) string {
 }
 
 func supportsSystemDestination(name string) bool {
-	_, ok := notification.NormalizeSystemNotificationName(name)
-	return ok
+	switch strings.ToLower(strings.TrimSpace(name)) {
+	case notification.SystemNotificationNameEvidenceDigest,
+		notification.SystemNotificationNameWorkflowExecutionFailed:
+		return true
+	default:
+		return false
+	}
 }
 
 func (s *Service) healthWarnings(response HealthResponse) []TroubleshootingWarning {
@@ -1291,16 +1304,61 @@ func normalizeDiagnosticsName(raw string) (string, string, bool) {
 	}
 }
 
-func subscriptionGatesForFamily(family string) []string {
+type subscriptionDiagnostic struct {
+	Gate       string
+	CodeSuffix string
+	Label      string
+}
+
+func subscriptionDiagnosticsForFamily(family string) []subscriptionDiagnostic {
 	switch family {
 	case "evidence":
-		return []string{notification.SubscriptionGateEvidenceDigest}
+		return []subscriptionDiagnostic{
+			{
+				Gate:       notification.SubscriptionGateEvidenceDigest,
+				CodeSuffix: notification.SubscriptionGateEvidenceDigest,
+				Label:      "Evidence Digest subscribers",
+			},
+		}
 	case "workflow":
-		return []string{notification.SubscriptionGateTaskAvailable, notification.SubscriptionGateTaskDailyDigest}
-	case "risk", "poam":
-		return []string{notification.SubscriptionGateRiskNotifications}
+		return []subscriptionDiagnostic{
+			{
+				Gate:       notification.SubscriptionGateTaskAvailable,
+				CodeSuffix: notification.SubscriptionGateTaskAvailable,
+				Label:      "Task Available subscribers",
+			},
+			{
+				Gate:       notification.SubscriptionGateTaskDailyDigest,
+				CodeSuffix: notification.SubscriptionGateTaskDailyDigest,
+				Label:      "Task Daily Digest subscribers",
+			},
+		}
+	case "risk":
+		return []subscriptionDiagnostic{
+			{
+				Gate:       notification.SubscriptionGateRiskNotifications,
+				CodeSuffix: notification.SubscriptionGateRiskNotifications,
+				Label:      "Risk Notification subscribers",
+			},
+		}
+	case "poam":
+		return []subscriptionDiagnostic{
+			{
+				Gate:       notification.SubscriptionGateRiskNotifications,
+				CodeSuffix: "poam_notifications",
+				Label:      "POAM subscribers",
+			},
+		}
 	default:
 		return nil
+	}
+}
+
+func addSubscriberCounts(left, right SubscriberCounts) SubscriberCounts {
+	return SubscriberCounts{
+		Email:      left.Email + right.Email,
+		Slack:      left.Slack + right.Slack,
+		TotalUsers: left.TotalUsers + right.TotalUsers,
 	}
 }
 

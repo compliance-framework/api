@@ -2445,6 +2445,10 @@ definitions:
         items:
           $ref: '#/definitions/notificationtroubleshooting.DiagnosticCheck'
         type: array
+      configuredDestinations:
+        items:
+          $ref: '#/definitions/notificationtroubleshooting.ConfiguredSystemDestinationResponse'
+        type: array
       notificationName:
         type: string
       recommendedActions:
@@ -2453,6 +2457,8 @@ definitions:
         type: array
       status:
         type: string
+      subscriberCounts:
+        $ref: '#/definitions/notificationtroubleshooting.SubscriberCounts'
     type: object
   notificationtroubleshooting.HealthResponse:
     properties:

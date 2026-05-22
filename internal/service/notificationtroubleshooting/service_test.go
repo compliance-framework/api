@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compliance-framework/api/internal/service/notification"
 	"github.com/compliance-framework/api/internal/service/worker"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -77,6 +78,39 @@ func TestNextRunParsesDescriptorSchedules(t *testing.T) {
 	next, err := nextRun("@daily", now)
 	require.NoError(t, err)
 	assert.Equal(t, time.Date(2026, 5, 23, 0, 0, 0, 0, time.UTC), next)
+}
+
+func TestSupportsSystemDestinationOnlyAllowsConfiguredSystemTypes(t *testing.T) {
+	assert.True(t, supportsSystemDestination(notification.SystemNotificationNameEvidenceDigest))
+	assert.True(t, supportsSystemDestination(notification.SystemNotificationNameWorkflowExecutionFailed))
+	assert.True(t, supportsSystemDestination(" WORKFLOW_EXECUTION_FAILED "))
+
+	assert.False(t, supportsSystemDestination(notification.SubscriptionGateTaskAvailable))
+	assert.False(t, supportsSystemDestination(notification.SubscriptionGateTaskDailyDigest))
+	assert.False(t, supportsSystemDestination(notification.SubscriptionGateRiskNotifications))
+	assert.False(t, supportsSystemDestination("poam_deadline_reminder"))
+	assert.False(t, supportsSystemDestination("poam_notifications"))
+}
+
+func TestSubscriptionDiagnosticsForFamilyUsesDistinctWorkflowLabels(t *testing.T) {
+	diagnostics := subscriptionDiagnosticsForFamily("workflow")
+
+	require.Len(t, diagnostics, 2)
+	assert.Equal(t, notification.SubscriptionGateTaskAvailable, diagnostics[0].Gate)
+	assert.Equal(t, notification.SubscriptionGateTaskAvailable, diagnostics[0].CodeSuffix)
+	assert.Equal(t, "Task Available subscribers", diagnostics[0].Label)
+	assert.Equal(t, notification.SubscriptionGateTaskDailyDigest, diagnostics[1].Gate)
+	assert.Equal(t, notification.SubscriptionGateTaskDailyDigest, diagnostics[1].CodeSuffix)
+	assert.Equal(t, "Task Daily Digest subscribers", diagnostics[1].Label)
+}
+
+func TestSubscriptionDiagnosticsForFamilyUsesPoamSpecificCode(t *testing.T) {
+	diagnostics := subscriptionDiagnosticsForFamily("poam")
+
+	require.Len(t, diagnostics, 1)
+	assert.Equal(t, notification.SubscriptionGateRiskNotifications, diagnostics[0].Gate)
+	assert.Equal(t, "poam_notifications", diagnostics[0].CodeSuffix)
+	assert.Equal(t, "POAM subscribers", diagnostics[0].Label)
 }
 
 func TestProviderJobSourcePredicateConstrainsLatestSourceJob(t *testing.T) {
