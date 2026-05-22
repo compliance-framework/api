@@ -1,0 +1,554 @@
+lisa-addressed:
+---
+Comment (docs/docs.go:237):
+_🛠️ Refactor suggestion_ | _🟠 Major_ | _⚡ Quick win_
+
+**Add validation constraints to query parameters.**
+
+Several query parameters lack schema-level validation that would help API consumers and prevent invalid requests:
+
+- `provider` (line 201): Should specify valid values (email, slack) via `enum`
+- `state` (line 217): Should specify valid River job states via `enum`
+- `limit` (line 229): Description mentions "max 200" but schema lacks `maximum` constraint
+- `since` (line 223): Should specify `format: date-time` for RFC3339 timestamp
+
+<details>
+<summary>📋 Recommended schema constraints</summary>
+
+These constraints should be added in the source Go code annotations (e.g., using swaggo tags) so they're reflected in the generated documentation:
+
+For `provider`:
+```
+enum: [email, slack]
+```
+
+For `limit`:
+```
+minimum: 1
+maximum: 200
+```
+
+For `since`:
+```
+format: date-time
+```
+
+</details>
+
+<details>
+<summary>🤖 Prompt for AI Agents</summary>
+
+```
+Verify each finding against current code. Fix only still-valid issues, skip the
+rest with a brief reason, keep changes minimal, and validate.
+
+In `@docs/docs.go` around lines 187 - 237, Update the OpenAPI parameter schemas
+for the query params in docs.go: add an enum constraint for the "provider"
+parameter (values: email, slack) and for the "state" parameter (use your River
+job state enum), add numeric bounds for "limit" (minimum: 1, maximum: 200), and
+mark "since" with format: date-time (RFC3339); ensure these changes are applied
+to the parameter definitions named "provider", "state", "limit", and "since" so
+the generated docs reflect the enum/format/maximum constraints.
+```
+
+</details>
+
+<!-- fingerprinting:phantom:poseidon:puma -->
+
+<!-- This is an auto-generated comment by CodeRabbit -->
+---
+Comment (docs/docs.go:598):
+_🛠️ Refactor suggestion_ | _🟠 Major_ | _⚡ Quick win_
+
+**Add 404 response for invalid notification names.**
+
+The endpoint accepts `{notificationName}` as a path parameter but doesn't define a 404 response for when the notification doesn't exist. Based on the description mentioning specific notification types (evidence digest, workflow, risk, POAM), invalid names should return 404 Not Found.
+
+<details>
+<summary>📋 Add missing response code</summary>
+
+In the source handler code, ensure 404 is returned for unrecognized notification names and add this Swagger annotation:
+
+```go
+// `@Failure` 404 {object} api.Error "Not Found"
+```
+
+</details>
+
+<details>
+<summary>🤖 Prompt for AI Agents</summary>
+
+```
+Verify each finding against current code. Fix only still-valid issues, skip the
+rest with a brief reason, keep changes minimal, and validate.
+
+In `@docs/docs.go` around lines 553 - 598, The OpenAPI fragment for
+"/admin/notifications/{notificationName}/diagnostics" is missing a 404 response
+for unknown notification names; update the Swagger docs to add a "404" response
+referencing api.Error (matching other responses) and, in the handler that serves
+notification diagnostics (look for the method that returns
+handler.GenericDataResponse-notificationtroubleshooting_DiagnosticsResponse and
+that reads the path param "notificationName"), add a runtime check that returns
+a 404 when the name is unrecognized and add the Swagger annotation // `@Failure`
+404 {object} api.Error "Not Found" to the handler so the generated docs include
+the 404 response.
+```
+
+</details>
+
+<!-- fingerprinting:phantom:poseidon:puma -->
+
+<!-- This is an auto-generated comment by CodeRabbit -->
+---
+Comment (docs/docs.go:30427):
+_🛠️ Refactor suggestion_ | _🟠 Major_ | _⚡ Quick win_
+
+**Add enum constraints for providerType and mode.**
+
+The `testNotificationRequest` schema has string fields without validation constraints:
+
+- `providerType` (line 30424): Should constrain to valid provider types (`email`, `slack`) via `enum`
+- `mode` (line 30421): Should define valid mode values via `enum` if applicable
+- `destinationTarget` (line 30418): Could benefit from format validation (e.g., `format: email` when providerType is email)
+
+Without these constraints, the API accepts invalid values that will fail at runtime rather than validation time.
+
+<details>
+<summary>🛡️ Recommended schema enums</summary>
+
+Add these constraints in the source Go struct tags:
+
+```go
+ProviderType string `json:"providerType" binding:"required,oneof=email slack"`
+Mode         string `json:"mode" binding:"omitempty,oneof=immediate scheduled"`
+```
+
+</details>
+
+<details>
+<summary>🤖 Prompt for AI Agents</summary>
+
+```
+Verify each finding against current code. Fix only still-valid issues, skip the
+rest with a brief reason, keep changes minimal, and validate.
+
+In `@docs/docs.go` around lines 30410 - 30427, The JSON schema for
+handler.testNotificationRequest lacks validation on providerType, mode, and
+destinationTarget; update the corresponding Go request struct (fields
+ProviderType, Mode, DestinationTarget) to add binding/validation tags: set
+ProviderType to require only allowed values (oneof=email slack), set Mode to
+limit allowed values (e.g., oneof=immediate scheduled) and mark
+optional/required as appropriate, and add a format/email binding or custom
+validator for DestinationTarget when providerType == "email"; ensure these
+changes propagate so the generated schema includes enum constraints for
+providerType and mode and a format for destinationTarget.
+```
+
+</details>
+
+<!-- fingerprinting:phantom:poseidon:puma -->
+
+<!-- This is an auto-generated comment by CodeRabbit -->
+---
+Comment (docs/docs.go:30853):
+_🧹 Nitpick_ | _🔵 Trivial_ | _💤 Low value_
+
+**Consider adding format constraints to timestamp fields.**
+
+The `JobDetail` schema includes several timestamp fields that are typed as `string` without format specifications:
+- `attemptedAt` (line 30791)
+- `createdAt` (line 30797)
+- `finalizedAt` (line 30806)
+- `scheduledAt` (line 30836)
+
+Adding `format: date-time` would improve API documentation clarity and enable better client-side validation.
+
+<details>
+<summary>📅 Add format annotations in source code</summary>
+
+In the Go source struct, use swaggo format tags:
+
+```go
+CreatedAt    time.Time `json:"createdAt" format:"date-time"`
+AttemptedAt  *time.Time `json:"attemptedAt,omitempty" format:"date-time"`
+```
+
+</details>
+
+<details>
+<summary>🤖 Prompt for AI Agents</summary>
+
+```
+Verify each finding against current code. Fix only still-valid issues, skip the
+rest with a brief reason, keep changes minimal, and validate.
+
+In `@docs/docs.go` around lines 30780 - 30853, The JobDetail schema's timestamp
+properties (attemptedAt, createdAt, finalizedAt, scheduledAt) are plain
+strings—update the OpenAPI generation by adding "format: date-time" for these
+properties and also annotate the Go struct fields (e.g., AttemptedAt, CreatedAt,
+FinalizedAt, ScheduledAt) with swaggo format tags (format:"date-time") in their
+json tags so the generated docs include the date-time format and enable client
+validation.
+```
+
+</details>
+
+<!-- fingerprinting:phantom:poseidon:puma -->
+
+<!-- This is an auto-generated comment by CodeRabbit -->
+---
+Comment (docs/swagger.yaml:1091):
+_⚠️ Potential issue_ | _🟡 Minor_ | _⚡ Quick win_
+
+**Correct misleading descriptions in generic response wrappers.**
+
+The description "Items from the list response" on lines 1062, 1076, 1083, and 1090 is inaccurate. These wrappers encapsulate single-object responses (test notification, diagnostics, health, job detail), not list items.
+
+<details>
+<summary>📝 Proposed fix for accurate descriptions</summary>
+
+```diff
+   handler.GenericDataResponse-handler_testNotificationResponse:
+     properties:
+       data:
+         allOf:
+         - $ref: '`#/definitions/handler.testNotificationResponse`'
+-        description: Items from the list response
++        description: Test notification response
+     type: object
+```
+
+```diff
+   handler.GenericDataResponse-notificationtroubleshooting_DiagnosticsResponse:
+     properties:
+       data:
+         allOf:
+         - $ref: '`#/definitions/notificationtroubleshooting.DiagnosticsResponse`'
+-        description: Items from the list response
++        description: Diagnostics response
+     type: object
+```
+
+```diff
+   handler.GenericDataResponse-notificationtroubleshooting_HealthResponse:
+     properties:
+       data:
+         allOf:
+         - $ref: '`#/definitions/notificationtroubleshooting.HealthResponse`'
+-        description: Items from the list response
++        description: Health response
+     type: object
+```
+
+```diff
+   handler.GenericDataResponse-notificationtroubleshooting_JobDetail:
+     properties:
+       data:
+         allOf:
+         - $ref: '`#/definitions/notificationtroubleshooting.JobDetail`'
+-        description: Items from the list response
++        description: Job detail response
+     type: object
+```
+
+</details>
+
+<details>
+<summary>🤖 Prompt for AI Agents</summary>
+
+```
+Verify each finding against current code. Fix only still-valid issues, skip the
+rest with a brief reason, keep changes minimal, and validate.
+
+In `@docs/swagger.yaml` around lines 1057 - 1091, The description "Items from the
+list response" in the generic wrapper definitions (e.g.,
+handler.GenericDataResponse-handler_testNotificationResponse,
+handler.GenericDataResponse-notificationtroubleshooting_DiagnosticsResponse,
+handler.GenericDataResponse-notificationtroubleshooting_HealthResponse,
+handler.GenericDataResponse-notificationtroubleshooting_JobDetail and
+handler.GenericDataResponse-handler_threatIDResponse) is misleading; update the
+description on each property's data to reflect that these wrappers contain a
+single-object response (e.g., "Single object response" or "Wrapped single
+<definition> response") so the docs correctly describe that data is a single
+object from the referenced definition rather than a list item.
+```
+
+</details>
+
+<!-- fingerprinting:phantom:poseidon:puma -->
+
+<!-- This is an auto-generated comment by CodeRabbit -->
+---
+Comment (internal/api/handler/notifications.go:180):
+_⚠️ Potential issue_ | _🟠 Major_ | _⚡ Quick win_
+
+**Avoid mapping all troubleshooting job failures to 400.**
+
+At Line 177-Line 180, all errors from `h.troubleshooting.Jobs` become `BadRequest`, including internal DB/query failures that should be `500`.
+
+<details>
+<summary>Suggested direction</summary>
+
+```diff
+ response, err := h.troubleshooting.Jobs(ctx.Request().Context(), query)
+ if err != nil {
+ 	h.sugar.Warnw("Failed to list notification troubleshooting jobs", "error", err)
+-	return ctx.JSON(http.StatusBadRequest, api.NewError(err))
++	// Return 400 only for client input errors; return 500 for internal failures.
++	// Consider a typed validation error from notificationtroubleshooting service.
++	return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+ }
+```
+</details>
+
+<!-- suggestion_start -->
+
+<details>
+<summary>📝 Committable suggestion</summary>
+
+> ‼️ **IMPORTANT**
+> Carefully review the code before committing. Ensure that it accurately replaces the highlighted code, contains no missing lines, and has no issues with indentation. Thoroughly test & benchmark the code to ensure it meets the requirements.
+
+```suggestion
+	response, err := h.troubleshooting.Jobs(ctx.Request().Context(), query)
+	if err != nil {
+		h.sugar.Warnw("Failed to list notification troubleshooting jobs", "error", err)
+		// Return 400 only for client input errors; return 500 for internal failures.
+		// Consider a typed validation error from notificationtroubleshooting service.
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+```
+
+</details>
+
+<!-- suggestion_end -->
+
+<details>
+<summary>🤖 Prompt for AI Agents</summary>
+
+```
+Verify each finding against current code. Fix only still-valid issues, skip the
+rest with a brief reason, keep changes minimal, and validate.
+
+In `@internal/api/handler/notifications.go` around lines 176 - 180, The code
+currently maps every error from h.troubleshooting.Jobs(ctx.Request().Context(),
+query) to HTTP 400; change this to distinguish client/validation errors from
+internal failures by inspecting the returned error (e.g. using errors.Is / type
+assertions against your domain error types such as validationErr or NotFoundErr)
+and only return ctx.JSON(http.StatusBadRequest, api.NewError(err)) for known
+client errors, otherwise log the error and return
+ctx.JSON(http.StatusInternalServerError, api.NewError(err)); keep the
+h.sugar.Warnw call but ensure internal errors use StatusInternalServerError when
+calling ctx.JSON.
+```
+
+</details>
+
+<!-- fingerprinting:phantom:poseidon:hawk -->
+
+<!-- This is an auto-generated comment by CodeRabbit -->
+---
+Comment (internal/service/notificationtroubleshooting/service.go:600):
+_⚠️ Potential issue_ | _🟠 Major_ | _⚡ Quick win_
+
+**Do not swallow DB errors when computing queue health.**
+
+At Line 589, Line 592, and Line 596, query errors are ignored, so health can silently return incorrect counts/timestamps during DB issues.
+
+<details>
+<summary>Suggested fix</summary>
+
+```diff
+-		_ = s.db.WithContext(ctx).Table("river_job").
++		if err := s.db.WithContext(ctx).Table("river_job").
+ 			Where("queue = ? AND kind IN ? AND state = 'completed' AND finalized_at >= ?", queue, notificationJobKinds, now.Add(-24*time.Hour)).
+-			Count(&summary.Completed24h).Error
+-		_ = s.db.WithContext(ctx).Table("river_job").
++			Count(&summary.Completed24h).Error; err != nil {
++			return nil, err
++		}
++		if err := s.db.WithContext(ctx).Table("river_job").
+ 			Where("queue = ? AND kind IN ? AND state = 'discarded' AND finalized_at >= ?", queue, notificationJobKinds, now.Add(-24*time.Hour)).
+-			Count(&summary.Discarded24h).Error
++			Count(&summary.Discarded24h).Error; err != nil {
++			return nil, err
++		}
+ 		var oldest *time.Time
+-		_ = s.db.WithContext(ctx).Table("river_job").
++		if err := s.db.WithContext(ctx).Table("river_job").
+ 			Select("min(scheduled_at)").
+ 			Where("queue = ? AND kind IN ? AND state IN ? AND scheduled_at <= ?", queue, notificationJobKinds, waitingStates(), now).
+-			Scan(&oldest).Error
++			Scan(&oldest).Error; err != nil {
++			return nil, err
++		}
+```
+</details>
+
+<!-- suggestion_start -->
+
+<details>
+<summary>📝 Committable suggestion</summary>
+
+> ‼️ **IMPORTANT**
+> Carefully review the code before committing. Ensure that it accurately replaces the highlighted code, contains no missing lines, and has no issues with indentation. Thoroughly test & benchmark the code to ensure it meets the requirements.
+
+```suggestion
+		if err := s.db.WithContext(ctx).Table("river_job").
+			Where("queue = ? AND kind IN ? AND state = 'completed' AND finalized_at >= ?", queue, notificationJobKinds, now.Add(-24*time.Hour)).
+			Count(&summary.Completed24h).Error; err != nil {
+			return nil, err
+		}
+		if err := s.db.WithContext(ctx).Table("river_job").
+			Where("queue = ? AND kind IN ? AND state = 'discarded' AND finalized_at >= ?", queue, notificationJobKinds, now.Add(-24*time.Hour)).
+			Count(&summary.Discarded24h).Error; err != nil {
+			return nil, err
+		}
+		var oldest *time.Time
+		if err := s.db.WithContext(ctx).Table("river_job").
+			Select("min(scheduled_at)").
+			Where("queue = ? AND kind IN ? AND state IN ? AND scheduled_at <= ?", queue, notificationJobKinds, waitingStates(), now).
+			Scan(&oldest).Error; err != nil {
+			return nil, err
+		}
+		summary.OldestAvailableAt = oldest
+```
+
+</details>
+
+<!-- suggestion_end -->
+
+<details>
+<summary>🤖 Prompt for AI Agents</summary>
+
+```
+Verify each finding against current code. Fix only still-valid issues, skip the
+rest with a brief reason, keep changes minimal, and validate.
+
+In `@internal/service/notificationtroubleshooting/service.go` around lines 589 -
+600, The DB query errors for the three calls using s.db.WithContext(...) (the
+Count into summary.Completed24h, Count into summary.Discarded24h, and
+Select("min(scheduled_at)").Scan(&oldest) that sets summary.OldestAvailableAt)
+are being ignored; change each to capture the returned error, handle or
+propagate it (e.g., return fmt.Errorf("computing queue health: %w", err) from
+the enclosing function) instead of discarding with “_ = …”, so failures are not
+swallowed and the caller receives/logs the real DB error.
+```
+
+</details>
+
+<!-- fingerprinting:phantom:poseidon:hawk -->
+
+<!-- This is an auto-generated comment by CodeRabbit -->
+---
+Comment (internal/service/notificationtroubleshooting/service.go:1337):
+_⚠️ Potential issue_ | _🟠 Major_ | _⚡ Quick win_
+
+**Handle `latestJobForKind` errors in schedule diagnostics.**
+
+At Line 1337, the returned error is dropped. If the DB read fails, diagnostics may emit a misleading success message.
+
+<details>
+<summary>Suggested fix</summary>
+
+```diff
+-	last, ok, _ := s.latestJobForKind(ctx, def.JobKind)
++	last, ok, err := s.latestJobForKind(ctx, def.JobKind)
++	if err != nil {
++		return DiagnosticCheck{
++			Code:    "schedule_" + strings.ToLower(def.Name),
++			Label:   def.Name + " schedule",
++			Status:  StatusFail,
++			Message: "Failed to read last schedule job: " + err.Error(),
++		}
++	}
+```
+</details>
+
+<!-- suggestion_start -->
+
+<details>
+<summary>📝 Committable suggestion</summary>
+
+> ‼️ **IMPORTANT**
+> Carefully review the code before committing. Ensure that it accurately replaces the highlighted code, contains no missing lines, and has no issues with indentation. Thoroughly test & benchmark the code to ensure it meets the requirements.
+
+```suggestion
+	last, ok, err := s.latestJobForKind(ctx, def.JobKind)
+	if err != nil {
+		return DiagnosticCheck{
+			Code:    "schedule_" + strings.ToLower(def.Name),
+			Label:   def.Name + " schedule",
+			Status:  StatusFail,
+			Message: "Failed to read last schedule job: " + err.Error(),
+		}
+	}
+```
+
+</details>
+
+<!-- suggestion_end -->
+
+<details>
+<summary>🤖 Prompt for AI Agents</summary>
+
+```
+Verify each finding against current code. Fix only still-valid issues, skip the
+rest with a brief reason, keep changes minimal, and validate.
+
+In `@internal/service/notificationtroubleshooting/service.go` at line 1337, The
+call to latestJobForKind in the schedule diagnostics path currently ignores its
+returned error (last, ok, _ := s.latestJobForKind(ctx, def.JobKind)); modify
+this to capture the error (last, ok, err := ...) and handle it: if err is
+non-nil, mark the diagnostic as failed/unknown and include the error details in
+the diagnostic message or log instead of proceeding as if the lookup succeeded.
+Update any surrounding logic that uses last/ok to early-return or set an error
+state when err != nil so DB read failures no longer produce misleading success
+diagnostics.
+```
+
+</details>
+
+<!-- fingerprinting:phantom:poseidon:hawk -->
+
+<!-- This is an auto-generated comment by CodeRabbit -->
+---
+Comment (internal/service/worker/notification_definition_helpers_test.go:36):
+_🧹 Nitpick_ | _🔵 Trivial_ | _⚡ Quick win_
+
+**Add coverage for the non-positive `jobID` branch.**
+
+This test only validates the `jobID > 0` path; add a case for `jobID == 0` (and/or negative) to lock in the no-op behavior.
+
+<details>
+<summary>🤖 Prompt for AI Agents</summary>
+
+```
+Verify each finding against current code. Fix only still-valid issues, skip the
+rest with a brief reason, keep changes minimal, and validate.
+
+In `@internal/service/worker/notification_definition_helpers_test.go` around lines
+27 - 36, Add a new unit test (or extend
+TestRequestWithSourceJobIDSetsDispatchMetadata) to cover the non-positive jobID
+branch of requestWithSourceJobID: call requestWithSourceJobID with jobID == 0
+and a negative jobID (e.g., -1) using the same
+buildWorkflowTaskDigestNotificationRequest fixture, then assert that
+request.Options.SourceJobID is unchanged/empty for these cases; ensure the test
+references requestWithSourceJobID and verifies the no-op behavior when jobID is
+non-positive.
+```
+
+</details>
+
+<!-- fingerprinting:phantom:poseidon:hawk -->
+
+<!-- This is an auto-generated comment by CodeRabbit -->
+Implementation guidance: Update the source Swagger annotations on ListTroubleshootingJobs in internal/api/handler/notifications.go, not docs/docs.go directly. Add enum values to provider (email, slack) and state (available, cancelled, completed, discarded, pending, retryable, running, scheduled), mark since as a date-time/RFC3339 string, and add the documented limit bounds/default behavior as supported by swaggo annotations. Keep runtime parsing in parseTroubleshootingJobsQuery consistent with existing behavior: absent/non-positive limit means default 50, values above 200 are capped by notificationtroubleshooting.normalizeLimit. Regenerate docs with the repo's swagger generation command so docs/docs.go, docs/swagger.json, and docs/swagger.yaml are updated together.
+Implementation guidance: In internal/api/handler/notifications.go, update GetNotificationDiagnostics so unsupported notificationName returns 404 instead of being lumped into 400. Prefer adding a typed/sentinel unsupported-name error in internal/service/notificationtroubleshooting/service.go around Diagnostics/normalizeDiagnosticsName, then use errors.Is or a small exported predicate from the handler; avoid brittle string matching. Keep other Diagnostics service errors as internal/appropriate errors, add @Failure 404 {object} api.Error "Not Found" to the handler annotation, and add/adjust an integration or handler test for an unknown notificationName returning 404. Regenerate swagger docs after changing annotations.
+Implementation guidance: In internal/api/handler/notifications.go, update testNotificationRequest validation tags and docs generation source. ProviderType should be validate:"required,oneof=email slack". Mode should be optional but restricted to the only supported value, enqueue, because SendTestNotification currently rejects anything else and defaults blank to enqueue; do not invent immediate/scheduled modes. DestinationTarget cannot be a simple unconditional email format because Slack channel targets are valid too; leave provider-specific validation to h.buildTarget unless adding a custom conditional validator that preserves Slack support. Regenerate docs so providerType and mode enums appear in handler.testNotificationRequest.
+Implementation guidance: In internal/service/notificationtroubleshooting/service.go, add swaggo format:"date-time" tags to the time fields that generate JobDetail via embedded JobListItem: JobListItem.CreatedAt, ScheduledAt, AttemptedAt, and FinalizedAt. Also add the same format tag to JobSummary.CreatedAt and FinalizedAt if generated docs show those as plain strings. Preserve the existing json names and pointer types. Regenerate swagger docs so attemptedAt, createdAt, finalizedAt, and scheduledAt have format: date-time.
+Implementation guidance: Update internal/api/handler/response.go so GenericDataResponse[T].Data no longer has the list-specific comment. Use a neutral comment such as "Response payload" or "Wrapped response data". Leave GenericDataListResponse[T].Data as "Items from the list response". Regenerate swagger docs; this will update all GenericDataResponse definitions, including the notification wrappers and handler_threatIDResponse, without hand-editing docs/swagger.yaml.
+Implementation guidance: In internal/api/handler/notifications.go, change ListTroubleshootingJobs error handling after h.troubleshooting.Jobs. First make validation errors distinguishable: in internal/service/notificationtroubleshooting/service.go, wrap validateJobsQuery failures in a typed/sentinel validation error or expose an IsValidationError helper. Then in ListTroubleshootingJobs return 400 only for that validation error, and return 500 for DB/query/internal failures while keeping the existing Warnw log. Do not map all service errors to 500 blindly, because unsupported queue/provider/state should remain 400.
+Implementation guidance: In internal/service/notificationtroubleshooting/service.go, in queueSummaries, replace the three ignored DB errors around Completed24h, Discarded24h, and oldest scheduled_at with checked errors. For each query, assign err := ... .Error and return nil, fmt.Errorf("computing queue health for %s: %w", queue, err) on failure. Preserve summary.OldestAvailableAt = oldest after the Scan succeeds and do not change staleCount behavior unless adding separate error handling for it.
+Implementation guidance: In internal/service/notificationtroubleshooting/service.go, update scheduleCheck to capture the error from s.latestJobForKind(ctx, def.JobKind). If err is non-nil, return a DiagnosticCheck for the same code/label with StatusFail and a message like "Failed to read latest schedule job: <error>". Only build the existing pass message and inspect ok/last after the error check. Keep the disabled and invalid-cron branches unchanged.
+Implementation guidance: In internal/service/worker/notification_definition_helpers_test.go, extend coverage for requestWithSourceJobID by adding a table test or a separate test that calls it with jobID 0 and -1 using buildWorkflowTaskDigestNotificationRequest. Assert request.Options.SourceJobID remains the empty string for each non-positive value. Keep the existing positive jobID assertion intact.
