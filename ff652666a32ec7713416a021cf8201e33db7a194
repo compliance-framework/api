@@ -1,0 +1,16 @@
+lisa-addressed:
+---
+Comment (internal/service/notificationtroubleshooting/service.go:310):
+decodeCursor errors are returned without wrapping ErrInvalidJobsQuery, so a malformed `cursor` query param will be treated as an internal error by the HTTP handler (500) rather than a client error (400). Consider wrapping decodeCursor errors with ErrInvalidJobsQuery (or introducing a typed error like ErrInvalidCursor and mapping it to 400).
+
+---
+Comment (internal/service/notificationtroubleshooting/service.go:872):
+`allScheduleDefinitions` uses the string literal "workflow_due_soon_checker" even though a constant already exists (worker.JobTypeWorkflowDueSoonChecker). Using the constant would avoid drift if the kind ever changes and keeps this file consistent with `notificationJobKinds`/`jobKindsForFamily`.
+
+---
+Comment (internal/service/notificationtroubleshooting/service.go:1378):
+The indentation in the `jobKindsForFamily` switch cases (e.g., the `risk` block) doesn't match typical gofmt output and makes the list harder to read/maintain. Running gofmt on this file (or at least this function) should normalize the formatting (the same issue appears again in the `poam` block below).
+
+Implementation guidance: In internal/service/notificationtroubleshooting/service.go, update Service.Jobs so errors returned by decodeCursor(query.Cursor) are wrapped with ErrInvalidJobsQuery, matching validateJobsQuery behavior. Replace the raw return with something like return JobsListResponse{}, fmt.Errorf("%w: %w", ErrInvalidJobsQuery, err). Do not change decodeCursor itself unless tests require it; the goal is for IsInvalidJobsQueryError to classify malformed cursor input as a 400-level client error instead of an internal error.
+Implementation guidance: In internal/service/notificationtroubleshooting/service.go, change allScheduleDefinitions so the WORKFLOW_DUE_SOON scheduleDefinition uses worker.JobTypeWorkflowDueSoonChecker instead of the string literal "workflow_due_soon_checker". Keep the delivery kind as worker.JobTypeWorkflowTaskDueSoon. Do not introduce a new constant; the existing worker constant is already available in this file.
+Implementation guidance: Run gofmt on internal/service/notificationtroubleshooting/service.go, or minimally reformat jobKindsForFamily to gofmt output. The risk and poam switch cases currently have over-indented return slice literals; ensure the returned source-kind and delivery-kind slices are formatted normally by gofmt without changing the job kind contents or ordering.
