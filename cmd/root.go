@@ -57,6 +57,7 @@ func bindEnvironmentVariables() {
 	viper.MustBindEnv("digest_enabled")
 	viper.MustBindEnv("digest_schedule")
 	viper.MustBindEnv("worker_enabled")
+	viper.MustBindEnv("worker_use_polling")
 	viper.MustBindEnv("pprof_enabled")
 	viper.MustBindEnv("pprof_port")
 }

@@ -377,6 +377,7 @@ func (s *Service) Start(ctx context.Context) error {
 		"workers", s.config.Workers,
 		"default_email_queue", s.emailQueue(),
 		"slack_queue", s.slackQueue(),
+		"use_polling", s.config.UsePolling,
 	)
 
 	// Start the workers with the provided context (no dependency injection needed)
@@ -699,6 +700,7 @@ func periodicJobsFromConfig(cfg *config.Config, logger *zap.SugaredLogger) []*ri
 
 func buildRiverConfig(cfg *config.WorkerConfig, workers *river.Workers, periodicJobs []*river.PeriodicJob) river.Config {
 	return river.Config{
+		PollOnly: cfg.UsePolling,
 		Queues: map[string]river.QueueConfig{
 			"email": {
 				MaxWorkers: cfg.Workers,
