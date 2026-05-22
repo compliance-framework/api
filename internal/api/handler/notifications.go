@@ -76,12 +76,12 @@ type testNotificationRequest struct {
 }
 
 type testNotificationResponse struct {
-	Accepted          bool   `json:"accepted"`
-	Mode              string `json:"mode"`
-	ProviderType      string `json:"providerType"`
-	DestinationTarget string `json:"destinationTarget"`
-	CorrelationID     string `json:"correlationId"`
-	Message           string `json:"message"`
+	Accepted          bool    `json:"accepted"`
+	Mode              string  `json:"mode"`
+	ProviderType      string  `json:"providerType"`
+	DestinationTarget string  `json:"destinationTarget"`
+	JobIDs            []int64 `json:"jobIds"`
+	Message           string  `json:"message"`
 }
 
 func (r *createSystemNotificationDestinationRequest) UnmarshalJSON(data []byte) error {
@@ -295,9 +295,10 @@ func (h *NotificationsHandler) SendTestNotification(ctx echo.Context) error {
 		CorrelationID:    "admin-test-notification:" + time.Now().UTC().Format(time.RFC3339Nano),
 		SourceJobKind:    "admin_test_notification",
 	}
+	var jobIDs []int64
 	switch provider {
 	case notification.DeliveryChannelEmail:
-		err = h.enqueuer.EnqueueNotificationEmail(ctx.Request().Context(), emailprovider.Delivery{
+		jobIDs, err = h.enqueuer.EnqueueNotificationEmail(ctx.Request().Context(), emailprovider.Delivery{
 			To: target.Address[emailprovider.AddressKeyEmail],
 			Content: emailprovider.Content{
 				From:     h.defaultTestEmailFrom(),
@@ -307,7 +308,7 @@ func (h *NotificationsHandler) SendTestNotification(ctx echo.Context) error {
 			Metadata: metadata,
 		})
 	case notification.DeliveryChannelSlack:
-		err = h.enqueuer.EnqueueNotificationSlack(ctx.Request().Context(), slackprovider.Delivery{
+		jobIDs, err = h.enqueuer.EnqueueNotificationSlack(ctx.Request().Context(), slackprovider.Delivery{
 			Channel:    target.Address[slackprovider.AddressKeyChannel],
 			TargetType: target.Address[slackprovider.AddressKeyTargetType],
 			Content: slackprovider.Content{
@@ -326,8 +327,8 @@ func (h *NotificationsHandler) SendTestNotification(ctx echo.Context) error {
 		Mode:              mode,
 		ProviderType:      provider,
 		DestinationTarget: req.DestinationTarget,
-		CorrelationID:     metadata.CorrelationID,
-		Message:           "Test notification enqueued. Use correlationId for troubleshooting lookup.",
+		JobIDs:            jobIDs,
+		Message:           "Test notification enqueued. Use jobIds to inspect deliveries.",
 	}})
 }
 
