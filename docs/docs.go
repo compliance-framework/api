@@ -30467,14 +30467,11 @@ const docTemplate = `{
                 "accepted": {
                     "type": "boolean"
                 },
-                "destinationTarget": {
+                "correlationId": {
                     "type": "string"
                 },
-                "jobIds": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
+                "destinationTarget": {
+                    "type": "string"
                 },
                 "message": {
                     "type": "string"

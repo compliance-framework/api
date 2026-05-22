@@ -76,12 +76,12 @@ type testNotificationRequest struct {
 }
 
 type testNotificationResponse struct {
-	Accepted          bool    `json:"accepted"`
-	Mode              string  `json:"mode"`
-	ProviderType      string  `json:"providerType"`
-	DestinationTarget string  `json:"destinationTarget"`
-	JobIDs            []int64 `json:"jobIds"`
-	Message           string  `json:"message"`
+	Accepted          bool   `json:"accepted"`
+	Mode              string `json:"mode"`
+	ProviderType      string `json:"providerType"`
+	DestinationTarget string `json:"destinationTarget"`
+	CorrelationID     string `json:"correlationId"`
+	Message           string `json:"message"`
 }
 
 func (r *createSystemNotificationDestinationRequest) UnmarshalJSON(data []byte) error {
@@ -324,8 +324,8 @@ func (h *NotificationsHandler) SendTestNotification(ctx echo.Context) error {
 		Mode:              mode,
 		ProviderType:      provider,
 		DestinationTarget: req.DestinationTarget,
-		JobIDs:            []int64{},
-		Message:           "Test notification enqueued.",
+		CorrelationID:     metadata.CorrelationID,
+		Message:           "Test notification enqueued. Use correlationId for troubleshooting lookup.",
 	}})
 }
 

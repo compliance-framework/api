@@ -14,8 +14,6 @@ import (
 	"github.com/compliance-framework/api/internal/config"
 	"github.com/compliance-framework/api/internal/service/notification"
 	notificationproviders "github.com/compliance-framework/api/internal/service/notification/providers"
-	emailprovider "github.com/compliance-framework/api/internal/service/notification/providers/email"
-	slackprovider "github.com/compliance-framework/api/internal/service/notification/providers/slack"
 	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/compliance-framework/api/internal/service/worker"
 	"github.com/robfig/cron/v3"
@@ -278,6 +276,10 @@ func (s *Service) Health(ctx context.Context) (HealthResponse, error) {
 	if err != nil {
 		return HealthResponse{}, err
 	}
+	notifications, err := s.notificationHealth(ctx, providers)
+	if err != nil {
+		return HealthResponse{}, err
+	}
 
 	response := HealthResponse{
 		Worker: WorkerHealth{
@@ -287,7 +289,7 @@ func (s *Service) Health(ctx context.Context) (HealthResponse, error) {
 			Queues:   queues,
 		},
 		Providers:     providers,
-		Notifications: s.notificationHealth(ctx, providers),
+		Notifications: notifications,
 		Schedules:     schedules,
 	}
 	response.Warnings = s.healthWarnings(response)
@@ -420,7 +422,10 @@ func (s *Service) Diagnostics(ctx context.Context, rawName string) (DiagnosticsR
 	}
 
 	for _, gate := range subscriptionGatesForFamily(family) {
-		counts := s.subscriberCounts(ctx, gate)
+		counts, err := s.subscriberCounts(ctx, gate)
+		if err != nil {
+			return DiagnosticsResponse{}, err
+		}
 		status := StatusPass
 		message := fmt.Sprintf("%d active users are subscribed.", counts.TotalUsers)
 		if counts.TotalUsers == 0 {
@@ -437,7 +442,10 @@ func (s *Service) Diagnostics(ctx context.Context, rawName string) (DiagnosticsR
 	}
 
 	for _, name := range systemNotificationsForFamily(family) {
-		destinations := s.configuredDestinations(ctx, name)
+		destinations, err := s.configuredDestinations(ctx, name)
+		if err != nil {
+			return DiagnosticsResponse{}, err
+		}
 		status := StatusPass
 		message := fmt.Sprintf("%d configured system destinations found.", len(destinations))
 		if len(destinations) == 0 {
@@ -566,8 +574,8 @@ func (s *Service) providerStatuses() ([]ProviderStatus, error) {
 }
 
 func (s *Service) queueSummaries(ctx context.Context) ([]QueueSummary, error) {
-	summaries := make([]QueueSummary, 0, len(notificationQueues))
 	if !s.hasRiverJobsTable() {
+		summaries := make([]QueueSummary, 0, len(notificationQueues))
 		for _, queue := range notificationQueues {
 			summaries = append(summaries, QueueSummary{Name: queue, MaxWorkers: s.maxWorkersForQueue(queue), StaleThresholdSeconds: thresholdForQueue(queue)})
 		}
@@ -575,51 +583,95 @@ func (s *Service) queueSummaries(ctx context.Context) ([]QueueSummary, error) {
 	}
 
 	now := s.now().UTC()
+	summaryByQueue := make(map[string]*QueueSummary, len(notificationQueues))
 	for _, queue := range notificationQueues {
 		summary := QueueSummary{Name: queue, MaxWorkers: s.maxWorkersForQueue(queue), StaleThresholdSeconds: thresholdForQueue(queue)}
-		var rows []struct {
-			State string
-			Count int64
+		summaryByQueue[queue] = &summary
+	}
+
+	var stateRows []struct {
+		Queue string
+		State string
+		Count int64
+	}
+	if err := s.db.WithContext(ctx).Table("river_job").
+		Select("queue, state::text AS state, count(*) AS count").
+		Where("queue IN ? AND kind IN ?", notificationQueues, notificationJobKinds).
+		Group("queue, state").
+		Find(&stateRows).Error; err != nil {
+		return nil, fmt.Errorf("computing queue state health: %w", err)
+	}
+	for _, row := range stateRows {
+		summary, ok := summaryByQueue[row.Queue]
+		if !ok {
+			continue
 		}
-		if err := s.db.WithContext(ctx).Table("river_job").
-			Select("state::text AS state, count(*) AS count").
-			Where("queue = ? AND kind IN ?", queue, notificationJobKinds).
-			Group("state").
-			Find(&rows).Error; err != nil {
-			return nil, err
+		switch row.State {
+		case "available":
+			summary.Available = row.Count
+		case "retryable":
+			summary.Retryable = row.Count
+		case "running":
+			summary.Running = row.Count
+		case "scheduled":
+			summary.Scheduled = row.Count
 		}
-		for _, row := range rows {
-			switch row.State {
-			case "available":
-				summary.Available = row.Count
-			case "retryable":
-				summary.Retryable = row.Count
-			case "running":
-				summary.Running = row.Count
-			case "scheduled":
-				summary.Scheduled = row.Count
-			}
+	}
+
+	var finalizedRows []struct {
+		Queue        string `gorm:"column:queue"`
+		Completed24h int64  `gorm:"column:completed24h"`
+		Discarded24h int64  `gorm:"column:discarded24h"`
+	}
+	if err := s.db.WithContext(ctx).Table("river_job").
+		Select(`
+			queue,
+			sum(CASE WHEN state = 'completed' AND finalized_at >= ? THEN 1 ELSE 0 END) AS completed24h,
+			sum(CASE WHEN state = 'discarded' AND finalized_at >= ? THEN 1 ELSE 0 END) AS discarded24h
+		`, now.Add(-24*time.Hour), now.Add(-24*time.Hour)).
+		Where("queue IN ? AND kind IN ?", notificationQueues, notificationJobKinds).
+		Group("queue").
+		Find(&finalizedRows).Error; err != nil {
+		return nil, fmt.Errorf("computing queue finalized health: %w", err)
+	}
+	for _, row := range finalizedRows {
+		if summary, ok := summaryByQueue[row.Queue]; ok {
+			summary.Completed24h = row.Completed24h
+			summary.Discarded24h = row.Discarded24h
 		}
-		if err := s.db.WithContext(ctx).Table("river_job").
-			Where("queue = ? AND kind IN ? AND state = 'completed' AND finalized_at >= ?", queue, notificationJobKinds, now.Add(-24*time.Hour)).
-			Count(&summary.Completed24h).Error; err != nil {
-			return nil, fmt.Errorf("computing queue health for %s: %w", queue, err)
+	}
+
+	var waitingRows []struct {
+		Queue             string     `gorm:"column:queue"`
+		OldestAvailableAt *time.Time `gorm:"column:oldest_available_at"`
+		StaleCount        int64      `gorm:"column:stale_count"`
+	}
+	if err := s.db.WithContext(ctx).Table("river_job").
+		Select(`
+			queue,
+			min(CASE WHEN state IN ? AND scheduled_at <= ? THEN scheduled_at END) AS oldest_available_at,
+			sum(CASE WHEN state IN ? AND scheduled_at <= ? AND ((kind IN ? AND scheduled_at <= ?) OR (kind NOT IN ? AND scheduled_at <= ?)) THEN 1 ELSE 0 END) AS stale_count
+		`,
+			waitingStates(), now,
+			waitingStates(), now,
+			providerKindList(), now.Add(-ProviderStaleThresholdSeconds*time.Second),
+			providerKindList(), now.Add(-SourceStaleThresholdSeconds*time.Second),
+		).
+		Where("queue IN ? AND kind IN ?", notificationQueues, notificationJobKinds).
+		Group("queue").
+		Find(&waitingRows).Error; err != nil {
+		return nil, fmt.Errorf("computing queue waiting health: %w", err)
+	}
+	for _, row := range waitingRows {
+		if summary, ok := summaryByQueue[row.Queue]; ok {
+			summary.OldestAvailableAt = row.OldestAvailableAt
+			summary.StaleCount = row.StaleCount
 		}
-		if err := s.db.WithContext(ctx).Table("river_job").
-			Where("queue = ? AND kind IN ? AND state = 'discarded' AND finalized_at >= ?", queue, notificationJobKinds, now.Add(-24*time.Hour)).
-			Count(&summary.Discarded24h).Error; err != nil {
-			return nil, fmt.Errorf("computing queue health for %s: %w", queue, err)
-		}
-		var oldest *time.Time
-		if err := s.db.WithContext(ctx).Table("river_job").
-			Select("min(scheduled_at)").
-			Where("queue = ? AND kind IN ? AND state IN ? AND scheduled_at <= ?", queue, notificationJobKinds, waitingStates(), now).
-			Scan(&oldest).Error; err != nil {
-			return nil, fmt.Errorf("computing queue health for %s: %w", queue, err)
-		}
-		summary.OldestAvailableAt = oldest
-		summary.StaleCount = s.staleCount(ctx, queue)
-		summaries = append(summaries, summary)
+	}
+
+	summaries := make([]QueueSummary, 0, len(notificationQueues))
+	for _, queue := range notificationQueues {
+		summaries = append(summaries, *summaryByQueue[queue])
 	}
 	return summaries, nil
 }
@@ -643,21 +695,6 @@ func (s *Service) maxWorkersForQueue(queue string) int {
 	}
 }
 
-func (s *Service) staleCount(ctx context.Context, queue string) int64 {
-	if !s.hasRiverJobsTable() {
-		return 0
-	}
-	now := s.now().UTC()
-	var count int64
-	_ = s.db.WithContext(ctx).Table("river_job").
-		Where("queue = ? AND kind IN ? AND state IN ? AND scheduled_at <= ?", queue, notificationJobKinds, waitingStates(), now).
-		Where("(kind IN ? AND scheduled_at <= ?) OR (kind NOT IN ? AND scheduled_at <= ?)",
-			providerKindList(), now.Add(-ProviderStaleThresholdSeconds*time.Second),
-			providerKindList(), now.Add(-SourceStaleThresholdSeconds*time.Second)).
-		Count(&count).Error
-	return count
-}
-
 func thresholdForQueue(queue string) int64 {
 	if queue == "email" || queue == "slack" {
 		return ProviderStaleThresholdSeconds
@@ -665,7 +702,7 @@ func thresholdForQueue(queue string) int64 {
 	return SourceStaleThresholdSeconds
 }
 
-func (s *Service) notificationHealth(ctx context.Context, providers []ProviderStatus) []NotificationHealth {
+func (s *Service) notificationHealth(ctx context.Context, providers []ProviderStatus) ([]NotificationHealth, error) {
 	names := []string{
 		notification.SubscriptionGateEvidenceDigest,
 		notification.SubscriptionGateTaskAvailable,
@@ -675,8 +712,14 @@ func (s *Service) notificationHealth(ctx context.Context, providers []ProviderSt
 	}
 	response := make([]NotificationHealth, 0, len(names))
 	for _, name := range names {
-		destinations := s.configuredDestinations(ctx, name)
-		counts := s.subscriberCounts(ctx, subscriptionGateForSystemName(name))
+		destinations, err := s.configuredDestinations(ctx, name)
+		if err != nil {
+			return nil, err
+		}
+		counts, err := s.subscriberCounts(ctx, subscriptionGateForSystemName(name))
+		if err != nil {
+			return nil, err
+		}
 		item := NotificationHealth{
 			Name:                   strings.ToUpper(name),
 			ConfiguredDestinations: destinations,
@@ -692,19 +735,19 @@ func (s *Service) notificationHealth(ctx context.Context, providers []ProviderSt
 		}
 		response = append(response, item)
 	}
-	return response
+	return response, nil
 }
 
-func (s *Service) configuredDestinations(ctx context.Context, name string) []ConfiguredSystemDestinationResponse {
+func (s *Service) configuredDestinations(ctx context.Context, name string) ([]ConfiguredSystemDestinationResponse, error) {
 	var rows []relational.SystemNotificationDestination
 	if s.db == nil {
-		return []ConfiguredSystemDestinationResponse{}
+		return []ConfiguredSystemDestinationResponse{}, nil
 	}
 	if err := s.db.WithContext(ctx).
 		Where("notification_type = ?", name).
 		Order("provider ASC, created_at ASC").
 		Find(&rows).Error; err != nil {
-		return []ConfiguredSystemDestinationResponse{}
+		return nil, fmt.Errorf("loading configured destinations for %s: %w", name, err)
 	}
 	destinations := make([]ConfiguredSystemDestinationResponse, 0, len(rows))
 	seen := map[string]struct{}{}
@@ -729,12 +772,12 @@ func (s *Service) configuredDestinations(ctx context.Context, name string) []Con
 		seen[key] = struct{}{}
 		destinations = append(destinations, ConfiguredSystemDestinationResponse{ProviderType: row.Provider, DestinationTarget: display})
 	}
-	return destinations
+	return destinations, nil
 }
 
-func (s *Service) subscriberCounts(ctx context.Context, gate string) SubscriberCounts {
+func (s *Service) subscriberCounts(ctx context.Context, gate string) (SubscriberCounts, error) {
 	if gate == "" || s.db == nil {
-		return SubscriberCounts{}
+		return SubscriberCounts{}, nil
 	}
 	var rows []relational.UserNotificationSubscription
 	if err := s.db.WithContext(ctx).
@@ -742,7 +785,7 @@ func (s *Service) subscriberCounts(ctx context.Context, gate string) SubscriberC
 		Where("ccf_user_notification_subscriptions.notification_type = ?", gate).
 		Where("ccf_users.is_active = ? AND ccf_users.is_locked = ?", true, false).
 		Find(&rows).Error; err != nil {
-		return SubscriberCounts{}
+		return SubscriberCounts{}, fmt.Errorf("loading subscriber counts for %s: %w", gate, err)
 	}
 	userIDs := map[string]struct{}{}
 	var counts SubscriberCounts
@@ -764,7 +807,7 @@ func (s *Service) subscriberCounts(ctx context.Context, gate string) SubscriberC
 		}
 	}
 	counts.TotalUsers = int64(len(userIDs))
-	return counts
+	return counts, nil
 }
 
 func (s *Service) scheduleHealth(ctx context.Context) ([]ScheduleHealth, error) {
@@ -1463,7 +1506,7 @@ func (s *Service) correlationCoverageCheck(jobs []JobListItem) DiagnosticCheck {
 	}
 	var withCorrelation int
 	for _, job := range jobs {
-		if job.CorrelationID != "" && job.SourceJobKind != "" {
+		if job.CorrelationID != "" && job.SourceJobKind != "" && job.SourceJobID != "" {
 			withCorrelation++
 		}
 	}
@@ -1475,7 +1518,7 @@ func (s *Service) correlationCoverageCheck(jobs []JobListItem) DiagnosticCheck {
 		Code:    "correlation_coverage",
 		Label:   "Correlation coverage",
 		Status:  status,
-		Message: fmt.Sprintf("%d of %d provider jobs include correlation and source metadata.", withCorrelation, len(jobs)),
+		Message: fmt.Sprintf("%d of %d provider jobs include correlation ID, source job kind, and source job ID metadata.", withCorrelation, len(jobs)),
 	}
 }
 
@@ -1508,6 +1551,3 @@ func dedupeStrings(values []string) []string {
 	}
 	return result
 }
-
-var _ = emailprovider.ChannelID
-var _ = slackprovider.ChannelID

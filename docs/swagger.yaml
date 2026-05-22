@@ -2249,12 +2249,10 @@ definitions:
     properties:
       accepted:
         type: boolean
+      correlationId:
+        type: string
       destinationTarget:
         type: string
-      jobIds:
-        items:
-          type: integer
-        type: array
       message:
         type: string
       mode:
