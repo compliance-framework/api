@@ -7,6 +7,7 @@ import (
 	"math/big"
 
 	"github.com/compliance-framework/api/internal/config"
+	"github.com/compliance-framework/api/internal/logging"
 	"github.com/compliance-framework/api/internal/service"
 	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/spf13/cobra"
@@ -45,7 +46,7 @@ func addUser(cmd *cobra.Command, args []string) {
 	cobra.CheckErr(err)
 	defer func() {
 		err := logger.Sync()
-		if err != nil {
+		if !logging.IgnoreSyncError(err) {
 			println("failed to sync logger:", err.Error())
 		}
 	}()

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/compliance-framework/api/internal/config"
+	"github.com/compliance-framework/api/internal/logging"
 	"github.com/compliance-framework/api/internal/service"
 	"github.com/compliance-framework/api/internal/service/email"
 	slacksvc "github.com/compliance-framework/api/internal/service/slack"
@@ -47,7 +48,7 @@ func runRiskDigestTest(cmd *cobra.Command, args []string) {
 	}
 
 	defer func() {
-		if err := sugar.Sync(); err != nil {
+		if err := sugar.Sync(); !logging.IgnoreSyncError(err) {
 			log.Printf("failed to sync zap logger: %v", err)
 		}
 	}()
