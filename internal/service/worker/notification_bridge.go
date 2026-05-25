@@ -106,35 +106,35 @@ func (e *workerNotificationEnqueuer) IsStarted() bool {
 	return e != nil && e.client != nil
 }
 
-func (e *workerNotificationEnqueuer) EnqueueNotificationEmail(ctx context.Context, delivery emailprovider.Delivery) error {
+func (e *workerNotificationEnqueuer) EnqueueNotificationEmail(ctx context.Context, delivery emailprovider.Delivery) ([]int64, error) {
 	if e == nil || e.client == nil {
-		return fmt.Errorf("worker client is not initialized")
+		return nil, fmt.Errorf("worker client is not initialized")
 	}
 
-	_, err := e.client.InsertMany(ctx, notificationEmailInsertParams(delivery, normalizedNotificationEmailQueue(e.emailQueue), e.maxAttempts))
+	results, err := e.client.InsertMany(ctx, notificationEmailInsertParams(delivery, normalizedNotificationEmailQueue(e.emailQueue), e.maxAttempts))
 	if err != nil {
-		return fmt.Errorf("failed to enqueue notification email delivery: %w", err)
+		return nil, fmt.Errorf("failed to enqueue notification email delivery: %w", err)
 	}
 
-	return nil
+	return jobIDsFromInsertResults(results), nil
 }
 
-func (e *workerNotificationEnqueuer) EnqueueNotificationSlack(ctx context.Context, delivery slackprovider.Delivery) error {
+func (e *workerNotificationEnqueuer) EnqueueNotificationSlack(ctx context.Context, delivery slackprovider.Delivery) ([]int64, error) {
 	if e == nil || e.client == nil {
-		return fmt.Errorf("worker client is not initialized")
+		return nil, fmt.Errorf("worker client is not initialized")
 	}
 
 	params, err := notificationSlackInsertParams(delivery, defaultNotificationSlackQueue, e.maxAttempts)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	_, err = e.client.InsertMany(ctx, params)
+	results, err := e.client.InsertMany(ctx, params)
 	if err != nil {
-		return fmt.Errorf("failed to enqueue notification slack delivery: %w", err)
+		return nil, fmt.Errorf("failed to enqueue notification slack delivery: %w", err)
 	}
 
-	return nil
+	return jobIDsFromInsertResults(results), nil
 }
 
 func (s *workerNotificationEmailSender) IsEnabled() bool {

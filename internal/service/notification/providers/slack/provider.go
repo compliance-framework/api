@@ -69,7 +69,7 @@ type Sender interface {
 
 type Enqueuer interface {
 	IsStarted() bool
-	EnqueueNotificationSlack(ctx context.Context, delivery Delivery) error
+	EnqueueNotificationSlack(ctx context.Context, delivery Delivery) ([]int64, error)
 }
 
 type SenderProvider func() Sender
@@ -346,7 +346,7 @@ func (p *Provider) Deliver(ctx context.Context, delivery notification.Delivery) 
 	}
 
 	if enqueuer := p.enqueuer(); enqueuer != nil && enqueuer.IsStarted() {
-		if err := enqueuer.EnqueueNotificationSlack(ctx, providerDelivery); err != nil {
+		if _, err := enqueuer.EnqueueNotificationSlack(ctx, providerDelivery); err != nil {
 			return fmt.Errorf("enqueue slack delivery: %w", err)
 		}
 		return nil

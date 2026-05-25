@@ -137,6 +137,213 @@ const docTemplate = `{
                 ]
             }
         },
+        "/admin/notifications/health": {
+            "get": {
+                "description": "Returns provider, worker, queue, subscriber, destination, and schedule health for admin notification troubleshooting",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Notifications"
+                ],
+                "summary": "Get notification troubleshooting health",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-notificationtroubleshooting_HealthResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/admin/notifications/jobs": {
+            "get": {
+                "description": "Lists recent notification-related River jobs with sanitized notification metadata",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Notifications"
+                ],
+                "summary": "List notification River jobs",
+                "parameters": [
+                    {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "collectionFormat": "csv",
+                        "description": "Queue filter; repeat or comma-separate values",
+                        "name": "queue",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "email",
+                            "slack"
+                        ],
+                        "type": "string",
+                        "description": "Provider filter: email or slack",
+                        "name": "provider",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Notification kind filter",
+                        "name": "notificationKind",
+                        "in": "query"
+                    },
+                    {
+                        "type": "array",
+                        "items": {
+                            "enum": [
+                                "available",
+                                "cancelled",
+                                "completed",
+                                "discarded",
+                                "pending",
+                                "retryable",
+                                "running",
+                                "scheduled"
+                            ],
+                            "type": "string"
+                        },
+                        "collectionFormat": "csv",
+                        "description": "River state filter; repeat or comma-separate values",
+                        "name": "state",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "RFC3339 lower bound for job creation time",
+                        "name": "since",
+                        "in": "query"
+                    },
+                    {
+                        "maximum": 200,
+                        "minimum": 1,
+                        "type": "integer",
+                        "description": "Page size, default 50, max 200",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Opaque pagination cursor",
+                        "name": "cursor",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/notificationtroubleshooting.JobsListResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/admin/notifications/jobs/{id}": {
+            "get": {
+                "description": "Returns one sanitized notification-related River job with attempt errors",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Notifications"
+                ],
+                "summary": "Get notification River job detail",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "River job ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-notificationtroubleshooting_JobDetail"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
         "/admin/notifications/providers": {
             "get": {
                 "description": "Returns notification providers registered in the backend",
@@ -162,6 +369,69 @@ const docTemplate = `{
                     },
                     "500": {
                         "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/admin/notifications/test": {
+            "post": {
+                "description": "Enqueues a fixed server-side test notification to a validated admin-supplied destination",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Notifications"
+                ],
+                "summary": "Enqueue fixed test notification",
+                "parameters": [
+                    {
+                        "description": "Test destination",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.testNotificationRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "Accepted",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-handler_testNotificationResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
                         "schema": {
                             "$ref": "#/definitions/api.Error"
                         }
@@ -276,6 +546,64 @@ const docTemplate = `{
                 "responses": {
                     "204": {
                         "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/admin/notifications/{notificationName}/diagnostics": {
+            "get": {
+                "description": "Runs read-only diagnostics for evidence digest, workflow, risk, or POAM notifications",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Notifications"
+                ],
+                "summary": "Get notification diagnostics",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Notification name or family",
+                        "name": "notificationName",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-notificationtroubleshooting_DiagnosticsResponse"
+                        }
                     },
                     "400": {
                         "description": "Bad Request",
@@ -27201,7 +27529,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/evidence.SignatureDetail"
@@ -27214,7 +27542,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/evidence.VerificationResult"
@@ -27985,7 +28313,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/oscalTypes_1_1_3.AssessmentAssets"
@@ -27997,7 +28325,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/oscalTypes_1_1_3.AssessmentSubject"
@@ -28009,7 +28337,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/oscalTypes_1_1_3.Task"
@@ -28021,7 +28349,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/auth.AuthHandler"
@@ -28034,7 +28362,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/digest.EvidenceSummary"
@@ -28047,7 +28375,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/handler.CreatedEvidenceResponse"
@@ -28060,7 +28388,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/handler.FilterImportResponse"
@@ -28073,7 +28401,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/handler.FilterWithAssociations"
@@ -28086,7 +28414,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/handler.PublicEvidenceResponse"
@@ -28099,7 +28427,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/handler.SubscriptionsResponse"
@@ -28112,7 +28440,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/handler.configuredSystemDestinationResponse"
@@ -28125,7 +28453,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/handler.milestoneResponse"
@@ -28138,7 +28466,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/handler.poamItemResponse"
@@ -28151,7 +28479,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/handler.publicUserResponse"
@@ -28164,7 +28492,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/handler.remediationTemplateResponse"
@@ -28177,10 +28505,23 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/handler.riskResponse"
+                        }
+                    ]
+                }
+            }
+        },
+        "handler.GenericDataResponse-handler_testNotificationResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Wrapped response data",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/handler.testNotificationResponse"
                         }
                     ]
                 }
@@ -28190,10 +28531,49 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/handler.threatIDResponse"
+                        }
+                    ]
+                }
+            }
+        },
+        "handler.GenericDataResponse-notificationtroubleshooting_DiagnosticsResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Wrapped response data",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/notificationtroubleshooting.DiagnosticsResponse"
+                        }
+                    ]
+                }
+            }
+        },
+        "handler.GenericDataResponse-notificationtroubleshooting_HealthResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Wrapped response data",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/notificationtroubleshooting.HealthResponse"
+                        }
+                    ]
+                }
+            }
+        },
+        "handler.GenericDataResponse-notificationtroubleshooting_JobDetail": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Wrapped response data",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/notificationtroubleshooting.JobDetail"
                         }
                     ]
                 }
@@ -28203,7 +28583,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.Activity"
@@ -28216,7 +28596,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.AssessmentAssets"
@@ -28229,7 +28609,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.AssessmentPlan"
@@ -28242,7 +28622,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.AssessmentPlanTermsAndConditions"
@@ -28255,7 +28635,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.AssessmentResults"
@@ -28268,7 +28648,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.AssessmentSubject"
@@ -28281,7 +28661,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.AttestationStatements"
@@ -28294,7 +28674,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.AuthorizationBoundary"
@@ -28307,7 +28687,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.BackMatter"
@@ -28320,7 +28700,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.ByComponent"
@@ -28333,7 +28713,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.Capability"
@@ -28346,7 +28726,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.Catalog"
@@ -28359,7 +28739,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.ComponentDefinition"
@@ -28372,7 +28752,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.Control"
@@ -28385,7 +28765,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.ControlImplementation"
@@ -28398,7 +28778,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.ControlImplementationSet"
@@ -28411,7 +28791,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.DataFlow"
@@ -28424,7 +28804,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.DefinedComponent"
@@ -28437,7 +28817,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.Diagram"
@@ -28450,7 +28830,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.Finding"
@@ -28463,7 +28843,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.Group"
@@ -28476,7 +28856,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.ImplementedRequirement"
@@ -28489,7 +28869,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.Import"
@@ -28502,7 +28882,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.ImportAp"
@@ -28515,7 +28895,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.ImportProfile"
@@ -28528,7 +28908,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.ImportSsp"
@@ -28541,7 +28921,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.InventoryItem"
@@ -28554,7 +28934,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.LeveragedAuthorization"
@@ -28567,7 +28947,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.LocalDefinitions"
@@ -28580,7 +28960,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.Merge"
@@ -28593,7 +28973,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.Metadata"
@@ -28606,7 +28986,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.Modify"
@@ -28619,7 +28999,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.NetworkArchitecture"
@@ -28632,7 +29012,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.Observation"
@@ -28645,7 +29025,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.Party"
@@ -28658,7 +29038,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.PlanOfActionAndMilestones"
@@ -28671,7 +29051,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.PlanOfActionAndMilestonesLocalDefinitions"
@@ -28684,7 +29064,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.PoamItem"
@@ -28697,7 +29077,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.Profile"
@@ -28710,7 +29090,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.Resource"
@@ -28723,7 +29103,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.Result"
@@ -28736,7 +29116,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.Risk"
@@ -28749,7 +29129,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.Role"
@@ -28762,7 +29142,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.Statement"
@@ -28775,7 +29155,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.SystemCharacteristics"
@@ -28788,7 +29168,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.SystemComponent"
@@ -28801,7 +29181,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.SystemId"
@@ -28814,7 +29194,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.SystemImplementation"
@@ -28827,7 +29207,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.SystemSecurityPlan"
@@ -28840,7 +29220,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.SystemUser"
@@ -28853,7 +29233,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.Task"
@@ -28866,7 +29246,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscal.BuildByPropsResponse"
@@ -28879,7 +29259,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscal.ImportResponse"
@@ -28892,7 +29272,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscal.InventoryItemWithSource"
@@ -28905,7 +29285,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscal.ProfileComplianceProgress"
@@ -28918,7 +29298,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscal.ProfileHandler"
@@ -28931,7 +29311,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/poam.PoamItemControlLink"
@@ -28944,7 +29324,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/poam.PoamItemEvidenceLink"
@@ -28957,7 +29337,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/poam.PoamItemFindingLink"
@@ -28970,7 +29350,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/poam.PoamItemRiskLink"
@@ -28983,7 +29363,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/relational.Filter"
@@ -28996,7 +29376,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/relational.User"
@@ -29009,7 +29389,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/risks.RiskComponentLink"
@@ -29022,7 +29402,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/risks.RiskControlLink"
@@ -29035,7 +29415,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/risks.RiskEvidenceLink"
@@ -29048,7 +29428,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "allOf": [
                         {
                             "$ref": "#/definitions/risks.RiskSubjectLink"
@@ -29061,7 +29441,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "description": "Items from the list response",
+                    "description": "Wrapped response data",
                     "type": "string"
                 }
             }
@@ -30068,6 +30448,57 @@ const docTemplate = `{
                 }
             }
         },
+        "handler.testNotificationRequest": {
+            "type": "object",
+            "required": [
+                "destinationTarget",
+                "providerType"
+            ],
+            "properties": {
+                "destinationTarget": {
+                    "type": "string"
+                },
+                "mode": {
+                    "type": "string",
+                    "enum": [
+                        "enqueue"
+                    ]
+                },
+                "providerType": {
+                    "type": "string",
+                    "enum": [
+                        "email",
+                        "slack"
+                    ]
+                }
+            }
+        },
+        "handler.testNotificationResponse": {
+            "type": "object",
+            "properties": {
+                "accepted": {
+                    "type": "boolean"
+                },
+                "destinationTarget": {
+                    "type": "string"
+                },
+                "jobIds": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "message": {
+                    "type": "string"
+                },
+                "mode": {
+                    "type": "string"
+                },
+                "providerType": {
+                    "type": "string"
+                }
+            }
+        },
         "handler.threatIDRequest": {
             "type": "object",
             "properties": {
@@ -30305,6 +30736,462 @@ const docTemplate = `{
                 },
                 "query": {
                     "$ref": "#/definitions/labelfilter.Query"
+                }
+            }
+        },
+        "notificationtroubleshooting.ConfiguredSystemDestinationResponse": {
+            "type": "object",
+            "properties": {
+                "destinationTarget": {
+                    "type": "string"
+                },
+                "providerType": {
+                    "type": "string"
+                }
+            }
+        },
+        "notificationtroubleshooting.DiagnosticCheck": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "jobId": {
+                    "type": "integer"
+                },
+                "label": {
+                    "type": "string"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
+        "notificationtroubleshooting.DiagnosticsResponse": {
+            "type": "object",
+            "properties": {
+                "checks": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/notificationtroubleshooting.DiagnosticCheck"
+                    }
+                },
+                "configuredDestinations": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/notificationtroubleshooting.ConfiguredSystemDestinationResponse"
+                    }
+                },
+                "notificationName": {
+                    "type": "string"
+                },
+                "recommendedActions": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "status": {
+                    "type": "string"
+                },
+                "subscriberCounts": {
+                    "$ref": "#/definitions/notificationtroubleshooting.SubscriberCounts"
+                }
+            }
+        },
+        "notificationtroubleshooting.HealthResponse": {
+            "type": "object",
+            "properties": {
+                "notifications": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/notificationtroubleshooting.NotificationHealth"
+                    }
+                },
+                "providers": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/notificationtroubleshooting.ProviderStatus"
+                    }
+                },
+                "schedules": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/notificationtroubleshooting.ScheduleHealth"
+                    }
+                },
+                "warnings": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/notificationtroubleshooting.TroubleshootingWarning"
+                    }
+                },
+                "worker": {
+                    "$ref": "#/definitions/notificationtroubleshooting.WorkerHealth"
+                }
+            }
+        },
+        "notificationtroubleshooting.JobDetail": {
+            "type": "object",
+            "properties": {
+                "args": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "attempt": {
+                    "type": "integer"
+                },
+                "attemptedAt": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "correlationId": {
+                    "type": "string"
+                },
+                "createdAt": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "errors": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/notificationtroubleshooting.SanitizedAttemptError"
+                    }
+                },
+                "finalizedAt": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "kind": {
+                    "type": "string"
+                },
+                "lastError": {
+                    "type": "string"
+                },
+                "maxAttempts": {
+                    "type": "integer"
+                },
+                "metadata": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "notificationKind": {
+                    "type": "string"
+                },
+                "provider": {
+                    "type": "string"
+                },
+                "queue": {
+                    "type": "string"
+                },
+                "scheduledAt": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "sourceJobId": {
+                    "type": "string"
+                },
+                "sourceJobKind": {
+                    "type": "string"
+                },
+                "stale": {
+                    "type": "boolean"
+                },
+                "state": {
+                    "type": "string"
+                },
+                "target": {
+                    "type": "string"
+                }
+            }
+        },
+        "notificationtroubleshooting.JobListItem": {
+            "type": "object",
+            "properties": {
+                "attempt": {
+                    "type": "integer"
+                },
+                "attemptedAt": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "correlationId": {
+                    "type": "string"
+                },
+                "createdAt": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "finalizedAt": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "kind": {
+                    "type": "string"
+                },
+                "lastError": {
+                    "type": "string"
+                },
+                "maxAttempts": {
+                    "type": "integer"
+                },
+                "notificationKind": {
+                    "type": "string"
+                },
+                "provider": {
+                    "type": "string"
+                },
+                "queue": {
+                    "type": "string"
+                },
+                "scheduledAt": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "sourceJobId": {
+                    "type": "string"
+                },
+                "sourceJobKind": {
+                    "type": "string"
+                },
+                "stale": {
+                    "type": "boolean"
+                },
+                "state": {
+                    "type": "string"
+                },
+                "target": {
+                    "type": "string"
+                }
+            }
+        },
+        "notificationtroubleshooting.JobSummary": {
+            "type": "object",
+            "properties": {
+                "createdAt": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "finalizedAt": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "state": {
+                    "type": "string"
+                }
+            }
+        },
+        "notificationtroubleshooting.JobsListResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/notificationtroubleshooting.JobListItem"
+                    }
+                },
+                "pagination": {
+                    "$ref": "#/definitions/notificationtroubleshooting.Pagination"
+                }
+            }
+        },
+        "notificationtroubleshooting.NotificationHealth": {
+            "type": "object",
+            "properties": {
+                "configuredDestinations": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/notificationtroubleshooting.ConfiguredSystemDestinationResponse"
+                    }
+                },
+                "name": {
+                    "type": "string"
+                },
+                "subscriberCounts": {
+                    "$ref": "#/definitions/notificationtroubleshooting.SubscriberCounts"
+                },
+                "warnings": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/notificationtroubleshooting.TroubleshootingWarning"
+                    }
+                }
+            }
+        },
+        "notificationtroubleshooting.Pagination": {
+            "type": "object",
+            "properties": {
+                "nextCursor": {
+                    "type": "string"
+                }
+            }
+        },
+        "notificationtroubleshooting.ProviderStatus": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "displayName": {
+                    "type": "string"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "metadata": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "providerType": {
+                    "type": "string"
+                }
+            }
+        },
+        "notificationtroubleshooting.QueueSummary": {
+            "type": "object",
+            "properties": {
+                "available": {
+                    "type": "integer"
+                },
+                "completed24h": {
+                    "type": "integer"
+                },
+                "discarded24h": {
+                    "type": "integer"
+                },
+                "maxWorkers": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "oldestAvailableAt": {
+                    "type": "string"
+                },
+                "retryable": {
+                    "type": "integer"
+                },
+                "running": {
+                    "type": "integer"
+                },
+                "scheduled": {
+                    "type": "integer"
+                },
+                "staleCount": {
+                    "type": "integer"
+                },
+                "staleThresholdSeconds": {
+                    "type": "integer"
+                }
+            }
+        },
+        "notificationtroubleshooting.SanitizedAttemptError": {
+            "type": "object",
+            "properties": {
+                "at": {
+                    "type": "string"
+                },
+                "attempt": {
+                    "type": "integer"
+                },
+                "error": {
+                    "type": "string"
+                }
+            }
+        },
+        "notificationtroubleshooting.ScheduleHealth": {
+            "type": "object",
+            "properties": {
+                "deliveryKind": {
+                    "type": "string"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "jobKind": {
+                    "type": "string"
+                },
+                "lastJob": {
+                    "$ref": "#/definitions/notificationtroubleshooting.JobSummary"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "nextRunAt": {
+                    "type": "string"
+                },
+                "queue": {
+                    "type": "string"
+                },
+                "schedule": {
+                    "type": "string"
+                }
+            }
+        },
+        "notificationtroubleshooting.SubscriberCounts": {
+            "type": "object",
+            "properties": {
+                "email": {
+                    "type": "integer"
+                },
+                "slack": {
+                    "type": "integer"
+                },
+                "totalUsers": {
+                    "type": "integer"
+                }
+            }
+        },
+        "notificationtroubleshooting.TroubleshootingWarning": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "severity": {
+                    "type": "string"
+                },
+                "target": {
+                    "type": "string"
+                }
+            }
+        },
+        "notificationtroubleshooting.WorkerHealth": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean"
+                },
+                "mode": {
+                    "type": "string"
+                },
+                "pollOnly": {
+                    "type": "boolean"
+                },
+                "queues": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/notificationtroubleshooting.QueueSummary"
+                    }
                 }
             }
         },

@@ -201,7 +201,7 @@ func (w *PoamOverdueNotificationWorker) Work(
 
 	if err := notificationService.Dispatch(
 		ctx,
-		buildPoamOverdueNotificationRequest(args, user.FullName()),
+		requestWithSourceJobID(buildPoamOverdueNotificationRequest(args, user.FullName()), riverJobID(job)),
 	); err != nil {
 		return fmt.Errorf("dispatch poam-overdue-notification notification: %w", err)
 	}

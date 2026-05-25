@@ -424,14 +424,14 @@ definitions:
       data:
         allOf:
         - $ref: '#/definitions/evidence.SignatureDetail'
-        description: Items from the list response
+        description: Wrapped response data
     type: object
   handler.EvidenceSignatureVerificationResponse:
     properties:
       data:
         allOf:
         - $ref: '#/definitions/evidence.VerificationResult'
-        description: Items from the list response
+        description: Wrapped response data
     type: object
   handler.EvidenceSubject:
     properties:
@@ -942,7 +942,7 @@ definitions:
   handler.GenericDataResponse-array_oscalTypes_1_1_3_AssessmentAssets:
     properties:
       data:
-        description: Items from the list response
+        description: Wrapped response data
         items:
           $ref: '#/definitions/oscalTypes_1_1_3.AssessmentAssets'
         type: array
@@ -950,7 +950,7 @@ definitions:
   handler.GenericDataResponse-array_oscalTypes_1_1_3_AssessmentSubject:
     properties:
       data:
-        description: Items from the list response
+        description: Wrapped response data
         items:
           $ref: '#/definitions/oscalTypes_1_1_3.AssessmentSubject'
         type: array
@@ -958,7 +958,7 @@ definitions:
   handler.GenericDataResponse-array_oscalTypes_1_1_3_Task:
     properties:
       data:
-        description: Items from the list response
+        description: Wrapped response data
         items:
           $ref: '#/definitions/oscalTypes_1_1_3.Task'
         type: array
@@ -968,565 +968,593 @@ definitions:
       data:
         allOf:
         - $ref: '#/definitions/auth.AuthHandler'
-        description: Items from the list response
+        description: Wrapped response data
     type: object
   handler.GenericDataResponse-digest_EvidenceSummary:
     properties:
       data:
         allOf:
         - $ref: '#/definitions/digest.EvidenceSummary'
-        description: Items from the list response
+        description: Wrapped response data
     type: object
   handler.GenericDataResponse-handler_CreatedEvidenceResponse:
     properties:
       data:
         allOf:
         - $ref: '#/definitions/handler.CreatedEvidenceResponse'
-        description: Items from the list response
+        description: Wrapped response data
     type: object
   handler.GenericDataResponse-handler_FilterImportResponse:
     properties:
       data:
         allOf:
         - $ref: '#/definitions/handler.FilterImportResponse'
-        description: Items from the list response
+        description: Wrapped response data
     type: object
   handler.GenericDataResponse-handler_FilterWithAssociations:
     properties:
       data:
         allOf:
         - $ref: '#/definitions/handler.FilterWithAssociations'
-        description: Items from the list response
+        description: Wrapped response data
     type: object
   handler.GenericDataResponse-handler_PublicEvidenceResponse:
     properties:
       data:
         allOf:
         - $ref: '#/definitions/handler.PublicEvidenceResponse'
-        description: Items from the list response
+        description: Wrapped response data
     type: object
   handler.GenericDataResponse-handler_SubscriptionsResponse:
     properties:
       data:
         allOf:
         - $ref: '#/definitions/handler.SubscriptionsResponse'
-        description: Items from the list response
+        description: Wrapped response data
     type: object
   handler.GenericDataResponse-handler_configuredSystemDestinationResponse:
     properties:
       data:
         allOf:
         - $ref: '#/definitions/handler.configuredSystemDestinationResponse'
-        description: Items from the list response
+        description: Wrapped response data
     type: object
   handler.GenericDataResponse-handler_milestoneResponse:
     properties:
       data:
         allOf:
         - $ref: '#/definitions/handler.milestoneResponse'
-        description: Items from the list response
+        description: Wrapped response data
     type: object
   handler.GenericDataResponse-handler_poamItemResponse:
     properties:
       data:
         allOf:
         - $ref: '#/definitions/handler.poamItemResponse'
-        description: Items from the list response
+        description: Wrapped response data
     type: object
   handler.GenericDataResponse-handler_publicUserResponse:
     properties:
       data:
         allOf:
         - $ref: '#/definitions/handler.publicUserResponse'
-        description: Items from the list response
+        description: Wrapped response data
     type: object
   handler.GenericDataResponse-handler_remediationTemplateResponse:
     properties:
       data:
         allOf:
         - $ref: '#/definitions/handler.remediationTemplateResponse'
-        description: Items from the list response
+        description: Wrapped response data
     type: object
   handler.GenericDataResponse-handler_riskResponse:
     properties:
       data:
         allOf:
         - $ref: '#/definitions/handler.riskResponse'
-        description: Items from the list response
+        description: Wrapped response data
+    type: object
+  handler.GenericDataResponse-handler_testNotificationResponse:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/handler.testNotificationResponse'
+        description: Wrapped response data
     type: object
   handler.GenericDataResponse-handler_threatIDResponse:
     properties:
       data:
         allOf:
         - $ref: '#/definitions/handler.threatIDResponse'
-        description: Items from the list response
+        description: Wrapped response data
+    type: object
+  handler.GenericDataResponse-notificationtroubleshooting_DiagnosticsResponse:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/notificationtroubleshooting.DiagnosticsResponse'
+        description: Wrapped response data
+    type: object
+  handler.GenericDataResponse-notificationtroubleshooting_HealthResponse:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/notificationtroubleshooting.HealthResponse'
+        description: Wrapped response data
+    type: object
+  handler.GenericDataResponse-notificationtroubleshooting_JobDetail:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/notificationtroubleshooting.JobDetail'
+        description: Wrapped response data
     type: object
   handler.GenericDataResponse-oscal_BuildByPropsResponse:
     properties:
       data:
         allOf:
         - $ref: '#/definitions/oscal.BuildByPropsResponse'
-        description: Items from the list response
+        description: Wrapped response data
     type: object
   handler.GenericDataResponse-oscal_ImportResponse:
     properties:
       data:
         allOf:
         - $ref: '#/definitions/oscal.ImportResponse'
-        description: Items from the list response
+        description: Wrapped response data
     type: object
   handler.GenericDataResponse-oscal_InventoryItemWithSource:
     properties:
       data:
         allOf:
         - $ref: '#/definitions/oscal.InventoryItemWithSource'
-        description: Items from the list response
+        description: Wrapped response data
     type: object
   handler.GenericDataResponse-oscal_ProfileComplianceProgress:
     properties:
       data:
         allOf:
         - $ref: '#/definitions/oscal.ProfileComplianceProgress'
-        description: Items from the list response
+        description: Wrapped response data
     type: object
   handler.GenericDataResponse-oscal_ProfileHandler:
     properties:
       data:
         allOf:
         - $ref: '#/definitions/oscal.ProfileHandler'
-        description: Items from the list response
+        description: Wrapped response data
     type: object
   handler.GenericDataResponse-oscalTypes_1_1_3_Activity:
     properties:
       data:
         allOf:
         - $ref: '#/definitions/oscalTypes_1_1_3.Activity'
-        description: Items from the list response
+        description: Wrapped response data
     type: object
   handler.GenericDataResponse-oscalTypes_1_1_3_AssessmentAssets:
     properties:
       data:
         allOf:
         - $ref: '#/definitions/oscalTypes_1_1_3.AssessmentAssets'
-        description: Items from the list response
+        description: Wrapped response data
     type: object
   handler.GenericDataResponse-oscalTypes_1_1_3_AssessmentPlan:
     properties:
       data:
         allOf:
         - $ref: '#/definitions/oscalTypes_1_1_3.AssessmentPlan'
-        description: Items from the list response
+        description: Wrapped response data
     type: object
   handler.GenericDataResponse-oscalTypes_1_1_3_AssessmentPlanTermsAndConditions:
     properties:
       data:
         allOf:
         - $ref: '#/definitions/oscalTypes_1_1_3.AssessmentPlanTermsAndConditions'
-        description: Items from the list response
+        description: Wrapped response data
     type: object
   handler.GenericDataResponse-oscalTypes_1_1_3_AssessmentResults:
     properties:
       data:
         allOf:
         - $ref: '#/definitions/oscalTypes_1_1_3.AssessmentResults'
-        description: Items from the list response
+        description: Wrapped response data
     type: object
   handler.GenericDataResponse-oscalTypes_1_1_3_AssessmentSubject:
     properties:
       data:
         allOf:
         - $ref: '#/definitions/oscalTypes_1_1_3.AssessmentSubject'
-        description: Items from the list response
+        description: Wrapped response data
     type: object
   handler.GenericDataResponse-oscalTypes_1_1_3_AttestationStatements:
     properties:
       data:
         allOf:
         - $ref: '#/definitions/oscalTypes_1_1_3.AttestationStatements'
-        description: Items from the list response
+        description: Wrapped response data
     type: object
   handler.GenericDataResponse-oscalTypes_1_1_3_AuthorizationBoundary:
     properties:
       data:
         allOf:
         - $ref: '#/definitions/oscalTypes_1_1_3.AuthorizationBoundary'
-        description: Items from the list response
+        description: Wrapped response data
     type: object
   handler.GenericDataResponse-oscalTypes_1_1_3_BackMatter:
     properties:
       data:
         allOf:
         - $ref: '#/definitions/oscalTypes_1_1_3.BackMatter'
-        description: Items from the list response
+        description: Wrapped response data
     type: object
   handler.GenericDataResponse-oscalTypes_1_1_3_ByComponent:
     properties:
       data:
         allOf:
         - $ref: '#/definitions/oscalTypes_1_1_3.ByComponent'
-        description: Items from the list response
+        description: Wrapped response data
     type: object
   handler.GenericDataResponse-oscalTypes_1_1_3_Capability:
     properties:
       data:
         allOf:
         - $ref: '#/definitions/oscalTypes_1_1_3.Capability'
-        description: Items from the list response
+        description: Wrapped response data
     type: object
   handler.GenericDataResponse-oscalTypes_1_1_3_Catalog:
     properties:
       data:
         allOf:
         - $ref: '#/definitions/oscalTypes_1_1_3.Catalog'
-        description: Items from the list response
+        description: Wrapped response data
     type: object
   handler.GenericDataResponse-oscalTypes_1_1_3_ComponentDefinition:
     properties:
       data:
         allOf:
         - $ref: '#/definitions/oscalTypes_1_1_3.ComponentDefinition'
-        description: Items from the list response
+        description: Wrapped response data
     type: object
   handler.GenericDataResponse-oscalTypes_1_1_3_Control:
     properties:
       data:
         allOf:
         - $ref: '#/definitions/oscalTypes_1_1_3.Control'
-        description: Items from the list response
+        description: Wrapped response data
     type: object
   handler.GenericDataResponse-oscalTypes_1_1_3_ControlImplementation:
     properties:
       data:
         allOf:
         - $ref: '#/definitions/oscalTypes_1_1_3.ControlImplementation'
-        description: Items from the list response
+        description: Wrapped response data
     type: object
   handler.GenericDataResponse-oscalTypes_1_1_3_ControlImplementationSet:
     properties:
       data:
         allOf:
         - $ref: '#/definitions/oscalTypes_1_1_3.ControlImplementationSet'
-        description: Items from the list response
+        description: Wrapped response data
     type: object
   handler.GenericDataResponse-oscalTypes_1_1_3_DataFlow:
     properties:
       data:
         allOf:
         - $ref: '#/definitions/oscalTypes_1_1_3.DataFlow'
-        description: Items from the list response
+        description: Wrapped response data
     type: object
   handler.GenericDataResponse-oscalTypes_1_1_3_DefinedComponent:
     properties:
       data:
         allOf:
         - $ref: '#/definitions/oscalTypes_1_1_3.DefinedComponent'
-        description: Items from the list response
+        description: Wrapped response data
     type: object
   handler.GenericDataResponse-oscalTypes_1_1_3_Diagram:
     properties:
       data:
         allOf:
         - $ref: '#/definitions/oscalTypes_1_1_3.Diagram'
-        description: Items from the list response
+        description: Wrapped response data
     type: object
   handler.GenericDataResponse-oscalTypes_1_1_3_Finding:
     properties:
       data:
         allOf:
         - $ref: '#/definitions/oscalTypes_1_1_3.Finding'
-        description: Items from the list response
+        description: Wrapped response data
     type: object
   handler.GenericDataResponse-oscalTypes_1_1_3_Group:
     properties:
       data:
         allOf:
         - $ref: '#/definitions/oscalTypes_1_1_3.Group'
-        description: Items from the list response
+        description: Wrapped response data
     type: object
   handler.GenericDataResponse-oscalTypes_1_1_3_ImplementedRequirement:
     properties:
       data:
         allOf:
         - $ref: '#/definitions/oscalTypes_1_1_3.ImplementedRequirement'
-        description: Items from the list response
+        description: Wrapped response data
     type: object
   handler.GenericDataResponse-oscalTypes_1_1_3_Import:
     properties:
       data:
         allOf:
         - $ref: '#/definitions/oscalTypes_1_1_3.Import'
-        description: Items from the list response
+        description: Wrapped response data
     type: object
   handler.GenericDataResponse-oscalTypes_1_1_3_ImportAp:
     properties:
       data:
         allOf:
         - $ref: '#/definitions/oscalTypes_1_1_3.ImportAp'
-        description: Items from the list response
+        description: Wrapped response data
     type: object
   handler.GenericDataResponse-oscalTypes_1_1_3_ImportProfile:
     properties:
       data:
         allOf:
         - $ref: '#/definitions/oscalTypes_1_1_3.ImportProfile'
-        description: Items from the list response
+        description: Wrapped response data
     type: object
   handler.GenericDataResponse-oscalTypes_1_1_3_ImportSsp:
     properties:
       data:
         allOf:
         - $ref: '#/definitions/oscalTypes_1_1_3.ImportSsp'
-        description: Items from the list response
+        description: Wrapped response data
     type: object
   handler.GenericDataResponse-oscalTypes_1_1_3_InventoryItem:
     properties:
       data:
         allOf:
         - $ref: '#/definitions/oscalTypes_1_1_3.InventoryItem'
-        description: Items from the list response
+        description: Wrapped response data
     type: object
   handler.GenericDataResponse-oscalTypes_1_1_3_LeveragedAuthorization:
     properties:
       data:
         allOf:
         - $ref: '#/definitions/oscalTypes_1_1_3.LeveragedAuthorization'
-        description: Items from the list response
+        description: Wrapped response data
     type: object
   handler.GenericDataResponse-oscalTypes_1_1_3_LocalDefinitions:
     properties:
       data:
         allOf:
         - $ref: '#/definitions/oscalTypes_1_1_3.LocalDefinitions'
-        description: Items from the list response
+        description: Wrapped response data
     type: object
   handler.GenericDataResponse-oscalTypes_1_1_3_Merge:
     properties:
       data:
         allOf:
         - $ref: '#/definitions/oscalTypes_1_1_3.Merge'
-        description: Items from the list response
+        description: Wrapped response data
     type: object
   handler.GenericDataResponse-oscalTypes_1_1_3_Metadata:
     properties:
       data:
         allOf:
         - $ref: '#/definitions/oscalTypes_1_1_3.Metadata'
-        description: Items from the list response
+        description: Wrapped response data
     type: object
   handler.GenericDataResponse-oscalTypes_1_1_3_Modify:
     properties:
       data:
         allOf:
         - $ref: '#/definitions/oscalTypes_1_1_3.Modify'
-        description: Items from the list response
+        description: Wrapped response data
     type: object
   handler.GenericDataResponse-oscalTypes_1_1_3_NetworkArchitecture:
     properties:
       data:
         allOf:
         - $ref: '#/definitions/oscalTypes_1_1_3.NetworkArchitecture'
-        description: Items from the list response
+        description: Wrapped response data
     type: object
   handler.GenericDataResponse-oscalTypes_1_1_3_Observation:
     properties:
       data:
         allOf:
         - $ref: '#/definitions/oscalTypes_1_1_3.Observation'
-        description: Items from the list response
+        description: Wrapped response data
     type: object
   handler.GenericDataResponse-oscalTypes_1_1_3_Party:
     properties:
       data:
         allOf:
         - $ref: '#/definitions/oscalTypes_1_1_3.Party'
-        description: Items from the list response
+        description: Wrapped response data
     type: object
   handler.GenericDataResponse-oscalTypes_1_1_3_PlanOfActionAndMilestones:
     properties:
       data:
         allOf:
         - $ref: '#/definitions/oscalTypes_1_1_3.PlanOfActionAndMilestones'
-        description: Items from the list response
+        description: Wrapped response data
     type: object
   handler.GenericDataResponse-oscalTypes_1_1_3_PlanOfActionAndMilestonesLocalDefinitions:
     properties:
       data:
         allOf:
         - $ref: '#/definitions/oscalTypes_1_1_3.PlanOfActionAndMilestonesLocalDefinitions'
-        description: Items from the list response
+        description: Wrapped response data
     type: object
   handler.GenericDataResponse-oscalTypes_1_1_3_PoamItem:
     properties:
       data:
         allOf:
         - $ref: '#/definitions/oscalTypes_1_1_3.PoamItem'
-        description: Items from the list response
+        description: Wrapped response data
     type: object
   handler.GenericDataResponse-oscalTypes_1_1_3_Profile:
     properties:
       data:
         allOf:
         - $ref: '#/definitions/oscalTypes_1_1_3.Profile'
-        description: Items from the list response
+        description: Wrapped response data
     type: object
   handler.GenericDataResponse-oscalTypes_1_1_3_Resource:
     properties:
       data:
         allOf:
         - $ref: '#/definitions/oscalTypes_1_1_3.Resource'
-        description: Items from the list response
+        description: Wrapped response data
     type: object
   handler.GenericDataResponse-oscalTypes_1_1_3_Result:
     properties:
       data:
         allOf:
         - $ref: '#/definitions/oscalTypes_1_1_3.Result'
-        description: Items from the list response
+        description: Wrapped response data
     type: object
   handler.GenericDataResponse-oscalTypes_1_1_3_Risk:
     properties:
       data:
         allOf:
         - $ref: '#/definitions/oscalTypes_1_1_3.Risk'
-        description: Items from the list response
+        description: Wrapped response data
     type: object
   handler.GenericDataResponse-oscalTypes_1_1_3_Role:
     properties:
       data:
         allOf:
         - $ref: '#/definitions/oscalTypes_1_1_3.Role'
-        description: Items from the list response
+        description: Wrapped response data
     type: object
   handler.GenericDataResponse-oscalTypes_1_1_3_Statement:
     properties:
       data:
         allOf:
         - $ref: '#/definitions/oscalTypes_1_1_3.Statement'
-        description: Items from the list response
+        description: Wrapped response data
     type: object
   handler.GenericDataResponse-oscalTypes_1_1_3_SystemCharacteristics:
     properties:
       data:
         allOf:
         - $ref: '#/definitions/oscalTypes_1_1_3.SystemCharacteristics'
-        description: Items from the list response
+        description: Wrapped response data
     type: object
   handler.GenericDataResponse-oscalTypes_1_1_3_SystemComponent:
     properties:
       data:
         allOf:
         - $ref: '#/definitions/oscalTypes_1_1_3.SystemComponent'
-        description: Items from the list response
+        description: Wrapped response data
     type: object
   handler.GenericDataResponse-oscalTypes_1_1_3_SystemId:
     properties:
       data:
         allOf:
         - $ref: '#/definitions/oscalTypes_1_1_3.SystemId'
-        description: Items from the list response
+        description: Wrapped response data
     type: object
   handler.GenericDataResponse-oscalTypes_1_1_3_SystemImplementation:
     properties:
       data:
         allOf:
         - $ref: '#/definitions/oscalTypes_1_1_3.SystemImplementation'
-        description: Items from the list response
+        description: Wrapped response data
     type: object
   handler.GenericDataResponse-oscalTypes_1_1_3_SystemSecurityPlan:
     properties:
       data:
         allOf:
         - $ref: '#/definitions/oscalTypes_1_1_3.SystemSecurityPlan'
-        description: Items from the list response
+        description: Wrapped response data
     type: object
   handler.GenericDataResponse-oscalTypes_1_1_3_SystemUser:
     properties:
       data:
         allOf:
         - $ref: '#/definitions/oscalTypes_1_1_3.SystemUser'
-        description: Items from the list response
+        description: Wrapped response data
     type: object
   handler.GenericDataResponse-oscalTypes_1_1_3_Task:
     properties:
       data:
         allOf:
         - $ref: '#/definitions/oscalTypes_1_1_3.Task'
-        description: Items from the list response
+        description: Wrapped response data
     type: object
   handler.GenericDataResponse-poam_PoamItemControlLink:
     properties:
       data:
         allOf:
         - $ref: '#/definitions/poam.PoamItemControlLink'
-        description: Items from the list response
+        description: Wrapped response data
     type: object
   handler.GenericDataResponse-poam_PoamItemEvidenceLink:
     properties:
       data:
         allOf:
         - $ref: '#/definitions/poam.PoamItemEvidenceLink'
-        description: Items from the list response
+        description: Wrapped response data
     type: object
   handler.GenericDataResponse-poam_PoamItemFindingLink:
     properties:
       data:
         allOf:
         - $ref: '#/definitions/poam.PoamItemFindingLink'
-        description: Items from the list response
+        description: Wrapped response data
     type: object
   handler.GenericDataResponse-poam_PoamItemRiskLink:
     properties:
       data:
         allOf:
         - $ref: '#/definitions/poam.PoamItemRiskLink'
-        description: Items from the list response
+        description: Wrapped response data
     type: object
   handler.GenericDataResponse-relational_Filter:
     properties:
       data:
         allOf:
         - $ref: '#/definitions/relational.Filter'
-        description: Items from the list response
+        description: Wrapped response data
     type: object
   handler.GenericDataResponse-relational_User:
     properties:
       data:
         allOf:
         - $ref: '#/definitions/relational.User'
-        description: Items from the list response
+        description: Wrapped response data
     type: object
   handler.GenericDataResponse-risks_RiskComponentLink:
     properties:
       data:
         allOf:
         - $ref: '#/definitions/risks.RiskComponentLink'
-        description: Items from the list response
+        description: Wrapped response data
     type: object
   handler.GenericDataResponse-risks_RiskControlLink:
     properties:
       data:
         allOf:
         - $ref: '#/definitions/risks.RiskControlLink'
-        description: Items from the list response
+        description: Wrapped response data
     type: object
   handler.GenericDataResponse-risks_RiskEvidenceLink:
     properties:
       data:
         allOf:
         - $ref: '#/definitions/risks.RiskEvidenceLink'
-        description: Items from the list response
+        description: Wrapped response data
     type: object
   handler.GenericDataResponse-risks_RiskSubjectLink:
     properties:
       data:
         allOf:
         - $ref: '#/definitions/risks.RiskSubjectLink'
-        description: Items from the list response
+        description: Wrapped response data
     type: object
   handler.GenericDataResponse-string:
     properties:
       data:
-        description: Items from the list response
+        description: Wrapped response data
         type: string
     type: object
   handler.HeartbeatCreateRequest:
@@ -2200,6 +2228,40 @@ definitions:
       name:
         type: string
     type: object
+  handler.testNotificationRequest:
+    properties:
+      destinationTarget:
+        type: string
+      mode:
+        enum:
+        - enqueue
+        type: string
+      providerType:
+        enum:
+        - email
+        - slack
+        type: string
+    required:
+    - destinationTarget
+    - providerType
+    type: object
+  handler.testNotificationResponse:
+    properties:
+      accepted:
+        type: boolean
+      destinationTarget:
+        type: string
+      jobIds:
+        items:
+          type: integer
+        type: array
+      message:
+        type: string
+      mode:
+        type: string
+      providerType:
+        type: string
+    type: object
   handler.threatIDRequest:
     properties:
       id:
@@ -2358,6 +2420,308 @@ definitions:
         $ref: '#/definitions/labelfilter.Condition'
       query:
         $ref: '#/definitions/labelfilter.Query'
+    type: object
+  notificationtroubleshooting.ConfiguredSystemDestinationResponse:
+    properties:
+      destinationTarget:
+        type: string
+      providerType:
+        type: string
+    type: object
+  notificationtroubleshooting.DiagnosticCheck:
+    properties:
+      code:
+        type: string
+      jobId:
+        type: integer
+      label:
+        type: string
+      message:
+        type: string
+      status:
+        type: string
+    type: object
+  notificationtroubleshooting.DiagnosticsResponse:
+    properties:
+      checks:
+        items:
+          $ref: '#/definitions/notificationtroubleshooting.DiagnosticCheck'
+        type: array
+      configuredDestinations:
+        items:
+          $ref: '#/definitions/notificationtroubleshooting.ConfiguredSystemDestinationResponse'
+        type: array
+      notificationName:
+        type: string
+      recommendedActions:
+        items:
+          type: string
+        type: array
+      status:
+        type: string
+      subscriberCounts:
+        $ref: '#/definitions/notificationtroubleshooting.SubscriberCounts'
+    type: object
+  notificationtroubleshooting.HealthResponse:
+    properties:
+      notifications:
+        items:
+          $ref: '#/definitions/notificationtroubleshooting.NotificationHealth'
+        type: array
+      providers:
+        items:
+          $ref: '#/definitions/notificationtroubleshooting.ProviderStatus'
+        type: array
+      schedules:
+        items:
+          $ref: '#/definitions/notificationtroubleshooting.ScheduleHealth'
+        type: array
+      warnings:
+        items:
+          $ref: '#/definitions/notificationtroubleshooting.TroubleshootingWarning'
+        type: array
+      worker:
+        $ref: '#/definitions/notificationtroubleshooting.WorkerHealth'
+    type: object
+  notificationtroubleshooting.JobDetail:
+    properties:
+      args:
+        additionalProperties: {}
+        type: object
+      attempt:
+        type: integer
+      attemptedAt:
+        format: date-time
+        type: string
+      correlationId:
+        type: string
+      createdAt:
+        format: date-time
+        type: string
+      errors:
+        items:
+          $ref: '#/definitions/notificationtroubleshooting.SanitizedAttemptError'
+        type: array
+      finalizedAt:
+        format: date-time
+        type: string
+      id:
+        type: integer
+      kind:
+        type: string
+      lastError:
+        type: string
+      maxAttempts:
+        type: integer
+      metadata:
+        additionalProperties:
+          type: string
+        type: object
+      notificationKind:
+        type: string
+      provider:
+        type: string
+      queue:
+        type: string
+      scheduledAt:
+        format: date-time
+        type: string
+      sourceJobId:
+        type: string
+      sourceJobKind:
+        type: string
+      stale:
+        type: boolean
+      state:
+        type: string
+      target:
+        type: string
+    type: object
+  notificationtroubleshooting.JobListItem:
+    properties:
+      attempt:
+        type: integer
+      attemptedAt:
+        format: date-time
+        type: string
+      correlationId:
+        type: string
+      createdAt:
+        format: date-time
+        type: string
+      finalizedAt:
+        format: date-time
+        type: string
+      id:
+        type: integer
+      kind:
+        type: string
+      lastError:
+        type: string
+      maxAttempts:
+        type: integer
+      notificationKind:
+        type: string
+      provider:
+        type: string
+      queue:
+        type: string
+      scheduledAt:
+        format: date-time
+        type: string
+      sourceJobId:
+        type: string
+      sourceJobKind:
+        type: string
+      stale:
+        type: boolean
+      state:
+        type: string
+      target:
+        type: string
+    type: object
+  notificationtroubleshooting.JobSummary:
+    properties:
+      createdAt:
+        format: date-time
+        type: string
+      finalizedAt:
+        format: date-time
+        type: string
+      id:
+        type: integer
+      state:
+        type: string
+    type: object
+  notificationtroubleshooting.JobsListResponse:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/notificationtroubleshooting.JobListItem'
+        type: array
+      pagination:
+        $ref: '#/definitions/notificationtroubleshooting.Pagination'
+    type: object
+  notificationtroubleshooting.NotificationHealth:
+    properties:
+      configuredDestinations:
+        items:
+          $ref: '#/definitions/notificationtroubleshooting.ConfiguredSystemDestinationResponse'
+        type: array
+      name:
+        type: string
+      subscriberCounts:
+        $ref: '#/definitions/notificationtroubleshooting.SubscriberCounts'
+      warnings:
+        items:
+          $ref: '#/definitions/notificationtroubleshooting.TroubleshootingWarning'
+        type: array
+    type: object
+  notificationtroubleshooting.Pagination:
+    properties:
+      nextCursor:
+        type: string
+    type: object
+  notificationtroubleshooting.ProviderStatus:
+    properties:
+      description:
+        type: string
+      displayName:
+        type: string
+      enabled:
+        type: boolean
+      metadata:
+        additionalProperties:
+          type: string
+        type: object
+      providerType:
+        type: string
+    type: object
+  notificationtroubleshooting.QueueSummary:
+    properties:
+      available:
+        type: integer
+      completed24h:
+        type: integer
+      discarded24h:
+        type: integer
+      maxWorkers:
+        type: integer
+      name:
+        type: string
+      oldestAvailableAt:
+        type: string
+      retryable:
+        type: integer
+      running:
+        type: integer
+      scheduled:
+        type: integer
+      staleCount:
+        type: integer
+      staleThresholdSeconds:
+        type: integer
+    type: object
+  notificationtroubleshooting.SanitizedAttemptError:
+    properties:
+      at:
+        type: string
+      attempt:
+        type: integer
+      error:
+        type: string
+    type: object
+  notificationtroubleshooting.ScheduleHealth:
+    properties:
+      deliveryKind:
+        type: string
+      enabled:
+        type: boolean
+      jobKind:
+        type: string
+      lastJob:
+        $ref: '#/definitions/notificationtroubleshooting.JobSummary'
+      name:
+        type: string
+      nextRunAt:
+        type: string
+      queue:
+        type: string
+      schedule:
+        type: string
+    type: object
+  notificationtroubleshooting.SubscriberCounts:
+    properties:
+      email:
+        type: integer
+      slack:
+        type: integer
+      totalUsers:
+        type: integer
+    type: object
+  notificationtroubleshooting.TroubleshootingWarning:
+    properties:
+      code:
+        type: string
+      message:
+        type: string
+      severity:
+        type: string
+      target:
+        type: string
+    type: object
+  notificationtroubleshooting.WorkerHealth:
+    properties:
+      enabled:
+        type: boolean
+      mode:
+        type: string
+      pollOnly:
+        type: boolean
+      queues:
+        items:
+          $ref: '#/definitions/notificationtroubleshooting.QueueSummary'
+        type: array
     type: object
   oscal.ApplySuggestionRequest:
     properties:
@@ -9310,6 +9674,184 @@ paths:
       summary: Create system notification destination
       tags:
       - Notifications
+  /admin/notifications/{notificationName}/diagnostics:
+    get:
+      description: Runs read-only diagnostics for evidence digest, workflow, risk,
+        or POAM notifications
+      parameters:
+      - description: Notification name or family
+        in: path
+        name: notificationName
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-notificationtroubleshooting_DiagnosticsResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Get notification diagnostics
+      tags:
+      - Notifications
+  /admin/notifications/health:
+    get:
+      description: Returns provider, worker, queue, subscriber, destination, and schedule
+        health for admin notification troubleshooting
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-notificationtroubleshooting_HealthResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Get notification troubleshooting health
+      tags:
+      - Notifications
+  /admin/notifications/jobs:
+    get:
+      description: Lists recent notification-related River jobs with sanitized notification
+        metadata
+      parameters:
+      - collectionFormat: csv
+        description: Queue filter; repeat or comma-separate values
+        in: query
+        items:
+          type: string
+        name: queue
+        type: array
+      - description: 'Provider filter: email or slack'
+        enum:
+        - email
+        - slack
+        in: query
+        name: provider
+        type: string
+      - description: Notification kind filter
+        in: query
+        name: notificationKind
+        type: string
+      - collectionFormat: csv
+        description: River state filter; repeat or comma-separate values
+        in: query
+        items:
+          enum:
+          - available
+          - cancelled
+          - completed
+          - discarded
+          - pending
+          - retryable
+          - running
+          - scheduled
+          type: string
+        name: state
+        type: array
+      - description: RFC3339 lower bound for job creation time
+        format: date-time
+        in: query
+        name: since
+        type: string
+      - description: Page size, default 50, max 200
+        in: query
+        maximum: 200
+        minimum: 1
+        name: limit
+        type: integer
+      - description: Opaque pagination cursor
+        in: query
+        name: cursor
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/notificationtroubleshooting.JobsListResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: List notification River jobs
+      tags:
+      - Notifications
+  /admin/notifications/jobs/{id}:
+    get:
+      description: Returns one sanitized notification-related River job with attempt
+        errors
+      parameters:
+      - description: River job ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-notificationtroubleshooting_JobDetail'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Get notification River job detail
+      tags:
+      - Notifications
   /admin/notifications/providers:
     get:
       description: Returns notification providers registered in the backend
@@ -9331,6 +9873,47 @@ paths:
       security:
       - OAuth2Password: []
       summary: List available notification providers
+      tags:
+      - Notifications
+  /admin/notifications/test:
+    post:
+      consumes:
+      - application/json
+      description: Enqueues a fixed server-side test notification to a validated admin-supplied
+        destination
+      parameters:
+      - description: Test destination
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handler.testNotificationRequest'
+      produces:
+      - application/json
+      responses:
+        "202":
+          description: Accepted
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-handler_testNotificationResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Enqueue fixed test notification
       tags:
       - Notifications
   /admin/risk-templates:

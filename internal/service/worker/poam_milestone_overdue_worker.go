@@ -241,7 +241,7 @@ func (w *MilestoneOverdueReminderWorker) Work(
 
 	if err := notificationService.Dispatch(
 		ctx,
-		buildPoamMilestoneOverdueNotificationRequest(args, user.FullName()),
+		requestWithSourceJobID(buildPoamMilestoneOverdueNotificationRequest(args, user.FullName()), riverJobID(job)),
 	); err != nil {
 		return fmt.Errorf("dispatch poam-milestone-overdue-reminder notification: %w", err)
 	}
