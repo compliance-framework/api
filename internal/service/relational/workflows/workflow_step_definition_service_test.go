@@ -168,12 +168,15 @@ func TestWorkflowStepDefinitionService_Update(t *testing.T) {
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "updates cannot be nil")
 
-	// Test with non-existent ID
+	// Test with non-existent ID: the real update path always sends a fully populated
+	// struct (handler loads existing row then merges request fields), so ResponsibleRole
+	// is required here too — only the ID lookup produces "not found".
 	nonExistentID := uuid.New()
 	updatesWithNonExistentID := &WorkflowStepDefinition{
 		UUIDModel:            relational.UUIDModel{ID: &nonExistentID},
-		WorkflowDefinitionID: workflowDef.ID, // Include the workflow definition ID
+		WorkflowDefinitionID: workflowDef.ID,
 		Name:                 "Updated Step Definition",
+		ResponsibleRole:      "compliance_analyst",
 	}
 	err = service.Update(&nonExistentID, updatesWithNonExistentID)
 	assert.Error(t, err)
