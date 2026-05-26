@@ -8,6 +8,7 @@ import (
 	"github.com/compliance-framework/api/internal/api"
 	"github.com/compliance-framework/api/internal/authn"
 	"github.com/compliance-framework/api/internal/service/relational"
+	relworkflows "github.com/compliance-framework/api/internal/service/relational/workflows"
 	"github.com/compliance-framework/api/internal/service/sso"
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
@@ -102,6 +103,10 @@ func (b *BaseHandler) ParseUUID(ctx echo.Context, paramName, entityName string) 
 func (b *BaseHandler) HandleServiceError(ctx echo.Context, err error, operation, entityName string) error {
 	if err == gorm.ErrRecordNotFound || isNotFoundError(err) {
 		return ctx.JSON(http.StatusNotFound, api.NewError(err))
+	}
+	var ve *relworkflows.ValidationError
+	if errors.As(err, &ve) {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 	b.sugar.Errorw("Failed to "+operation+" "+entityName, "error", err)
 	return ctx.JSON(http.StatusInternalServerError, api.NewError(err))

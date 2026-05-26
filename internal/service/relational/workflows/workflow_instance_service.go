@@ -2,7 +2,7 @@ package workflows
 
 import (
 	"context"
-	"errors"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -204,19 +204,37 @@ func (s *WorkflowInstanceService) GetDueInstances(ctx context.Context) ([]Workfl
 // ValidateInstance validates a workflow instance
 func (s *WorkflowInstanceService) ValidateInstance(instance *WorkflowInstance) error {
 	if instance == nil {
-		return errors.New("workflow instance cannot be nil")
+		return validationError("workflow instance cannot be nil")
 	}
 	if instance.GracePeriodDays != nil && *instance.GracePeriodDays < 0 {
-		return errors.New("grace period days must be non-negative")
+		return validationError("grace period days must be non-negative")
 	}
 
-	return CombineErrors(
+	if err := CombineErrors(
 		ValidateStringRequired(instance.Name, "instance name"),
 		ValidateStringLength(instance.Name, "instance name", MaxNameLength),
 		ValidateUUIDRequired(instance.SystemSecurityPlanID, "system security plan ID"),
 		ValidateUUIDRequired(instance.WorkflowDefinitionID, "workflow definition ID"),
 		ValidateCadence(instance.Cadence),
-	)
+	); err != nil {
+		return err
+	}
+
+	// BCH-1152: instance grace period must be >= definition grace period when both are set.
+	if instance.GracePeriodDays != nil && instance.WorkflowDefinitionID != nil {
+		var defGrace *int
+		if err := s.db.Model(&WorkflowDefinition{}).
+			Select("grace_period_days").
+			Where("id = ?", instance.WorkflowDefinitionID).
+			Scan(&defGrace).Error; err != nil {
+			return fmt.Errorf("failed to look up workflow definition grace period: %w", err)
+		}
+		if defGrace != nil && *instance.GracePeriodDays < *defGrace {
+			return validationError("instance grace period days must be greater than or equal to the workflow definition grace period")
+		}
+	}
+
+	return nil
 }
 
 // CalculateNextSchedule calculates the next scheduled time based on cadence

@@ -10,6 +10,22 @@ import (
 	"gorm.io/gorm"
 )
 
+// ValidationError marks a user-visible input validation failure.
+// Handlers map this to HTTP 400; anything else is treated as a system error (500).
+type ValidationError struct {
+	msg string
+}
+
+func (e *ValidationError) Error() string { return e.msg }
+
+func validationError(msg string) error {
+	return &ValidationError{msg: msg}
+}
+
+func validationErrorf(format string, args ...any) error {
+	return &ValidationError{msg: fmt.Sprintf(format, args...)}
+}
+
 // BaseService provides common CRUD operations for workflow entities
 type BaseService struct {
 	db *gorm.DB
