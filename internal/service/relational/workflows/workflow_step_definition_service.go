@@ -33,7 +33,8 @@ func (s *WorkflowStepDefinitionService) Create(step *WorkflowStepDefinition) err
 			if err := s.lockDefinition(tx, step.WorkflowDefinitionID); err != nil {
 				return err
 			}
-			return s.base.ValidateAndCreate(step, "workflow step definition", func() error {
+			txBase := NewBaseService(tx)
+			return txBase.ValidateAndCreate(step, "workflow step definition", func() error {
 				return s.validateStep(tx, step, nil)
 			})
 		})
@@ -103,7 +104,8 @@ func (s *WorkflowStepDefinitionService) Update(id *uuid.UUID, updates *WorkflowS
 			if err := s.lockDefinition(tx, updates.WorkflowDefinitionID); err != nil {
 				return err
 			}
-			return s.base.ValidateAndUpdate(&existing, updates, id, "workflow step definition", func() error {
+			txBase := NewBaseService(tx)
+			return txBase.ValidateAndUpdate(&existing, updates, id, "workflow step definition", func() error {
 				updates.ID = id
 				return s.validateStep(tx, updates, updates.ID)
 			})
