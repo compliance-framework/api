@@ -11,7 +11,7 @@ import (
 // ComputeExecutionStreamUUID derives the deterministic evidence stream UUID for a workflow
 // execution. The same seed algorithm is used by EvidenceIntegration so both sides always
 // agree on the UUID without a database round-trip.
-func ComputeExecutionStreamUUID(definitionID, instanceID, executionID uuid.UUID) uuid.UUID {
+func ComputeExecutionStreamUUID(definitionID, instanceID, executionID uuid.UUID) (uuid.UUID, error) {
 	seed := fmt.Sprintf("execution:%s:%s:%s:%s",
 		definitionID.String(),
 		instanceID.String(),
@@ -20,6 +20,5 @@ func ComputeExecutionStreamUUID(definitionID, instanceID, executionID uuid.UUID)
 	)
 	hash := sha256.Sum256([]byte(seed))
 	h := hex.EncodeToString(hash[:16])
-	streamUUID, _ := uuid.Parse(h[:8] + "-" + h[8:12] + "-" + h[12:16] + "-" + h[16:20] + "-" + h[20:32])
-	return streamUUID
+	return uuid.Parse(h[:8] + "-" + h[8:12] + "-" + h[12:16] + "-" + h[16:20] + "-" + h[20:32])
 }

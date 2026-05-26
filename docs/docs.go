@@ -40228,7 +40228,9 @@ const docTemplate = `{
                 },
                 "execution_stream_uuid": {
                     "description": "Computed field (not persisted)",
-                    "type": "string"
+                    "type": "string",
+                    "format": "uuid",
+                    "readOnly": true
                 },
                 "failed-at": {
                     "type": "string"

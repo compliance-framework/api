@@ -66,11 +66,14 @@ func (s *WorkflowExecutionService) GetByID(id *uuid.UUID) (*WorkflowExecution, e
 	}
 	if execution.WorkflowInstance != nil && execution.WorkflowInstance.WorkflowDefinition != nil &&
 		execution.WorkflowInstance.WorkflowDefinition.ID != nil && execution.WorkflowInstanceID != nil && execution.ID != nil {
-		streamUUID := ComputeExecutionStreamUUID(
+		streamUUID, err := ComputeExecutionStreamUUID(
 			*execution.WorkflowInstance.WorkflowDefinition.ID,
 			*execution.WorkflowInstanceID,
 			*execution.ID,
 		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to compute execution stream UUID: %w", err)
+		}
 		execution.ExecutionStreamUUID = &streamUUID
 	}
 	return &execution, nil

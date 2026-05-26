@@ -116,14 +116,18 @@ func TestWorkflowExecutionService_GetByID_PopulatesExecutionStreamUUID(t *testin
 	retrieved, err := service.GetByID(execution.ID)
 	require.NoError(t, err)
 
-	// ExecutionStreamUUID must be populated and deterministic
+	// ExecutionStreamUUID must equal the value produced by the canonical algorithm
+	// for the same definition/instance/execution IDs.
+	expectedUUID, err := ComputeExecutionStreamUUID(*workflowDef.ID, *instance.ID, *execution.ID)
+	require.NoError(t, err)
 	require.NotNil(t, retrieved.ExecutionStreamUUID)
-	assert.NotEqual(t, uuid.Nil, *retrieved.ExecutionStreamUUID)
+	assert.Equal(t, expectedUUID, *retrieved.ExecutionStreamUUID)
 
-	// Calling again should produce the same UUID
+	// Calling again must produce the same UUID (determinism check).
 	retrieved2, err := service.GetByID(execution.ID)
 	require.NoError(t, err)
-	assert.Equal(t, *retrieved.ExecutionStreamUUID, *retrieved2.ExecutionStreamUUID)
+	require.NotNil(t, retrieved2.ExecutionStreamUUID)
+	assert.Equal(t, expectedUUID, *retrieved2.ExecutionStreamUUID)
 }
 
 // TestWorkflowExecutionService_GetByWorkflowInstanceID tests the GetByWorkflowInstanceID method

@@ -43,7 +43,7 @@ type WorkflowExecution struct {
 	StepExecutions   []StepExecution   `gorm:"foreignKey:WorkflowExecutionID;constraint:OnDelete:CASCADE" json:"step_executions,omitempty"`
 
 	// Computed field (not persisted)
-	ExecutionStreamUUID *uuid.UUID `gorm:"-" json:"execution_stream_uuid,omitempty"`
+	ExecutionStreamUUID *uuid.UUID `gorm:"-" json:"execution_stream_uuid,omitempty" format:"uuid" readonly:"true"`
 }
 
 // TableName specifies the table name for WorkflowExecution

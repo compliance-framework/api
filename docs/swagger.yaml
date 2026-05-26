@@ -8921,6 +8921,8 @@ definitions:
         type: string
       execution_stream_uuid:
         description: Computed field (not persisted)
+        format: uuid
+        readOnly: true
         type: string
       failed-at:
         type: string
