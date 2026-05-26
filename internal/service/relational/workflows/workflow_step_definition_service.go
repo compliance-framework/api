@@ -49,7 +49,7 @@ func (s *WorkflowStepDefinitionService) Create(step *WorkflowStepDefinition) err
 // alone provides the available isolation.
 func (s *WorkflowStepDefinitionService) lockDefinition(db *gorm.DB, id *uuid.UUID) error {
 	q := db.Model(&WorkflowDefinition{}).Select("id").Where("id = ?", id)
-	if db.Dialector.Name() == "postgres" {
+	if db.Name() == "postgres" {
 		q = q.Clauses(clause.Locking{Strength: "UPDATE"})
 	}
 	if err := q.First(&WorkflowDefinition{}).Error; err != nil {
@@ -127,7 +127,7 @@ func (s *WorkflowStepDefinitionService) Delete(id *uuid.UUID) error {
 	}
 
 	if dependentCount > 0 {
-		return fmt.Errorf("cannot delete step: %d other steps depend on it", dependentCount)
+		return validationErrorf("cannot delete step: %d other steps depend on it", dependentCount)
 	}
 
 	result := s.db.Delete(&WorkflowStepDefinition{}, id)
@@ -158,7 +158,7 @@ func (s *WorkflowStepDefinitionService) AddDependency(stepID, dependsOnStepID *u
 		First(&existing).Error
 
 	if err == nil {
-		return errors.New("dependency already exists")
+		return validationError("dependency already exists")
 	}
 
 	if !errors.Is(err, gorm.ErrRecordNotFound) {
@@ -229,30 +229,30 @@ func (s *WorkflowStepDefinitionService) ValidateStepUpdate(step *WorkflowStepDef
 // excludeID, when non-nil, is excluded from the sibling grace period sum (update path).
 func (s *WorkflowStepDefinitionService) validateStep(db *gorm.DB, step *WorkflowStepDefinition, excludeID *uuid.UUID) error {
 	if step == nil {
-		return errors.New("workflow step definition cannot be nil")
+		return validationError("workflow step definition cannot be nil")
 	}
 
 	if step.Name == "" {
-		return errors.New("step name is required")
+		return validationError("step name is required")
 	}
 
 	if len(step.Name) > 255 {
-		return errors.New("step name cannot exceed 255 characters")
+		return validationError("step name cannot exceed 255 characters")
 	}
 
 	if step.ResponsibleRole == "" {
-		return errors.New("responsible role is required")
+		return validationError("responsible role is required")
 	}
 
 	if len(step.ResponsibleRole) > 255 {
-		return errors.New("responsible role cannot exceed 255 characters")
+		return validationError("responsible role cannot exceed 255 characters")
 	}
 
 	if step.WorkflowDefinitionID == nil {
-		return errors.New("workflow definition ID is required")
+		return validationError("workflow definition ID is required")
 	}
 	if step.GracePeriodDays != nil && *step.GracePeriodDays < 0 {
-		return errors.New("grace period days must be non-negative")
+		return validationError("grace period days must be non-negative")
 	}
 
 	// BCH-1152: sum of step grace periods must not exceed the definition grace period.
@@ -276,7 +276,7 @@ func (s *WorkflowStepDefinitionService) validateStep(db *gorm.DB, step *Workflow
 				return fmt.Errorf("failed to calculate sibling grace period sum: %w", err)
 			}
 			if siblingSum+*step.GracePeriodDays > *defGrace {
-				return fmt.Errorf("step grace period days would cause the total step grace period (%d) to exceed the workflow definition grace period (%d)", siblingSum+*step.GracePeriodDays, *defGrace)
+				return validationErrorf("step grace period days would cause the total step grace period (%d) to exceed the workflow definition grace period (%d)", siblingSum+*step.GracePeriodDays, *defGrace)
 			}
 		}
 	}

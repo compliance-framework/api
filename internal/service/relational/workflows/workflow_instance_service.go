@@ -2,7 +2,6 @@ package workflows
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
@@ -205,10 +204,10 @@ func (s *WorkflowInstanceService) GetDueInstances(ctx context.Context) ([]Workfl
 // ValidateInstance validates a workflow instance
 func (s *WorkflowInstanceService) ValidateInstance(instance *WorkflowInstance) error {
 	if instance == nil {
-		return errors.New("workflow instance cannot be nil")
+		return validationError("workflow instance cannot be nil")
 	}
 	if instance.GracePeriodDays != nil && *instance.GracePeriodDays < 0 {
-		return errors.New("grace period days must be non-negative")
+		return validationError("grace period days must be non-negative")
 	}
 
 	if err := CombineErrors(
@@ -231,7 +230,7 @@ func (s *WorkflowInstanceService) ValidateInstance(instance *WorkflowInstance) e
 			return fmt.Errorf("failed to look up workflow definition grace period: %w", err)
 		}
 		if defGrace != nil && *instance.GracePeriodDays < *defGrace {
-			return errors.New("instance grace period days must be greater than or equal to the workflow definition grace period")
+			return validationError("instance grace period days must be greater than or equal to the workflow definition grace period")
 		}
 	}
 

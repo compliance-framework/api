@@ -8,6 +8,7 @@ import (
 	"github.com/compliance-framework/api/internal/api"
 	"github.com/compliance-framework/api/internal/authn"
 	"github.com/compliance-framework/api/internal/service/relational"
+	relworkflows "github.com/compliance-framework/api/internal/service/relational/workflows"
 	"github.com/compliance-framework/api/internal/service/sso"
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
@@ -103,7 +104,8 @@ func (b *BaseHandler) HandleServiceError(ctx echo.Context, err error, operation,
 	if err == gorm.ErrRecordNotFound || isNotFoundError(err) {
 		return ctx.JSON(http.StatusNotFound, api.NewError(err))
 	}
-	if isValidationError(err) {
+	var ve *relworkflows.ValidationError
+	if errors.As(err, &ve) {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 	b.sugar.Errorw("Failed to "+operation+" "+entityName, "error", err)
@@ -128,13 +130,6 @@ func (b *BaseHandler) RespondNoContent(ctx echo.Context) error {
 // isNotFoundError checks if an error is a "not found" error
 func isNotFoundError(err error) bool {
 	return err != nil && strings.Contains(err.Error(), "not found")
-}
-
-// isValidationError checks if an error is a user-visible validation error.
-// Validation errors are plain (no wrapped cause). DB/system errors always wrap an
-// underlying error with %w, so errors.Unwrap returns non-nil for those.
-func isValidationError(err error) bool {
-	return err != nil && errors.Unwrap(err) == nil && !isNotFoundError(err)
 }
 
 // GetActorFromClaims resolves the authenticated actor from JWT claims.
