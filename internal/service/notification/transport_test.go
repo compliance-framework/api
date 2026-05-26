@@ -20,9 +20,9 @@ func (s *stubWorkerEnqueuer) IsStarted() bool {
 	return s.started
 }
 
-func (s *stubWorkerEnqueuer) EnqueueNotificationEmail(_ context.Context, delivery testEmailDelivery) error {
+func (s *stubWorkerEnqueuer) EnqueueNotificationEmail(_ context.Context, delivery testEmailDelivery) ([]int64, error) {
 	s.emails = append(s.emails, delivery)
-	return nil
+	return []int64{int64(len(s.emails))}, nil
 }
 
 type stubSlackEnqueuer struct {
@@ -34,9 +34,9 @@ func (s *stubSlackEnqueuer) IsStarted() bool {
 	return s.started
 }
 
-func (s *stubSlackEnqueuer) EnqueueNotificationSlack(_ context.Context, delivery stubSlackDelivery) error {
+func (s *stubSlackEnqueuer) EnqueueNotificationSlack(_ context.Context, delivery stubSlackDelivery) ([]int64, error) {
 	s.slacks = append(s.slacks, delivery)
-	return nil
+	return []int64{int64(len(s.slacks))}, nil
 }
 
 type stubEmailSender struct {
@@ -87,7 +87,8 @@ func (p *testEmailProvider) Deliver(ctx context.Context, delivery Delivery) erro
 	to := delivery.Target.Address["email"]
 
 	if p.enqueuer != nil && p.enqueuer.started {
-		return p.enqueuer.EnqueueNotificationEmail(ctx, testEmailDelivery{To: to, Content: payload})
+		_, err := p.enqueuer.EnqueueNotificationEmail(ctx, testEmailDelivery{To: to, Content: payload})
+		return err
 	}
 
 	if p.sender == nil || !p.sender.enabled {
@@ -163,7 +164,8 @@ func (p *testSlackProvider) Deliver(ctx context.Context, delivery Delivery) erro
 	channel := delivery.Target.Address["channel"]
 
 	if p.enqueuer != nil && p.enqueuer.started {
-		return p.enqueuer.EnqueueNotificationSlack(ctx, stubSlackDelivery{Channel: channel, Text: payload.Text})
+		_, err := p.enqueuer.EnqueueNotificationSlack(ctx, stubSlackDelivery{Channel: channel, Text: payload.Text})
+		return err
 	}
 
 	if p.sender == nil || !p.sender.enabled {

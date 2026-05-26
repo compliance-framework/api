@@ -131,7 +131,7 @@ func (w *WorkflowTaskDigestWorker) Work(ctx context.Context, job *river.Job[Work
 
 	if err := notificationService.Dispatch(
 		ctx,
-		buildWorkflowTaskDigestNotificationRequest(args, data),
+		requestWithSourceJobID(buildWorkflowTaskDigestNotificationRequest(args, data), riverJobID(job)),
 	); err != nil {
 		return fmt.Errorf("dispatch workflow-task-digest notification: %w", err)
 	}

@@ -24,6 +24,30 @@ func TestBuildWorkflowTaskDigestNotificationRequest_CorrelationIncludesDigestDat
 	assert.Equal(t, JobTypeWorkflowTaskDigest, request.Options.SourceJobKind)
 }
 
+func TestRequestWithSourceJobIDSetsDispatchMetadata(t *testing.T) {
+	request := buildWorkflowTaskDigestNotificationRequest(
+		WorkflowTaskDigestArgs{UserID: "user-1"},
+		digestNotificationData{},
+	)
+
+	request = requestWithSourceJobID(request, 241582)
+
+	assert.Equal(t, "241582", request.Options.SourceJobID)
+}
+
+func TestRequestWithSourceJobIDIgnoresNonPositiveJobID(t *testing.T) {
+	for _, jobID := range []int64{0, -1} {
+		request := buildWorkflowTaskDigestNotificationRequest(
+			WorkflowTaskDigestArgs{UserID: "user-1"},
+			digestNotificationData{},
+		)
+
+		request = requestWithSourceJobID(request, jobID)
+
+		assert.Empty(t, request.Options.SourceJobID)
+	}
+}
+
 func TestRiskReminderDispatchOptions_IncludesWindowKey(t *testing.T) {
 	riskID := uuid.MustParse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
 	ownerUserID := uuid.MustParse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")

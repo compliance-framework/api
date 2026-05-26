@@ -241,6 +241,16 @@ func (s *Service) GetDigestRecipients(ctx context.Context) ([]DigestRecipient, e
 
 // SendGlobalDigest sends or enqueues the global digest to all active users.
 func (s *Service) SendGlobalDigest(ctx context.Context) error {
+	return s.sendGlobalDigest(ctx, "")
+}
+
+// SendGlobalDigestWithSourceJobID sends the global digest while propagating the
+// River source job ID into downstream provider jobs.
+func (s *Service) SendGlobalDigestWithSourceJobID(ctx context.Context, sourceJobID string) error {
+	return s.sendGlobalDigest(ctx, sourceJobID)
+}
+
+func (s *Service) sendGlobalDigest(ctx context.Context, sourceJobID string) error {
 	summary, err := s.GetGlobalEvidenceSummary(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get evidence summary: %w", err)
@@ -268,7 +278,7 @@ func (s *Service) SendGlobalDigest(ctx context.Context) error {
 	}
 
 	if !sendUserDigests {
-		return s.dispatchEvidenceDigestNotifications(ctx, summary, webBaseURL, generatedAt, sendConfiguredDestinations, false)
+		return s.dispatchEvidenceDigestNotificationsWithSourceJobID(ctx, summary, webBaseURL, generatedAt, sendConfiguredDestinations, false, sourceJobID)
 	}
 
 	s.logger.Debugw("Sending global digest",
@@ -277,5 +287,5 @@ func (s *Service) SendGlobalDigest(ctx context.Context) error {
 		"expired", summary.ExpiredCount,
 	)
 
-	return s.dispatchEvidenceDigestNotifications(ctx, summary, webBaseURL, generatedAt, sendConfiguredDestinations, true)
+	return s.dispatchEvidenceDigestNotificationsWithSourceJobID(ctx, summary, webBaseURL, generatedAt, sendConfiguredDestinations, true, sourceJobID)
 }

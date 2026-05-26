@@ -217,8 +217,21 @@ func (s *Service) dispatchEvidenceDigestNotifications(
 	includeConfiguredDestinations bool,
 	includeSubscribedUsers bool,
 ) error {
+	return s.dispatchEvidenceDigestNotificationsWithSourceJobID(ctx, summary, webBaseURL, generatedAt, includeConfiguredDestinations, includeSubscribedUsers, "")
+}
+
+func (s *Service) dispatchEvidenceDigestNotificationsWithSourceJobID(
+	ctx context.Context,
+	summary *EvidenceSummary,
+	webBaseURL string,
+	generatedAt time.Time,
+	includeConfiguredDestinations bool,
+	includeSubscribedUsers bool,
+	sourceJobID string,
+) error {
 	request := notification.FanoutRequest{}
 	dispatchOptions := evidenceDigestDispatchOptions(generatedAt)
+	dispatchOptions.SourceJobID = strings.TrimSpace(sourceJobID)
 
 	if includeConfiguredDestinations {
 		targets, err := s.configuredDigestTargets(ctx)

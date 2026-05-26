@@ -377,6 +377,7 @@ func (s *Service) Start(ctx context.Context) error {
 		"workers", s.config.Workers,
 		"default_email_queue", s.emailQueue(),
 		"slack_queue", s.slackQueue(),
+		"use_polling", s.config.UsePolling,
 	)
 
 	// Start the workers with the provided context (no dependency injection needed)
@@ -699,6 +700,7 @@ func periodicJobsFromConfig(cfg *config.Config, logger *zap.SugaredLogger) []*ri
 
 func buildRiverConfig(cfg *config.WorkerConfig, workers *river.Workers, periodicJobs []*river.PeriodicJob) river.Config {
 	return river.Config{
+		PollOnly: cfg.UsePolling,
 		Queues: map[string]river.QueueConfig{
 			"email": {
 				MaxWorkers: cfg.Workers,
@@ -828,15 +830,15 @@ func (s *Service) EnqueueSendEmail(ctx context.Context, args *SendEmailArgs) err
 }
 
 // EnqueueNotificationEmail enqueues a provider-ready notification email delivery.
-func (s *Service) EnqueueNotificationEmail(ctx context.Context, delivery emailprovider.Delivery) error {
+func (s *Service) EnqueueNotificationEmail(ctx context.Context, delivery emailprovider.Delivery) ([]int64, error) {
 	if !s.config.Enabled {
-		return fmt.Errorf("worker service is disabled")
+		return nil, fmt.Errorf("worker service is disabled")
 	}
 	if s.client == nil {
-		return fmt.Errorf("worker client is not initialized")
+		return nil, fmt.Errorf("worker client is not initialized")
 	}
 	if err := delivery.Validate(); err != nil {
-		return err
+		return nil, err
 	}
 
 	maxAttempts := s.config.RetryPolicy.MaxAttempts
@@ -844,24 +846,24 @@ func (s *Service) EnqueueNotificationEmail(ctx context.Context, delivery emailpr
 		maxAttempts = 5
 	}
 
-	_, err := s.client.InsertMany(ctx, notificationEmailInsertParams(delivery, s.emailQueue(), maxAttempts))
+	results, err := s.client.InsertMany(ctx, notificationEmailInsertParams(delivery, s.emailQueue(), maxAttempts))
 	if err != nil {
-		return fmt.Errorf("failed to enqueue notification email delivery: %w", err)
+		return nil, fmt.Errorf("failed to enqueue notification email delivery: %w", err)
 	}
 
-	return nil
+	return jobIDsFromInsertResults(results), nil
 }
 
 // EnqueueNotificationSlack enqueues a provider-ready notification Slack delivery.
-func (s *Service) EnqueueNotificationSlack(ctx context.Context, delivery slackprovider.Delivery) error {
+func (s *Service) EnqueueNotificationSlack(ctx context.Context, delivery slackprovider.Delivery) ([]int64, error) {
 	if !s.config.Enabled {
-		return fmt.Errorf("worker service is disabled")
+		return nil, fmt.Errorf("worker service is disabled")
 	}
 	if s.client == nil {
-		return fmt.Errorf("worker client is not initialized")
+		return nil, fmt.Errorf("worker client is not initialized")
 	}
 	if err := delivery.Validate(); err != nil {
-		return err
+		return nil, err
 	}
 
 	maxAttempts := s.config.RetryPolicy.MaxAttempts
@@ -871,15 +873,26 @@ func (s *Service) EnqueueNotificationSlack(ctx context.Context, delivery slackpr
 
 	params, err := notificationSlackInsertParams(delivery, s.slackQueue(), maxAttempts)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	_, err = s.client.InsertMany(ctx, params)
+	results, err := s.client.InsertMany(ctx, params)
 	if err != nil {
-		return fmt.Errorf("failed to enqueue notification slack delivery: %w", err)
+		return nil, fmt.Errorf("failed to enqueue notification slack delivery: %w", err)
 	}
 
-	return nil
+	return jobIDsFromInsertResults(results), nil
+}
+
+func jobIDsFromInsertResults(results []*rivertype.JobInsertResult) []int64 {
+	jobIDs := make([]int64, 0, len(results))
+	for _, result := range results {
+		if result == nil || result.Job == nil {
+			continue
+		}
+		jobIDs = append(jobIDs, result.Job.ID)
+	}
+	return jobIDs
 }
 
 func notificationInsertOpts(queue string, maxAttempts int, metadata notification.TransportMetadata) *river.InsertOpts {
@@ -904,6 +917,11 @@ func notificationDeliveryUniqueOpts(metadata notification.TransportMetadata) (ri
 			ByPeriod: 5 * time.Minute,
 		}, true
 	case JobTypeWorkflowTaskDueSoon:
+		return river.UniqueOpts{
+			ByArgs:   true,
+			ByPeriod: 24 * time.Hour,
+		}, true
+	case JobTypeWorkflowDueSoonChecker:
 		return river.UniqueOpts{
 			ByArgs:   true,
 			ByPeriod: 24 * time.Hour,

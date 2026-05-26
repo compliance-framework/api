@@ -364,7 +364,7 @@ func (w *RiskReviewDueReminderWorker) Work(ctx context.Context, job *river.Job[R
 		job.Args.RiskID,
 		job.Args.OwnerUserID,
 		func(userName string, data riskNotificationData) notification.Request {
-			return buildRiskReviewDueReminderNotificationRequest(job.Args, userName, data)
+			return requestWithSourceJobID(buildRiskReviewDueReminderNotificationRequest(job.Args, userName, data), riverJobID(job))
 		},
 	)
 }
@@ -414,7 +414,7 @@ func (w *RiskReviewOverdueEscalationWorker) Work(ctx context.Context, job *river
 		job.Args.RiskID,
 		job.Args.OwnerUserID,
 		func(userName string, data riskNotificationData) notification.Request {
-			return buildRiskReviewOverdueEscalationNotificationRequest(job.Args, userName, data)
+			return requestWithSourceJobID(buildRiskReviewOverdueEscalationNotificationRequest(job.Args, userName, data), riverJobID(job))
 		},
 	)
 }
@@ -464,7 +464,7 @@ func (w *RiskStaleOpenReminderWorker) Work(ctx context.Context, job *river.Job[R
 		job.Args.RiskID,
 		job.Args.OwnerUserID,
 		func(userName string, data riskNotificationData) notification.Request {
-			return buildRiskStaleOpenReminderNotificationRequest(job.Args, userName, data)
+			return requestWithSourceJobID(buildRiskStaleOpenReminderNotificationRequest(job.Args, userName, data), riverJobID(job))
 		},
 	)
 }

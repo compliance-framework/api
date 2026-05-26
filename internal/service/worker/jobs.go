@@ -227,6 +227,10 @@ type DigestService interface {
 	SendGlobalDigest(ctx context.Context) error
 }
 
+type DigestServiceWithSourceJobID interface {
+	SendGlobalDigestWithSourceJobID(ctx context.Context, sourceJobID string) error
+}
+
 // Timeout returns the timeout for email jobs
 func (SendEmailArgs) Timeout() time.Duration {
 	return 30 * time.Second
@@ -547,6 +551,18 @@ func NewSendGlobalDigestWorker(digestService DigestService, logger *zap.SugaredL
 // Work is the River work function for scheduling global digest deliveries.
 func (w *SendGlobalDigestWorker) Work(ctx context.Context, job *river.Job[SendGlobalDigestArgs]) error {
 	w.logger.Infow("Processing global digest job", "job_id", job.ID)
+
+	if sourceAware, ok := w.digestService.(DigestServiceWithSourceJobID); ok {
+		if err := sourceAware.SendGlobalDigestWithSourceJobID(ctx, fmt.Sprintf("%d", job.ID)); err != nil {
+			w.logger.Errorw("Failed to send global digest",
+				"job_id", job.ID,
+				"error", err,
+			)
+			return fmt.Errorf("failed to send global digest: %w", err)
+		}
+		w.logger.Infow("Global digest processed successfully", "job_id", job.ID)
+		return nil
+	}
 
 	if err := w.digestService.SendGlobalDigest(ctx); err != nil {
 		w.logger.Errorw("Failed to send global digest",

@@ -152,3 +152,10 @@ func newJobDispatchOptions(jobKind, requestedChannel string, correlationParts ..
 		SourceJobKind:    trimmedJobKind,
 	}
 }
+
+func requestWithSourceJobID(request notification.Request, jobID int64) notification.Request {
+	if jobID > 0 {
+		request.Options.SourceJobID = fmt.Sprintf("%d", jobID)
+	}
+	return request
+}
