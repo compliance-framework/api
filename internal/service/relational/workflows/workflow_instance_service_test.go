@@ -781,3 +781,65 @@ func TestWorkflowInstanceService_Integration(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, reactivated.IsActive)
 }
+
+// TestWorkflowInstanceService_ValidateInstance_GraceHierarchy tests grace period hierarchy
+// validation between workflow instances and their parent definitions.
+// BCH-1152: instance.GracePeriodDays must be >= definition.GracePeriodDays when both are set.
+func TestWorkflowInstanceService_ValidateInstance_GraceHierarchy(t *testing.T) {
+	db := setupTestDB(t)
+	service := NewWorkflowInstanceService(db)
+
+	defGrace := 10
+	def := createTestWorkflowDefinition()
+	def.GracePeriodDays = &defGrace
+	require.NoError(t, db.Create(def).Error)
+
+	t.Run("rejects instance grace period less than definition grace period", func(t *testing.T) {
+		instanceGrace := 5 // less than definition's 10
+		instance := createTestWorkflowInstance(def.ID)
+		instance.GracePeriodDays = &instanceGrace
+
+		err := service.ValidateInstance(instance)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "grace period")
+	})
+
+	t.Run("accepts instance grace period equal to definition grace period", func(t *testing.T) {
+		instanceGrace := 10
+		instance := createTestWorkflowInstance(def.ID)
+		instance.GracePeriodDays = &instanceGrace
+
+		err := service.ValidateInstance(instance)
+		assert.NoError(t, err)
+	})
+
+	t.Run("accepts instance grace period greater than definition grace period", func(t *testing.T) {
+		instanceGrace := 15
+		instance := createTestWorkflowInstance(def.ID)
+		instance.GracePeriodDays = &instanceGrace
+
+		err := service.ValidateInstance(instance)
+		assert.NoError(t, err)
+	})
+
+	t.Run("skips check when instance grace period is nil", func(t *testing.T) {
+		instance := createTestWorkflowInstance(def.ID)
+		instance.GracePeriodDays = nil
+
+		err := service.ValidateInstance(instance)
+		assert.NoError(t, err)
+	})
+
+	t.Run("skips check when definition grace period is nil", func(t *testing.T) {
+		defNoGrace := createTestWorkflowDefinition()
+		defNoGrace.GracePeriodDays = nil
+		require.NoError(t, db.Create(defNoGrace).Error)
+
+		instanceGrace := 5
+		instance := createTestWorkflowInstance(defNoGrace.ID)
+		instance.GracePeriodDays = &instanceGrace
+
+		err := service.ValidateInstance(instance)
+		assert.NoError(t, err)
+	})
+}

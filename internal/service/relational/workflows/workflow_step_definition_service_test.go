@@ -636,3 +636,87 @@ func TestWorkflowStepDefinitionService_Integration(t *testing.T) {
 	assert.Len(t, dependencies, 1)
 	assert.Equal(t, step1.ID, dependencies[0].ID)
 }
+
+// TestWorkflowStepDefinitionService_ValidateStep_GraceHierarchy tests that the sum of
+// step grace periods for a definition cannot exceed the definition's grace period.
+// BCH-1152: sum(step.GracePeriodDays) <= definition.GracePeriodDays when both are set.
+func TestWorkflowStepDefinitionService_ValidateStep_GraceHierarchy(t *testing.T) {
+	db := setupTestDB(t)
+	service := NewWorkflowStepDefinitionService(db)
+
+	defGrace := 20
+	def := createTestWorkflowDefinition()
+	def.GracePeriodDays = &defGrace
+	require.NoError(t, db.Create(def).Error)
+
+	// Existing step with grace period 15 already persisted to the definition.
+	existingGrace := 15
+	existing := createTestWorkflowStepDefinition(def.ID)
+	existing.GracePeriodDays = &existingGrace
+	require.NoError(t, db.Create(existing).Error)
+
+	t.Run("rejects new step whose grace period would push sum over definition limit", func(t *testing.T) {
+		// existing=15, new=10 → sum=25 > 20
+		newGrace := 10
+		step := createTestWorkflowStepDefinition(def.ID)
+		step.GracePeriodDays = &newGrace
+
+		err := service.ValidateStep(step)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "grace period")
+	})
+
+	t.Run("accepts new step whose grace period keeps sum within definition limit", func(t *testing.T) {
+		// existing=15, new=5 → sum=20 == 20
+		newGrace := 5
+		step := createTestWorkflowStepDefinition(def.ID)
+		step.GracePeriodDays = &newGrace
+
+		err := service.ValidateStep(step)
+		assert.NoError(t, err)
+	})
+
+	t.Run("skips sum check when step grace period is nil", func(t *testing.T) {
+		step := createTestWorkflowStepDefinition(def.ID)
+		step.GracePeriodDays = nil
+
+		err := service.ValidateStep(step)
+		assert.NoError(t, err)
+	})
+
+	t.Run("skips sum check when definition grace period is nil", func(t *testing.T) {
+		defNoGrace := createTestWorkflowDefinition()
+		defNoGrace.GracePeriodDays = nil
+		require.NoError(t, db.Create(defNoGrace).Error)
+
+		newGrace := 100
+		step := createTestWorkflowStepDefinition(defNoGrace.ID)
+		step.GracePeriodDays = &newGrace
+
+		err := service.ValidateStep(step)
+		assert.NoError(t, err)
+	})
+
+	t.Run("update excludes the step being updated from the sum", func(t *testing.T) {
+		// existing step has grace=15; updating it to grace=20 → sum=20 == 20 (self excluded)
+		updatedGrace := 20
+		updated := createTestWorkflowStepDefinition(def.ID)
+		updated.ID = existing.ID // same step being updated
+		updated.GracePeriodDays = &updatedGrace
+
+		err := service.ValidateStepUpdate(updated)
+		assert.NoError(t, err)
+	})
+
+	t.Run("update rejects change that would push sum over limit", func(t *testing.T) {
+		// existing step has grace=15; updating it to grace=25 → sum=25 > 20
+		updatedGrace := 25
+		updated := createTestWorkflowStepDefinition(def.ID)
+		updated.ID = existing.ID
+		updated.GracePeriodDays = &updatedGrace
+
+		err := service.ValidateStepUpdate(updated)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "grace period")
+	})
+}

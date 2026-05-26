@@ -210,13 +210,29 @@ func (s *WorkflowInstanceService) ValidateInstance(instance *WorkflowInstance) e
 		return errors.New("grace period days must be non-negative")
 	}
 
-	return CombineErrors(
+	if err := CombineErrors(
 		ValidateStringRequired(instance.Name, "instance name"),
 		ValidateStringLength(instance.Name, "instance name", MaxNameLength),
 		ValidateUUIDRequired(instance.SystemSecurityPlanID, "system security plan ID"),
 		ValidateUUIDRequired(instance.WorkflowDefinitionID, "workflow definition ID"),
 		ValidateCadence(instance.Cadence),
-	)
+	); err != nil {
+		return err
+	}
+
+	// BCH-1152: instance grace period must be >= definition grace period when both are set.
+	if instance.GracePeriodDays != nil && instance.WorkflowDefinitionID != nil {
+		var defGrace *int
+		s.db.Model(&WorkflowDefinition{}).
+			Select("grace_period_days").
+			Where("id = ?", instance.WorkflowDefinitionID).
+			Scan(&defGrace)
+		if defGrace != nil && *instance.GracePeriodDays < *defGrace {
+			return errors.New("instance grace period days must be greater than or equal to the workflow definition grace period")
+		}
+	}
+
+	return nil
 }
 
 // CalculateNextSchedule calculates the next scheduled time based on cadence
