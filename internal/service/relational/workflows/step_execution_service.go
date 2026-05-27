@@ -404,12 +404,13 @@ func (s *StepExecutionService) GetMyAssignments(userID, userEmail string, filter
 		query = query.Where("step_executions.status = ?", filter.Status)
 	}
 
-	// Apply due date filters (on workflow execution)
+	// Filter on effective due date: step's own due_date takes precedence over the
+	// workflow execution's due_date, mirroring getEffectiveDueDate in the UI.
 	if filter.DueBefore != nil {
-		query = query.Where("workflow_executions.due_date <= ?", filter.DueBefore)
+		query = query.Where("COALESCE(step_executions.due_date, workflow_executions.due_date) <= ?", filter.DueBefore)
 	}
 	if filter.DueAfter != nil {
-		query = query.Where("workflow_executions.due_date >= ?", filter.DueAfter)
+		query = query.Where("COALESCE(step_executions.due_date, workflow_executions.due_date) >= ?", filter.DueAfter)
 	}
 
 	// Apply workflow definition filter
