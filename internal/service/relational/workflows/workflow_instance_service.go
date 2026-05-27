@@ -133,9 +133,60 @@ func (s *WorkflowInstanceService) Update(id *uuid.UUID, updates *WorkflowInstanc
 	return s.base.UpdateEntity(&existing, updates, id, "workflow instance")
 }
 
-// Delete soft deletes a workflow instance
+// Delete soft deletes a workflow instance and cascades to its open step executions and their
+// evidence. Closed step executions (completed, failed, skipped) and their evidence are preserved
+// to retain the audit trail. All workflow executions belonging to the instance are also removed.
 func (s *WorkflowInstanceService) Delete(id *uuid.UUID) error {
-	return s.base.DeleteEntity(&WorkflowInstance{}, id, "workflow instance")
+	return s.db.Transaction(func(tx *gorm.DB) error {
+		openStatuses := []string{
+			string(StepStatusPending),
+			string(StepStatusBlocked),
+			string(StepStatusInProgress),
+			string(StepStatusOverdue),
+		}
+
+		execSubquery := tx.Model(&WorkflowExecution{}).
+			Select("id").
+			Where("workflow_instance_id = ?", id)
+
+		// Collect open step execution IDs so we can delete their evidence.
+		var openStepIDs []uuid.UUID
+		if err := tx.Model(&StepExecution{}).
+			Select("id").
+			Where("workflow_execution_id IN (?) AND status IN ?", execSubquery, openStatuses).
+			Pluck("id", &openStepIDs).Error; err != nil {
+			return err
+		}
+
+		if len(openStepIDs) > 0 {
+			if err := tx.
+				Where("step_execution_id IN ?", openStepIDs).
+				Delete(&StepEvidence{}).Error; err != nil {
+				return err
+			}
+		}
+
+		if err := tx.
+			Where("workflow_execution_id IN (?) AND status IN ?", execSubquery, openStatuses).
+			Delete(&StepExecution{}).Error; err != nil {
+			return err
+		}
+
+		if err := tx.
+			Where("workflow_instance_id = ?", id).
+			Delete(&WorkflowExecution{}).Error; err != nil {
+			return err
+		}
+
+		result := tx.Delete(&WorkflowInstance{}, id)
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected == 0 {
+			return fmt.Errorf("workflow instance with id %s not found", id.String())
+		}
+		return nil
+	})
 }
 
 // Activate activates a workflow instance
