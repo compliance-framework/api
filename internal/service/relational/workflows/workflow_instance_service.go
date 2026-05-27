@@ -138,13 +138,6 @@ func (s *WorkflowInstanceService) Update(id *uuid.UUID, updates *WorkflowInstanc
 // to retain the audit trail. All workflow executions belonging to the instance are also removed.
 func (s *WorkflowInstanceService) Delete(id *uuid.UUID) error {
 	return s.db.Transaction(func(tx *gorm.DB) error {
-		openStatuses := []string{
-			string(StepStatusPending),
-			string(StepStatusBlocked),
-			string(StepStatusInProgress),
-			string(StepStatusOverdue),
-		}
-
 		execSubquery := tx.Model(&WorkflowExecution{}).
 			Select("id").
 			Where("workflow_instance_id = ?", id)
@@ -153,7 +146,7 @@ func (s *WorkflowInstanceService) Delete(id *uuid.UUID) error {
 		var openStepIDs []uuid.UUID
 		if err := tx.Model(&StepExecution{}).
 			Select("id").
-			Where("workflow_execution_id IN (?) AND status IN ?", execSubquery, openStatuses).
+			Where("workflow_execution_id IN (?) AND status IN ?", execSubquery, OpenStepStatuses).
 			Pluck("id", &openStepIDs).Error; err != nil {
 			return err
 		}
@@ -167,7 +160,7 @@ func (s *WorkflowInstanceService) Delete(id *uuid.UUID) error {
 		}
 
 		if err := tx.
-			Where("workflow_execution_id IN (?) AND status IN ?", execSubquery, openStatuses).
+			Where("workflow_execution_id IN (?) AND status IN ?", execSubquery, OpenStepStatuses).
 			Delete(&StepExecution{}).Error; err != nil {
 			return err
 		}
@@ -178,14 +171,7 @@ func (s *WorkflowInstanceService) Delete(id *uuid.UUID) error {
 			return err
 		}
 
-		result := tx.Delete(&WorkflowInstance{}, id)
-		if result.Error != nil {
-			return result.Error
-		}
-		if result.RowsAffected == 0 {
-			return fmt.Errorf("workflow instance with id %s not found", id.String())
-		}
-		return nil
+		return NewBaseService(tx).DeleteEntity(&WorkflowInstance{}, id, "workflow instance")
 	})
 }
 

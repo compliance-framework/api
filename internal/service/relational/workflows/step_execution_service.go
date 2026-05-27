@@ -368,7 +368,7 @@ func (s *StepExecutionService) GetCompletedSteps(executionID *uuid.UUID) ([]Step
 func (s *StepExecutionService) GetAssignedSteps(assignedToType, assignedToID string) ([]StepExecution, error) {
 	var stepExecutions []StepExecution
 	err := s.db.Where("assigned_to_type = ? AND assigned_to_id = ? AND status IN ?",
-		assignedToType, assignedToID, []string{"pending", "in_progress", "blocked", "overdue"}).
+		assignedToType, assignedToID, OpenStepStatuses).
 		Preload("WorkflowExecution").
 		Preload("WorkflowExecution.WorkflowInstance").
 		Preload("WorkflowStepDefinition").

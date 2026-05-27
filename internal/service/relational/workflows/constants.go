@@ -144,6 +144,15 @@ const (
 	StepStatusSkipped    StepExecutionStatus = "skipped"
 )
 
+// OpenStepStatuses contains the step execution statuses that represent incomplete work.
+// Use this slice for queries that target non-terminal steps (e.g. cascade deletes, assignment lookups).
+var OpenStepStatuses = []string{
+	string(StepStatusPending),
+	string(StepStatusBlocked),
+	string(StepStatusInProgress),
+	string(StepStatusOverdue),
+}
+
 // IsValid checks if the step execution status is valid
 func (s StepExecutionStatus) IsValid() bool {
 	switch s {
