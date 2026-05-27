@@ -144,13 +144,21 @@ const (
 	StepStatusSkipped    StepExecutionStatus = "skipped"
 )
 
-// OpenStepStatuses contains the step execution statuses that represent incomplete work.
-// Use this slice for queries that target non-terminal steps (e.g. cascade deletes, assignment lookups).
-var OpenStepStatuses = []string{
+// openStepStatuses is the unexported backing slice for OpenStepStatuses.
+var openStepStatuses = []string{
 	string(StepStatusPending),
 	string(StepStatusBlocked),
 	string(StepStatusInProgress),
 	string(StepStatusOverdue),
+}
+
+// OpenStepStatuses returns a copy of the step execution statuses that represent incomplete work.
+// Use it for queries that target non-terminal steps (e.g. cascade deletes, assignment lookups).
+// A copy is returned to prevent callers from mutating the shared backing slice.
+func OpenStepStatuses() []string {
+	s := make([]string, len(openStepStatuses))
+	copy(s, openStepStatuses)
+	return s
 }
 
 // IsValid checks if the step execution status is valid

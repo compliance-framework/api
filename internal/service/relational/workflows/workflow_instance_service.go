@@ -146,7 +146,7 @@ func (s *WorkflowInstanceService) Delete(id *uuid.UUID) error {
 		var openStepIDs []uuid.UUID
 		if err := tx.Model(&StepExecution{}).
 			Select("id").
-			Where("workflow_execution_id IN (?) AND status IN ?", execSubquery, OpenStepStatuses).
+			Where("workflow_execution_id IN (?) AND status IN ?", execSubquery, OpenStepStatuses()).
 			Pluck("id", &openStepIDs).Error; err != nil {
 			return err
 		}
@@ -160,7 +160,7 @@ func (s *WorkflowInstanceService) Delete(id *uuid.UUID) error {
 		}
 
 		if err := tx.
-			Where("workflow_execution_id IN (?) AND status IN ?", execSubquery, OpenStepStatuses).
+			Where("workflow_execution_id IN (?) AND status IN ?", execSubquery, OpenStepStatuses()).
 			Delete(&StepExecution{}).Error; err != nil {
 			return err
 		}
