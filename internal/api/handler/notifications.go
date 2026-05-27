@@ -51,6 +51,7 @@ type availableNotificationProviderResponse struct {
 	DisplayName  string            `json:"displayName"`
 	Description  string            `json:"description"`
 	Enabled      bool              `json:"enabled"`
+	Error        string            `json:"error,omitempty"`
 	Metadata     map[string]string `json:"metadata,omitempty"`
 }
 
@@ -359,6 +360,7 @@ func (h *NotificationsHandler) ListNotificationProviders(ctx echo.Context) error
 			DisplayName:  provider.DisplayName,
 			Description:  provider.Description,
 			Enabled:      provider.Enabled,
+			Error:        provider.Error,
 			Metadata:     provider.Metadata,
 		})
 	}

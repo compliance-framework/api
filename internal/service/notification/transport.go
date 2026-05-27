@@ -28,6 +28,7 @@ type ProviderMetadata struct {
 	DisplayName  string
 	Description  string
 	Enabled      bool
+	Error        string
 	Metadata     map[string]string
 }
 

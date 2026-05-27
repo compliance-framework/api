@@ -19,6 +19,26 @@ import (
 	"go.uber.org/zap"
 )
 
+type stubProviderCatalog struct {
+	providers []notification.ProviderMetadata
+}
+
+func (s stubProviderCatalog) Provider(providerID string) (notification.Provider, bool) {
+	return nil, false
+}
+
+func (s stubProviderCatalog) ProviderIDs() []string {
+	providerIDs := make([]string, 0, len(s.providers))
+	for _, provider := range s.providers {
+		providerIDs = append(providerIDs, provider.ProviderType)
+	}
+	return providerIDs
+}
+
+func (s stubProviderCatalog) Providers() []notification.ProviderMetadata {
+	return append([]notification.ProviderMetadata(nil), s.providers...)
+}
+
 type stubNotificationTestEnqueuer struct {
 	started bool
 	jobIDs  []int64
@@ -70,4 +90,38 @@ func TestSendTestNotificationReturnsJobIDs(t *testing.T) {
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &response))
 	require.Equal(t, []int64{42}, response.Data.JobIDs)
 	require.Equal(t, notification.DeliveryChannelEmail, response.Data.ProviderType)
+}
+
+func TestListNotificationProvidersReturnsProviderErrors(t *testing.T) {
+	e := echo.New()
+	handler := &NotificationsHandler{
+		sugar: zap.NewNop().Sugar(),
+		providers: stubProviderCatalog{providers: []notification.ProviderMetadata{
+			{
+				ProviderType: notification.DeliveryChannelSlack,
+				DisplayName:  "Slack",
+				Description:  "Configured Slack workspace",
+				Enabled:      true,
+				Error:        "invalid_auth",
+			},
+		}},
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/admin/notifications/providers", nil)
+	rec := httptest.NewRecorder()
+
+	err := handler.ListNotificationProviders(e.NewContext(req, rec))
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	var response GenericDataListResponse[availableNotificationProviderResponse]
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &response))
+	require.Len(t, response.Data, 1)
+	require.Equal(t, availableNotificationProviderResponse{
+		ProviderType: notification.DeliveryChannelSlack,
+		DisplayName:  "Slack",
+		Description:  "Configured Slack workspace",
+		Enabled:      true,
+		Error:        "invalid_auth",
+	}, response.Data[0])
 }
