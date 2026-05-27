@@ -293,6 +293,160 @@ func TestWorkflowInstanceService_Delete(t *testing.T) {
 	assert.Contains(t, err.Error(), "not found")
 }
 
+// TestWorkflowInstanceService_Delete_SoftDeletesOpenStepExecutions tests that deleting a workflow
+// instance also soft-deletes open step executions (BCH-1158).
+// Observed: pending/blocked/in_progress/overdue step executions remain alive after instance deletion.
+// Expected: open step executions are soft-deleted; completed/failed/skipped are left untouched.
+func TestWorkflowInstanceService_Delete_SoftDeletesOpenStepExecutions(t *testing.T) {
+	db := setupTestDB(t)
+	service := NewWorkflowInstanceService(db)
+
+	workflowDef := createTestWorkflowDefinition()
+	require.NoError(t, db.Create(workflowDef).Error)
+
+	instance := createTestWorkflowInstance(workflowDef.ID)
+	require.NoError(t, db.Create(instance).Error)
+
+	execution := createTestWorkflowExecution(instance.ID)
+	require.NoError(t, db.Create(execution).Error)
+
+	openStatuses := []string{
+		string(StepStatusPending),
+		string(StepStatusBlocked),
+		string(StepStatusInProgress),
+		string(StepStatusOverdue),
+	}
+	closedStatuses := []string{
+		string(StepStatusCompleted),
+		string(StepStatusFailed),
+		string(StepStatusSkipped),
+	}
+
+	openStepIDs := make([]*uuid.UUID, 0, len(openStatuses))
+	for _, status := range openStatuses {
+		sd := createTestWorkflowStepDefinition(workflowDef.ID)
+		require.NoError(t, db.Create(sd).Error)
+		step := createTestStepExecution(execution.ID, sd.ID)
+		step.Status = status
+		require.NoError(t, db.Create(step).Error)
+		openStepIDs = append(openStepIDs, step.ID)
+	}
+
+	closedStepIDs := make([]*uuid.UUID, 0, len(closedStatuses))
+	for _, status := range closedStatuses {
+		sd := createTestWorkflowStepDefinition(workflowDef.ID)
+		require.NoError(t, db.Create(sd).Error)
+		step := createTestStepExecution(execution.ID, sd.ID)
+		step.Status = status
+		require.NoError(t, db.Create(step).Error)
+		closedStepIDs = append(closedStepIDs, step.ID)
+	}
+
+	require.NoError(t, service.Delete(instance.ID))
+
+	// Open step executions must be soft-deleted.
+	for _, id := range openStepIDs {
+		var step StepExecution
+		require.NoError(t, db.Unscoped().First(&step, id).Error)
+		assert.NotNil(t, step.DeletedAt.Time, "open step %s should be soft-deleted", id)
+		assert.True(t, step.DeletedAt.Valid, "open step %s should have a valid deleted_at", id)
+	}
+
+	// Closed step executions must be preserved.
+	for _, id := range closedStepIDs {
+		var step StepExecution
+		require.NoError(t, db.First(&step, id).Error, "closed step %s should still exist", id)
+		assert.False(t, step.DeletedAt.Valid, "closed step %s should not be soft-deleted", id)
+	}
+}
+
+// TestWorkflowInstanceService_Delete_SoftDeletesWorkflowExecutions tests that deleting a workflow
+// instance also soft-deletes all workflow executions belonging to it (BCH-1158).
+func TestWorkflowInstanceService_Delete_SoftDeletesWorkflowExecutions(t *testing.T) {
+	db := setupTestDB(t)
+	service := NewWorkflowInstanceService(db)
+
+	workflowDef := createTestWorkflowDefinition()
+	require.NoError(t, db.Create(workflowDef).Error)
+
+	instance := createTestWorkflowInstance(workflowDef.ID)
+	require.NoError(t, db.Create(instance).Error)
+
+	exec1 := createTestWorkflowExecution(instance.ID)
+	require.NoError(t, db.Create(exec1).Error)
+	exec2 := createTestWorkflowExecution(instance.ID)
+	require.NoError(t, db.Create(exec2).Error)
+
+	require.NoError(t, service.Delete(instance.ID))
+
+	for _, execID := range []*uuid.UUID{exec1.ID, exec2.ID} {
+		var we WorkflowExecution
+		require.NoError(t, db.Unscoped().First(&we, execID).Error)
+		assert.True(t, we.DeletedAt.Valid, "workflow execution %s should be soft-deleted", execID)
+	}
+}
+
+// TestWorkflowInstanceService_Delete_SoftDeletesStepEvidenceForOpenSteps tests that deleting a
+// workflow instance also soft-deletes evidence submitted for open (non-closed) steps (BCH-1158).
+// Closed steps and their evidence must be preserved for the audit trail.
+func TestWorkflowInstanceService_Delete_SoftDeletesStepEvidenceForOpenSteps(t *testing.T) {
+	db := setupTestDB(t)
+	service := NewWorkflowInstanceService(db)
+
+	workflowDef := createTestWorkflowDefinition()
+	require.NoError(t, db.Create(workflowDef).Error)
+
+	instance := createTestWorkflowInstance(workflowDef.ID)
+	require.NoError(t, db.Create(instance).Error)
+
+	execution := createTestWorkflowExecution(instance.ID)
+	require.NoError(t, db.Create(execution).Error)
+
+	// Open step with evidence that should be deleted.
+	openStepDef := createTestWorkflowStepDefinition(workflowDef.ID)
+	require.NoError(t, db.Create(openStepDef).Error)
+	openStep := createTestStepExecution(execution.ID, openStepDef.ID)
+	openStep.Status = string(StepStatusInProgress)
+	require.NoError(t, db.Create(openStep).Error)
+
+	openEvidenceID := uuid.New()
+	openEvidence := &StepEvidence{
+		UUIDModel:       relational.UUIDModel{ID: &openEvidenceID},
+		StepExecutionID: openStep.ID,
+		Name:            "Open step evidence",
+		EvidenceType:    "document",
+	}
+	require.NoError(t, db.Create(openEvidence).Error)
+
+	// Closed step with evidence that must be preserved.
+	closedStepDef := createTestWorkflowStepDefinition(workflowDef.ID)
+	require.NoError(t, db.Create(closedStepDef).Error)
+	closedStep := createTestStepExecution(execution.ID, closedStepDef.ID)
+	closedStep.Status = string(StepStatusCompleted)
+	require.NoError(t, db.Create(closedStep).Error)
+
+	closedEvidenceID := uuid.New()
+	closedEvidence := &StepEvidence{
+		UUIDModel:       relational.UUIDModel{ID: &closedEvidenceID},
+		StepExecutionID: closedStep.ID,
+		Name:            "Closed step evidence",
+		EvidenceType:    "document",
+	}
+	require.NoError(t, db.Create(closedEvidence).Error)
+
+	require.NoError(t, service.Delete(instance.ID))
+
+	// Evidence for the open step must be soft-deleted.
+	var deletedEvidence StepEvidence
+	require.NoError(t, db.Unscoped().First(&deletedEvidence, &openEvidenceID).Error)
+	assert.True(t, deletedEvidence.DeletedAt.Valid, "evidence for open step should be soft-deleted")
+
+	// Evidence for the closed step must be preserved.
+	var preservedEvidence StepEvidence
+	require.NoError(t, db.First(&preservedEvidence, &closedEvidenceID).Error, "evidence for closed step should still exist")
+	assert.False(t, preservedEvidence.DeletedAt.Valid, "evidence for closed step should not be soft-deleted")
+}
+
 // TestWorkflowInstanceService_Activate tests the Activate method
 func TestWorkflowInstanceService_Activate(t *testing.T) {
 	db := setupTestDB(t)
