@@ -1708,6 +1708,8 @@ definitions:
         type: string
       enabled:
         type: boolean
+      error:
+        type: string
       metadata:
         additionalProperties:
           type: string

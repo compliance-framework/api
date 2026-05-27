@@ -29671,6 +29671,9 @@ const docTemplate = `{
                 "enabled": {
                     "type": "boolean"
                 },
+                "error": {
+                    "type": "string"
+                },
                 "metadata": {
                     "type": "object",
                     "additionalProperties": {
