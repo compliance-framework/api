@@ -271,6 +271,62 @@ func TestTransitionStepStatus_UnexpectedPermissionLookupErrorBubbles(t *testing.
 	mockRole.AssertExpectations(t)
 }
 
+// BCH-1150: screenshot evidence should reject non-image file types.
+// Observed: validateEvidenceRequirements accepts PDF/DOC for screenshot type.
+// Expected: returns error when media type is not an image for screenshot evidence.
+func TestValidateEvidenceRequirements_ScreenshotRejectsNonImageMediaType(t *testing.T) {
+	svc := NewStepTransitionService(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+
+	stepDef := &workflows.WorkflowStepDefinition{
+		EvidenceRequired: []workflows.EvidenceRequirement{
+			{Type: "screenshot", Required: true},
+		},
+	}
+
+	err := svc.validateEvidenceRequirements(stepDef, []EvidenceSubmission{
+		{EvidenceType: "screenshot", MediaType: "application/pdf"},
+	})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "screenshot")
+}
+
+// BCH-1150: screenshot evidence should accept image file types.
+func TestValidateEvidenceRequirements_ScreenshotAcceptsImageMediaType(t *testing.T) {
+	svc := NewStepTransitionService(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+
+	stepDef := &workflows.WorkflowStepDefinition{
+		EvidenceRequired: []workflows.EvidenceRequirement{
+			{Type: "screenshot", Required: true},
+		},
+	}
+
+	for _, imageType := range []string{"image/png", "image/jpeg", "image/gif", "image/webp"} {
+		err := svc.validateEvidenceRequirements(stepDef, []EvidenceSubmission{
+			{EvidenceType: "screenshot", MediaType: imageType},
+		})
+		assert.NoError(t, err, "expected %s to be accepted for screenshot", imageType)
+	}
+}
+
+// BCH-1150: document evidence should accept a broader set of media types including PDF and images.
+func TestValidateEvidenceRequirements_DocumentAcceptsBroadMediaTypes(t *testing.T) {
+	svc := NewStepTransitionService(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+
+	stepDef := &workflows.WorkflowStepDefinition{
+		EvidenceRequired: []workflows.EvidenceRequirement{
+			{Type: "document", Required: true},
+		},
+	}
+
+	for _, mediaType := range []string{"application/pdf", "application/msword", "image/png"} {
+		err := svc.validateEvidenceRequirements(stepDef, []EvidenceSubmission{
+			{EvidenceType: "document", MediaType: mediaType},
+		})
+		assert.NoError(t, err, "expected %s to be accepted for document", mediaType)
+	}
+}
+
 type mockStepAssignmentService struct {
 	called bool
 }

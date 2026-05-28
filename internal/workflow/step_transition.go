@@ -33,6 +33,14 @@ type StepTransitionService struct {
 var ErrInvalidStepTransition = errors.New("invalid step transition")
 var errTransitionForbidden = errors.New("forbidden")
 
+var screenshotAllowedMediaTypes = map[string]bool{
+	"image/png":  true,
+	"image/jpeg": true,
+	"image/jpg":  true,
+	"image/gif":  true,
+	"image/webp": true,
+}
+
 // WorkflowDefinitionServiceInterface defines the interface for workflow definition operations
 type WorkflowDefinitionServiceInterface interface {
 	GetByID(id *uuid.UUID) (*workflows.WorkflowDefinition, error)
@@ -288,7 +296,17 @@ func (s *StepTransitionService) validateTransition(currentStatus, newStatus stri
 }
 
 // validateEvidenceRequirements validates that all required evidence has been submitted
+// and that file media types are compatible with their declared evidence type.
 func (s *StepTransitionService) validateEvidenceRequirements(stepDef *workflows.WorkflowStepDefinition, submittedEvidence []EvidenceSubmission) error {
+
+	// Validate file type compatibility per submission.
+	for _, evidence := range submittedEvidence {
+		if evidence.EvidenceType == "screenshot" && evidence.MediaType != "" {
+			if !screenshotAllowedMediaTypes[evidence.MediaType] {
+				return fmt.Errorf("evidence type 'screenshot' requires an image file (png/jpg/jpeg/gif/webp), got %q", evidence.MediaType)
+			}
+		}
+	}
 
 	// Build a map of submitted evidence types
 	submittedTypes := make(map[string]int)
