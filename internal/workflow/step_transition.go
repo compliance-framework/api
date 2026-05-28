@@ -302,7 +302,9 @@ func (s *StepTransitionService) validateEvidenceRequirements(stepDef *workflows.
 	// Validate file type compatibility per submission.
 	for _, evidence := range submittedEvidence {
 		if evidence.EvidenceType == "screenshot" && evidence.MediaType != "" {
-			if !screenshotAllowedMediaTypes[evidence.MediaType] {
+			// Normalize: lowercase and strip parameters (e.g. "Image/PNG; charset=binary" → "image/png")
+			normalized := strings.ToLower(strings.TrimSpace(strings.SplitN(evidence.MediaType, ";", 2)[0]))
+			if !screenshotAllowedMediaTypes[normalized] {
 				return fmt.Errorf("evidence type 'screenshot' requires an image file (png/jpg/jpeg/gif/webp), got %q", evidence.MediaType)
 			}
 		}
