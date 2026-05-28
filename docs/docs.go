@@ -40386,9 +40386,6 @@ const docTemplate = `{
                 "description": {
                     "type": "string"
                 },
-                "evidence-required": {
-                    "type": "string"
-                },
                 "grace-period-days": {
                     "type": "integer"
                 },
@@ -40973,9 +40970,6 @@ const docTemplate = `{
                 "description": {
                     "type": "string"
                 },
-                "evidence-required": {
-                    "type": "string"
-                },
                 "grace-period-days": {
                     "type": "integer"
                 },
@@ -41062,10 +41056,6 @@ const docTemplate = `{
                     "$ref": "#/definitions/gorm.DeletedAt"
                 },
                 "description": {
-                    "type": "string"
-                },
-                "evidence_required": {
-                    "description": "JSON array of required evidence types",
                     "type": "string"
                 },
                 "grace-period-days": {
