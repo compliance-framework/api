@@ -90,8 +90,10 @@ func TestWorkflowDefinitionHandler_Create(t *testing.T) {
 		require.NoError(t, err)
 		data, ok := rawResponse["data"].(map[string]interface{})
 		require.True(t, ok, "response must have a data object")
-		_, hasField := data["evidence_required"]
-		assert.False(t, hasField, "evidence_required must not appear in the workflow definition response")
+		_, hasUnderscore := data["evidence_required"]
+		assert.False(t, hasUnderscore, "evidence_required must not appear in the workflow definition response")
+		_, hasHyphen := data["evidence-required"]
+		assert.False(t, hasHyphen, "evidence-required must not appear in the workflow definition response")
 	})
 
 	t.Run("ValidationError_MissingName", func(t *testing.T) {
@@ -289,8 +291,10 @@ func TestWorkflowDefinitionHandler_Update(t *testing.T) {
 		require.NoError(t, err)
 		data, ok := rawResponse["data"].(map[string]interface{})
 		require.True(t, ok, "response must have a data object")
-		_, hasField := data["evidence_required"]
-		assert.False(t, hasField, "evidence_required must not appear in the workflow definition update response")
+		_, hasUnderscore := data["evidence_required"]
+		assert.False(t, hasUnderscore, "evidence_required must not appear in the workflow definition update response")
+		_, hasHyphen := data["evidence-required"]
+		assert.False(t, hasHyphen, "evidence-required must not appear in the workflow definition update response")
 	})
 
 	t.Run("PartialUpdate", func(t *testing.T) {
