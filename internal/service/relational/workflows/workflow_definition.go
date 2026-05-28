@@ -22,9 +22,9 @@ type WorkflowDefinition struct {
 	Version     string `gorm:"size:50" json:"version"`
 
 	// Workflow Configuration
-	SuggestedCadence string `gorm:"size:50" json:"suggested_cadence"`   // daily, weekly, monthly, quarterly, annually
-	EvidenceRequired string `gorm:"type:text" json:"evidence_required"` // JSON array of required evidence types
-	GracePeriodDays  *int   `json:"grace-period-days,omitempty"`        // Override global default if set
+	SuggestedCadence string `gorm:"size:50" json:"suggested_cadence"` // daily, weekly, monthly, quarterly, annually
+	EvidenceRequired string `gorm:"type:text" json:"-"`               // kept in DB for migration safety; excluded from API contract (BCH-1145)
+	GracePeriodDays  *int   `json:"grace-period-days,omitempty"`      // Override global default if set
 
 	// Audit Fields
 	CreatedByID *uuid.UUID `gorm:"index" json:"created_by_id,omitempty"`

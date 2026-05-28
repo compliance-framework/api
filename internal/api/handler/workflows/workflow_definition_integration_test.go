@@ -37,7 +37,6 @@ func TestWorkflowDefinitionHandler_Create(t *testing.T) {
 			Description:      "Quarterly security assessment process",
 			Version:          "1.0",
 			SuggestedCadence: "quarterly",
-			EvidenceRequired: `["vulnerability_scan", "penetration_test"]`,
 			GracePeriodDays:  intPtr(10),
 		}
 
@@ -64,6 +63,37 @@ func TestWorkflowDefinitionHandler_Create(t *testing.T) {
 		assert.Equal(t, "quarterly", response.Data.SuggestedCadence)
 		require.NotNil(t, response.Data.GracePeriodDays)
 		assert.Equal(t, 10, *response.Data.GracePeriodDays)
+	})
+
+	// BCH-1145: definition-level evidence-required duplicates step-level requirements.
+	// Observed: POST /workflows/definitions accepts and returns evidence-required.
+	// Expected: the field must not be part of the API contract.
+	t.Run("EvidenceRequired_NotInResponse", func(t *testing.T) {
+		reqBody := map[string]interface{}{
+			"name":              "Evidence Test Workflow",
+			"evidence-required": `["document"]`,
+		}
+		body, err := json.Marshal(reqBody)
+		require.NoError(t, err)
+
+		req := httptest.NewRequest(http.MethodPost, "/workflows/definitions", bytes.NewReader(body))
+		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+		rec := httptest.NewRecorder()
+		c := e.NewContext(req, rec)
+
+		err = handler.Create(c)
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusCreated, rec.Code)
+
+		var rawResponse map[string]interface{}
+		err = json.Unmarshal(rec.Body.Bytes(), &rawResponse)
+		require.NoError(t, err)
+		data, ok := rawResponse["data"].(map[string]interface{})
+		require.True(t, ok, "response must have a data object")
+		_, hasUnderscore := data["evidence_required"]
+		assert.False(t, hasUnderscore, "evidence_required must not appear in the workflow definition response")
+		_, hasHyphen := data["evidence-required"]
+		assert.False(t, hasHyphen, "evidence-required must not appear in the workflow definition response")
 	})
 
 	t.Run("ValidationError_MissingName", func(t *testing.T) {
@@ -234,6 +264,37 @@ func TestWorkflowDefinitionHandler_Update(t *testing.T) {
 		assert.Equal(t, "1.0", response.Data.Version) // Unchanged
 		require.NotNil(t, response.Data.GracePeriodDays)
 		assert.Equal(t, 14, *response.Data.GracePeriodDays)
+	})
+
+	// BCH-1145: evidence-required must not appear in update responses either.
+	t.Run("EvidenceRequired_NotInUpdateResponse", func(t *testing.T) {
+		reqBody := map[string]interface{}{
+			"name":              "Updated Name",
+			"evidence-required": `["screenshot"]`,
+		}
+		body, err := json.Marshal(reqBody)
+		require.NoError(t, err)
+
+		req := httptest.NewRequest(http.MethodPut, "/workflows/definitions/"+definition.ID.String(), bytes.NewReader(body))
+		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+		rec := httptest.NewRecorder()
+		c := e.NewContext(req, rec)
+		c.SetParamNames("id")
+		c.SetParamValues(definition.ID.String())
+
+		err = handler.Update(c)
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusOK, rec.Code)
+
+		var rawResponse map[string]interface{}
+		err = json.Unmarshal(rec.Body.Bytes(), &rawResponse)
+		require.NoError(t, err)
+		data, ok := rawResponse["data"].(map[string]interface{})
+		require.True(t, ok, "response must have a data object")
+		_, hasUnderscore := data["evidence_required"]
+		assert.False(t, hasUnderscore, "evidence_required must not appear in the workflow definition update response")
+		_, hasHyphen := data["evidence-required"]
+		assert.False(t, hasHyphen, "evidence-required must not appear in the workflow definition update response")
 	})
 
 	t.Run("PartialUpdate", func(t *testing.T) {
