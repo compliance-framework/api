@@ -629,6 +629,48 @@ func TestAddWorkflowExecutionStartedEvidence(t *testing.T) {
 	})
 }
 
+func TestCalculateCompletionEvidenceExpires(t *testing.T) {
+	evidenceIntegration := NewEvidenceIntegration(nil, zap.NewNop().Sugar())
+	completedAt := time.Date(2026, 1, 15, 10, 30, 0, 0, time.UTC)
+	zeroGrace := 0
+
+	tests := []struct {
+		name     string
+		cadence  string
+		expected time.Time
+	}{
+		{
+			name:     "hourly cron",
+			cadence:  "cron:0 0 * * * *",
+			expected: time.Date(2026, 1, 15, 11, 0, 0, 0, time.UTC),
+		},
+		{
+			name:     "daily cron",
+			cadence:  "cron:0 0 9 * * *",
+			expected: time.Date(2026, 1, 16, 9, 0, 0, 0, time.UTC),
+		},
+		{
+			name:     "monthly named cadence",
+			cadence:  string(workflows.CadenceMonthly),
+			expected: time.Date(2026, 2, 15, 10, 30, 0, 0, time.UTC),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			instance := &workflows.WorkflowInstance{
+				Cadence:         tt.cadence,
+				GracePeriodDays: &zeroGrace,
+			}
+
+			expires := evidenceIntegration.calculateCompletionEvidenceExpires(&completedAt, instance, nil)
+
+			require.NotNil(t, expires)
+			assert.Equal(t, tt.expected, *expires)
+		})
+	}
+}
+
 func TestAddStepStartedEvidence(t *testing.T) {
 	db := setupEvidenceTestDB(t)
 	defer func() {

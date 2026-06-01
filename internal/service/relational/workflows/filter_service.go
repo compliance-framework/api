@@ -132,6 +132,29 @@ func (s *FilterSyncService) SyncFilterForDefinition(definitionID uuid.UUID) erro
 	return nil
 }
 
+func (s *FilterSyncService) DeleteFilterForDefinition(definitionID uuid.UUID) error {
+	filterID := generateWorkflowFilterUUID(definitionID)
+
+	var filter relational.Filter
+	err := s.db.First(&filter, "id = ?", filterID).Error
+	switch {
+	case err == nil:
+	case errors.Is(err, gorm.ErrRecordNotFound):
+		return nil
+	default:
+		return fmt.Errorf("failed to load workflow filter: %w", err)
+	}
+
+	if err := s.db.Model(&filter).Association("Controls").Clear(); err != nil {
+		return fmt.Errorf("failed to clear workflow filter controls: %w", err)
+	}
+	if err := s.db.Delete(&filter).Error; err != nil {
+		return fmt.Errorf("failed to delete workflow filter: %w", err)
+	}
+
+	return nil
+}
+
 func generateWorkflowFilterUUID(definitionID uuid.UUID) uuid.UUID {
 	seed := fmt.Sprintf("workflow-filter:%s:%s", definitionID.String(), "v1")
 	hash := sha256.Sum256([]byte(seed))

@@ -9,6 +9,7 @@ import (
 
 type WorkflowDefinitionHandler struct {
 	*BaseHandler
+	db         *gorm.DB
 	service    *workflows.WorkflowDefinitionService
 	filterSync *workflows.FilterSyncService
 }
@@ -16,6 +17,7 @@ type WorkflowDefinitionHandler struct {
 func NewWorkflowDefinitionHandler(sugar *zap.SugaredLogger, db *gorm.DB) *WorkflowDefinitionHandler {
 	return &WorkflowDefinitionHandler{
 		BaseHandler: NewBaseHandler(sugar),
+		db:          db,
 		service:     workflows.NewWorkflowDefinitionService(db),
 		filterSync:  workflows.NewFilterSyncService(db, sugar),
 	}
@@ -221,7 +223,13 @@ func (h *WorkflowDefinitionHandler) Delete(ctx echo.Context) error {
 		return HandleError(err)
 	}
 
-	if err := h.service.Delete(id); err != nil {
+	err = h.db.Transaction(func(tx *gorm.DB) error {
+		if err := workflows.NewFilterSyncService(tx, h.sugar).DeleteFilterForDefinition(*id); err != nil {
+			return err
+		}
+		return workflows.NewWorkflowDefinitionService(tx).Delete(id)
+	})
+	if err != nil {
 		return h.HandleServiceError(ctx, err, "delete", "workflow definition")
 	}
 

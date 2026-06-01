@@ -14,6 +14,7 @@ import (
 	"github.com/compliance-framework/api/internal/service/relational/workflows"
 	oscalTypes_1_1_3 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
 	"github.com/google/uuid"
+	"github.com/robfig/cron/v3"
 	"go.uber.org/zap"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
@@ -596,24 +597,34 @@ func (e *EvidenceIntegration) calculateCompletionEvidenceExpires(completedAt *ti
 	}
 
 	graceDays := ResolveGraceDays(instance, config.DefaultWorkflowConfig().GracePeriodDays)
-	expires := completedAt.Add(cadenceDuration(cadence) + time.Duration(graceDays)*24*time.Hour)
+	expires := nextCadenceExpiryBase(*completedAt, cadence).Add(time.Duration(graceDays) * 24 * time.Hour)
 	return &expires
 }
 
-func cadenceDuration(cadence string) time.Duration {
-	switch workflows.CadenceType(cadence) {
+func nextCadenceExpiryBase(completedAt time.Time, cadence string) time.Time {
+	cadenceType := workflows.CadenceType(cadence)
+	if cadenceType.IsCron() {
+		parser := cron.NewParser(cron.Second | cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow)
+		schedule, err := parser.Parse(cadenceType.CronExpression())
+		if err != nil {
+			return completedAt.AddDate(0, 1, 0)
+		}
+		return schedule.Next(completedAt)
+	}
+
+	switch cadenceType {
 	case workflows.CadenceDaily:
-		return 24 * time.Hour
+		return completedAt.AddDate(0, 0, 1)
 	case workflows.CadenceWeekly:
-		return 7 * 24 * time.Hour
+		return completedAt.AddDate(0, 0, 7)
 	case workflows.CadenceQuarterly:
-		return 91 * 24 * time.Hour
+		return completedAt.AddDate(0, 3, 0)
 	case workflows.CadenceAnnually:
-		return 365 * 24 * time.Hour
+		return completedAt.AddDate(1, 0, 0)
 	case workflows.CadenceMonthly:
-		return 30 * 24 * time.Hour
+		return completedAt.AddDate(0, 1, 0)
 	default:
-		return 30 * 24 * time.Hour
+		return completedAt.AddDate(0, 1, 0)
 	}
 }
 

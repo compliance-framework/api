@@ -110,3 +110,42 @@ func TestFilterSyncService_SyncFilterForDefinition(t *testing.T) {
 	require.NoError(t, db.Preload("Controls").First(&filter, "id = ?", filterID).Error)
 	require.Empty(t, filter.Controls)
 }
+
+func TestFilterSyncService_DeleteFilterForDefinition(t *testing.T) {
+	db := setupFilterSyncTestDB(t)
+	service := NewFilterSyncService(db, zap.NewNop().Sugar())
+
+	definition := createTestWorkflowDefinition()
+	require.NoError(t, db.Create(definition).Error)
+
+	catalogID := uuid.New()
+	control := relational.Control{CatalogID: catalogID, ID: "ctrl-1", Title: "Control 1"}
+	require.NoError(t, db.Create(&control).Error)
+
+	relationship := &ControlRelationship{
+		WorkflowDefinitionID: definition.ID,
+		ControlID:            control.ID,
+		ControlSource:        "test catalog",
+		CatalogID:            catalogID.String(),
+		RelationshipType:     "satisfies",
+		Strength:             "primary",
+		IsActive:             true,
+	}
+	require.NoError(t, db.Create(relationship).Error)
+	require.NoError(t, service.SyncFilterForDefinition(*definition.ID))
+
+	filterID := generateWorkflowFilterUUID(*definition.ID)
+	var joinCount int64
+	require.NoError(t, db.Table("filter_controls").Where("filter_id = ?", filterID).Count(&joinCount).Error)
+	require.Equal(t, int64(1), joinCount)
+
+	require.NoError(t, service.DeleteFilterForDefinition(*definition.ID))
+
+	var filterCount int64
+	require.NoError(t, db.Model(&relational.Filter{}).Where("id = ?", filterID).Count(&filterCount).Error)
+	require.Equal(t, int64(0), filterCount)
+	require.NoError(t, db.Table("filter_controls").Where("filter_id = ?", filterID).Count(&joinCount).Error)
+	require.Equal(t, int64(0), joinCount)
+
+	require.NoError(t, service.DeleteFilterForDefinition(*definition.ID))
+}

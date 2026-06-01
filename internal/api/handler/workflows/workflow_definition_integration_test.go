@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/compliance-framework/api/internal/api/middleware"
+	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/compliance-framework/api/internal/service/relational/workflows"
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
@@ -380,6 +381,24 @@ func TestWorkflowDefinitionHandler_Delete(t *testing.T) {
 	require.NoError(t, db.Create(definition).Error)
 
 	t.Run("Success", func(t *testing.T) {
+		catalogID := uuid.New()
+		control := relational.Control{CatalogID: catalogID, ID: "ctrl-1", Title: "Control 1"}
+		require.NoError(t, db.Create(&control).Error)
+		relationship := &workflows.ControlRelationship{
+			WorkflowDefinitionID: definition.ID,
+			ControlID:            control.ID,
+			ControlSource:        "test catalog",
+			CatalogID:            catalogID.String(),
+			RelationshipType:     "satisfies",
+			Strength:             "primary",
+			IsActive:             true,
+		}
+		require.NoError(t, db.Create(relationship).Error)
+		require.NoError(t, workflows.NewFilterSyncService(db, zap.NewNop().Sugar()).SyncFilterForDefinition(*definition.ID))
+
+		var filter relational.Filter
+		require.NoError(t, db.First(&filter, "name = ?", "Workflow: "+definition.Name).Error)
+
 		req := httptest.NewRequest(http.MethodDelete, "/workflows/definitions/"+definition.ID.String(), nil)
 		rec := httptest.NewRecorder()
 		c := e.NewContext(req, rec)
@@ -393,6 +412,10 @@ func TestWorkflowDefinitionHandler_Delete(t *testing.T) {
 		// Verify it's deleted
 		var count int64
 		db.Model(&workflows.WorkflowDefinition{}).Where("id = ?", definition.ID).Count(&count)
+		assert.Equal(t, int64(0), count)
+		db.Model(&relational.Filter{}).Where("id = ?", filter.ID).Count(&count)
+		assert.Equal(t, int64(0), count)
+		db.Table("filter_controls").Where("filter_id = ?", filter.ID).Count(&count)
 		assert.Equal(t, int64(0), count)
 	})
 
