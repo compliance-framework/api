@@ -669,6 +669,8 @@ func TestAddWorkflowExecutionStartedEvidence(t *testing.T) {
 		err = db.Where("title LIKE ?", "Workflow Execution Completed: %").Order("id desc").First(&evidence).Error
 		require.NoError(t, err)
 		assert.Contains(t, evidence.Description, completedAt.Format(time.RFC3339))
+		assert.True(t, evidence.Start.Equal(*execution.StartedAt))
+		assert.True(t, evidence.End.Equal(completedAt))
 	})
 }
 

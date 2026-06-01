@@ -214,6 +214,7 @@ func (e *EvidenceIntegration) AddWorkflowExecutionEvidence(ctx context.Context, 
 	var title string
 	var description string
 	var stream *relational.Evidence
+	endTimestamp := execution.StartedAt
 	switch status {
 	case "started":
 		stream, err = e.GetOrCreateExecutionStream(ctx, execution.ID)
@@ -238,6 +239,7 @@ func (e *EvidenceIntegration) AddWorkflowExecutionEvidence(ctx context.Context, 
 			execution.ID.String(),
 			execution.CompletedAt.Format(time.RFC3339),
 		)
+		endTimestamp = execution.CompletedAt
 	default:
 		return fmt.Errorf("unsupported workflow execution evidence status %q; expected started or completed", status)
 	}
@@ -247,7 +249,7 @@ func (e *EvidenceIntegration) AddWorkflowExecutionEvidence(ctx context.Context, 
 		Title:       title,
 		Description: description,
 		Start:       *execution.StartedAt,
-		End:         *execution.StartedAt,
+		End:         *endTimestamp,
 		Labels: []relational.Labels{
 			{Name: "workflow.execution.id", Value: execution.ID.String()},
 			{Name: "workflow.definition.id", Value: definition.ID.String()},
