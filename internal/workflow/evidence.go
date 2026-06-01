@@ -634,7 +634,7 @@ func (e *EvidenceIntegration) calculateCompletionEvidenceExpires(completedAt *ti
 	}
 
 	graceDays := ResolveGraceDays(instance, e.defaultGracePeriodDays)
-	expires := nextCadenceExpiryBase(*completedAt, cadence).Add(time.Duration(graceDays) * 24 * time.Hour)
+	expires := nextCadenceExpiryBase(*completedAt, cadence).AddDate(0, 0, graceDays)
 	return &expires
 }
 

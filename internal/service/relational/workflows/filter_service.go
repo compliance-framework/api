@@ -119,12 +119,7 @@ func (s *FilterSyncService) SyncFilterForDefinition(definitionID uuid.UUID) erro
 
 		var catalogControls []relational.Control
 		if err := s.db.Where("catalog_id = ? AND UPPER(id) IN ?", catalogID, controlIDs).Find(&catalogControls).Error; err != nil {
-			s.logger.Warnw("Skipping workflow control relationship for unresolved control",
-				"workflow_definition_id", definitionID,
-				"catalog_id", catalogID,
-				"error", err,
-			)
-			continue
+			return fmt.Errorf("failed to resolve workflow control relationships for catalog %s: %w", catalogID, err)
 		}
 
 		for _, control := range catalogControls {
