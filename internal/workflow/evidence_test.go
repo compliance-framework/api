@@ -628,7 +628,47 @@ func TestAddWorkflowExecutionStartedEvidence(t *testing.T) {
 		// Try to add started evidence for a failed execution (should fail)
 		err = evidenceIntegration.AddWorkflowExecutionEvidence(context.Background(), execution.ID, "started")
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "not in pending status")
+		assert.Contains(t, err.Error(), "not in pending or in_progress status")
+	})
+
+	t.Run("RejectUnsupportedStatus", func(t *testing.T) {
+		// Create workflow context
+		_, _, execution, _ := createTestWorkflowContext(t, db)
+
+		err := evidenceIntegration.AddWorkflowExecutionEvidence(context.Background(), execution.ID, "paused")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "unsupported workflow execution evidence status")
+	})
+
+	t.Run("RejectCompletedEvidenceWithoutCompletedAt", func(t *testing.T) {
+		// Create workflow context
+		_, _, execution, _ := createTestWorkflowContext(t, db)
+
+		execution.Status = "completed"
+		execution.CompletedAt = nil
+		require.NoError(t, db.Save(execution).Error)
+
+		err := evidenceIntegration.AddWorkflowExecutionEvidence(context.Background(), execution.ID, "completed")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "requires completed_at")
+	})
+
+	t.Run("CompletedEvidenceUsesCompletedAt", func(t *testing.T) {
+		// Create workflow context
+		_, _, execution, _ := createTestWorkflowContext(t, db)
+
+		completedAt := time.Now().Add(10 * time.Minute).UTC()
+		execution.Status = "completed"
+		execution.CompletedAt = &completedAt
+		require.NoError(t, db.Save(execution).Error)
+
+		err := evidenceIntegration.AddWorkflowExecutionEvidence(context.Background(), execution.ID, "completed")
+		require.NoError(t, err)
+
+		var evidence relational.Evidence
+		err = db.Where("title LIKE ?", "Workflow Execution Completed: %").Order("id desc").First(&evidence).Error
+		require.NoError(t, err)
+		assert.Contains(t, evidence.Description, completedAt.Format(time.RFC3339))
 	})
 }
 

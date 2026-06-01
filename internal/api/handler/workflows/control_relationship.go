@@ -14,9 +14,8 @@ import (
 
 type ControlRelationshipHandler struct {
 	*BaseHandler
-	db         *gorm.DB
-	service    *workflows.ControlRelationshipService
-	filterSync *workflows.FilterSyncService
+	db      *gorm.DB
+	service *workflows.ControlRelationshipService
 }
 
 func NewControlRelationshipHandler(sugar *zap.SugaredLogger, db *gorm.DB) *ControlRelationshipHandler {
@@ -24,7 +23,6 @@ func NewControlRelationshipHandler(sugar *zap.SugaredLogger, db *gorm.DB) *Contr
 		BaseHandler: NewBaseHandler(sugar),
 		db:          db,
 		service:     workflows.NewControlRelationshipService(db),
-		filterSync:  workflows.NewFilterSyncService(db, sugar),
 	}
 }
 

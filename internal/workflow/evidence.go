@@ -195,7 +195,7 @@ func (e *EvidenceIntegration) AddWorkflowExecutionEvidence(ctx context.Context, 
 
 	// Started evidence may be emitted right before or right after the transition.
 	if status == "started" && execution.Status != "pending" && execution.Status != "in_progress" {
-		return fmt.Errorf("workflow execution is not in pending status, status: %s", execution.Status)
+		return fmt.Errorf("workflow execution is not in pending or in_progress status, status: %s", execution.Status)
 	}
 	if status == "completed" && execution.Status != "in_progress" && execution.Status != "completed" {
 		return fmt.Errorf("workflow execution is not in in_progress or completed status, status: %s", execution.Status)
@@ -226,6 +226,9 @@ func (e *EvidenceIntegration) AddWorkflowExecutionEvidence(ctx context.Context, 
 			execution.StartedAt.Format(time.RFC3339),
 		)
 	case "completed":
+		if execution.CompletedAt == nil {
+			return fmt.Errorf("workflow execution completed evidence requires completed_at")
+		}
 		stream, err = e.GetOrCreateInstanceStream(ctx, execution.WorkflowInstanceID)
 		if err != nil {
 			return fmt.Errorf("failed to get instance stream: %w", err)
@@ -233,8 +236,10 @@ func (e *EvidenceIntegration) AddWorkflowExecutionEvidence(ctx context.Context, 
 		title = fmt.Sprintf("Workflow Execution Completed: %s", definition.Name)
 		description = fmt.Sprintf("Workflow execution '%s' completed at %s",
 			execution.ID.String(),
-			execution.StartedAt.Format(time.RFC3339),
+			execution.CompletedAt.Format(time.RFC3339),
 		)
+	default:
+		return fmt.Errorf("unsupported workflow execution evidence status %q; expected started or completed", status)
 	}
 	// Create evidence record
 	evidence := &relational.Evidence{

@@ -9,9 +9,8 @@ import (
 
 type WorkflowDefinitionHandler struct {
 	*BaseHandler
-	db         *gorm.DB
-	service    *workflows.WorkflowDefinitionService
-	filterSync *workflows.FilterSyncService
+	db      *gorm.DB
+	service *workflows.WorkflowDefinitionService
 }
 
 func NewWorkflowDefinitionHandler(sugar *zap.SugaredLogger, db *gorm.DB) *WorkflowDefinitionHandler {
@@ -19,7 +18,6 @@ func NewWorkflowDefinitionHandler(sugar *zap.SugaredLogger, db *gorm.DB) *Workfl
 		BaseHandler: NewBaseHandler(sugar),
 		db:          db,
 		service:     workflows.NewWorkflowDefinitionService(db),
-		filterSync:  workflows.NewFilterSyncService(db, sugar),
 	}
 }
 
