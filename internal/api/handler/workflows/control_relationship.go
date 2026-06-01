@@ -114,11 +114,14 @@ func (h *ControlRelationshipHandler) Create(ctx echo.Context) error {
 		relationship.IsActive = *req.IsActive
 	}
 
-	if err := h.service.Create(relationship); err != nil {
+	err := h.db.Transaction(func(tx *gorm.DB) error {
+		if err := workflows.NewControlRelationshipService(tx).Create(relationship); err != nil {
+			return err
+		}
+		return workflows.NewFilterSyncService(tx, h.sugar).SyncFilterForDefinition(*relationship.WorkflowDefinitionID)
+	})
+	if err != nil {
 		return h.HandleServiceError(ctx, err, "create", "control relationship")
-	}
-	if err := h.filterSync.SyncFilterForDefinition(*relationship.WorkflowDefinitionID); err != nil {
-		return h.HandleServiceError(ctx, err, "sync", "workflow filter")
 	}
 
 	h.sugar.Infow("Control relationship created", "id", relationship.ID)
@@ -230,19 +233,24 @@ func (h *ControlRelationshipHandler) Update(ctx echo.Context) error {
 		updates["strength"] = *req.Strength
 	}
 
-	// Use DB directly for partial updates
-	if len(updates) > 0 {
-		if err := h.db.Model(&workflows.ControlRelationship{}).Where("id = ?", id).Updates(updates).Error; err != nil {
-			return h.HandleServiceError(ctx, err, "update", "control relationship")
+	var relationship *workflows.ControlRelationship
+	err = h.db.Transaction(func(tx *gorm.DB) error {
+		if len(updates) > 0 {
+			if err := tx.Model(&workflows.ControlRelationship{}).Where("id = ?", id).Updates(updates).Error; err != nil {
+				return err
+			}
 		}
-	}
 
-	relationship, err := h.service.GetByID(id)
+		relationshipSvc := workflows.NewControlRelationshipService(tx)
+		var err error
+		relationship, err = relationshipSvc.GetByID(id)
+		if err != nil {
+			return err
+		}
+		return workflows.NewFilterSyncService(tx, h.sugar).SyncFilterForDefinition(*relationship.WorkflowDefinitionID)
+	})
 	if err != nil {
-		return h.HandleServiceError(ctx, err, "get", "control relationship after update")
-	}
-	if err := h.filterSync.SyncFilterForDefinition(*relationship.WorkflowDefinitionID); err != nil {
-		return h.HandleServiceError(ctx, err, "sync", "workflow filter")
+		return h.HandleServiceError(ctx, err, "update", "control relationship")
 	}
 
 	h.sugar.Infow("Control relationship updated", "id", id)
@@ -268,16 +276,19 @@ func (h *ControlRelationshipHandler) Delete(ctx echo.Context) error {
 		return HandleError(err)
 	}
 
-	relationship, err := h.service.GetByID(id)
+	err = h.db.Transaction(func(tx *gorm.DB) error {
+		relationshipSvc := workflows.NewControlRelationshipService(tx)
+		relationship, err := relationshipSvc.GetByID(id)
+		if err != nil {
+			return err
+		}
+		if err := relationshipSvc.Delete(id); err != nil {
+			return err
+		}
+		return workflows.NewFilterSyncService(tx, h.sugar).SyncFilterForDefinition(*relationship.WorkflowDefinitionID)
+	})
 	if err != nil {
-		return h.HandleServiceError(ctx, err, "get", "control relationship")
-	}
-
-	if err := h.service.Delete(id); err != nil {
 		return h.HandleServiceError(ctx, err, "delete", "control relationship")
-	}
-	if err := h.filterSync.SyncFilterForDefinition(*relationship.WorkflowDefinitionID); err != nil {
-		return h.HandleServiceError(ctx, err, "sync", "workflow filter")
 	}
 
 	h.sugar.Infow("Control relationship deleted", "id", id)
@@ -304,22 +315,24 @@ func (h *ControlRelationshipHandler) Activate(ctx echo.Context) error {
 		return HandleError(err)
 	}
 
-	// Check if relationship exists first
-	existing, err := h.service.GetByID(id)
+	var relationship *workflows.ControlRelationship
+	err = h.db.Transaction(func(tx *gorm.DB) error {
+		relationshipSvc := workflows.NewControlRelationshipService(tx)
+		existing, err := relationshipSvc.GetByID(id)
+		if err != nil {
+			return err
+		}
+		if err := relationshipSvc.Activate(id); err != nil {
+			return err
+		}
+		relationship, err = relationshipSvc.GetByID(id)
+		if err != nil {
+			return err
+		}
+		return workflows.NewFilterSyncService(tx, h.sugar).SyncFilterForDefinition(*existing.WorkflowDefinitionID)
+	})
 	if err != nil {
-		return h.HandleServiceError(ctx, err, "get", "control relationship")
-	}
-
-	if err := h.service.Activate(id); err != nil {
 		return h.HandleServiceError(ctx, err, "activate", "control relationship")
-	}
-
-	relationship, err := h.service.GetByID(id)
-	if err != nil {
-		return h.HandleServiceError(ctx, err, "get", "control relationship after activation")
-	}
-	if err := h.filterSync.SyncFilterForDefinition(*existing.WorkflowDefinitionID); err != nil {
-		return h.HandleServiceError(ctx, err, "sync", "workflow filter")
 	}
 
 	h.sugar.Infow("Control relationship activated", "id", id)
@@ -346,22 +359,24 @@ func (h *ControlRelationshipHandler) Deactivate(ctx echo.Context) error {
 		return HandleError(err)
 	}
 
-	// Check if relationship exists first
-	existing, err := h.service.GetByID(id)
+	var relationship *workflows.ControlRelationship
+	err = h.db.Transaction(func(tx *gorm.DB) error {
+		relationshipSvc := workflows.NewControlRelationshipService(tx)
+		existing, err := relationshipSvc.GetByID(id)
+		if err != nil {
+			return err
+		}
+		if err := relationshipSvc.Deactivate(id); err != nil {
+			return err
+		}
+		relationship, err = relationshipSvc.GetByID(id)
+		if err != nil {
+			return err
+		}
+		return workflows.NewFilterSyncService(tx, h.sugar).SyncFilterForDefinition(*existing.WorkflowDefinitionID)
+	})
 	if err != nil {
-		return h.HandleServiceError(ctx, err, "get", "control relationship")
-	}
-
-	if err := h.service.Deactivate(id); err != nil {
 		return h.HandleServiceError(ctx, err, "deactivate", "control relationship")
-	}
-
-	relationship, err := h.service.GetByID(id)
-	if err != nil {
-		return h.HandleServiceError(ctx, err, "get", "control relationship after deactivation")
-	}
-	if err := h.filterSync.SyncFilterForDefinition(*existing.WorkflowDefinitionID); err != nil {
-		return h.HandleServiceError(ctx, err, "sync", "workflow filter")
 	}
 
 	h.sugar.Infow("Control relationship deactivated", "id", id)
