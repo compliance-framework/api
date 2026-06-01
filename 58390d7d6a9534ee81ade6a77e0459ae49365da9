@@ -1,0 +1,16 @@
+lisa-addressed:
+---
+Comment (cmd/seed/workflows.go:271):
+Duplicate step names in the seed input would silently overwrite entries in stepIDsByName (and deterministically generate the same step UUID), which can lead to missing steps and incorrect dependency wiring. It’s safer to fail fast if a workflow definition contains two steps with the same name.
+Replies:
+**lisa implementation guidance:** In cmd/seed/workflows.go, update importWorkflowSeedSteps to reject duplicate seed step names before assigning into stepIDsByName. During the first loop over seedDef.Steps, check whether seedStep.Name already exists in stepIDsByName before generating/upserting the step; if it does, return an error like fmt.Errorf("duplicate step name %q in workflow definition %q", seedStep.Name, seedDef.Key). Only add the name to the map after the duplicate check passes. Do not change dependency resolution semantics: dependencies should still resolve by step name after all steps are upserted, and existing dependency pairs should remain idempotent. Add or update a test in cmd/seed/workflows_test.go that imports a definition with two steps sharing the same name and asserts the import fails rather than silently overwriting the first ID.
+
+<!-- lisa-guidance-posted -->
+---
+Comment (cmd/seed/workflows.go:292):
+importWorkflowSeedSteps still allows duplicate step names within a single workflow definition. That will overwrite stepIDsByName and can lead to incorrect dependency resolution. Per prior guidance, fail fast on duplicate names before generating/upserting the step.
+---
+Comment (cmd/seed/workflows_test.go:152):
+There is no test asserting that duplicate step names are rejected (rather than silently overwriting the first ID). Adding a regression test will ensure the new validation stays enforced.
+Implementation guidance: In cmd/seed/workflows.go, update importWorkflowSeedSteps to reject duplicate seed step names within the same workflow definition before generating or upserting the step. In the first loop over seedDef.Steps, check stepIDsByName[seedStep.Name] before calling deterministicWorkflowSeedUUID; if the name already exists, return an error such as fmt.Errorf("duplicate step name %q in workflow definition %q", seedStep.Name, seedDef.Key). Only assign stepIDsByName[seedStep.Name] after the duplicate check passes and the step ID copy is ready. Do not change the existing dependency-resolution design: dependencies should still resolve by seed step name after all steps are upserted, unknown dependency names should still error, and existing dependency pairs should remain idempotent.
+Implementation guidance: Add a regression test in cmd/seed/workflows_test.go that builds a workflow seed definition containing two steps with the same Name and asserts the import fails instead of silently overwriting the first ID. Prefer calling the existing importWorkflowSeedDefinition/importWorkflowSeedSteps path with a test DB so the test exercises the real validation. Assert that the returned error contains "duplicate step name" and the duplicated name, and ensure the test does not rely on dependency wiring to fail later; the duplicate-name validation should happen before generating/upserting the duplicate step.
