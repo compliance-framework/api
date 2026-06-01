@@ -37,6 +37,9 @@ func setupWorkflowSeedTestDB(t *testing.T) *gorm.DB {
 			t.Fatalf("failed to migrate %T: %v", entity, err)
 		}
 	}
+	if err := db.AutoMigrate(&relational.Control{}, &relational.Filter{}); err != nil {
+		t.Fatalf("failed to migrate filter entities: %v", err)
+	}
 
 	return db
 }
@@ -44,6 +47,7 @@ func setupWorkflowSeedTestDB(t *testing.T) *gorm.DB {
 func TestImportWorkflowsFromFile(t *testing.T) {
 	db := setupWorkflowSeedTestDB(t)
 	sugar := zap.NewNop().Sugar()
+	seedWorkflowFilterControl(t, db)
 
 	summary, err := importWorkflowsFromFile(context.Background(), db, sugar, "testdata/soc2_workflows.sample.json")
 	if err != nil {
@@ -58,6 +62,7 @@ func TestImportWorkflowsFromFile(t *testing.T) {
 	assertWorkflowSeedCounts(t, db)
 	assertWorkflowSeedDependencies(t, db)
 	assertWorkflowSeedControlRelationships(t, db)
+	assertWorkflowSeedFilterControl(t, db)
 	assertWorkflowSeedCronCadence(t, db)
 
 	secondSummary, err := importWorkflowsFromFile(context.Background(), db, sugar, "testdata/soc2_workflows.sample.json")
@@ -71,6 +76,7 @@ func TestImportWorkflowsFromFile(t *testing.T) {
 		t.Fatalf("expected second import to update 2 definitions, got created=%d updated=%d", secondSummary.DefinitionsCreated, secondSummary.DefinitionsUpdated)
 	}
 	assertWorkflowSeedCounts(t, db)
+	assertWorkflowSeedFilterControl(t, db)
 }
 
 func TestImportWorkflowSeedDefinitionRejectsDuplicateStepNames(t *testing.T) {
@@ -472,6 +478,50 @@ func assertWorkflowSeedControlRelationships(t *testing.T, db *gorm.DB) {
 	}
 	if relationship.ControlSource != "0f9d8e10-363b-4a8f-ade5-f11c0b2b1202" {
 		t.Fatalf("expected control source to use catalog id, got %q", relationship.ControlSource)
+	}
+}
+
+func seedWorkflowFilterControl(t *testing.T, db *gorm.DB) {
+	t.Helper()
+
+	catalogID := uuid.MustParse("0f9d8e10-363b-4a8f-ade5-f11c0b2b1202")
+	control := relational.Control{
+		CatalogID: catalogID,
+		ID:        "ctrl-cc5-2-002",
+		Title:     "Technology control scope is defined",
+	}
+	if err := db.Create(&control).Error; err != nil {
+		t.Fatalf("failed to seed workflow filter control: %v", err)
+	}
+}
+
+func assertWorkflowSeedFilterControl(t *testing.T, db *gorm.DB) {
+	t.Helper()
+
+	var filters []relational.Filter
+	if err := db.Preload("Controls").
+		Where("name = ?", "Workflow: Technology Controls Governance & Independent Review").
+		Find(&filters).Error; err != nil {
+		t.Fatalf("failed to load workflow filter: %v", err)
+	}
+	if len(filters) != 1 {
+		t.Fatalf("expected one deterministic workflow filter, got %d", len(filters))
+	}
+
+	if len(filters[0].Controls) != 1 {
+		t.Fatalf("expected workflow filter to have one resolved control, got %d", len(filters[0].Controls))
+	}
+	control := filters[0].Controls[0]
+	if control.CatalogID != uuid.MustParse("0f9d8e10-363b-4a8f-ade5-f11c0b2b1202") || control.ID != "ctrl-cc5-2-002" {
+		t.Fatalf("expected workflow filter control ctrl-cc5-2-002 in SOC 2 catalog, got catalog=%s control=%s", control.CatalogID, control.ID)
+	}
+
+	var joinCount int64
+	if err := db.Table("filter_controls").Count(&joinCount).Error; err != nil {
+		t.Fatalf("failed to count filter controls: %v", err)
+	}
+	if joinCount != 1 {
+		t.Fatalf("expected repeated import to keep one filter control association, got %d", joinCount)
 	}
 }
 

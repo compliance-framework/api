@@ -42,6 +42,10 @@ func NewEvidenceIntegration(
 	logger *zap.SugaredLogger,
 	defaultGracePeriodDays ...int,
 ) *EvidenceIntegration {
+	if logger == nil {
+		logger = zap.NewNop().Sugar()
+	}
+
 	gracePeriodDays := config.DefaultWorkflowConfig().GracePeriodDays
 	if len(defaultGracePeriodDays) > 0 {
 		gracePeriodDays = defaultGracePeriodDays[0]

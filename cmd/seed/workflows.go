@@ -254,6 +254,10 @@ func importWorkflowSeedDefinition(tx *gorm.DB, seedDef workflowSeedDefinition) (
 	}
 	summary.ControlRelationships += relationshipSummary.ControlRelationships
 
+	if err := workflows.NewFilterSyncService(tx, nil).SyncFilterForDefinition(defID); err != nil {
+		return summary, fmt.Errorf("sync workflow filter for seed definition %q: %w", seedDef.Key, err)
+	}
+
 	instanceSummary, err := importWorkflowSeedInstances(tx, seedDef, &defID)
 	if err != nil {
 		return summary, err
