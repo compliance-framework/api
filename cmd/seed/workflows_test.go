@@ -2,6 +2,7 @@ package seed
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/compliance-framework/api/internal/service/relational/workflows"
@@ -67,6 +68,35 @@ func TestImportWorkflowsFromFile(t *testing.T) {
 		t.Fatalf("expected second import to update 2 definitions, got created=%d updated=%d", secondSummary.DefinitionsCreated, secondSummary.DefinitionsUpdated)
 	}
 	assertWorkflowSeedCounts(t, db)
+}
+
+func TestImportWorkflowSeedDefinitionRejectsDuplicateStepNames(t *testing.T) {
+	db := setupWorkflowSeedTestDB(t)
+
+	_, err := importWorkflowSeedDefinition(db, workflowSeedDefinition{
+		Key:     "duplicate-step-name-test",
+		Name:    "Duplicate Step Name Test",
+		Version: "1.0.0",
+		Steps: []workflowSeedStep{
+			{
+				Name:            "Collect evidence",
+				ResponsibleRole: "control-owner",
+			},
+			{
+				Name:            "Collect evidence",
+				ResponsibleRole: "control-owner",
+			},
+		},
+	})
+	if err == nil {
+		t.Fatal("expected duplicate step name error, got nil")
+	}
+	if !strings.Contains(err.Error(), "duplicate step name") {
+		t.Fatalf("expected error to contain duplicate step name, got %q", err.Error())
+	}
+	if !strings.Contains(err.Error(), "Collect evidence") {
+		t.Fatalf("expected error to contain duplicate step name value, got %q", err.Error())
+	}
 }
 
 func assertWorkflowSeedCounts(t *testing.T, db *gorm.DB) {

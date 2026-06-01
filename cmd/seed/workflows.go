@@ -268,6 +268,10 @@ func importWorkflowSeedSteps(tx *gorm.DB, seedDef workflowSeedDefinition, defID 
 	stepIDsByName := make(map[string]*uuid.UUID, len(seedDef.Steps))
 
 	for _, seedStep := range seedDef.Steps {
+		if _, exists := stepIDsByName[seedStep.Name]; exists {
+			return summary, fmt.Errorf("duplicate step name %q in workflow definition %q", seedStep.Name, seedDef.Key)
+		}
+
 		stepID := deterministicWorkflowSeedUUID("workflow-step-definition", seedDef.Key, seedStep.Name)
 		step := &workflows.WorkflowStepDefinition{
 			UUIDModel: relational.UUIDModel{
