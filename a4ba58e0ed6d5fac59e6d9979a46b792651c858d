@@ -1,0 +1,584 @@
+lisa-addressed:
+---
+Comment (cmd/seed/workflows_test.go:19):
+_⚠️ Potential issue_ | _🟡 Minor_ | _⚡ Quick win_
+
+<details>
+<summary>🧩 Analysis chain</summary>
+
+🌐 Web query:
+
+`gorm.io/driver/sqlite in-memory ":memory:" database multiple connections empty data SetMaxOpenConns`
+
+💡 Result:
+
+If you open GORM with the sqlite in-memory DSN ":memory:", each separate database connection gets its own independent in-memory database, so data won’t be visible to other connections (and therefore a second gorm.Open won’t see tables/data created by the first) [1]. To share one in-memory database across multiple connections, you must use a SQLite URI filename with a named in-memory database and shared cache, e.g. file:memdb1?mode=memory&cache=shared (or file::memory:?cache=shared). SQLite’s own docs describe that ":memory:" is always private to the connection that opened it, but a URI filename can create a shareable/named in-memory database across connections [1]. Practical guidance for GORM tests/usage: 1) Prefer a shared in-memory URI name instead of ":memory:": - example: "file:memdb1?mode=memory&cache=shared" [1] 2) If you still observe “empty”/missing data or “table not found” with shared in-memory, ensure you are not using more than one physical connection. - GORM uses database/sql underneath and maintains a connection pool; you can tune it via sqlDB.SetMaxOpenConns(...) after db.DB [2]. - For SQLite, limiting to a single open connection is a common mitigation because multiple connections can cause issues with in-memory sharing and locking/concurrency [3]. Connection pool setting (GORM): - After gorm.Open(...), do: sqlDB, err:= gormDB.DB // SetMaxOpenConns sets the maximum number of open connections sqlDB.SetMaxOpenConns(1) This uses the standard database/sql pooling hook that GORM documents for connection pooling [2]. In short: - ":memory:" will not share state between multiple connections [1]. - Use "file:<name>?mode=memory&cache=shared" to share state across connections [1]. - If you need deterministic single-connection behavior, call sqlDB.SetMaxOpenConns(1) [2], especially in test scenarios that create multiple gorm.Open/db instances [3].
+
+Citations:
+
+- 1: https://sqlite.org/inmemorydb.html
+- 2: https://gorm.io/docs/connecting_to_the_database.html
+- 3: https://github.com/mattn/go-sqlite3/issues/204
+
+---
+
+</details>
+
+**Pin SQLite `:memory:` to one connection to avoid test flakiness**
+
+`:memory:` SQLite databases are scoped to a single physical connection, but GORM uses a connection pool; without constraining it, later operations can observe an empty/new database. Limit the pool to one connection after `gorm.Open`:
+
+<details>
+<summary>🛠️ Proposed fix</summary>
+
+```diff
+ 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{
+ 		Logger: logger.Default.LogMode(logger.Silent),
+ 	})
+ 	if err != nil {
+ 		t.Fatalf("failed to create test database: %v", err)
+ 	}
++
++	sqlDB, err := db.DB()
++	if err != nil {
++		t.Fatalf("failed to get sql.DB handle: %v", err)
++	}
++	sqlDB.SetMaxOpenConns(1)
+```
+
+</details>
+
+<!-- suggestion_start -->
+
+<details>
+<summary>📝 Committable suggestion</summary>
+
+> ‼️ **IMPORTANT**
+> Carefully review the code before committing. Ensure that it accurately replaces the highlighted code, contains no missing lines, and has no issues with indentation. Thoroughly test & benchmark the code to ensure it meets the requirements.
+
+```suggestion
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{
+		Logger: logger.Default.LogMode(logger.Silent),
+	})
+	if err != nil {
+		t.Fatalf("failed to create test database: %v", err)
+	}
+
+	sqlDB, err := db.DB()
+	if err != nil {
+		t.Fatalf("failed to get sql.DB handle: %v", err)
+	}
+	sqlDB.SetMaxOpenConns(1)
+```
+
+</details>
+
+<!-- suggestion_end -->
+
+<details>
+<summary>🤖 Prompt for AI Agents</summary>
+
+```
+Verify each finding against current code. Fix only still-valid issues, skip the
+rest with a brief reason, keep changes minimal, and validate.
+
+In `@cmd/seed/workflows_test.go` around lines 17 - 19, The in-memory SQLite DB is
+volatile across pooled connections; after opening with gorm.Open
+(sqlite.Open(":memory:")) get the underlying sql.DB via db.DB() and constrain
+the pool to one connection (call sqlDB.SetMaxOpenConns(1) and
+sqlDB.SetMaxIdleConns(1), and optionally sqlDB.SetConnMaxLifetime(0)) so GORM
+uses a single persistent connection for the in-memory database; update the code
+around the gorm.Open call and the local db variable to retrieve and configure
+sqlDB accordingly.
+```
+
+</details>
+
+<!-- fingerprinting:phantom:poseidon:capybara -->
+
+<!-- This is an auto-generated comment by CodeRabbit -->
+---
+Comment (cmd/seed/workflows_test.go:125):
+_⚠️ Potential issue_ | _🟡 Minor_ | _⚡ Quick win_
+
+**Weak negative assertion on `_title` stripping.**
+
+The check `relationship.ControlSource == "Technology control scope is defined"` only fails when the field is set to that exact string; it passes for an empty value or any other unexpected value, so it doesn't strongly verify the strip behavior. Consider asserting the expected `ControlSource` value (or `== ""`) directly.
+
+<details>
+<summary>🤖 Prompt for AI Agents</summary>
+
+```
+Verify each finding against current code. Fix only still-valid issues, skip the
+rest with a brief reason, keep changes minimal, and validate.
+
+In `@cmd/seed/workflows_test.go` around lines 112 - 125, The negative assertion in
+assertWorkflowSeedControlRelationships is too weak: replace the current
+conditional that checks relationship.ControlSource == "Technology control scope
+is defined" with a strict expectation (e.g., assert that
+relationship.ControlSource == "" or the exact expected stripped value). Update
+the test in assertWorkflowSeedControlRelationships to fail unless
+relationship.ControlSource equals the expected empty/stripped value, referencing
+the workflows.ControlRelationship struct and its ControlSource field to locate
+the check.
+```
+
+</details>
+
+<!-- fingerprinting:phantom:poseidon:capybara -->
+
+<!-- This is an auto-generated comment by CodeRabbit -->
+---
+Comment (cmd/seed/workflows.go:159):
+_⚠️ Potential issue_ | _🟠 Major_ | _⚡ Quick win_
+
+<details>
+<summary>🧩 Analysis chain</summary>
+
+🏁 Script executed:
+
+```shell
+#!/bin/bash
+set -euo pipefail
+
+# Locate and display the relevant section
+echo "== cmd/seed/workflows.go (around lines 120-220) =="
+nl -ba cmd/seed/workflows.go | sed -n '120,220p'
+
+# Find the definition of workflowSeedDefinition in this file (or nearby)
+echo
+echo "== workflowSeedDefinition declarations/uses =="
+rg -n "type workflowSeedDefinition|workflowSeedDefinition" cmd/seed/workflows.go
+
+# If not in this file, search repo
+if ! rg -n "type workflowSeedDefinition" cmd/seed/workflows.go >/dev/null; then
+  rg -n "type workflowSeedDefinition" .
+fi
+
+# Show the struct definition with json tags if found
+echo
+echo "== Show workflowSeedDefinition struct body =="
+python3 - <<'PY'
+import re,sys,subprocess,os,glob
+path="cmd/seed/workflows.go"
+# Print a window around any line that contains 'type workflowSeedDefinition'
+import pathlib
+p=pathlib.Path(path)
+text=p.read_text()
+lines=text.splitlines()
+for i,l in enumerate(lines,1):
+    if re.search(r'\btype\s+workflowSeedDefinition\b', l):
+        start=max(0,i-1-40)
+        end=min(len(lines), i-1+140)
+        for j in range(start,end):
+            print(f"{j+1:4d}:{lines[j]}")
+        break
+PY
+```
+
+Repository: compliance-framework/api
+
+Length of output: 180
+
+---
+
+🏁 Script executed:
+
+```shell
+#!/bin/bash
+set -euo pipefail
+
+echo "== Show cmd/seed/workflows.go lines 140-190 =="
+sed -n '140,190p' cmd/seed/workflows.go
+
+echo
+echo "== Locate json decoding in cmd/seed/workflows.go =="
+rg -n "json\.NewDecoder|Decode\(&definitions\)|Decode\(" cmd/seed/workflows.go
+
+echo
+echo "== Locate workflowSeedDefinition type =="
+rg -n "type\s+workflowSeedDefinition" -S .
+
+echo
+python3 - <<'PY'
+import pathlib, re
+path = pathlib.Path("cmd/seed/workflows.go")
+text = path.read_text()
+lines = text.splitlines()
+# print any block around line 156-159 (best-effort)
+for ln in range(150, 170):
+    if 1 <= ln <= len(lines):
+        print(f"{ln:4d}: {lines[ln-1]}")
+PY
+```
+
+Repository: compliance-framework/api
+
+Length of output: 2811
+
+---
+
+🏁 Script executed:
+
+```shell
+#!/bin/bash
+set -euo pipefail
+
+echo "== Show workflowSeedDefinition struct (around line ~27) =="
+sed -n '1,120p' cmd/seed/workflows.go
+
+echo
+echo "== Search for DisallowUnknownFields() usage in cmd/seed/workflows.go and cmd/seed/ =="
+rg -n "DisallowUnknownFields" cmd/seed . || true
+
+echo
+echo "== Search for json.Decoder options (DisallowUnknownFields, UseNumber, etc.) in cmd/seed/workflows.go =="
+rg -n "json\.NewDecoder\(|Decode\(|DisallowUnknownFields" cmd/seed/workflows.go
+```
+
+Repository: compliance-framework/api
+
+Length of output: 4416
+
+---
+
+🏁 Script executed:
+
+```shell
+#!/bin/bash
+set -euo pipefail
+
+echo "== Search for DisallowUnknownFields across repo =="
+rg -n "DisallowUnknownFields" . || true
+
+echo
+echo "== Search for UnmarshalJSON implementations for these seed types =="
+# Search for UnmarshalJSON anywhere under cmd/seed and for these type names
+rg -n "UnmarshalJSON\(" cmd/seed . || true
+
+echo
+echo "== Search for decode helpers possibly used elsewhere =="
+rg -n "NewDecoder\(" cmd/seed . || true
+```
+
+Repository: compliance-framework/api
+
+Length of output: 5028
+
+---
+
+🏁 Script executed:
+
+```shell
+#!/bin/bash
+set -euo pipefail
+rg -n "DisallowUnknownFields" cmd . || true
+```
+
+Repository: compliance-framework/api
+
+Length of output: 50
+
+---
+
+</details>
+
+**Reject unknown JSON fields when importing workflow seed definitions.**
+
+`cmd/seed/workflows.go` (around `importWorkflowsFromFile`, lines 156-159) decodes via `json.NewDecoder(f).Decode(&definitions)` without `DisallowUnknownFields()`, so misspelled/extra JSON attributes are silently ignored before any DB writes happen in `importWorkflowSeeds`.
+
+<details>
+<summary>Suggested change</summary>
+
+```diff
+ 	var definitions []workflowSeedDefinition
+-	if err := json.NewDecoder(f).Decode(&definitions); err != nil {
++	decoder := json.NewDecoder(f)
++	decoder.DisallowUnknownFields()
++	if err := decoder.Decode(&definitions); err != nil {
+ 		return workflowSeedSummary{}, fmt.Errorf("failed to decode input JSON: %w", err)
+ 	}
+```
+</details>
+
+<!-- suggestion_start -->
+
+<details>
+<summary>📝 Committable suggestion</summary>
+
+> ‼️ **IMPORTANT**
+> Carefully review the code before committing. Ensure that it accurately replaces the highlighted code, contains no missing lines, and has no issues with indentation. Thoroughly test & benchmark the code to ensure it meets the requirements.
+
+```suggestion
+	var definitions []workflowSeedDefinition
+	decoder := json.NewDecoder(f)
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&definitions); err != nil {
+		return workflowSeedSummary{}, fmt.Errorf("failed to decode input JSON: %w", err)
+	}
+```
+
+</details>
+
+<!-- suggestion_end -->
+
+<details>
+<summary>🤖 Prompt for AI Agents</summary>
+
+```
+Verify each finding against current code. Fix only still-valid issues, skip the
+rest with a brief reason, keep changes minimal, and validate.
+
+In `@cmd/seed/workflows.go` around lines 156 - 159, In importWorkflowsFromFile
+when decoding into []workflowSeedDefinition, enable strict JSON decoding by
+creating a json.Decoder, calling decoder.DisallowUnknownFields() before
+decoder.Decode(&definitions) to cause unknown/misspelled fields to error, and
+propagate that error (including the original error) so importWorkflowSeeds fails
+fast on unexpected attributes; locate the json.NewDecoder(f).Decode call and
+replace it with the decoder + DisallowUnknownFields flow.
+```
+
+</details>
+
+<!-- fingerprinting:phantom:medusa:grasshopper -->
+
+<!-- This is an auto-generated comment by CodeRabbit -->
+---
+Comment (cmd/seed/workflows.go:190):
+_⚠️ Potential issue_ | _🟠 Major_ | _⚡ Quick win_
+
+**Reject duplicate workflow keys before importing.**
+
+`seedDef.Key` is the deterministic identity for the definition and its children. If the input contains the same key twice, the later definition upserts over the earlier one and stale child rows from the first definition are left behind because this importer never deletes. That should fail validation instead of merging implicitly.
+
+<details>
+<summary>Suggested change</summary>
+
+```diff
+ func importWorkflowSeeds(ctx context.Context, db *gorm.DB, sugar *zap.SugaredLogger, definitions []workflowSeedDefinition) workflowSeedSummary {
+ 	var summary workflowSeedSummary
++	seenKeys := make(map[string]struct{}, len(definitions))
+
+ 	for _, seedDef := range definitions {
+-		if strings.TrimSpace(seedDef.Key) == "" {
++		key := strings.TrimSpace(seedDef.Key)
++		if key == "" {
+ 			summary.Skipped++
+ 			if sugar != nil {
+ 				sugar.Errorw("Skipping workflow definition with empty key", "name", seedDef.Name)
+ 			}
+ 			continue
+ 		}
++		if _, exists := seenKeys[key]; exists {
++			summary.Failed++
++			if sugar != nil {
++				sugar.Errorw("Duplicate workflow definition key in seed input", "key", key, "name", seedDef.Name)
++			}
++			continue
++		}
++		seenKeys[key] = struct{}{}
+
+ 		var defSummary workflowSeedSummary
+ 		err := db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+```
+</details>
+
+<!-- suggestion_start -->
+
+<details>
+<summary>📝 Committable suggestion</summary>
+
+> ‼️ **IMPORTANT**
+> Carefully review the code before committing. Ensure that it accurately replaces the highlighted code, contains no missing lines, and has no issues with indentation. Thoroughly test & benchmark the code to ensure it meets the requirements.
+
+```suggestion
+	seenKeys := make(map[string]struct{}, len(definitions))
+
+	for _, seedDef := range definitions {
+		key := strings.TrimSpace(seedDef.Key)
+		if key == "" {
+			summary.Skipped++
+			if sugar != nil {
+				sugar.Errorw("Skipping workflow definition with empty key", "name", seedDef.Name)
+			}
+			continue
+		}
+
+		if _, exists := seenKeys[key]; exists {
+			summary.Failed++
+			if sugar != nil {
+				sugar.Errorw("Duplicate workflow definition key in seed input", "key", key, "name", seedDef.Name)
+			}
+			continue
+		}
+		seenKeys[key] = struct{}{}
+
+		var defSummary workflowSeedSummary
+		err := db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+			var err error
+			defSummary, err = importWorkflowSeedDefinition(tx, seedDef)
+			return err
+		})
+		if err != nil {
+			summary.Failed++
+			if sugar != nil {
+				sugar.Errorw("Failed to import workflow definition", "key", seedDef.Key, "name", seedDef.Name, "error", err)
+			}
+			continue
+		}
+
+		mergeWorkflowSeedSummary(&summary, defSummary)
+```
+
+</details>
+
+<!-- suggestion_end -->
+
+<details>
+<summary>🤖 Prompt for AI Agents</summary>
+
+```
+Verify each finding against current code. Fix only still-valid issues, skip the
+rest with a brief reason, keep changes minimal, and validate.
+
+In `@cmd/seed/workflows.go` around lines 167 - 190, Before calling
+importWorkflowSeedDefinition, detect duplicate seedDef.Key values in the
+incoming definitions slice and reject duplicates instead of letting later
+upserts silently override earlier imports: add a local seen map[string]struct{}
+(or bool) at the start of the function and, inside the for _, definitions loop
+(before processing/trim check or immediately after validating non-empty key),
+check if seedDef.Key is already in seen; if it is, increment summary.Failed, log
+an error (include "key" seedDef.Key and "name" seedDef.Name) and continue
+without calling importWorkflowSeedDefinition or mergeWorkflowSeedSummary;
+otherwise add the key to seen and proceed as before.
+```
+
+</details>
+
+<!-- fingerprinting:phantom:medusa:grasshopper -->
+
+<!-- This is an auto-generated comment by CodeRabbit -->
+---
+Comment (cmd/seed/workflows.go:397):
+_⚠️ Potential issue_ | _🟠 Major_ | _⚡ Quick win_
+
+<details>
+<summary>🧩 Analysis chain</summary>
+
+🏁 Script executed:
+
+```shell
+#!/bin/bash
+set -euo pipefail
+
+# Locate and inspect the relevant code region
+FILE="cmd/seed/workflows.go"
+
+echo "== File head (sanity) =="
+ls -l "$FILE"
+echo
+
+echo "== preserveWorkflowInstanceSchedule definition =="
+rg -n "func preserveWorkflowInstanceSchedule" "$FILE"
+echo
+
+# Print the function body
+line_def=$(rg -n "func preserveWorkflowInstanceSchedule" "$FILE" | head -n1 | cut -d: -f1)
+sed -n "$((line_def-5)),$((line_def+120))p" "$FILE" | cat -n
+echo
+
+echo "== Call site around 394-397 (and nearby) =="
+sed -n "360,420p" "$FILE" | cat -n
+echo
+
+echo "== Call site around 437-449 (and nearby) =="
+sed -n "420,480p" "$FILE" | cat -n
+echo
+
+# Check for errors.Is usage / gorm.ErrRecordNotFound handling in the file
+echo "== Any errors.Is(err, gorm.ErrRecordNotFound) in the file? =="
+rg -n "errors\.Is\(.*gorm\.ErrRecordNotFound" "$FILE" || true
+echo
+
+# Check if preserveWorkflowInstanceSchedule is used with returned errors elsewhere
+echo "== preserveWorkflowInstanceSchedule call sites =="
+rg -n "preserveWorkflowInstanceSchedule\(" "$FILE"
+```
+
+Repository: compliance-framework/api
+
+Length of output: 9042
+
+---
+
+</details>
+
+**Bubble up schedule lookup failures instead of treating them as “record not found” (cmd/seed/workflows.go)**
+
+`preserveWorkflowInstanceSchedule` doesn’t distinguish `gorm.ErrRecordNotFound` from other DB errors: on any non-nil `First(...).Error`, it falls through and (when `instance.Cadence != ""`) recalculates `NextScheduledAt` while leaving `LastExecutedAt` at its zero value. With the later `OnConflict{UpdateAll: true}` upsert, this can overwrite existing schedule fields due to the non-preserved read.
+
+<details>
+<summary>Suggested change</summary>
+
+```diff
+-		preserveWorkflowInstanceSchedule(tx, instanceSvc, instance)
++		if err := preserveWorkflowInstanceSchedule(tx, instanceSvc, instance); err != nil {
++			return summary, fmt.Errorf("preserve instance schedule %q: %w", seedInstance.Name, err)
++		}
+
+ 		if err := instanceSvc.ValidateInstance(instance); err != nil {
+ 			return summary, fmt.Errorf("validate instance %q: %w", seedInstance.Name, err)
+@@
+-func preserveWorkflowInstanceSchedule(tx *gorm.DB, instanceSvc *workflows.WorkflowInstanceService, instance *workflows.WorkflowInstance) {
++func preserveWorkflowInstanceSchedule(tx *gorm.DB, instanceSvc *workflows.WorkflowInstanceService, instance *workflows.WorkflowInstance) error {
+ 	var existing workflows.WorkflowInstance
+ 	err := tx.Select("next_scheduled_at", "last_executed_at").First(&amp;existing, "id = ?", instance.ID).Error
+ 	if err == nil {
+ 		instance.NextScheduledAt = existing.NextScheduledAt
+ 		instance.LastExecutedAt = existing.LastExecutedAt
+-		return
++		return nil
+ 	}
++	if !errors.Is(err, gorm.ErrRecordNotFound) {
++		return err
++	}
+
+ 	if instance.Cadence != "" {
+ 		nextSchedule := instanceSvc.CalculateNextSchedule(time.Now(), instance.Cadence)
+ 		instance.NextScheduledAt = &amp;nextSchedule
+ 	}
++	return nil
+ }
+```
+</details>
+
+<details>
+<summary>🤖 Prompt for AI Agents</summary>
+
+```
+Verify each finding against current code. Fix only still-valid issues, skip the
+rest with a brief reason, keep changes minimal, and validate.
+
+In `@cmd/seed/workflows.go` around lines 394 - 397,
+preserveWorkflowInstanceSchedule currently treats any non-nil DB error like
+gorm.ErrRecordNotFound and lets execution continue, risking zeroing schedule
+fields during the upsert; change preserveWorkflowInstanceSchedule(tx,
+instanceSvc, instance) to return an error, and inside it inspect the error from
+the First(...) call: if err == gorm.ErrRecordNotFound then proceed without
+modifying LastExecutedAt, but for any other err return that error immediately;
+then update the caller to check the returned error (e.g., if err :=
+preserveWorkflowInstanceSchedule(...); err != nil { return summary,
+fmt.Errorf("preserve workflow schedule: %w", err) }) before calling
+instanceSvc.ValidateInstance to ensure DB failures are bubbled up.
+```
+
+</details>
+
+<!-- fingerprinting:phantom:medusa:grasshopper -->
+
+<!-- This is an auto-generated comment by CodeRabbit -->
+Implementation guidance: In cmd/seed/workflows_test.go, update setupWorkflowSeedTestDB immediately after the gorm.Open success check. Call db.DB(), fail the test if that returns an error, then configure the returned *sql.DB with SetMaxOpenConns(1) and SetMaxIdleConns(1) so the SQLite :memory: database stays on a single physical connection for the lifetime of the test DB. Do this before AutoMigrate runs. Keep the existing sqlite.Open(":memory:") DSN and logger config unchanged.
+Implementation guidance: In cmd/seed/workflows_test.go, strengthen assertWorkflowSeedControlRelationships. Keep the existing CatalogID assertion, then replace the weak negative check relationship.ControlSource == "Technology control scope is defined" with a strict assertion that relationship.ControlSource equals the expected catalog id "0f9d8e10-363b-4a8f-ade5-f11c0b2b1202". Do not assert ControlSource is empty: the importer intentionally strips seed _title metadata and stores seed catalog-id in ControlSource because the model requires a non-empty source.
+Implementation guidance: In cmd/seed/workflows.go, update importWorkflowsFromFile where it decodes []workflowSeedDefinition. Replace json.NewDecoder(f).Decode(&definitions) with a named decoder := json.NewDecoder(f), call decoder.DisallowUnknownFields() before Decode, and keep wrapping any decode error with fmt.Errorf("failed to decode input JSON: %w", err). This should happen before importWorkflowSeeds is called so misspelled or unexpected seed JSON fields fail fast without DB writes.
+Implementation guidance: In cmd/seed/workflows.go, update importWorkflowSeeds to reject duplicate workflow definition keys within the incoming definitions slice before importing them. Add a seenKeys map at the start of the function. Inside the loop, trim seedDef.Key once into key, skip empty trimmed keys as today, then check seenKeys[key]. If the trimmed key has already appeared, increment summary.Failed, log sugar.Errorw("Duplicate workflow definition key in seed input", "key", key, "name", seedDef.Name) when sugar is non-nil, and continue without opening a transaction or calling importWorkflowSeedDefinition. Otherwise record seenKeys[key] and proceed. Use the trimmed key for duplicate detection so whitespace-only differences do not bypass the validation.
+Implementation guidance: In cmd/seed/workflows.go, change preserveWorkflowInstanceSchedule to return error. In that function, after tx.Select("next_scheduled_at", "last_executed_at").First(...).Error, preserve NextScheduledAt and LastExecutedAt and return nil when err is nil. If err is not nil and is not errors.Is(err, gorm.ErrRecordNotFound), return the error immediately. Only calculate a new NextScheduledAt for a new record when the error is gorm.ErrRecordNotFound and instance.Cadence is non-empty; then return nil. Update the call in importWorkflowSeedInstances to check the returned error before ValidateInstance, returning summary with fmt.Errorf("preserve instance schedule %q: %w", seedInstance.Name, err) on failure. The file already imports errors, gorm, and time, so avoid adding duplicate imports.
