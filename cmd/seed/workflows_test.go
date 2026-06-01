@@ -21,6 +21,13 @@ func setupWorkflowSeedTestDB(t *testing.T) *gorm.DB {
 		t.Fatalf("failed to create test database: %v", err)
 	}
 
+	sqlDB, err := db.DB()
+	if err != nil {
+		t.Fatalf("failed to get sql.DB handle: %v", err)
+	}
+	sqlDB.SetMaxOpenConns(1)
+	sqlDB.SetMaxIdleConns(1)
+
 	for _, entity := range workflows.GetWorkflowEntities() {
 		if err := db.AutoMigrate(entity); err != nil {
 			t.Fatalf("failed to migrate %T: %v", entity, err)
@@ -119,8 +126,8 @@ func assertWorkflowSeedControlRelationships(t *testing.T, db *gorm.DB) {
 	if relationship.CatalogID != "0f9d8e10-363b-4a8f-ade5-f11c0b2b1202" {
 		t.Fatalf("expected catalog id to pass through, got %q", relationship.CatalogID)
 	}
-	if relationship.ControlSource == "Technology control scope is defined" {
-		t.Fatalf("expected _title to be stripped, but it was stored as control source")
+	if relationship.ControlSource != "0f9d8e10-363b-4a8f-ade5-f11c0b2b1202" {
+		t.Fatalf("expected control source to use catalog id, got %q", relationship.ControlSource)
 	}
 }
 

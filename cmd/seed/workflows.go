@@ -154,7 +154,9 @@ func importWorkflowsFromFile(ctx context.Context, db *gorm.DB, sugar *zap.Sugare
 	}()
 
 	var definitions []workflowSeedDefinition
-	if err := json.NewDecoder(f).Decode(&definitions); err != nil {
+	decoder := json.NewDecoder(f)
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&definitions); err != nil {
 		return workflowSeedSummary{}, fmt.Errorf("failed to decode input JSON: %w", err)
 	}
 
@@ -163,15 +165,25 @@ func importWorkflowsFromFile(ctx context.Context, db *gorm.DB, sugar *zap.Sugare
 
 func importWorkflowSeeds(ctx context.Context, db *gorm.DB, sugar *zap.SugaredLogger, definitions []workflowSeedDefinition) workflowSeedSummary {
 	var summary workflowSeedSummary
+	seenKeys := make(map[string]struct{}, len(definitions))
 
 	for _, seedDef := range definitions {
-		if strings.TrimSpace(seedDef.Key) == "" {
+		key := strings.TrimSpace(seedDef.Key)
+		if key == "" {
 			summary.Skipped++
 			if sugar != nil {
 				sugar.Errorw("Skipping workflow definition with empty key", "name", seedDef.Name)
 			}
 			continue
 		}
+		if _, exists := seenKeys[key]; exists {
+			summary.Failed++
+			if sugar != nil {
+				sugar.Errorw("Duplicate workflow definition key in seed input", "key", key, "name", seedDef.Name)
+			}
+			continue
+		}
+		seenKeys[key] = struct{}{}
 
 		var defSummary workflowSeedSummary
 		err := db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -391,7 +403,9 @@ func importWorkflowSeedInstances(tx *gorm.DB, seedDef workflowSeedDefinition, de
 			IsActive:             isActive,
 			GracePeriodDays:      seedInstance.GracePeriodDays,
 		}
-		preserveWorkflowInstanceSchedule(tx, instanceSvc, instance)
+		if err := preserveWorkflowInstanceSchedule(tx, instanceSvc, instance); err != nil {
+			return summary, fmt.Errorf("preserve instance schedule %q: %w", seedInstance.Name, err)
+		}
 
 		if err := instanceSvc.ValidateInstance(instance); err != nil {
 			return summary, fmt.Errorf("validate instance %q: %w", seedInstance.Name, err)
@@ -434,19 +448,23 @@ func importWorkflowSeedInstances(tx *gorm.DB, seedDef workflowSeedDefinition, de
 	return summary, nil
 }
 
-func preserveWorkflowInstanceSchedule(tx *gorm.DB, instanceSvc *workflows.WorkflowInstanceService, instance *workflows.WorkflowInstance) {
+func preserveWorkflowInstanceSchedule(tx *gorm.DB, instanceSvc *workflows.WorkflowInstanceService, instance *workflows.WorkflowInstance) error {
 	var existing workflows.WorkflowInstance
 	err := tx.Select("next_scheduled_at", "last_executed_at").First(&existing, "id = ?", instance.ID).Error
 	if err == nil {
 		instance.NextScheduledAt = existing.NextScheduledAt
 		instance.LastExecutedAt = existing.LastExecutedAt
-		return
+		return nil
+	}
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return err
 	}
 
 	if instance.Cadence != "" {
 		nextSchedule := instanceSvc.CalculateNextSchedule(time.Now(), instance.Cadence)
 		instance.NextScheduledAt = &nextSchedule
 	}
+	return nil
 }
 
 func upsertWorkflowSeed(tx *gorm.DB, value interface{}) (bool, error) {
