@@ -111,6 +111,50 @@ func TestFilterSyncService_SyncFilterForDefinition(t *testing.T) {
 	require.Empty(t, filter.Controls)
 }
 
+func TestFilterSyncService_SyncFilterForDefinitionMatchesControlIDsCaseInsensitively(t *testing.T) {
+	db := setupFilterSyncTestDB(t)
+	service := NewFilterSyncService(db, zap.NewNop().Sugar())
+
+	definition := createTestWorkflowDefinition()
+	require.NoError(t, db.Create(definition).Error)
+
+	catalogID := uuid.New()
+	control := relational.Control{CatalogID: catalogID, ID: "AC-1", Title: "Access Control 1"}
+	require.NoError(t, db.Create(&control).Error)
+
+	relationships := []*ControlRelationship{
+		{
+			WorkflowDefinitionID: definition.ID,
+			ControlID:            "ac-1",
+			ControlSource:        "test catalog",
+			CatalogID:            catalogID.String(),
+			RelationshipType:     "satisfies",
+			Strength:             "primary",
+			IsActive:             true,
+		},
+		{
+			WorkflowDefinitionID: definition.ID,
+			ControlID:            "Ac-1",
+			ControlSource:        "test catalog",
+			CatalogID:            catalogID.String(),
+			RelationshipType:     "satisfies",
+			Strength:             "primary",
+			IsActive:             true,
+		},
+	}
+	for _, relationship := range relationships {
+		require.NoError(t, db.Create(relationship).Error)
+	}
+
+	require.NoError(t, service.SyncFilterForDefinition(*definition.ID))
+
+	var filter relational.Filter
+	require.NoError(t, db.Preload("Controls").First(&filter, "id = ?", generateWorkflowFilterUUID(*definition.ID)).Error)
+	require.Len(t, filter.Controls, 1)
+	require.Equal(t, catalogID, filter.Controls[0].CatalogID)
+	require.Equal(t, "AC-1", filter.Controls[0].ID)
+}
+
 func TestFilterSyncService_DeleteFilterForDefinition(t *testing.T) {
 	db := setupFilterSyncTestDB(t)
 	service := NewFilterSyncService(db, zap.NewNop().Sugar())

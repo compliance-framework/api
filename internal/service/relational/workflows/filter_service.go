@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/compliance-framework/api/internal/converters/labelfilter"
 	"github.com/compliance-framework/api/internal/service/relational"
@@ -70,13 +71,14 @@ func (s *FilterSyncService) SyncFilterForDefinition(definitionID uuid.UUID) erro
 			continue
 		}
 
-		key := catalogID.String() + ":" + relationship.ControlID
+		normalizedControlID := strings.ToUpper(relationship.ControlID)
+		key := catalogID.String() + ":" + normalizedControlID
 		if _, ok := seenControls[key]; ok {
 			continue
 		}
 
 		var control relational.Control
-		if err := s.db.Where("catalog_id = ? AND id = ?", catalogID, relationship.ControlID).First(&control).Error; err != nil {
+		if err := s.db.Where("catalog_id = ? AND UPPER(id) = ?", catalogID, normalizedControlID).First(&control).Error; err != nil {
 			s.logger.Warnw("Skipping workflow control relationship for unresolved control",
 				"workflow_definition_id", definitionID,
 				"catalog_id", catalogID,
