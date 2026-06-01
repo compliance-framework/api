@@ -486,7 +486,15 @@ func upsertWorkflowSeed(tx *gorm.DB, value interface{}) (bool, error) {
 		return false, err
 	}
 
-	if err := tx.Clauses(clause.OnConflict{UpdateAll: true}).Create(value).Error; err != nil {
+	columns, err := workflowSeedUpdateColumns(value)
+	if err != nil {
+		return false, err
+	}
+
+	if err := tx.Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "id"}},
+		DoUpdates: clause.AssignmentColumns(columns),
+	}).Create(value).Error; err != nil {
 		return false, err
 	}
 
@@ -505,6 +513,67 @@ func workflowSeedID(value interface{}) (*uuid.UUID, error) {
 		return v.ID, nil
 	case *workflows.RoleAssignment:
 		return v.ID, nil
+	default:
+		return nil, fmt.Errorf("unsupported workflow seed type %T", value)
+	}
+}
+
+func workflowSeedUpdateColumns(value interface{}) ([]string, error) {
+	switch value.(type) {
+	case *workflows.WorkflowDefinition:
+		return []string{
+			"name",
+			"description",
+			"version",
+			"suggested_cadence",
+			"evidence_required",
+			"grace_period_days",
+			"updated_at",
+		}, nil
+	case *workflows.WorkflowStepDefinition:
+		return []string{
+			"workflow_definition_id",
+			"name",
+			"description",
+			"order",
+			"responsible_role",
+			"evidence_required",
+			"estimated_duration",
+			"grace_period_days",
+			"updated_at",
+		}, nil
+	case *workflows.ControlRelationship:
+		return []string{
+			"workflow_definition_id",
+			"control_id",
+			"control_source",
+			"catalog_id",
+			"relationship_type",
+			"strength",
+			"is_active",
+			"updated_at",
+		}, nil
+	case *workflows.WorkflowInstance:
+		return []string{
+			"workflow_definition_id",
+			"name",
+			"description",
+			"system_security_plan_id",
+			"cadence",
+			"is_active",
+			"grace_period_days",
+			"next_scheduled_at",
+			"last_executed_at",
+			"updated_at",
+		}, nil
+	case *workflows.RoleAssignment:
+		return []string{
+			"workflow_instance_id",
+			"role_name",
+			"assigned_to_type",
+			"assigned_to_id",
+			"is_active",
+		}, nil
 	default:
 		return nil, fmt.Errorf("unsupported workflow seed type %T", value)
 	}

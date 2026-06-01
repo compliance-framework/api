@@ -4,8 +4,11 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/compliance-framework/api/internal/service/relational/workflows"
+	"github.com/google/uuid"
 	"go.uber.org/zap"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -138,6 +141,155 @@ func TestImportWorkflowSeedsTrimsKeyBeforeDeterministicIDs(t *testing.T) {
 	}
 	if count != 1 {
 		t.Fatalf("expected re-import with canonical key to keep one workflow definition, got %d", count)
+	}
+}
+
+func TestUpsertWorkflowSeedPreservesWorkflowDefinitionAuditAndSoftDeleteFields(t *testing.T) {
+	db := setupWorkflowSeedTestDB(t)
+
+	id := uuid.New()
+	createdByID := uuid.New()
+	updatedByID := uuid.New()
+	createdAt := time.Now().Add(-2 * time.Hour).UTC().Truncate(time.Second)
+	deletedAt := time.Now().Add(-time.Hour).UTC().Truncate(time.Second)
+	originalGracePeriod := 3
+	updatedGracePeriod := 7
+
+	existing := workflows.WorkflowDefinition{
+		UUIDModel:        relational.UUIDModel{ID: &id},
+		CreatedAt:        createdAt,
+		DeletedAt:        gorm.DeletedAt{Time: deletedAt, Valid: true},
+		Name:             "Original name",
+		Description:      "Original description",
+		Version:          "1.0.0",
+		SuggestedCadence: "monthly",
+		EvidenceRequired: "original evidence",
+		GracePeriodDays:  &originalGracePeriod,
+		CreatedByID:      &createdByID,
+		UpdatedByID:      &updatedByID,
+	}
+	if err := db.Create(&existing).Error; err != nil {
+		t.Fatalf("failed to create existing workflow definition: %v", err)
+	}
+
+	seed := workflows.WorkflowDefinition{
+		UUIDModel:        relational.UUIDModel{ID: &id},
+		Name:             "Updated name",
+		Description:      "Updated description",
+		Version:          "2.0.0",
+		SuggestedCadence: "weekly",
+		EvidenceRequired: "updated evidence",
+		GracePeriodDays:  &updatedGracePeriod,
+	}
+	if _, err := upsertWorkflowSeed(db, &seed); err != nil {
+		t.Fatalf("upsertWorkflowSeed returned error: %v", err)
+	}
+
+	var updated workflows.WorkflowDefinition
+	if err := db.Unscoped().First(&updated, "id = ?", id).Error; err != nil {
+		t.Fatalf("failed to load updated workflow definition: %v", err)
+	}
+	if updated.Name != "Updated name" ||
+		updated.Description != "Updated description" ||
+		updated.Version != "2.0.0" ||
+		updated.SuggestedCadence != "weekly" ||
+		updated.EvidenceRequired != "updated evidence" ||
+		updated.GracePeriodDays == nil ||
+		*updated.GracePeriodDays != updatedGracePeriod {
+		t.Fatalf("expected workflow definition business fields to update, got %+v", updated)
+	}
+	if !updated.DeletedAt.Valid || !updated.DeletedAt.Time.Equal(deletedAt) {
+		t.Fatalf("expected deleted_at to be preserved, got %+v", updated.DeletedAt)
+	}
+	if updated.CreatedByID == nil || *updated.CreatedByID != createdByID {
+		t.Fatalf("expected created_by_id to be preserved, got %v", updated.CreatedByID)
+	}
+	if updated.UpdatedByID == nil || *updated.UpdatedByID != updatedByID {
+		t.Fatalf("expected updated_by_id to be preserved, got %v", updated.UpdatedByID)
+	}
+	if !updated.CreatedAt.Equal(createdAt) {
+		t.Fatalf("expected created_at to be preserved, got %v", updated.CreatedAt)
+	}
+}
+
+func TestUpsertWorkflowSeedPreservesWorkflowInstanceAuditAndSoftDeleteFields(t *testing.T) {
+	db := setupWorkflowSeedTestDB(t)
+
+	id := uuid.New()
+	definitionID := uuid.New()
+	systemID := uuid.New()
+	createdByID := uuid.New()
+	updatedByID := uuid.New()
+	createdAt := time.Now().Add(-2 * time.Hour).UTC().Truncate(time.Second)
+	deletedAt := time.Now().Add(-time.Hour).UTC().Truncate(time.Second)
+	lastExecutedAt := time.Now().Add(-30 * time.Minute).UTC().Truncate(time.Second)
+	nextScheduledAt := time.Now().Add(30 * time.Minute).UTC().Truncate(time.Second)
+	originalGracePeriod := 3
+	updatedGracePeriod := 7
+
+	existing := workflows.WorkflowInstance{
+		UUIDModel:            relational.UUIDModel{ID: &id},
+		CreatedAt:            createdAt,
+		DeletedAt:            gorm.DeletedAt{Time: deletedAt, Valid: true},
+		Name:                 "Original name",
+		Description:          "Original description",
+		Cadence:              "monthly",
+		IsActive:             false,
+		GracePeriodDays:      &originalGracePeriod,
+		NextScheduledAt:      &nextScheduledAt,
+		LastExecutedAt:       &lastExecutedAt,
+		CreatedByID:          &createdByID,
+		UpdatedByID:          &updatedByID,
+		WorkflowDefinitionID: &definitionID,
+		SystemSecurityPlanID: &systemID,
+	}
+	if err := db.Create(&existing).Error; err != nil {
+		t.Fatalf("failed to create existing workflow instance: %v", err)
+	}
+
+	seed := workflows.WorkflowInstance{
+		UUIDModel:            relational.UUIDModel{ID: &id},
+		Name:                 "Updated name",
+		Description:          "Updated description",
+		Cadence:              "weekly",
+		IsActive:             true,
+		GracePeriodDays:      &updatedGracePeriod,
+		NextScheduledAt:      &nextScheduledAt,
+		LastExecutedAt:       &lastExecutedAt,
+		WorkflowDefinitionID: &definitionID,
+		SystemSecurityPlanID: &systemID,
+	}
+	if _, err := upsertWorkflowSeed(db, &seed); err != nil {
+		t.Fatalf("upsertWorkflowSeed returned error: %v", err)
+	}
+
+	var updated workflows.WorkflowInstance
+	if err := db.Unscoped().First(&updated, "id = ?", id).Error; err != nil {
+		t.Fatalf("failed to load updated workflow instance: %v", err)
+	}
+	if updated.Name != "Updated name" ||
+		updated.Description != "Updated description" ||
+		updated.Cadence != "weekly" ||
+		!updated.IsActive ||
+		updated.GracePeriodDays == nil ||
+		*updated.GracePeriodDays != updatedGracePeriod ||
+		updated.NextScheduledAt == nil ||
+		!updated.NextScheduledAt.Equal(nextScheduledAt) ||
+		updated.LastExecutedAt == nil ||
+		!updated.LastExecutedAt.Equal(lastExecutedAt) {
+		t.Fatalf("expected workflow instance business fields to update, got %+v", updated)
+	}
+	if !updated.DeletedAt.Valid || !updated.DeletedAt.Time.Equal(deletedAt) {
+		t.Fatalf("expected deleted_at to be preserved, got %+v", updated.DeletedAt)
+	}
+	if updated.CreatedByID == nil || *updated.CreatedByID != createdByID {
+		t.Fatalf("expected created_by_id to be preserved, got %v", updated.CreatedByID)
+	}
+	if updated.UpdatedByID == nil || *updated.UpdatedByID != updatedByID {
+		t.Fatalf("expected updated_by_id to be preserved, got %v", updated.UpdatedByID)
+	}
+	if !updated.CreatedAt.Equal(createdAt) {
+		t.Fatalf("expected created_at to be preserved, got %v", updated.CreatedAt)
 	}
 }
 
