@@ -1,0 +1,56 @@
+lisa-addressed:
+---
+Comment (cmd/seed/workflows_test.go:213):
+_⚠️ Potential issue_ | _🟡 Minor_ | _⚡ Quick win_
+
+<details>
+<summary>🧩 Analysis chain</summary>
+
+🏁 Script executed:
+
+```shell
+#!/bin/bash
+# Confirm upsertWorkflowSeed counts with the default (soft-delete) scope, not Unscoped.
+ast-grep --pattern 'func upsertWorkflowSeed($$$) (bool, error) {
+  $$$
+}'
+rg -nP -C2 '\.Count\(&count\)' cmd/seed/workflows.go
+```
+
+Repository: compliance-framework/api
+
+Length of output: 1611
+
+---
+
+</details>
+
+**Assert the upsert “created/updated” flag for the soft-deleted path**
+
+`upsertWorkflowSeed` determines its returned bool via `tx.Model(value).Where("id = ?", id).Count(&count)` and returns `count == 0`. With GORM’s default soft-delete scope, a row with `DeletedAt.Valid = true` won’t be counted, so the function can report “create” even though the `OnConflict` path updates the existing physical row. The current test only checks field preservation and ignores this accounting gap—either assert the returned bool or add a complementary non-soft-deleted update case.
+
+<details>
+<summary>🤖 Prompt for AI Agents</summary>
+
+```
+Verify each finding against current code. Fix only still-valid issues, skip the
+rest with a brief reason, keep changes minimal, and validate.
+
+In `@cmd/seed/workflows_test.go` around lines 147 - 213, The test must assert the
+upsert return value for the soft-deleted path (or add a complementary
+non-soft-deleted case) because upsertWorkflowSeed currently computes the
+"created" flag via tx.Model(value).Where("id = ?", id).Count(&count) which
+ignores rows with DeletedAt.Valid = true; update
+TestUpsertWorkflowSeedPreservesWorkflowDefinitionAuditAndSoftDeleteFields to
+capture the (bool, error) returned from upsertWorkflowSeed and assert it is
+false (or add a separate seed case where DeletedAt is nil and assert true) so
+the test validates the created/updated flag behavior for upsertWorkflowSeed and
+its OnConflict update path.
+```
+
+</details>
+
+<!-- fingerprinting:phantom:poseidon:capybara -->
+
+<!-- This is an auto-generated comment by CodeRabbit -->
+Implementation guidance: In cmd/seed/workflows.go, fix upsertWorkflowSeed so the created/updated bool is based on physical primary-key existence, including soft-deleted rows. Change the pre-upsert count from tx.Model(value).Where("id = ?", id).Count(&count) to an unscoped count, e.g. tx.Unscoped().Model(value).Where("id = ?", id).Count(&count), while keeping the existing OnConflict allowlist behavior that preserves deleted_at and audit fields. Then update cmd/seed/workflows_test.go in TestUpsertWorkflowSeedPreservesWorkflowDefinitionAuditAndSoftDeleteFields and TestUpsertWorkflowSeedPreservesWorkflowInstanceAuditAndSoftDeleteFields to capture the bool returned by upsertWorkflowSeed and assert it is false for the pre-existing soft-deleted row, because the upsert updates an existing physical row rather than creating a new row. Also add or adjust a small complementary assertion for a genuinely new seed row, if needed, that verifies upsertWorkflowSeed returns true when no row with that id exists. Avoid asserting true for an existing non-soft-deleted row; existing rows should return false.
