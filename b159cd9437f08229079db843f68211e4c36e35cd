@@ -1,0 +1,43 @@
+lisa-addressed:
+---
+Comment (cmd/seed/workflows.go:473):
+preserveWorkflowInstanceSchedule uses a scoped query, so it won’t find soft-deleted workflow_instances. Re-importing a soft-deleted instance would then recalculate NextScheduledAt from "now" and potentially clear LastExecutedAt, even though DeletedAt is intentionally preserved during the upsert. Use Unscoped() for the lookup so scheduling fields are preserved for soft-deleted rows too.
+Replies:
+**lisa implementation guidance:** In cmd/seed/workflows.go, update preserveWorkflowInstanceSchedule so the existing workflow instance lookup includes soft-deleted rows. Change the query from tx.Select("next_scheduled_at", "last_executed_at").First(&existing, "id = ?", instance.ID) to tx.Unscoped().Select("next_scheduled_at", "last_executed_at").First(&existing, "id = ?", instance.ID). Keep the rest of the function behavior unchanged: if a row is found, copy NextScheduledAt and LastExecutedAt from the existing row; only calculate a new schedule when no physical row exists and cadence is non-empty. Add or update a focused test in cmd/seed/workflows_test.go that creates a soft-deleted WorkflowInstance with existing NextScheduledAt and LastExecutedAt, calls preserveWorkflowInstanceSchedule or imports/upserts the same seeded instance path, and asserts those timestamps are preserved rather than recalculated or cleared.
+
+<!-- lisa-guidance-posted -->
+---
+Comment (cmd/seed/workflows.go:473):
+preserveWorkflowInstanceSchedule uses a scoped query, so it won’t find soft-deleted workflow_instances. Re-importing a soft-deleted instance would then recalculate NextScheduledAt from "now" and potentially clear LastExecutedAt, even though DeletedAt is intentionally preserved during the upsert. Use Unscoped() for the lookup so scheduling fields are preserved for soft-deleted rows too.
+Replies:
+**lisa implementation guidance:** In cmd/seed/workflows.go, update preserveWorkflowInstanceSchedule so the existing workflow instance lookup includes soft-deleted rows. Change the query from tx.Select("next_scheduled_at", "last_executed_at").First(&existing, "id = ?", instance.ID) to tx.Unscoped().Select("next_scheduled_at", "last_executed_at").First(&existing, "id = ?", instance.ID). Keep the rest of the function behavior unchanged: if a row is found, copy NextScheduledAt and LastExecutedAt from the existing row; only calculate a new schedule when no physical row exists and cadence is non-empty. Add or update a focused test in cmd/seed/workflows_test.go that creates a soft-deleted WorkflowInstance with existing NextScheduledAt and LastExecutedAt, calls preserveWorkflowInstanceSchedule or imports/upserts the same seeded instance path, and asserts those timestamps are preserved rather than recalculated or cleared.
+
+<!-- lisa-guidance-posted -->
+---
+Comment (cmd/seed/workflows.go:459):
+preserveWorkflowInstanceSchedule uses a scoped lookup, so it won't find soft-deleted workflow_instances. Re-importing a soft-deleted instance would then recalculate NextScheduledAt (and potentially clear LastExecutedAt) even though the upsert intentionally preserves DeletedAt. Use Unscoped() for the lookup so scheduling fields are preserved for soft-deleted rows too.
+Replies:
+**lisa implementation guidance:** In cmd/seed/workflows.go, update preserveWorkflowInstanceSchedule so the lookup for an existing WorkflowInstance includes soft-deleted rows. Change the query to use tx.Unscoped().Select("next_scheduled_at", "last_executed_at").First(&existing, "id = ?", instance.ID). Keep the rest of the function unchanged: copy both timestamps when any physical row exists, return non-RecordNotFound errors, and only calculate a new NextScheduledAt when no physical row exists and cadence is non-empty. This preserves the existing design that seed re-imports must not move existing instance schedules.
+
+<!-- lisa-guidance-posted -->
+---
+Comment (cmd/seed/workflows.go:48):
+workflowSeedUpdateColumns updates workflow_step_definitions.grace_period_days on re-import, but the seed JSON schema for steps doesn't have a grace-period-days field. That means the importer can only ever write NULL for step grace periods, potentially wiping an existing step-level override. Add an optional grace-period-days field to the step seed schema so the importer can preserve/set this value intentionally.
+Replies:
+**lisa implementation guidance:** In cmd/seed/workflows.go, add step-level grace period support to the seed schema by adding GracePeriodDays *int `json:"grace-period-days"` to workflowSeedStep. In importWorkflowSeedSteps, when constructing workflows.WorkflowStepDefinition, set GracePeriodDays: seedStep.GracePeriodDays so the existing workflowSeedUpdateColumns allowlist can intentionally update workflow_step_definitions.grace_period_days instead of always writing NULL. Preserve nil semantics: omitted grace-period-days should remain nil and explicitly clear the override on re-import. Add a focused test in cmd/seed/workflows_test.go that imports or upserts a step with grace-period-days set and asserts the stored WorkflowStepDefinition.GracePeriodDays matches the seed value.
+
+<!-- lisa-guidance-posted -->
+---
+Comment (cmd/seed/workflows.go:288):
+Even after adding step-level grace-period-days to the seed schema, the importer should also populate WorkflowStepDefinition.GracePeriodDays so the upsert can set/preserve the intended value instead of always writing NULL.
+Replies:
+**lisa implementation guidance:** In cmd/seed/workflows.go, after adding GracePeriodDays *int `json:"grace-period-days"` to workflowSeedStep, populate the model in importWorkflowSeedSteps by setting GracePeriodDays: seedStep.GracePeriodDays on the workflows.WorkflowStepDefinition literal. Do not remove grace_period_days from workflowSeedUpdateColumns; the previous allowlist guidance intentionally included it. Add or extend a test in cmd/seed/workflows_test.go so a seeded step with grace-period-days survives the import path and is updated on re-import according to the seed value.
+
+<!-- lisa-guidance-posted -->
+---
+Comment (cmd/seed/workflows_test.go:223):
+There isn't currently a regression test that exercises preserveWorkflowInstanceSchedule for a *soft-deleted* workflow instance via the import path (importWorkflowSeedDefinition/importWorkflowSeedInstances). Without it, the scoped-vs-unscoped behavior can regress and silently recompute NextScheduledAt/clear LastExecutedAt for deleted rows on re-import.
+Replies:
+**lisa implementation guidance:** In cmd/seed/workflows_test.go, add a regression test that exercises soft-deleted workflow instance schedule preservation through the real import path, not only by calling upsertWorkflowSeed directly. Use setupWorkflowSeedTestDB, create or import a workflow definition/instance with the deterministic instance ID from deterministicWorkflowSeedUUID("workflow-instance", seedKey, instanceName), soft-delete or create the existing workflows.WorkflowInstance with DeletedAt.Valid=true plus non-nil NextScheduledAt and LastExecutedAt, then call importWorkflowSeedDefinition or importWorkflowSeeds with a seed for the same key and instance name. Load the row with db.Unscoped() and assert DeletedAt is still valid, NextScheduledAt is unchanged, and LastExecutedAt is unchanged. This test should fail if preserveWorkflowInstanceSchedule uses a scoped lookup and pass once it uses Unscoped().
+
+<!-- lisa-guidance-posted -->
