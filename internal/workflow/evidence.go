@@ -572,7 +572,7 @@ func (e *EvidenceIntegration) addFailureEvidenceToStream(
 		Description: description,
 		Start:       nowOrValue(execution.StartedAt),
 		End:         nowOrValue(execution.FailedAt),
-		Status:      datatypes.NewJSONType[oscalTypes_1_1_3.ObjectiveStatus](oscalTypes_1_1_3.ObjectiveStatus{State: "not-satisfied"}),
+		Status:      datatypes.NewJSONType[oscalTypes_1_1_3.ObjectiveStatus](oscalTypes_1_1_3.ObjectiveStatus{State: relational.EvidenceStatusNotSatisfied}),
 	}
 	id := uuid.New()
 	evidence.ID = &id
@@ -621,19 +621,22 @@ func (e *EvidenceIntegration) calculateCompletionEvidenceExpires(completedAt *ti
 	if completedAt == nil {
 		return nil
 	}
+	effectiveInstance := instance
 	if definition != nil && instance != nil {
-		instance.WorkflowDefinition = definition
+		instanceCopy := *instance
+		instanceCopy.WorkflowDefinition = definition
+		effectiveInstance = &instanceCopy
 	}
 
 	cadence := ""
-	if instance != nil {
-		cadence = instance.Cadence
+	if effectiveInstance != nil {
+		cadence = effectiveInstance.Cadence
 	}
 	if cadence == "" && definition != nil {
 		cadence = definition.SuggestedCadence
 	}
 
-	graceDays := ResolveGraceDays(instance, e.defaultGracePeriodDays)
+	graceDays := ResolveGraceDays(effectiveInstance, e.defaultGracePeriodDays)
 	expires := nextCadenceExpiryBase(*completedAt, cadence).AddDate(0, 0, graceDays)
 	return &expires
 }
