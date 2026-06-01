@@ -14,4 +14,5 @@ var (
 func init() {
 	RootCmd.AddCommand(newHeartbeatCMD())
 	RootCmd.AddCommand(newEvidenceCMD())
+	RootCmd.AddCommand(newWorkflowsCMD())
 }
