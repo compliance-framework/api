@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/compliance-framework/api/internal/converters/labelfilter"
@@ -45,7 +46,18 @@ func (s *FilterSyncService) SyncFilterForDefinition(definitionID uuid.UUID) erro
 		return fmt.Errorf("failed to load control relationships: %w", err)
 	}
 
-	controls := make([]relational.Control, 0, len(relationships))
+	type relationshipControlRef struct {
+		catalogID           uuid.UUID
+		controlID           string
+		normalizedControlID string
+	}
+
+	controlKey := func(catalogID uuid.UUID, normalizedControlID string) string {
+		return catalogID.String() + ":" + normalizedControlID
+	}
+
+	controlIDsByCatalog := make(map[uuid.UUID]map[string]struct{})
+	controlRefs := make([]relationshipControlRef, 0, len(relationships))
 	seenControls := make(map[string]struct{}, len(relationships))
 	for _, relationship := range relationships {
 		if !relationship.IsActive {
@@ -72,23 +84,69 @@ func (s *FilterSyncService) SyncFilterForDefinition(definitionID uuid.UUID) erro
 		}
 
 		normalizedControlID := strings.ToUpper(relationship.ControlID)
-		key := catalogID.String() + ":" + normalizedControlID
+		key := controlKey(catalogID, normalizedControlID)
 		if _, ok := seenControls[key]; ok {
 			continue
 		}
 
-		var control relational.Control
-		if err := s.db.Where("catalog_id = ? AND UPPER(id) = ?", catalogID, normalizedControlID).First(&control).Error; err != nil {
+		seenControls[key] = struct{}{}
+		if _, ok := controlIDsByCatalog[catalogID]; !ok {
+			controlIDsByCatalog[catalogID] = make(map[string]struct{})
+		}
+		controlIDsByCatalog[catalogID][normalizedControlID] = struct{}{}
+		controlRefs = append(controlRefs, relationshipControlRef{
+			catalogID:           catalogID,
+			controlID:           relationship.ControlID,
+			normalizedControlID: normalizedControlID,
+		})
+	}
+
+	catalogIDs := make([]uuid.UUID, 0, len(controlIDsByCatalog))
+	for catalogID := range controlIDsByCatalog {
+		catalogIDs = append(catalogIDs, catalogID)
+	}
+	sort.Slice(catalogIDs, func(i, j int) bool {
+		return catalogIDs[i].String() < catalogIDs[j].String()
+	})
+
+	controlLookup := make(map[string]relational.Control, len(controlRefs))
+	for _, catalogID := range catalogIDs {
+		controlIDs := make([]string, 0, len(controlIDsByCatalog[catalogID]))
+		for controlID := range controlIDsByCatalog[catalogID] {
+			controlIDs = append(controlIDs, controlID)
+		}
+		sort.Strings(controlIDs)
+
+		var catalogControls []relational.Control
+		if err := s.db.Where("catalog_id = ? AND UPPER(id) IN ?", catalogID, controlIDs).Find(&catalogControls).Error; err != nil {
 			s.logger.Warnw("Skipping workflow control relationship for unresolved control",
 				"workflow_definition_id", definitionID,
 				"catalog_id", catalogID,
-				"control_id", relationship.ControlID,
 				"error", err,
 			)
 			continue
 		}
 
-		seenControls[key] = struct{}{}
+		for _, control := range catalogControls {
+			key := controlKey(catalogID, strings.ToUpper(control.ID))
+			if _, ok := controlLookup[key]; !ok {
+				controlLookup[key] = control
+			}
+		}
+	}
+
+	controls := make([]relational.Control, 0, len(controlRefs))
+	for _, controlRef := range controlRefs {
+		control, ok := controlLookup[controlKey(controlRef.catalogID, controlRef.normalizedControlID)]
+		if !ok {
+			s.logger.Warnw("Skipping workflow control relationship for unresolved control",
+				"workflow_definition_id", definitionID,
+				"catalog_id", controlRef.catalogID,
+				"control_id", controlRef.controlID,
+			)
+			continue
+		}
+
 		controls = append(controls, control)
 	}
 

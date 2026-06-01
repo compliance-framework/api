@@ -547,9 +547,19 @@ func (e *EvidenceIntegration) addFailureEvidenceToStream(
 ) error {
 	var stream *relational.Evidence
 	var err error
+	var coverageLabels []relational.Labels
 	if executionStream {
 		stream, err = e.GetOrCreateExecutionStream(ctx, execution.ID)
 	} else {
+		instance, err := e.workflowInstanceSvc.GetByID(execution.WorkflowInstanceID)
+		if err != nil {
+			return fmt.Errorf("failed to get workflow instance: %w", err)
+		}
+		if instance.WorkflowDefinitionID == nil {
+			return fmt.Errorf("workflow instance %s has no workflow definition id", execution.WorkflowInstanceID)
+		}
+		coverageLabels = e.buildWorkflowCoverageLabels(*instance.WorkflowDefinitionID)
+
 		stream, err = e.GetOrCreateInstanceStream(ctx, execution.WorkflowInstanceID)
 	}
 	if err != nil {
@@ -580,11 +590,7 @@ func (e *EvidenceIntegration) addFailureEvidenceToStream(
 		{Name: "workflow.unresolved_assignees", Value: strings.Join(unresolvedAssignees, ",")},
 	}
 	if !executionStream {
-		instance, err := e.workflowInstanceSvc.GetByID(execution.WorkflowInstanceID)
-		if err != nil {
-			return fmt.Errorf("failed to get workflow instance: %w", err)
-		}
-		labels = append(labels, e.buildWorkflowCoverageLabels(*instance.WorkflowDefinitionID)...)
+		labels = append(labels, coverageLabels...)
 	}
 
 	return e.db.Model(evidence).Association("Labels").Append(labels)
