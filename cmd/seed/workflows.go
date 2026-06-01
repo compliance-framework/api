@@ -183,6 +183,7 @@ func importWorkflowSeeds(ctx context.Context, db *gorm.DB, sugar *zap.SugaredLog
 			}
 			continue
 		}
+		seedDef.Key = key
 		seenKeys[key] = struct{}{}
 
 		var defSummary workflowSeedSummary

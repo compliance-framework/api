@@ -99,6 +99,48 @@ func TestImportWorkflowSeedDefinitionRejectsDuplicateStepNames(t *testing.T) {
 	}
 }
 
+func TestImportWorkflowSeedsTrimsKeyBeforeDeterministicIDs(t *testing.T) {
+	db := setupWorkflowSeedTestDB(t)
+
+	firstSummary := importWorkflowSeeds(context.Background(), db, nil, []workflowSeedDefinition{
+		{
+			Key:         "  trim-key-test  ",
+			Name:        "Trim Key Test",
+			Description: "first import",
+			Version:     "1.0.0",
+		},
+	})
+	if firstSummary.Failed != 0 || firstSummary.DefinitionsCreated != 1 {
+		t.Fatalf("expected first import to create one definition without failures, got created=%d failed=%d", firstSummary.DefinitionsCreated, firstSummary.Failed)
+	}
+
+	expectedID := deterministicWorkflowSeedUUID("workflow-definition", "trim-key-test")
+	var definition workflows.WorkflowDefinition
+	if err := db.First(&definition, "id = ?", expectedID).Error; err != nil {
+		t.Fatalf("expected workflow definition to use trimmed key ID: %v", err)
+	}
+
+	secondSummary := importWorkflowSeeds(context.Background(), db, nil, []workflowSeedDefinition{
+		{
+			Key:         "trim-key-test",
+			Name:        "Trim Key Test",
+			Description: "second import",
+			Version:     "1.0.0",
+		},
+	})
+	if secondSummary.Failed != 0 || secondSummary.DefinitionsUpdated != 1 {
+		t.Fatalf("expected second import to update one definition without failures, got updated=%d failed=%d", secondSummary.DefinitionsUpdated, secondSummary.Failed)
+	}
+
+	var count int64
+	if err := db.Model(&workflows.WorkflowDefinition{}).Count(&count).Error; err != nil {
+		t.Fatalf("failed to count workflow definitions: %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("expected re-import with canonical key to keep one workflow definition, got %d", count)
+	}
+}
+
 func assertWorkflowSeedCounts(t *testing.T, db *gorm.DB) {
 	t.Helper()
 
