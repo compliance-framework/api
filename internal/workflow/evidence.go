@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/compliance-framework/api/internal/config"
 	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/compliance-framework/api/internal/service/relational/workflows"
 	oscalTypes_1_1_3 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
@@ -251,6 +252,8 @@ func (e *EvidenceIntegration) AddWorkflowExecutionEvidence(ctx context.Context, 
 		evidence.Status = datatypes.NewJSONType(oscalTypes_1_1_3.ObjectiveStatus{
 			State: "satisfied",
 		})
+		evidence.Labels = append(evidence.Labels, e.buildWorkflowCoverageLabels(*definition.ID)...)
+		evidence.Expires = e.calculateCompletionEvidenceExpires(execution.CompletedAt, instance, definition)
 	}
 	if err := e.db.Create(&evidence).Error; err != nil {
 		return fmt.Errorf("failed to create workflow execution evidence: %w", err)
@@ -352,6 +355,16 @@ func (e *EvidenceIntegration) AddExecutionCompletionEvidence(ctx context.Context
 		return fmt.Errorf("failed to get instance stream: %w", err)
 	}
 
+	instance, err := e.workflowInstanceSvc.GetByID(execution.WorkflowInstanceID)
+	if err != nil {
+		return fmt.Errorf("failed to get workflow instance: %w", err)
+	}
+
+	definition, err := e.workflowDefinitionSvc.GetByID(instance.WorkflowDefinitionID)
+	if err != nil {
+		return fmt.Errorf("failed to get workflow definition: %w", err)
+	}
+
 	// Get step executions for metrics
 	stepExecutions, err := e.stepExecutionSvc.GetByWorkflowExecutionID(workflowExecutionID)
 	if err != nil {
@@ -377,6 +390,8 @@ func (e *EvidenceIntegration) AddExecutionCompletionEvidence(ctx context.Context
 		Description: description,
 		Start:       *execution.StartedAt,
 		End:         *execution.CompletedAt,
+		Status:      datatypes.NewJSONType[oscalTypes_1_1_3.ObjectiveStatus](oscalTypes_1_1_3.ObjectiveStatus{State: "satisfied"}),
+		Expires:     e.calculateCompletionEvidenceExpires(execution.CompletedAt, instance, definition),
 	}
 
 	// Generate unique ID for this evidence record
@@ -395,6 +410,7 @@ func (e *EvidenceIntegration) AddExecutionCompletionEvidence(ctx context.Context
 		{Name: "workflow.step_count", Value: fmt.Sprintf("%d", len(stepExecutions))},
 		{Name: "evidence.type", Value: "execution_completion"},
 	}
+	labels = append(labels, e.buildWorkflowCoverageLabels(*definition.ID)...)
 
 	if err := e.db.Model(evidence).Association("Labels").Append(labels); err != nil {
 		return fmt.Errorf("failed to add labels: %w", err)
@@ -531,6 +547,13 @@ func (e *EvidenceIntegration) addFailureEvidenceToStream(
 		{Name: "workflow.completed_steps", Value: fmt.Sprintf("%d", completedCount)},
 		{Name: "workflow.unresolved_assignees", Value: strings.Join(unresolvedAssignees, ",")},
 	}
+	if !executionStream {
+		instance, err := e.workflowInstanceSvc.GetByID(execution.WorkflowInstanceID)
+		if err != nil {
+			return fmt.Errorf("failed to get workflow instance: %w", err)
+		}
+		labels = append(labels, e.buildWorkflowCoverageLabels(*instance.WorkflowDefinitionID)...)
+	}
 
 	return e.db.Model(evidence).Association("Labels").Append(labels)
 }
@@ -547,6 +570,51 @@ func nowOrValue(ts *time.Time) time.Time {
 		return time.Now()
 	}
 	return *ts
+}
+
+func (e *EvidenceIntegration) buildWorkflowCoverageLabels(definitionID uuid.UUID) []relational.Labels {
+	return []relational.Labels{
+		{Name: workflows.WorkflowEvidencePolicyLabel, Value: workflows.WorkflowPolicyValue(definitionID)},
+		{Name: workflows.WorkflowEvidencePluginLabel, Value: workflows.WorkflowEvidencePluginValue},
+	}
+}
+
+func (e *EvidenceIntegration) calculateCompletionEvidenceExpires(completedAt *time.Time, instance *workflows.WorkflowInstance, definition *workflows.WorkflowDefinition) *time.Time {
+	if completedAt == nil {
+		return nil
+	}
+	if definition != nil && instance != nil {
+		instance.WorkflowDefinition = definition
+	}
+
+	cadence := ""
+	if instance != nil {
+		cadence = instance.Cadence
+	}
+	if cadence == "" && definition != nil {
+		cadence = definition.SuggestedCadence
+	}
+
+	graceDays := ResolveGraceDays(instance, config.DefaultWorkflowConfig().GracePeriodDays)
+	expires := completedAt.Add(cadenceDuration(cadence) + time.Duration(graceDays)*24*time.Hour)
+	return &expires
+}
+
+func cadenceDuration(cadence string) time.Duration {
+	switch workflows.CadenceType(cadence) {
+	case workflows.CadenceDaily:
+		return 24 * time.Hour
+	case workflows.CadenceWeekly:
+		return 7 * 24 * time.Hour
+	case workflows.CadenceQuarterly:
+		return 91 * 24 * time.Hour
+	case workflows.CadenceAnnually:
+		return 365 * 24 * time.Hour
+	case workflows.CadenceMonthly:
+		return 30 * 24 * time.Hour
+	default:
+		return 30 * 24 * time.Hour
+	}
 }
 
 // generateExecutionStreamUUID generates a deterministic UUID for an execution stream based on labels

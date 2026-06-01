@@ -14,8 +14,9 @@ import (
 
 type ControlRelationshipHandler struct {
 	*BaseHandler
-	db      *gorm.DB
-	service *workflows.ControlRelationshipService
+	db         *gorm.DB
+	service    *workflows.ControlRelationshipService
+	filterSync *workflows.FilterSyncService
 }
 
 func NewControlRelationshipHandler(sugar *zap.SugaredLogger, db *gorm.DB) *ControlRelationshipHandler {
@@ -23,6 +24,7 @@ func NewControlRelationshipHandler(sugar *zap.SugaredLogger, db *gorm.DB) *Contr
 		BaseHandler: NewBaseHandler(sugar),
 		db:          db,
 		service:     workflows.NewControlRelationshipService(db),
+		filterSync:  workflows.NewFilterSyncService(db, sugar),
 	}
 }
 
@@ -114,6 +116,9 @@ func (h *ControlRelationshipHandler) Create(ctx echo.Context) error {
 
 	if err := h.service.Create(relationship); err != nil {
 		return h.HandleServiceError(ctx, err, "create", "control relationship")
+	}
+	if err := h.filterSync.SyncFilterForDefinition(*relationship.WorkflowDefinitionID); err != nil {
+		return h.HandleServiceError(ctx, err, "sync", "workflow filter")
 	}
 
 	h.sugar.Infow("Control relationship created", "id", relationship.ID)
@@ -236,6 +241,9 @@ func (h *ControlRelationshipHandler) Update(ctx echo.Context) error {
 	if err != nil {
 		return h.HandleServiceError(ctx, err, "get", "control relationship after update")
 	}
+	if err := h.filterSync.SyncFilterForDefinition(*relationship.WorkflowDefinitionID); err != nil {
+		return h.HandleServiceError(ctx, err, "sync", "workflow filter")
+	}
 
 	h.sugar.Infow("Control relationship updated", "id", id)
 	return h.RespondOK(ctx, ControlRelationshipResponse{Data: relationship})
@@ -260,8 +268,16 @@ func (h *ControlRelationshipHandler) Delete(ctx echo.Context) error {
 		return HandleError(err)
 	}
 
+	relationship, err := h.service.GetByID(id)
+	if err != nil {
+		return h.HandleServiceError(ctx, err, "get", "control relationship")
+	}
+
 	if err := h.service.Delete(id); err != nil {
 		return h.HandleServiceError(ctx, err, "delete", "control relationship")
+	}
+	if err := h.filterSync.SyncFilterForDefinition(*relationship.WorkflowDefinitionID); err != nil {
+		return h.HandleServiceError(ctx, err, "sync", "workflow filter")
 	}
 
 	h.sugar.Infow("Control relationship deleted", "id", id)
@@ -289,7 +305,7 @@ func (h *ControlRelationshipHandler) Activate(ctx echo.Context) error {
 	}
 
 	// Check if relationship exists first
-	_, err = h.service.GetByID(id)
+	existing, err := h.service.GetByID(id)
 	if err != nil {
 		return h.HandleServiceError(ctx, err, "get", "control relationship")
 	}
@@ -301,6 +317,9 @@ func (h *ControlRelationshipHandler) Activate(ctx echo.Context) error {
 	relationship, err := h.service.GetByID(id)
 	if err != nil {
 		return h.HandleServiceError(ctx, err, "get", "control relationship after activation")
+	}
+	if err := h.filterSync.SyncFilterForDefinition(*existing.WorkflowDefinitionID); err != nil {
+		return h.HandleServiceError(ctx, err, "sync", "workflow filter")
 	}
 
 	h.sugar.Infow("Control relationship activated", "id", id)
@@ -328,7 +347,7 @@ func (h *ControlRelationshipHandler) Deactivate(ctx echo.Context) error {
 	}
 
 	// Check if relationship exists first
-	_, err = h.service.GetByID(id)
+	existing, err := h.service.GetByID(id)
 	if err != nil {
 		return h.HandleServiceError(ctx, err, "get", "control relationship")
 	}
@@ -340,6 +359,9 @@ func (h *ControlRelationshipHandler) Deactivate(ctx echo.Context) error {
 	relationship, err := h.service.GetByID(id)
 	if err != nil {
 		return h.HandleServiceError(ctx, err, "get", "control relationship after deactivation")
+	}
+	if err := h.filterSync.SyncFilterForDefinition(*existing.WorkflowDefinitionID); err != nil {
+		return h.HandleServiceError(ctx, err, "sync", "workflow filter")
 	}
 
 	h.sugar.Infow("Control relationship deactivated", "id", id)

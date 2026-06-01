@@ -1,6 +1,9 @@
 package workflows
 
-import "github.com/robfig/cron/v3"
+import (
+	"github.com/google/uuid"
+	"github.com/robfig/cron/v3"
+)
 
 // Field length constraints
 const (
@@ -26,6 +29,16 @@ const (
 	CadenceQuarterly CadenceType = "quarterly"
 	CadenceAnnually  CadenceType = "annually"
 )
+
+const (
+	WorkflowEvidencePolicyLabel = "_policy"
+	WorkflowEvidencePluginLabel = "_plugin"
+	WorkflowEvidencePluginValue = "workflow"
+)
+
+func WorkflowPolicyValue(definitionID uuid.UUID) string {
+	return WorkflowEvidencePluginValue + "." + definitionID.String()
+}
 
 // IsValid checks if the cadence type is valid
 func (c CadenceType) IsValid() bool {

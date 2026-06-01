@@ -19,6 +19,8 @@ func setupTestDB(t *testing.T) *gorm.DB {
 	err = db.AutoMigrate(
 		&relational.Metadata{},
 		&relational.Catalog{},
+		&relational.Control{},
+		&relational.Filter{},
 		&relational.User{},
 		&relational.BackMatterResource{},
 		&relational.BackMatter{},

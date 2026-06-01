@@ -9,13 +9,15 @@ import (
 
 type WorkflowDefinitionHandler struct {
 	*BaseHandler
-	service *workflows.WorkflowDefinitionService
+	service    *workflows.WorkflowDefinitionService
+	filterSync *workflows.FilterSyncService
 }
 
 func NewWorkflowDefinitionHandler(sugar *zap.SugaredLogger, db *gorm.DB) *WorkflowDefinitionHandler {
 	return &WorkflowDefinitionHandler{
 		BaseHandler: NewBaseHandler(sugar),
 		service:     workflows.NewWorkflowDefinitionService(db),
+		filterSync:  workflows.NewFilterSyncService(db, sugar),
 	}
 }
 
@@ -81,6 +83,9 @@ func (h *WorkflowDefinitionHandler) Create(ctx echo.Context) error {
 
 	if err := h.service.Create(definition); err != nil {
 		return h.HandleServiceError(ctx, err, "create", "workflow definition")
+	}
+	if err := h.filterSync.SyncFilterForDefinition(*definition.ID); err != nil {
+		return h.HandleServiceError(ctx, err, "sync", "workflow filter")
 	}
 
 	h.sugar.Infow("Workflow definition created", "id", definition.ID)
@@ -187,6 +192,9 @@ func (h *WorkflowDefinitionHandler) Update(ctx echo.Context) error {
 
 	if err := h.service.Update(id, definition); err != nil {
 		return h.HandleServiceError(ctx, err, "update", "workflow definition")
+	}
+	if err := h.filterSync.SyncFilterForDefinition(*id); err != nil {
+		return h.HandleServiceError(ctx, err, "sync", "workflow filter")
 	}
 
 	h.sugar.Infow("Workflow definition updated", "id", definition.ID)

@@ -357,6 +357,10 @@ func TestAddExecutionCompletionEvidence(t *testing.T) {
 		assert.Equal(t, "execution_completion", labelMap["evidence.type"])
 		assert.Equal(t, execution.ID.String(), labelMap["workflow.execution.id"])
 		assert.Equal(t, "completed", labelMap["workflow.execution.status"])
+		assert.Equal(t, workflows.WorkflowPolicyValue(*definition.ID), labelMap[workflows.WorkflowEvidencePolicyLabel])
+		assert.Equal(t, workflows.WorkflowEvidencePluginValue, labelMap[workflows.WorkflowEvidencePluginLabel])
+		assert.Equal(t, relational.EvidenceStatusSatisfied, execEvidence.Status.Data().State)
+		assert.NotNil(t, execEvidence.Expires)
 		// Completion evidence should not have failure reason
 		_, exists := labelMap["workflow.failure_reason"]
 		assert.False(t, exists, "completion evidence should not have failure reason")
@@ -403,6 +407,62 @@ func TestAddExecutionCompletionEvidence(t *testing.T) {
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, len(evidenceRecords), 2) // Only 2 execution evidences (no instance stream)
 	})
+}
+
+func TestAddExecutionFailureEvidenceLabelsInstanceStream(t *testing.T) {
+	db := setupEvidenceTestDB(t)
+	defer func() {
+		sqlDB, _ := db.DB()
+		err := sqlDB.Close()
+		require.NoError(t, err)
+	}()
+
+	logger := zap.NewNop().Sugar()
+	integration := NewEvidenceIntegration(db, logger)
+	ctx := context.Background()
+
+	definition, instance, execution, _ := createTestWorkflowContext(t, db)
+
+	failedAt := time.Now()
+	execution.Status = workflows.WorkflowStatusFailed.String()
+	execution.FailedAt = &failedAt
+	require.NoError(t, db.Save(execution).Error)
+
+	stepDef := &workflows.WorkflowStepDefinition{
+		WorkflowDefinitionID: definition.ID,
+		Name:                 "Failed Step",
+		ResponsibleRole:      "engineer",
+	}
+	require.NoError(t, db.Create(stepDef).Error)
+
+	stepExecution := &workflows.StepExecution{
+		WorkflowExecutionID:      execution.ID,
+		WorkflowStepDefinitionID: stepDef.ID,
+		Status:                   workflows.StepStatusFailed.String(),
+		StartedAt:                execution.StartedAt,
+		FailedAt:                 &failedAt,
+	}
+	require.NoError(t, db.Create(stepExecution).Error)
+
+	require.NoError(t, integration.AddExecutionFailureEvidence(ctx, execution.ID))
+
+	stream, err := integration.GetOrCreateInstanceStream(ctx, instance.ID)
+	require.NoError(t, err)
+
+	var evidence relational.Evidence
+	require.NoError(t, db.Where("uuid = ? AND title = ?", stream.UUID, "Workflow Execution Failed").First(&evidence).Error)
+	assert.Equal(t, relational.EvidenceStatusNotSatisfied, evidence.Status.Data().State)
+
+	var labels []relational.Labels
+	require.NoError(t, db.Model(&evidence).Association("Labels").Find(&labels))
+	labelMap := make(map[string]string)
+	for _, label := range labels {
+		labelMap[label.Name] = label.Value
+	}
+
+	assert.Equal(t, workflows.WorkflowPolicyValue(*definition.ID), labelMap[workflows.WorkflowEvidencePolicyLabel])
+	assert.Equal(t, workflows.WorkflowEvidencePluginValue, labelMap[workflows.WorkflowEvidencePluginLabel])
+	assert.Equal(t, "execution_failure", labelMap["evidence.type"])
 }
 
 func TestGenerateStreamUUIDs(t *testing.T) {
