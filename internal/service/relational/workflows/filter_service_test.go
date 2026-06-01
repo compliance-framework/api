@@ -76,8 +76,8 @@ func TestFilterSyncService_SyncFilterForDefinition(t *testing.T) {
 	require.Len(t, filter.Controls, 1)
 	require.Equal(t, catalogID1, filter.Controls[0].CatalogID)
 	require.Equal(t, "ctrl-1", filter.Controls[0].ID)
-	require.Equal(t, WorkflowEvidencePolicyLabel, filter.Filter.Data().Scope.Condition.Label)
-	require.Equal(t, WorkflowPolicyValue(*definition.ID), filter.Filter.Data().Scope.Condition.Value)
+	require.Equal(t, WorkflowEvidencePolicyLabel, filter.Filter.Data().Scope.Label)
+	require.Equal(t, WorkflowPolicyValue(*definition.ID), filter.Filter.Data().Scope.Value)
 
 	require.NoError(t, service.SyncFilterForDefinition(*definition.ID))
 	var filterCount int64
