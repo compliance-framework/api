@@ -41,9 +41,9 @@ func (e *stubEnqueuer) IsStarted() bool {
 	return e.started
 }
 
-func (e *stubEnqueuer) EnqueueNotificationEmail(_ context.Context, delivery Delivery) error {
+func (e *stubEnqueuer) EnqueueNotificationEmail(_ context.Context, delivery Delivery) ([]int64, error) {
 	e.deliveries = append(e.deliveries, delivery)
-	return e.err
+	return []int64{int64(len(e.deliveries))}, e.err
 }
 
 type stubTemplateRenderer struct {

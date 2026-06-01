@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/compliance-framework/api/internal/api/middleware"
+	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/compliance-framework/api/internal/service/relational/workflows"
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
@@ -37,7 +38,6 @@ func TestWorkflowDefinitionHandler_Create(t *testing.T) {
 			Description:      "Quarterly security assessment process",
 			Version:          "1.0",
 			SuggestedCadence: "quarterly",
-			EvidenceRequired: `["vulnerability_scan", "penetration_test"]`,
 			GracePeriodDays:  intPtr(10),
 		}
 
@@ -64,6 +64,37 @@ func TestWorkflowDefinitionHandler_Create(t *testing.T) {
 		assert.Equal(t, "quarterly", response.Data.SuggestedCadence)
 		require.NotNil(t, response.Data.GracePeriodDays)
 		assert.Equal(t, 10, *response.Data.GracePeriodDays)
+	})
+
+	// BCH-1145: definition-level evidence-required duplicates step-level requirements.
+	// Observed: POST /workflows/definitions accepts and returns evidence-required.
+	// Expected: the field must not be part of the API contract.
+	t.Run("EvidenceRequired_NotInResponse", func(t *testing.T) {
+		reqBody := map[string]interface{}{
+			"name":              "Evidence Test Workflow",
+			"evidence-required": `["document"]`,
+		}
+		body, err := json.Marshal(reqBody)
+		require.NoError(t, err)
+
+		req := httptest.NewRequest(http.MethodPost, "/workflows/definitions", bytes.NewReader(body))
+		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+		rec := httptest.NewRecorder()
+		c := e.NewContext(req, rec)
+
+		err = handler.Create(c)
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusCreated, rec.Code)
+
+		var rawResponse map[string]interface{}
+		err = json.Unmarshal(rec.Body.Bytes(), &rawResponse)
+		require.NoError(t, err)
+		data, ok := rawResponse["data"].(map[string]interface{})
+		require.True(t, ok, "response must have a data object")
+		_, hasUnderscore := data["evidence_required"]
+		assert.False(t, hasUnderscore, "evidence_required must not appear in the workflow definition response")
+		_, hasHyphen := data["evidence-required"]
+		assert.False(t, hasHyphen, "evidence-required must not appear in the workflow definition response")
 	})
 
 	t.Run("ValidationError_MissingName", func(t *testing.T) {
@@ -236,6 +267,37 @@ func TestWorkflowDefinitionHandler_Update(t *testing.T) {
 		assert.Equal(t, 14, *response.Data.GracePeriodDays)
 	})
 
+	// BCH-1145: evidence-required must not appear in update responses either.
+	t.Run("EvidenceRequired_NotInUpdateResponse", func(t *testing.T) {
+		reqBody := map[string]interface{}{
+			"name":              "Updated Name",
+			"evidence-required": `["screenshot"]`,
+		}
+		body, err := json.Marshal(reqBody)
+		require.NoError(t, err)
+
+		req := httptest.NewRequest(http.MethodPut, "/workflows/definitions/"+definition.ID.String(), bytes.NewReader(body))
+		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+		rec := httptest.NewRecorder()
+		c := e.NewContext(req, rec)
+		c.SetParamNames("id")
+		c.SetParamValues(definition.ID.String())
+
+		err = handler.Update(c)
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusOK, rec.Code)
+
+		var rawResponse map[string]interface{}
+		err = json.Unmarshal(rec.Body.Bytes(), &rawResponse)
+		require.NoError(t, err)
+		data, ok := rawResponse["data"].(map[string]interface{})
+		require.True(t, ok, "response must have a data object")
+		_, hasUnderscore := data["evidence_required"]
+		assert.False(t, hasUnderscore, "evidence_required must not appear in the workflow definition update response")
+		_, hasHyphen := data["evidence-required"]
+		assert.False(t, hasHyphen, "evidence-required must not appear in the workflow definition update response")
+	})
+
 	t.Run("PartialUpdate", func(t *testing.T) {
 		newVersion := "2.0"
 		reqBody := UpdateWorkflowDefinitionRequest{
@@ -319,6 +381,24 @@ func TestWorkflowDefinitionHandler_Delete(t *testing.T) {
 	require.NoError(t, db.Create(definition).Error)
 
 	t.Run("Success", func(t *testing.T) {
+		catalogID := uuid.New()
+		control := relational.Control{CatalogID: catalogID, ID: "ctrl-1", Title: "Control 1"}
+		require.NoError(t, db.Create(&control).Error)
+		relationship := &workflows.ControlRelationship{
+			WorkflowDefinitionID: definition.ID,
+			ControlID:            control.ID,
+			ControlSource:        "test catalog",
+			CatalogID:            catalogID.String(),
+			RelationshipType:     "satisfies",
+			Strength:             "primary",
+			IsActive:             true,
+		}
+		require.NoError(t, db.Create(relationship).Error)
+		require.NoError(t, workflows.NewFilterSyncService(db, zap.NewNop().Sugar()).SyncFilterForDefinition(*definition.ID))
+
+		var filter relational.Filter
+		require.NoError(t, db.First(&filter, "name = ?", "Workflow: "+definition.Name).Error)
+
 		req := httptest.NewRequest(http.MethodDelete, "/workflows/definitions/"+definition.ID.String(), nil)
 		rec := httptest.NewRecorder()
 		c := e.NewContext(req, rec)
@@ -332,6 +412,10 @@ func TestWorkflowDefinitionHandler_Delete(t *testing.T) {
 		// Verify it's deleted
 		var count int64
 		db.Model(&workflows.WorkflowDefinition{}).Where("id = ?", definition.ID).Count(&count)
+		assert.Equal(t, int64(0), count)
+		db.Model(&relational.Filter{}).Where("id = ?", filter.ID).Count(&count)
+		assert.Equal(t, int64(0), count)
+		db.Table("filter_controls").Where("filter_id = ?", filter.ID).Count(&count)
 		assert.Equal(t, int64(0), count)
 	})
 

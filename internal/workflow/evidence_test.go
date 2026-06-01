@@ -357,6 +357,10 @@ func TestAddExecutionCompletionEvidence(t *testing.T) {
 		assert.Equal(t, "execution_completion", labelMap["evidence.type"])
 		assert.Equal(t, execution.ID.String(), labelMap["workflow.execution.id"])
 		assert.Equal(t, "completed", labelMap["workflow.execution.status"])
+		assert.Equal(t, workflows.WorkflowPolicyValue(*definition.ID), labelMap[workflows.WorkflowEvidencePolicyLabel])
+		assert.Equal(t, workflows.WorkflowEvidencePluginValue, labelMap[workflows.WorkflowEvidencePluginLabel])
+		assert.Equal(t, relational.EvidenceStatusSatisfied, execEvidence.Status.Data().State)
+		assert.NotNil(t, execEvidence.Expires)
 		// Completion evidence should not have failure reason
 		_, exists := labelMap["workflow.failure_reason"]
 		assert.False(t, exists, "completion evidence should not have failure reason")
@@ -376,6 +380,36 @@ func TestAddExecutionCompletionEvidence(t *testing.T) {
 		err := integration.AddExecutionCompletionEvidence(ctx, runningExecution.ID)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "not completed")
+	})
+
+	t.Run("RejectCompletedExecutionWithoutStartedAt", func(t *testing.T) {
+		completedAt := time.Now()
+		executionWithoutStartedAt := &workflows.WorkflowExecution{
+			WorkflowInstanceID: instance.ID,
+			Status:             "completed",
+			TriggeredBy:        "manual",
+			CompletedAt:        &completedAt,
+		}
+		require.NoError(t, db.Create(executionWithoutStartedAt).Error)
+
+		err := integration.AddExecutionCompletionEvidence(ctx, executionWithoutStartedAt.ID)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "requires started_at")
+	})
+
+	t.Run("RejectCompletedExecutionWithoutCompletedAt", func(t *testing.T) {
+		startedAt := time.Now()
+		executionWithoutCompletedAt := &workflows.WorkflowExecution{
+			WorkflowInstanceID: instance.ID,
+			Status:             "completed",
+			TriggeredBy:        "manual",
+			StartedAt:          &startedAt,
+		}
+		require.NoError(t, db.Create(executionWithoutCompletedAt).Error)
+
+		err := integration.AddExecutionCompletionEvidence(ctx, executionWithoutCompletedAt.ID)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "requires completed_at")
 	})
 
 	t.Run("MultipleExecutionsInSameStream", func(t *testing.T) {
@@ -403,6 +437,62 @@ func TestAddExecutionCompletionEvidence(t *testing.T) {
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, len(evidenceRecords), 2) // Only 2 execution evidences (no instance stream)
 	})
+}
+
+func TestAddExecutionFailureEvidenceLabelsInstanceStream(t *testing.T) {
+	db := setupEvidenceTestDB(t)
+	defer func() {
+		sqlDB, _ := db.DB()
+		err := sqlDB.Close()
+		require.NoError(t, err)
+	}()
+
+	logger := zap.NewNop().Sugar()
+	integration := NewEvidenceIntegration(db, logger)
+	ctx := context.Background()
+
+	definition, instance, execution, _ := createTestWorkflowContext(t, db)
+
+	failedAt := time.Now()
+	execution.Status = workflows.WorkflowStatusFailed.String()
+	execution.FailedAt = &failedAt
+	require.NoError(t, db.Save(execution).Error)
+
+	stepDef := &workflows.WorkflowStepDefinition{
+		WorkflowDefinitionID: definition.ID,
+		Name:                 "Failed Step",
+		ResponsibleRole:      "engineer",
+	}
+	require.NoError(t, db.Create(stepDef).Error)
+
+	stepExecution := &workflows.StepExecution{
+		WorkflowExecutionID:      execution.ID,
+		WorkflowStepDefinitionID: stepDef.ID,
+		Status:                   workflows.StepStatusFailed.String(),
+		StartedAt:                execution.StartedAt,
+		FailedAt:                 &failedAt,
+	}
+	require.NoError(t, db.Create(stepExecution).Error)
+
+	require.NoError(t, integration.AddExecutionFailureEvidence(ctx, execution.ID))
+
+	stream, err := integration.GetOrCreateInstanceStream(ctx, instance.ID)
+	require.NoError(t, err)
+
+	var evidence relational.Evidence
+	require.NoError(t, db.Where("uuid = ? AND title = ?", stream.UUID, "Workflow Execution Failed").First(&evidence).Error)
+	assert.Equal(t, relational.EvidenceStatusNotSatisfied, evidence.Status.Data().State)
+
+	var labels []relational.Labels
+	require.NoError(t, db.Model(&evidence).Association("Labels").Find(&labels))
+	labelMap := make(map[string]string)
+	for _, label := range labels {
+		labelMap[label.Name] = label.Value
+	}
+
+	assert.Equal(t, workflows.WorkflowPolicyValue(*definition.ID), labelMap[workflows.WorkflowEvidencePolicyLabel])
+	assert.Equal(t, workflows.WorkflowEvidencePluginValue, labelMap[workflows.WorkflowEvidencePluginLabel])
+	assert.Equal(t, "execution_failure", labelMap["evidence.type"])
 }
 
 func TestGenerateStreamUUIDs(t *testing.T) {
@@ -535,6 +625,7 @@ func TestAddWorkflowExecutionStartedEvidence(t *testing.T) {
 		assert.Equal(t, fmt.Sprintf("Workflow Execution Started: %s", definition.Name), evidence.Title)
 		assert.Contains(t, evidence.Description, execution.ID.String())
 		assert.Contains(t, evidence.Description, "started at")
+		assert.Equal(t, evidenceIntegration.generateExecutionStreamUUID(definition, instance, execution), evidence.UUID)
 
 		// Verify labels
 		var labels []relational.Labels
@@ -552,6 +643,8 @@ func TestAddWorkflowExecutionStartedEvidence(t *testing.T) {
 		assert.Equal(t, definition.Name, labelMap["workflow.definition.name"])
 		assert.Equal(t, instance.ID.String(), labelMap["workflow.instance.id"])
 		assert.Equal(t, "workflow_execution_started", labelMap["evidence.type"])
+		assert.NotContains(t, labelMap, workflows.WorkflowEvidencePolicyLabel)
+		assert.NotContains(t, labelMap, workflows.WorkflowEvidencePluginLabel)
 	})
 
 	t.Run("RejectInvalidExecutionStatusForStarted", func(t *testing.T) {
@@ -565,7 +658,133 @@ func TestAddWorkflowExecutionStartedEvidence(t *testing.T) {
 		// Try to add started evidence for a failed execution (should fail)
 		err = evidenceIntegration.AddWorkflowExecutionEvidence(context.Background(), execution.ID, "started")
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "not in pending status")
+		assert.Contains(t, err.Error(), "not in pending or in_progress status")
+	})
+
+	t.Run("RejectUnsupportedStatus", func(t *testing.T) {
+		// Create workflow context
+		_, _, execution, _ := createTestWorkflowContext(t, db)
+
+		execution.StartedAt = nil
+		require.NoError(t, db.Save(execution).Error)
+
+		err := evidenceIntegration.AddWorkflowExecutionEvidence(context.Background(), execution.ID, "paused")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "unsupported workflow execution evidence status")
+	})
+
+	t.Run("RejectStartedEvidenceWithoutStartedAt", func(t *testing.T) {
+		// Create workflow context
+		_, _, execution, _ := createTestWorkflowContext(t, db)
+
+		execution.StartedAt = nil
+		require.NoError(t, db.Save(execution).Error)
+
+		err := evidenceIntegration.AddWorkflowExecutionEvidence(context.Background(), execution.ID, "started")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "requires started_at")
+	})
+
+	t.Run("RejectCompletedEvidenceWithoutCompletedAt", func(t *testing.T) {
+		// Create workflow context
+		_, _, execution, _ := createTestWorkflowContext(t, db)
+
+		execution.Status = "completed"
+		execution.CompletedAt = nil
+		require.NoError(t, db.Save(execution).Error)
+
+		err := evidenceIntegration.AddWorkflowExecutionEvidence(context.Background(), execution.ID, "completed")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "requires completed_at")
+	})
+
+	t.Run("RejectCompletedEvidenceWithoutStartedAt", func(t *testing.T) {
+		// Create workflow context
+		_, _, execution, _ := createTestWorkflowContext(t, db)
+
+		completedAt := time.Now().UTC()
+		execution.Status = "completed"
+		execution.StartedAt = nil
+		execution.CompletedAt = &completedAt
+		require.NoError(t, db.Save(execution).Error)
+
+		err := evidenceIntegration.AddWorkflowExecutionEvidence(context.Background(), execution.ID, "completed")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "requires started_at")
+	})
+
+	t.Run("CompletedEvidenceUsesCompletedAt", func(t *testing.T) {
+		// Create workflow context
+		_, _, execution, _ := createTestWorkflowContext(t, db)
+
+		completedAt := time.Now().Add(10 * time.Minute).UTC()
+		execution.Status = "completed"
+		execution.CompletedAt = &completedAt
+		require.NoError(t, db.Save(execution).Error)
+
+		err := evidenceIntegration.AddWorkflowExecutionEvidence(context.Background(), execution.ID, "completed")
+		require.NoError(t, err)
+
+		var evidence relational.Evidence
+		err = db.Where("title LIKE ?", "Workflow Execution Completed: %").Order("id desc").First(&evidence).Error
+		require.NoError(t, err)
+		assert.Contains(t, evidence.Description, completedAt.Format(time.RFC3339))
+		assert.True(t, evidence.Start.Equal(*execution.StartedAt))
+		assert.True(t, evidence.End.Equal(completedAt))
+	})
+}
+
+func TestCalculateCompletionEvidenceExpires(t *testing.T) {
+	evidenceIntegration := NewEvidenceIntegration(nil, zap.NewNop().Sugar())
+	completedAt := time.Date(2026, 1, 15, 10, 30, 0, 0, time.UTC)
+	zeroGrace := 0
+
+	tests := []struct {
+		name     string
+		cadence  string
+		expected time.Time
+	}{
+		{
+			name:     "hourly cron",
+			cadence:  "cron:0 0 * * * *",
+			expected: time.Date(2026, 1, 15, 11, 0, 0, 0, time.UTC),
+		},
+		{
+			name:     "daily cron",
+			cadence:  "cron:0 0 9 * * *",
+			expected: time.Date(2026, 1, 16, 9, 0, 0, 0, time.UTC),
+		},
+		{
+			name:     "monthly named cadence",
+			cadence:  string(workflows.CadenceMonthly),
+			expected: time.Date(2026, 2, 15, 10, 30, 0, 0, time.UTC),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			instance := &workflows.WorkflowInstance{
+				Cadence:         tt.cadence,
+				GracePeriodDays: &zeroGrace,
+			}
+
+			expires := evidenceIntegration.calculateCompletionEvidenceExpires(&completedAt, instance, nil)
+
+			require.NotNil(t, expires)
+			assert.Equal(t, tt.expected, *expires)
+		})
+	}
+
+	t.Run("uses configured default grace period", func(t *testing.T) {
+		evidenceIntegration := NewEvidenceIntegration(nil, zap.NewNop().Sugar(), 3)
+		instance := &workflows.WorkflowInstance{
+			Cadence: string(workflows.CadenceDaily),
+		}
+
+		expires := evidenceIntegration.calculateCompletionEvidenceExpires(&completedAt, instance, nil)
+
+		require.NotNil(t, expires)
+		assert.Equal(t, time.Date(2026, 1, 19, 10, 30, 0, 0, time.UTC), *expires)
 	})
 }
 

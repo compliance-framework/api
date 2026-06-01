@@ -28,7 +28,14 @@ type Manager struct {
 	workflowInstanceService  WorkflowInstanceServiceInterface
 	stepExecutionService     StepExecutionServiceInterface
 	notificationEnqueuer     NotificationEnqueuer // Optional: for workflow notification emails
+	evidenceCreator          workflows.WorkflowExecutionEvidenceCreator
 	logger                   *zap.SugaredLogger
+}
+
+// SetEvidenceCreator wires an evidence creator so that "started" evidence is emitted
+// synchronously at trigger time rather than on the async in_progress transition.
+func (m *Manager) SetEvidenceCreator(ec workflows.WorkflowExecutionEvidenceCreator) {
+	m.evidenceCreator = ec
 }
 
 // NewManager creates a new workflow manager
@@ -131,6 +138,14 @@ func (m *Manager) StartWorkflowExecution(ctx context.Context, workflowInstanceID
 		"execution_id", execution.ID,
 		"job_kind", JobTypeExecuteWorkflow,
 	)
+
+	if m.evidenceCreator != nil {
+		if err := m.evidenceCreator.AddWorkflowExecutionEvidence(ctx, execution.ID, "started"); err != nil {
+			m.logger.Warnw("Failed to create workflow execution started evidence",
+				"execution_id", execution.ID,
+				"error", err)
+		}
+	}
 
 	return execution, nil
 }
@@ -309,6 +324,7 @@ func (m *Manager) GetExecutionMetrics(ctx context.Context, executionID *uuid.UUI
 	metrics := &ExecutionMetrics{
 		ExecutionID: *executionID,
 		TotalSteps:  len(stepExecutions),
+		StepMetrics: []StepMetric{},
 	}
 
 	// Calculate execution duration
@@ -324,19 +340,42 @@ func (m *Manager) GetExecutionMetrics(ctx context.Context, executionID *uuid.UUI
 
 	// Calculate step metrics
 	var totalStepDuration time.Duration
+	var timedStepCount int
 	for _, step := range stepExecutions {
+		if step.WorkflowStepDefinitionID == nil {
+			continue
+		}
+
+		stepName := ""
+		if step.WorkflowStepDefinition != nil {
+			stepName = step.WorkflowStepDefinition.Name
+		}
+
+		sm := StepMetric{
+			StepDefinitionID: *step.WorkflowStepDefinitionID,
+			StepName:         stepName,
+			StartedAt:        step.StartedAt,
+			CompletedAt:      step.CompletedAt,
+		}
+
 		if step.StartedAt != nil && step.CompletedAt != nil {
 			stepDuration := step.CompletedAt.Sub(*step.StartedAt)
 			totalStepDuration += stepDuration
+			timedStepCount++
 
 			if stepDuration > metrics.LongestStepDuration {
 				metrics.LongestStepDuration = stepDuration
 			}
+
+			d := stepDuration.Minutes()
+			sm.DurationMinutes = &d
 		}
+
+		metrics.StepMetrics = append(metrics.StepMetrics, sm)
 	}
 
-	if len(stepExecutions) > 0 {
-		metrics.AverageStepDuration = totalStepDuration / time.Duration(len(stepExecutions))
+	if timedStepCount > 0 {
+		metrics.AverageStepDuration = totalStepDuration / time.Duration(timedStepCount)
 	}
 
 	return metrics, nil
@@ -360,11 +399,21 @@ type ExecutionStatus struct {
 	FailureReason   string
 }
 
+// StepMetric holds per-step timing data for the metrics response
+type StepMetric struct {
+	StepDefinitionID uuid.UUID  `json:"stepDefinitionId" swaggertype:"string" format:"uuid"`
+	StepName         string     `json:"stepName"`
+	StartedAt        *time.Time `json:"startedAt,omitempty" swaggertype:"string" format:"date-time"`
+	CompletedAt      *time.Time `json:"completedAt,omitempty" swaggertype:"string" format:"date-time"`
+	DurationMinutes  *float64   `json:"durationMinutes,omitempty"`
+}
+
 // ExecutionMetrics represents metrics for a workflow execution
 type ExecutionMetrics struct {
-	ExecutionID         uuid.UUID
-	TotalSteps          int
-	Duration            time.Duration
-	AverageStepDuration time.Duration
-	LongestStepDuration time.Duration
+	ExecutionID         uuid.UUID     `json:"executionId"`
+	TotalSteps          int           `json:"totalSteps"`
+	Duration            time.Duration `json:"duration"`
+	AverageStepDuration time.Duration `json:"averageStepDuration"`
+	LongestStepDuration time.Duration `json:"longestStepDuration"`
+	StepMetrics         []StepMetric  `json:"stepMetrics"`
 }

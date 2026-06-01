@@ -1,0 +1,50 @@
+[
+  {
+    "key": "tech-controls-governance",
+    "name": "Technology Controls Governance & Independent Review",
+    "description": "Technology Controls Governance & Independent Review for a simple cloud application. Recurring activity that evidences the mapped SOC 2 CCF controls.",
+    "version": "1.0",
+    "suggested-cadence": "annually",
+    "grace-period-days": 30,
+    "evidence-required": "Per-step document links, attestations, and review/approval records.",
+    "steps": [
+      { "name": "Define control scope & objectives", "description": "Define control scope & objectives", "order": 0, "responsible-role": "Security Lead", "evidence-required": [ { "type": "document", "description": "Evidence for: Define control scope & objectives", "required": true } ], "estimated-duration": 60, "depends-on": [] },
+      { "name": "Document deprovisioning requirements", "description": "Document deprovisioning requirements", "order": 1, "responsible-role": "Security Lead", "evidence-required": [ { "type": "document", "description": "Evidence for: Document deprovisioning requirements", "required": true } ], "estimated-duration": 60, "depends-on": [ "Define control scope & objectives" ] },
+      { "name": "Assign administration responsibilities", "description": "Assign administration responsibilities", "order": 2, "responsible-role": "Security Lead", "evidence-required": [ { "type": "attestation", "description": "Evidence for: Assign administration responsibilities", "required": true } ], "estimated-duration": 60, "depends-on": [ "Document deprovisioning requirements" ] },
+      { "name": "Periodic control review", "description": "Periodic control review", "order": 3, "responsible-role": "Security Lead", "evidence-required": [ { "type": "attestation", "description": "Evidence for: Periodic control review", "required": true } ], "estimated-duration": 60, "depends-on": [ "Assign administration responsibilities" ] },
+      { "name": "Independent effectiveness review", "description": "Independent effectiveness review", "order": 4, "responsible-role": "Internal Audit", "evidence-required": [ { "type": "attestation", "description": "Evidence for: Independent effectiveness review", "required": true } ], "estimated-duration": 60, "depends-on": [ "Periodic control review" ] }
+    ],
+    "control-relationships": [
+      { "control-id": "ctrl-cc5-2-002", "catalog-id": "0f9d8e10-363b-4a8f-ade5-f11c0b2b1202", "relationship-type": "satisfies", "strength": "primary", "is-active": true, "_title": "Technology control scope is defined" },
+      { "control-id": "ctrl-cc5-2-003", "catalog-id": "0f9d8e10-363b-4a8f-ade5-f11c0b2b1202", "relationship-type": "satisfies", "strength": "primary", "is-active": true, "_title": "Technology control objectives are defined" },
+      { "control-id": "ctrl-cc5-2-019", "catalog-id": "0f9d8e10-363b-4a8f-ade5-f11c0b2b1202", "relationship-type": "satisfies", "strength": "primary", "is-active": true, "_title": "Termination-triggered technology access removal is initiated by authorized sources" }
+    ],
+    "instances": [
+      { "name": "Technology Controls Governance & Independent Review — ToDo Demo App", "description": "Technology Controls Governance & Independent Review implemented for ToDo Demo App.", "system-id": "f8c1a2b3-d4e5-6f7a-8b9c-0d1e2f3a4b5c", "cadence": "annually", "is-active": true, "grace-period-days": 30, "role-assignments": [ { "role-name": "Security Lead", "assigned-to-type": "group", "assigned-to-id": "security-team", "is-active": true } ] }
+    ]
+  },
+  {
+    "key": "asset-disposal-media",
+    "name": "Asset Disposal, Media Sanitization & Handling",
+    "description": "Asset Disposal, Media Sanitization & Handling for a simple cloud application. Recurring activity that evidences the mapped SOC 2 CCF controls.",
+    "version": "1.0",
+    "suggested-cadence": "cron:0 0 9 1 1,7 *",
+    "grace-period-days": 14,
+    "evidence-required": "Per-step document links, attestations, and review/approval records.",
+    "steps": [
+      { "name": "Define sanitization & destruction methods", "description": "Define sanitization & destruction methods", "order": 0, "responsible-role": "IT Operations", "evidence-required": [ { "type": "document", "description": "Evidence for: Define sanitization & destruction methods", "required": true } ], "estimated-duration": 60, "depends-on": [] },
+      { "name": "Authorize destruction", "description": "Authorize destruction", "order": 1, "responsible-role": "IT Operations", "evidence-required": [ { "type": "workflow", "description": "Evidence for: Authorize destruction", "required": true } ], "estimated-duration": 60, "depends-on": [ "Define sanitization & destruction methods" ] },
+      { "name": "Control custody until disposal", "description": "Control custody until disposal", "order": 2, "responsible-role": "IT Operations", "evidence-required": [ { "type": "workflow", "description": "Evidence for: Control custody until disposal", "required": true } ], "estimated-duration": 60, "depends-on": [ "Authorize destruction" ] },
+      { "name": "Sanitize/destroy & record", "description": "Sanitize/destroy & record", "order": 3, "responsible-role": "IT Operations", "evidence-required": [ { "type": "log", "description": "Evidence for: Sanitize/destroy & record", "required": true } ], "estimated-duration": 60, "depends-on": [ "Control custody until disposal" ] },
+      { "name": "Periodic disposal review", "description": "Periodic disposal review", "order": 4, "responsible-role": "IT Operations", "evidence-required": [ { "type": "attestation", "description": "Evidence for: Periodic disposal review", "required": true } ], "estimated-duration": 60, "depends-on": [ "Sanitize/destroy & record" ] }
+    ],
+    "control-relationships": [
+      { "control-id": "ctrl-cc6-5-002", "catalog-id": "0f9d8e10-363b-4a8f-ade5-f11c0b2b1202", "relationship-type": "satisfies", "strength": "primary", "is-active": true, "_title": "Data recovery capability is diminished before protections are discontinued" },
+      { "control-id": "ctrl-cc6-5-003", "catalog-id": "0f9d8e10-363b-4a8f-ade5-f11c0b2b1202", "relationship-type": "satisfies", "strength": "primary", "is-active": true, "_title": "Software recovery capability is diminished before protections are discontinued" },
+      { "control-id": "ctrl-cc6-5-005", "catalog-id": "0f9d8e10-363b-4a8f-ade5-f11c0b2b1202", "relationship-type": "satisfies", "strength": "primary", "is-active": true, "_title": "Media sanitization is performed before reuse where reuse is allowed" }
+    ],
+    "instances": [
+      { "name": "Asset Disposal, Media Sanitization & Handling — ToDo Demo App", "description": "Asset Disposal, Media Sanitization & Handling implemented for ToDo Demo App.", "system-id": "f8c1a2b3-d4e5-6f7a-8b9c-0d1e2f3a4b5c", "cadence": "cron:0 0 9 1 1,7 *", "is-active": true, "grace-period-days": 14, "role-assignments": [ { "role-name": "IT Operations", "assigned-to-type": "group", "assigned-to-id": "it-ops", "is-active": true } ] }
+    ]
+  }
+]

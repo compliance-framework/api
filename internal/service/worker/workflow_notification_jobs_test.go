@@ -13,6 +13,7 @@ import (
 	"github.com/compliance-framework/api/internal/service/relational/workflows"
 	"github.com/google/uuid"
 	"github.com/riverqueue/river"
+	"github.com/riverqueue/river/rivertype"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -146,7 +147,10 @@ func TestDueSoonCheckerWorker_EnqueuesOneJobPerChannel(t *testing.T) {
 	}
 	require.NoError(t, db.Create(&stepExecution).Error)
 
-	err := worker.Work(context.Background(), &river.Job[DueSoonCheckerArgs]{Args: DueSoonCheckerArgs{}})
+	err := worker.Work(context.Background(), &river.Job[DueSoonCheckerArgs]{
+		JobRow: &rivertype.JobRow{ID: 241582},
+		Args:   DueSoonCheckerArgs{},
+	})
 	require.NoError(t, err)
 	require.Len(t, client.params, 2)
 
@@ -163,8 +167,9 @@ func TestDueSoonCheckerWorker_EnqueuesOneJobPerChannel(t *testing.T) {
 			assert.Equal(t, []string{"alice@example.com"}, args.To)
 			assert.Equal(t, JobTypeWorkflowTaskDueSoon, args.NotificationKind)
 			assert.Equal(t, userID.String(), args.RecipientUserID)
-			assert.Equal(t, JobTypeWorkflowTaskDueSoon, args.SourceJobKind)
-			assert.Equal(t, "workflow_task_due_soon:"+stepExecution.ID.String(), args.CorrelationID)
+			assert.Equal(t, JobTypeWorkflowDueSoonChecker, args.SourceJobKind)
+			assert.Equal(t, "241582", args.SourceJobID)
+			assert.Equal(t, JobTypeWorkflowDueSoonChecker+":"+stepExecution.ID.String(), args.CorrelationID)
 			assert.Equal(t, "email", param.InsertOpts.Queue)
 			assert.True(t, param.InsertOpts.UniqueOpts.ByArgs)
 			assert.Equal(t, 24*time.Hour, param.InsertOpts.UniqueOpts.ByPeriod)
@@ -174,8 +179,9 @@ func TestDueSoonCheckerWorker_EnqueuesOneJobPerChannel(t *testing.T) {
 			assert.Equal(t, slackprovider.TargetTypeDirectMessage, args.TargetType)
 			assert.Equal(t, JobTypeWorkflowTaskDueSoon, args.NotificationKind)
 			assert.Equal(t, userID.String(), args.RecipientUserID)
-			assert.Equal(t, JobTypeWorkflowTaskDueSoon, args.SourceJobKind)
-			assert.Equal(t, "workflow_task_due_soon:"+stepExecution.ID.String(), args.CorrelationID)
+			assert.Equal(t, JobTypeWorkflowDueSoonChecker, args.SourceJobKind)
+			assert.Equal(t, "241582", args.SourceJobID)
+			assert.Equal(t, JobTypeWorkflowDueSoonChecker+":"+stepExecution.ID.String(), args.CorrelationID)
 			assert.Equal(t, "slack", param.InsertOpts.Queue)
 			assert.True(t, param.InsertOpts.UniqueOpts.ByArgs)
 			assert.Equal(t, 24*time.Hour, param.InsertOpts.UniqueOpts.ByPeriod)

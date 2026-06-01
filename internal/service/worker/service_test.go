@@ -748,6 +748,23 @@ func TestBuildRiverConfig_IncludesSendSlackQueue(t *testing.T) {
 	assert.Equal(t, 7, sendSlackQueue.MaxWorkers)
 }
 
+func TestBuildRiverConfig_PollOnlyDisabledByDefault(t *testing.T) {
+	cfg := config.DefaultWorkerConfig()
+
+	riverConfig := buildRiverConfig(cfg, river.NewWorkers(), nil)
+
+	assert.False(t, riverConfig.PollOnly)
+}
+
+func TestBuildRiverConfig_PollOnlyCanBeEnabled(t *testing.T) {
+	cfg := config.DefaultWorkerConfig()
+	cfg.UsePolling = true
+
+	riverConfig := buildRiverConfig(cfg, river.NewWorkers(), nil)
+
+	assert.True(t, riverConfig.PollOnly)
+}
+
 func TestJobInsertOptionsForRiskDigest(t *testing.T) {
 	opts := JobInsertOptionsForRiskDigest(24 * time.Hour)
 

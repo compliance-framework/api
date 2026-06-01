@@ -1,6 +1,9 @@
 package workflows
 
-import "github.com/robfig/cron/v3"
+import (
+	"github.com/google/uuid"
+	"github.com/robfig/cron/v3"
+)
 
 // Field length constraints
 const (
@@ -26,6 +29,16 @@ const (
 	CadenceQuarterly CadenceType = "quarterly"
 	CadenceAnnually  CadenceType = "annually"
 )
+
+const (
+	WorkflowEvidencePolicyLabel = "_policy"
+	WorkflowEvidencePluginLabel = "_plugin"
+	WorkflowEvidencePluginValue = "workflow"
+)
+
+func WorkflowPolicyValue(definitionID uuid.UUID) string {
+	return WorkflowEvidencePluginValue + "." + definitionID.String()
+}
 
 // IsValid checks if the cadence type is valid
 func (c CadenceType) IsValid() bool {
@@ -143,6 +156,23 @@ const (
 	StepStatusFailed     StepExecutionStatus = "failed"
 	StepStatusSkipped    StepExecutionStatus = "skipped"
 )
+
+// openStepStatuses is the unexported backing slice for OpenStepStatuses.
+var openStepStatuses = []string{
+	string(StepStatusPending),
+	string(StepStatusBlocked),
+	string(StepStatusInProgress),
+	string(StepStatusOverdue),
+}
+
+// OpenStepStatuses returns a copy of the step execution statuses that represent incomplete work.
+// Use it for queries that target non-terminal steps (e.g. cascade deletes, assignment lookups).
+// A copy is returned to prevent callers from mutating the shared backing slice.
+func OpenStepStatuses() []string {
+	s := make([]string, len(openStepStatuses))
+	copy(s, openStepStatuses)
+	return s
+}
 
 // IsValid checks if the step execution status is valid
 func (s StepExecutionStatus) IsValid() bool {

@@ -164,12 +164,13 @@ func RunServer(cmd *cobra.Command, args []string) {
 
 	// Create services struct for API handlers
 	services := &handler.APIServices{
-		EvidenceService:      evidenceService,
-		RiskEnqueuer:         workerService,
-		DigestService:        digestService,
-		WorkflowManager:      workflowManager,
-		NotificationEnqueuer: workerService,
-		DAGExecutor:          workerService.GetDAGExecutor(),
+		EvidenceService:            evidenceService,
+		RiskEnqueuer:               workerService,
+		DigestService:              digestService,
+		WorkflowManager:            workflowManager,
+		NotificationEnqueuer:       workerService,
+		NotificationWorkerEnqueuer: workerService,
+		DAGExecutor:                workerService.GetDAGExecutor(),
 	}
 
 	handler.RegisterHandlers(server, sugar, db, cfg, services)
