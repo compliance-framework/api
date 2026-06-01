@@ -551,9 +551,9 @@ func (e *EvidenceIntegration) addFailureEvidenceToStream(
 	if executionStream {
 		stream, err = e.GetOrCreateExecutionStream(ctx, execution.ID)
 	} else {
-		instance, err := e.workflowInstanceSvc.GetByID(execution.WorkflowInstanceID)
-		if err != nil {
-			return fmt.Errorf("failed to get workflow instance: %w", err)
+		instance, instanceErr := e.workflowInstanceSvc.GetByID(execution.WorkflowInstanceID)
+		if instanceErr != nil {
+			return fmt.Errorf("failed to get workflow instance: %w", instanceErr)
 		}
 		if instance.WorkflowDefinitionID == nil {
 			return fmt.Errorf("workflow instance %s has no workflow definition id", execution.WorkflowInstanceID)
