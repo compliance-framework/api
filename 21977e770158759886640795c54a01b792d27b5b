@@ -1,0 +1,7 @@
+lisa-design:
+- Workflow seed row IDs are deterministic SHA-256-derived UUIDs with a `v1` seed suffix; definitions use `workflow-definition:<key>`, steps use `workflow-step-definition:<key>:<step-name>`, instances use `workflow-instance:<key>:<instance-name>`, control relationships use key/catalog/control, and role assignments use key/instance/role/assignee.
+- The importer validates entities through the existing workflow services, then uses primary-key upserts because the service `Create` methods do not provide idempotent conflict handling.
+- Each workflow definition imports inside its own DB transaction; a failed definition rolls back only its nested rows and increments the failed count while later definitions continue.
+- Step dependencies are resolved by seed step name only after every step in the definition has been upserted, and existing dependency pairs are treated as already imported to preserve idempotency.
+- Seed `control-relationships[]._title` is intentionally decode-only metadata and is never persisted; `ControlSource` is set to the seed `catalog-id` because the model requires a non-empty source while the seed schema only carries `catalog-id`.
+- Existing workflow instance scheduling timestamps are preserved on re-import so a seed refresh does not move `next_scheduled_at` or erase `last_executed_at`.
