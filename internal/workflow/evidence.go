@@ -198,7 +198,7 @@ func (e *EvidenceIntegration) AddWorkflowExecutionEvidence(ctx context.Context, 
 		return fmt.Errorf("workflow execution is not in pending status, status: %s", execution.Status)
 	}
 	if status == "completed" && execution.Status != "in_progress" && execution.Status != "completed" {
-		return fmt.Errorf("workflow execution is not in  status, status: %s", execution.Status)
+		return fmt.Errorf("workflow execution is not in in_progress or completed status, status: %s", execution.Status)
 	}
 
 	// Get workflow definition through the instance

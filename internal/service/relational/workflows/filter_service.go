@@ -161,6 +161,5 @@ func generateWorkflowFilterUUID(definitionID uuid.UUID) uuid.UUID {
 	seed := fmt.Sprintf("workflow-filter:%s:%s", definitionID.String(), "v1")
 	hash := sha256.Sum256([]byte(seed))
 	hashStr := hex.EncodeToString(hash[:16])
-	filterID, _ := uuid.Parse(hashStr[:8] + "-" + hashStr[8:12] + "-" + hashStr[12:16] + "-" + hashStr[16:20] + "-" + hashStr[20:32])
-	return filterID
+	return uuid.MustParse(hashStr[:8] + "-" + hashStr[8:12] + "-" + hashStr[12:16] + "-" + hashStr[16:20] + "-" + hashStr[20:32])
 }
