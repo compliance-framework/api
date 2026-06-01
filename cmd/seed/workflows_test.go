@@ -144,6 +144,118 @@ func TestImportWorkflowSeedsTrimsKeyBeforeDeterministicIDs(t *testing.T) {
 	}
 }
 
+func TestImportWorkflowSeedStepGracePeriodDays(t *testing.T) {
+	db := setupWorkflowSeedTestDB(t)
+
+	initialGracePeriod := 5
+	updatedGracePeriod := 9
+	seedDef := workflowSeedDefinition{
+		Key:     "step-grace-period-test",
+		Name:    "Step Grace Period Test",
+		Version: "1.0.0",
+		Steps: []workflowSeedStep{
+			{
+				Name:            "Review evidence",
+				Order:           1,
+				ResponsibleRole: "control-owner",
+				GracePeriodDays: &initialGracePeriod,
+			},
+		},
+	}
+	if _, err := importWorkflowSeedDefinition(db, seedDef); err != nil {
+		t.Fatalf("importWorkflowSeedDefinition returned error: %v", err)
+	}
+
+	stepID := deterministicWorkflowSeedUUID("workflow-step-definition", seedDef.Key, "Review evidence")
+	var step workflows.WorkflowStepDefinition
+	if err := db.First(&step, "id = ?", stepID).Error; err != nil {
+		t.Fatalf("failed to load workflow step definition: %v", err)
+	}
+	if step.GracePeriodDays == nil || *step.GracePeriodDays != initialGracePeriod {
+		t.Fatalf("expected initial step grace period %d, got %v", initialGracePeriod, step.GracePeriodDays)
+	}
+
+	seedDef.Steps[0].GracePeriodDays = &updatedGracePeriod
+	if _, err := importWorkflowSeedDefinition(db, seedDef); err != nil {
+		t.Fatalf("second importWorkflowSeedDefinition returned error: %v", err)
+	}
+	if err := db.First(&step, "id = ?", stepID).Error; err != nil {
+		t.Fatalf("failed to reload workflow step definition: %v", err)
+	}
+	if step.GracePeriodDays == nil || *step.GracePeriodDays != updatedGracePeriod {
+		t.Fatalf("expected updated step grace period %d, got %v", updatedGracePeriod, step.GracePeriodDays)
+	}
+}
+
+func TestImportWorkflowSeedPreservesSoftDeletedInstanceSchedule(t *testing.T) {
+	db := setupWorkflowSeedTestDB(t)
+
+	seedKey := "soft-deleted-instance-schedule-test"
+	instanceName := "Soft Deleted Instance"
+	defID := deterministicWorkflowSeedUUID("workflow-definition", seedKey)
+	instanceID := deterministicWorkflowSeedUUID("workflow-instance", seedKey, instanceName)
+	systemID := uuid.New()
+	deletedAt := time.Now().Add(-time.Hour).UTC().Truncate(time.Second)
+	nextScheduledAt := time.Now().Add(24 * time.Hour).UTC().Truncate(time.Second)
+	lastExecutedAt := time.Now().Add(-24 * time.Hour).UTC().Truncate(time.Second)
+
+	existingDefinition := workflows.WorkflowDefinition{
+		UUIDModel: relational.UUIDModel{ID: &defID},
+		Name:      "Soft Deleted Instance Schedule Test",
+		Version:   "1.0.0",
+	}
+	if err := db.Create(&existingDefinition).Error; err != nil {
+		t.Fatalf("failed to create existing workflow definition: %v", err)
+	}
+
+	existingInstance := workflows.WorkflowInstance{
+		UUIDModel:            relational.UUIDModel{ID: &instanceID},
+		DeletedAt:            gorm.DeletedAt{Time: deletedAt, Valid: true},
+		Name:                 instanceName,
+		Description:          "Original description",
+		Cadence:              "monthly",
+		IsActive:             true,
+		NextScheduledAt:      &nextScheduledAt,
+		LastExecutedAt:       &lastExecutedAt,
+		WorkflowDefinitionID: &defID,
+		SystemSecurityPlanID: &systemID,
+	}
+	if err := db.Create(&existingInstance).Error; err != nil {
+		t.Fatalf("failed to create existing workflow instance: %v", err)
+	}
+
+	_, err := importWorkflowSeedDefinition(db, workflowSeedDefinition{
+		Key:     seedKey,
+		Name:    "Soft Deleted Instance Schedule Test",
+		Version: "1.0.0",
+		Instances: []workflowSeedInstance{
+			{
+				Name:        instanceName,
+				Description: "Updated description",
+				SystemID:    systemID.String(),
+				Cadence:     "weekly",
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("importWorkflowSeedDefinition returned error: %v", err)
+	}
+
+	var updated workflows.WorkflowInstance
+	if err := db.Unscoped().First(&updated, "id = ?", instanceID).Error; err != nil {
+		t.Fatalf("failed to load workflow instance: %v", err)
+	}
+	if !updated.DeletedAt.Valid || !updated.DeletedAt.Time.Equal(deletedAt) {
+		t.Fatalf("expected deleted_at to be preserved, got %+v", updated.DeletedAt)
+	}
+	if updated.NextScheduledAt == nil || !updated.NextScheduledAt.Equal(nextScheduledAt) {
+		t.Fatalf("expected next_scheduled_at to be preserved, got %v", updated.NextScheduledAt)
+	}
+	if updated.LastExecutedAt == nil || !updated.LastExecutedAt.Equal(lastExecutedAt) {
+		t.Fatalf("expected last_executed_at to be preserved, got %v", updated.LastExecutedAt)
+	}
+}
+
 func TestUpsertWorkflowSeedPreservesWorkflowDefinitionAuditAndSoftDeleteFields(t *testing.T) {
 	db := setupWorkflowSeedTestDB(t)
 

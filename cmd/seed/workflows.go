@@ -44,6 +44,7 @@ type workflowSeedStep struct {
 	ResponsibleRole   string                          `json:"responsible-role"`
 	EvidenceRequired  []workflows.EvidenceRequirement `json:"evidence-required"`
 	EstimatedDuration int                             `json:"estimated-duration"`
+	GracePeriodDays   *int                            `json:"grace-period-days"`
 	DependsOn         []string                        `json:"depends-on"`
 }
 
@@ -285,6 +286,7 @@ func importWorkflowSeedSteps(tx *gorm.DB, seedDef workflowSeedDefinition, defID 
 			ResponsibleRole:      seedStep.ResponsibleRole,
 			EvidenceRequired:     datatypes.NewJSONSlice(seedStep.EvidenceRequired),
 			EstimatedDuration:    seedStep.EstimatedDuration,
+			GracePeriodDays:      seedStep.GracePeriodDays,
 		}
 		if err := stepSvc.ValidateStep(step); err != nil {
 			return summary, fmt.Errorf("validate step %q: %w", seedStep.Name, err)
@@ -455,7 +457,7 @@ func importWorkflowSeedInstances(tx *gorm.DB, seedDef workflowSeedDefinition, de
 
 func preserveWorkflowInstanceSchedule(tx *gorm.DB, instanceSvc *workflows.WorkflowInstanceService, instance *workflows.WorkflowInstance) error {
 	var existing workflows.WorkflowInstance
-	err := tx.Select("next_scheduled_at", "last_executed_at").First(&existing, "id = ?", instance.ID).Error
+	err := tx.Unscoped().Select("next_scheduled_at", "last_executed_at").First(&existing, "id = ?", instance.ID).Error
 	if err == nil {
 		instance.NextScheduledAt = existing.NextScheduledAt
 		instance.LastExecutedAt = existing.LastExecutedAt
