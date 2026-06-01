@@ -665,6 +665,9 @@ func TestAddWorkflowExecutionStartedEvidence(t *testing.T) {
 		// Create workflow context
 		_, _, execution, _ := createTestWorkflowContext(t, db)
 
+		execution.StartedAt = nil
+		require.NoError(t, db.Save(execution).Error)
+
 		err := evidenceIntegration.AddWorkflowExecutionEvidence(context.Background(), execution.ID, "paused")
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "unsupported workflow execution evidence status")

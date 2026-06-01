@@ -18,6 +18,7 @@ import (
 )
 
 func (suite *ProfileIntegrationSuite) TestComplianceProgressIncludesWorkflowCompletionEvidence() {
+	suite.Require().NoError(suite.Migrator.Refresh())
 	suite.Require().NoError(suite.DB.AutoMigrate(
 		&workflows.WorkflowDefinition{},
 		&workflows.WorkflowInstance{},

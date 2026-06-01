@@ -193,6 +193,10 @@ func (e *EvidenceIntegration) AddWorkflowExecutionEvidence(ctx context.Context, 
 		return fmt.Errorf("failed to get workflow execution: %w", err)
 	}
 
+	if status != "started" && status != "completed" {
+		return fmt.Errorf("unsupported workflow execution evidence status %q; expected started or completed", status)
+	}
+
 	// Started evidence may be emitted right before or right after the transition.
 	if status == "started" && execution.Status != "pending" && execution.Status != "in_progress" {
 		return fmt.Errorf("workflow execution is not in pending or in_progress status, status: %s", execution.Status)
@@ -264,7 +268,7 @@ func (e *EvidenceIntegration) AddWorkflowExecutionEvidence(ctx context.Context, 
 
 	if status == "completed" {
 		evidence.Status = datatypes.NewJSONType(oscalTypes_1_1_3.ObjectiveStatus{
-			State: "satisfied",
+			State: relational.EvidenceStatusSatisfied,
 		})
 		evidence.Labels = append(evidence.Labels, e.buildWorkflowCoverageLabels(*definition.ID)...)
 		evidence.Expires = e.calculateCompletionEvidenceExpires(execution.CompletedAt, instance, definition)
@@ -410,7 +414,7 @@ func (e *EvidenceIntegration) AddExecutionCompletionEvidence(ctx context.Context
 		Description: description,
 		Start:       *execution.StartedAt,
 		End:         *execution.CompletedAt,
-		Status:      datatypes.NewJSONType[oscalTypes_1_1_3.ObjectiveStatus](oscalTypes_1_1_3.ObjectiveStatus{State: "satisfied"}),
+		Status:      datatypes.NewJSONType[oscalTypes_1_1_3.ObjectiveStatus](oscalTypes_1_1_3.ObjectiveStatus{State: relational.EvidenceStatusSatisfied}),
 		Expires:     e.calculateCompletionEvidenceExpires(execution.CompletedAt, instance, definition),
 	}
 
