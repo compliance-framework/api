@@ -185,7 +185,7 @@ func (e *EvidenceIntegration) GetOrCreateInstanceStream(ctx context.Context, wor
 	return stream, nil
 }
 
-// AddWorkflowExecutionEvidence adds a workflow execution evidence record to the instance stream
+// AddWorkflowExecutionEvidence adds a workflow execution evidence record.
 func (e *EvidenceIntegration) AddWorkflowExecutionEvidence(ctx context.Context, workflowExecutionID *uuid.UUID, status string) error {
 	// Get workflow execution
 	execution, err := e.workflowExecutionSvc.GetByID(workflowExecutionID)
@@ -201,12 +201,6 @@ func (e *EvidenceIntegration) AddWorkflowExecutionEvidence(ctx context.Context, 
 		return fmt.Errorf("workflow execution is not in  status, status: %s", execution.Status)
 	}
 
-	// Get or create instance stream (NOT execution stream)
-	stream, err := e.GetOrCreateInstanceStream(ctx, execution.WorkflowInstanceID)
-	if err != nil {
-		return fmt.Errorf("failed to get instance stream: %w", err)
-	}
-
 	// Get workflow definition through the instance
 	instance, err := e.workflowInstanceSvc.GetByID(execution.WorkflowInstanceID)
 	if err != nil {
@@ -219,14 +213,23 @@ func (e *EvidenceIntegration) AddWorkflowExecutionEvidence(ctx context.Context, 
 	}
 	var title string
 	var description string
+	var stream *relational.Evidence
 	switch status {
 	case "started":
+		stream, err = e.GetOrCreateExecutionStream(ctx, execution.ID)
+		if err != nil {
+			return fmt.Errorf("failed to get execution stream: %w", err)
+		}
 		title = fmt.Sprintf("Workflow Execution Started: %s", definition.Name)
 		description = fmt.Sprintf("Workflow execution '%s' started at %s",
 			execution.ID.String(),
 			execution.StartedAt.Format(time.RFC3339),
 		)
 	case "completed":
+		stream, err = e.GetOrCreateInstanceStream(ctx, execution.WorkflowInstanceID)
+		if err != nil {
+			return fmt.Errorf("failed to get instance stream: %w", err)
+		}
 		title = fmt.Sprintf("Workflow Execution Completed: %s", definition.Name)
 		description = fmt.Sprintf("Workflow execution '%s' completed at %s",
 			execution.ID.String(),
@@ -235,7 +238,7 @@ func (e *EvidenceIntegration) AddWorkflowExecutionEvidence(ctx context.Context, 
 	}
 	// Create evidence record
 	evidence := &relational.Evidence{
-		UUID:        stream.UUID, // Same stream UUID as the instance stream
+		UUID:        stream.UUID,
 		Title:       title,
 		Description: description,
 		Start:       *execution.StartedAt,

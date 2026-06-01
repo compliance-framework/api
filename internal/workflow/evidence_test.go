@@ -595,6 +595,7 @@ func TestAddWorkflowExecutionStartedEvidence(t *testing.T) {
 		assert.Equal(t, fmt.Sprintf("Workflow Execution Started: %s", definition.Name), evidence.Title)
 		assert.Contains(t, evidence.Description, execution.ID.String())
 		assert.Contains(t, evidence.Description, "started at")
+		assert.Equal(t, evidenceIntegration.generateExecutionStreamUUID(definition, instance, execution), evidence.UUID)
 
 		// Verify labels
 		var labels []relational.Labels
@@ -612,6 +613,8 @@ func TestAddWorkflowExecutionStartedEvidence(t *testing.T) {
 		assert.Equal(t, definition.Name, labelMap["workflow.definition.name"])
 		assert.Equal(t, instance.ID.String(), labelMap["workflow.instance.id"])
 		assert.Equal(t, "workflow_execution_started", labelMap["evidence.type"])
+		assert.NotContains(t, labelMap, workflows.WorkflowEvidencePolicyLabel)
+		assert.NotContains(t, labelMap, workflows.WorkflowEvidencePluginLabel)
 	})
 
 	t.Run("RejectInvalidExecutionStatusForStarted", func(t *testing.T) {

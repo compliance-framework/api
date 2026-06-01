@@ -98,4 +98,29 @@ func (suite *ProfileIntegrationSuite) TestComplianceProgressIncludesWorkflowComp
 	suite.Require().Equal(1, response.Data.Summary.Satisfied)
 	suite.Require().Len(response.Data.Controls, 1)
 	suite.Require().Equal("satisfied", response.Data.Controls[0].ComputedStatus)
+
+	laterStartedAt := completedAt.Add(time.Hour)
+	nextExecution := workflows.WorkflowExecution{
+		WorkflowInstanceID: instance.ID,
+		Status:             workflows.WorkflowStatusPending.String(),
+		TriggeredBy:        "manual",
+		StartedAt:          &laterStartedAt,
+	}
+	suite.Require().NoError(suite.DB.Create(&nextExecution).Error)
+	suite.Require().NoError(workflowevidence.NewEvidenceIntegration(suite.DB, zap.NewNop().Sugar()).AddWorkflowExecutionEvidence(context.Background(), nextExecution.ID, "started"))
+
+	req = httptest.NewRequest(http.MethodGet, "/profiles/"+profileID.String()+"/compliance-progress", nil)
+	rec = httptest.NewRecorder()
+	ctx = e.NewContext(req, rec)
+	ctx.SetParamNames("id")
+	ctx.SetParamValues(profileID.String())
+
+	suite.Require().NoError(NewProfileHandler(zap.NewNop().Sugar(), suite.DB).ComplianceProgress(ctx))
+	suite.Require().Equal(http.StatusOK, rec.Code)
+
+	suite.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &response))
+	suite.Require().Equal(1, response.Data.Summary.TotalControls)
+	suite.Require().Equal(1, response.Data.Summary.Satisfied)
+	suite.Require().Len(response.Data.Controls, 1)
+	suite.Require().Equal("satisfied", response.Data.Controls[0].ComputedStatus)
 }
