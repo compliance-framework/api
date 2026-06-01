@@ -181,8 +181,12 @@ func TestUpsertWorkflowSeedPreservesWorkflowDefinitionAuditAndSoftDeleteFields(t
 		EvidenceRequired: "updated evidence",
 		GracePeriodDays:  &updatedGracePeriod,
 	}
-	if _, err := upsertWorkflowSeed(db, &seed); err != nil {
+	created, err := upsertWorkflowSeed(db, &seed)
+	if err != nil {
 		t.Fatalf("upsertWorkflowSeed returned error: %v", err)
+	}
+	if created {
+		t.Fatal("expected soft-deleted workflow definition upsert to update an existing physical row")
 	}
 
 	var updated workflows.WorkflowDefinition
@@ -259,8 +263,12 @@ func TestUpsertWorkflowSeedPreservesWorkflowInstanceAuditAndSoftDeleteFields(t *
 		WorkflowDefinitionID: &definitionID,
 		SystemSecurityPlanID: &systemID,
 	}
-	if _, err := upsertWorkflowSeed(db, &seed); err != nil {
+	created, err := upsertWorkflowSeed(db, &seed)
+	if err != nil {
 		t.Fatalf("upsertWorkflowSeed returned error: %v", err)
+	}
+	if created {
+		t.Fatal("expected soft-deleted workflow instance upsert to update an existing physical row")
 	}
 
 	var updated workflows.WorkflowInstance

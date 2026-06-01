@@ -482,7 +482,7 @@ func upsertWorkflowSeed(tx *gorm.DB, value interface{}) (bool, error) {
 	}
 
 	var count int64
-	if err := tx.Model(value).Where("id = ?", id).Count(&count).Error; err != nil {
+	if err := tx.Unscoped().Model(value).Where("id = ?", id).Count(&count).Error; err != nil {
 		return false, err
 	}
 
