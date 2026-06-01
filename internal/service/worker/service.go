@@ -167,8 +167,16 @@ func NewServiceWithDigest(
 		enqueuerProxy,
 	)
 
+	// Determine grace period days for workflow expiry and scheduling, with safe defaults.
+	gracePeriodDays := config.DefaultWorkflowConfig().GracePeriodDays
+	overdueCheckEnabled := config.DefaultWorkflowConfig().OverdueCheckEnabled
+	if digestCfg != nil && digestCfg.Workflow != nil {
+		gracePeriodDays = digestCfg.Workflow.GracePeriodDays
+		overdueCheckEnabled = digestCfg.Workflow.OverdueCheckEnabled
+	}
+
 	// Initialize evidence integration and set it on the executor
-	evidenceIntegration := workflow.NewEvidenceIntegration(db, logger)
+	evidenceIntegration := workflow.NewEvidenceIntegration(db, logger, gracePeriodDays)
 	executor.SetEvidenceIntegration(evidenceIntegration)
 
 	// Set evidence integration on step execution service
@@ -190,14 +198,6 @@ func NewServiceWithDigest(
 		enqueuerProxy,
 	)
 	workflowManager.SetEvidenceCreator(evidenceIntegration)
-
-	// Determine grace period days for the workflow scheduler, with safe defaults.
-	gracePeriodDays := config.DefaultWorkflowConfig().GracePeriodDays
-	overdueCheckEnabled := config.DefaultWorkflowConfig().OverdueCheckEnabled
-	if digestCfg != nil && digestCfg.Workflow != nil {
-		gracePeriodDays = digestCfg.Workflow.GracePeriodDays
-		overdueCheckEnabled = digestCfg.Workflow.OverdueCheckEnabled
-	}
 
 	overdueService := workflow.NewOverdueService(
 		db,

@@ -9,12 +9,14 @@ import (
 
 type WorkflowDefinitionHandler struct {
 	*BaseHandler
+	db      *gorm.DB
 	service *workflows.WorkflowDefinitionService
 }
 
 func NewWorkflowDefinitionHandler(sugar *zap.SugaredLogger, db *gorm.DB) *WorkflowDefinitionHandler {
 	return &WorkflowDefinitionHandler{
 		BaseHandler: NewBaseHandler(sugar),
+		db:          db,
 		service:     workflows.NewWorkflowDefinitionService(db),
 	}
 }
@@ -79,7 +81,13 @@ func (h *WorkflowDefinitionHandler) Create(ctx echo.Context) error {
 		GracePeriodDays:  req.GracePeriodDays,
 	}
 
-	if err := h.service.Create(definition); err != nil {
+	err := h.db.Transaction(func(tx *gorm.DB) error {
+		if err := workflows.NewWorkflowDefinitionService(tx).Create(definition); err != nil {
+			return err
+		}
+		return workflows.NewFilterSyncService(tx, h.sugar).SyncFilterForDefinition(*definition.ID)
+	})
+	if err != nil {
 		return h.HandleServiceError(ctx, err, "create", "workflow definition")
 	}
 
@@ -185,7 +193,13 @@ func (h *WorkflowDefinitionHandler) Update(ctx echo.Context) error {
 		definition.GracePeriodDays = req.GracePeriodDays
 	}
 
-	if err := h.service.Update(id, definition); err != nil {
+	err = h.db.Transaction(func(tx *gorm.DB) error {
+		if err := workflows.NewWorkflowDefinitionService(tx).Update(id, definition); err != nil {
+			return err
+		}
+		return workflows.NewFilterSyncService(tx, h.sugar).SyncFilterForDefinition(*id)
+	})
+	if err != nil {
 		return h.HandleServiceError(ctx, err, "update", "workflow definition")
 	}
 
@@ -213,7 +227,13 @@ func (h *WorkflowDefinitionHandler) Delete(ctx echo.Context) error {
 		return HandleError(err)
 	}
 
-	if err := h.service.Delete(id); err != nil {
+	err = h.db.Transaction(func(tx *gorm.DB) error {
+		if err := workflows.NewFilterSyncService(tx, h.sugar).DeleteFilterForDefinition(*id); err != nil {
+			return err
+		}
+		return workflows.NewWorkflowDefinitionService(tx).Delete(id)
+	})
+	if err != nil {
 		return h.HandleServiceError(ctx, err, "delete", "workflow definition")
 	}
 
