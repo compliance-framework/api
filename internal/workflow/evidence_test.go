@@ -382,6 +382,36 @@ func TestAddExecutionCompletionEvidence(t *testing.T) {
 		assert.Contains(t, err.Error(), "not completed")
 	})
 
+	t.Run("RejectCompletedExecutionWithoutStartedAt", func(t *testing.T) {
+		completedAt := time.Now()
+		executionWithoutStartedAt := &workflows.WorkflowExecution{
+			WorkflowInstanceID: instance.ID,
+			Status:             "completed",
+			TriggeredBy:        "manual",
+			CompletedAt:        &completedAt,
+		}
+		require.NoError(t, db.Create(executionWithoutStartedAt).Error)
+
+		err := integration.AddExecutionCompletionEvidence(ctx, executionWithoutStartedAt.ID)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "requires started_at")
+	})
+
+	t.Run("RejectCompletedExecutionWithoutCompletedAt", func(t *testing.T) {
+		startedAt := time.Now()
+		executionWithoutCompletedAt := &workflows.WorkflowExecution{
+			WorkflowInstanceID: instance.ID,
+			Status:             "completed",
+			TriggeredBy:        "manual",
+			StartedAt:          &startedAt,
+		}
+		require.NoError(t, db.Create(executionWithoutCompletedAt).Error)
+
+		err := integration.AddExecutionCompletionEvidence(ctx, executionWithoutCompletedAt.ID)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "requires completed_at")
+	})
+
 	t.Run("MultipleExecutionsInSameStream", func(t *testing.T) {
 		// Create another execution for the same instance
 		startTime2 := time.Now()
@@ -640,6 +670,18 @@ func TestAddWorkflowExecutionStartedEvidence(t *testing.T) {
 		assert.Contains(t, err.Error(), "unsupported workflow execution evidence status")
 	})
 
+	t.Run("RejectStartedEvidenceWithoutStartedAt", func(t *testing.T) {
+		// Create workflow context
+		_, _, execution, _ := createTestWorkflowContext(t, db)
+
+		execution.StartedAt = nil
+		require.NoError(t, db.Save(execution).Error)
+
+		err := evidenceIntegration.AddWorkflowExecutionEvidence(context.Background(), execution.ID, "started")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "requires started_at")
+	})
+
 	t.Run("RejectCompletedEvidenceWithoutCompletedAt", func(t *testing.T) {
 		// Create workflow context
 		_, _, execution, _ := createTestWorkflowContext(t, db)
@@ -651,6 +693,21 @@ func TestAddWorkflowExecutionStartedEvidence(t *testing.T) {
 		err := evidenceIntegration.AddWorkflowExecutionEvidence(context.Background(), execution.ID, "completed")
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "requires completed_at")
+	})
+
+	t.Run("RejectCompletedEvidenceWithoutStartedAt", func(t *testing.T) {
+		// Create workflow context
+		_, _, execution, _ := createTestWorkflowContext(t, db)
+
+		completedAt := time.Now().UTC()
+		execution.Status = "completed"
+		execution.StartedAt = nil
+		execution.CompletedAt = &completedAt
+		require.NoError(t, db.Save(execution).Error)
+
+		err := evidenceIntegration.AddWorkflowExecutionEvidence(context.Background(), execution.ID, "completed")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "requires started_at")
 	})
 
 	t.Run("CompletedEvidenceUsesCompletedAt", func(t *testing.T) {

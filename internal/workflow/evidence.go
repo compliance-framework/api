@@ -200,6 +200,9 @@ func (e *EvidenceIntegration) AddWorkflowExecutionEvidence(ctx context.Context, 
 	if status == "completed" && execution.Status != "in_progress" && execution.Status != "completed" {
 		return fmt.Errorf("workflow execution is not in in_progress or completed status, status: %s", execution.Status)
 	}
+	if execution.StartedAt == nil {
+		return fmt.Errorf("workflow execution %s evidence requires started_at", status)
+	}
 
 	// Get workflow definition through the instance
 	instance, err := e.workflowInstanceSvc.GetByID(execution.WorkflowInstanceID)
@@ -358,6 +361,12 @@ func (e *EvidenceIntegration) AddExecutionCompletionEvidence(ctx context.Context
 	// Only add completion evidence for completed executions
 	if execution.Status != "completed" {
 		return fmt.Errorf("workflow execution is not completed, status: %s", execution.Status)
+	}
+	if execution.StartedAt == nil {
+		return fmt.Errorf("workflow execution completion evidence requires started_at")
+	}
+	if execution.CompletedAt == nil {
+		return fmt.Errorf("workflow execution completion evidence requires completed_at")
 	}
 
 	// Get or create instance stream
