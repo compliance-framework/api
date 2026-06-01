@@ -26,28 +26,36 @@ import (
 // - 1 evidence stream per workflow instance (accumulates execution completion evidence)
 // - Streams use label-seeded UUIDs for deterministic identification
 type EvidenceIntegration struct {
-	db                    *gorm.DB
-	logger                *zap.SugaredLogger
-	workflowExecutionSvc  *workflows.WorkflowExecutionService
-	stepExecutionSvc      *workflows.StepExecutionService
-	workflowInstanceSvc   *workflows.WorkflowInstanceService
-	workflowDefinitionSvc *workflows.WorkflowDefinitionService
-	stepDefinitionSvc     *workflows.WorkflowStepDefinitionService
+	db                     *gorm.DB
+	logger                 *zap.SugaredLogger
+	workflowExecutionSvc   *workflows.WorkflowExecutionService
+	stepExecutionSvc       *workflows.StepExecutionService
+	workflowInstanceSvc    *workflows.WorkflowInstanceService
+	workflowDefinitionSvc  *workflows.WorkflowDefinitionService
+	stepDefinitionSvc      *workflows.WorkflowStepDefinitionService
+	defaultGracePeriodDays int
 }
 
 // NewEvidenceIntegration creates a new evidence integration service
 func NewEvidenceIntegration(
 	db *gorm.DB,
 	logger *zap.SugaredLogger,
+	defaultGracePeriodDays ...int,
 ) *EvidenceIntegration {
+	gracePeriodDays := config.DefaultWorkflowConfig().GracePeriodDays
+	if len(defaultGracePeriodDays) > 0 {
+		gracePeriodDays = defaultGracePeriodDays[0]
+	}
+
 	return &EvidenceIntegration{
-		db:                    db,
-		logger:                logger,
-		workflowExecutionSvc:  workflows.NewWorkflowExecutionService(db),
-		stepExecutionSvc:      workflows.NewStepExecutionService(db, nil),
-		workflowInstanceSvc:   workflows.NewWorkflowInstanceService(db),
-		workflowDefinitionSvc: workflows.NewWorkflowDefinitionService(db),
-		stepDefinitionSvc:     workflows.NewWorkflowStepDefinitionService(db),
+		db:                     db,
+		logger:                 logger,
+		workflowExecutionSvc:   workflows.NewWorkflowExecutionService(db),
+		stepExecutionSvc:       workflows.NewStepExecutionService(db, nil),
+		workflowInstanceSvc:    workflows.NewWorkflowInstanceService(db),
+		workflowDefinitionSvc:  workflows.NewWorkflowDefinitionService(db),
+		stepDefinitionSvc:      workflows.NewWorkflowStepDefinitionService(db),
+		defaultGracePeriodDays: gracePeriodDays,
 	}
 }
 
@@ -273,7 +281,7 @@ func (e *EvidenceIntegration) AddWorkflowExecutionEvidence(ctx context.Context, 
 		evidence.Labels = append(evidence.Labels, e.buildWorkflowCoverageLabels(*definition.ID)...)
 		evidence.Expires = e.calculateCompletionEvidenceExpires(execution.CompletedAt, instance, definition)
 	}
-	if err := e.db.Create(&evidence).Error; err != nil {
+	if err := e.db.Create(evidence).Error; err != nil {
 		return fmt.Errorf("failed to create workflow execution evidence: %w", err)
 	}
 
@@ -619,7 +627,7 @@ func (e *EvidenceIntegration) calculateCompletionEvidenceExpires(completedAt *ti
 		cadence = definition.SuggestedCadence
 	}
 
-	graceDays := ResolveGraceDays(instance, config.DefaultWorkflowConfig().GracePeriodDays)
+	graceDays := ResolveGraceDays(instance, e.defaultGracePeriodDays)
 	expires := nextCadenceExpiryBase(*completedAt, cadence).Add(time.Duration(graceDays) * 24 * time.Hour)
 	return &expires
 }

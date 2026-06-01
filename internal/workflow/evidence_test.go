@@ -774,6 +774,18 @@ func TestCalculateCompletionEvidenceExpires(t *testing.T) {
 			assert.Equal(t, tt.expected, *expires)
 		})
 	}
+
+	t.Run("uses configured default grace period", func(t *testing.T) {
+		evidenceIntegration := NewEvidenceIntegration(nil, zap.NewNop().Sugar(), 3)
+		instance := &workflows.WorkflowInstance{
+			Cadence: string(workflows.CadenceDaily),
+		}
+
+		expires := evidenceIntegration.calculateCompletionEvidenceExpires(&completedAt, instance, nil)
+
+		require.NotNil(t, expires)
+		assert.Equal(t, time.Date(2026, 1, 19, 10, 30, 0, 0, time.UTC), *expires)
+	})
 }
 
 func TestAddStepStartedEvidence(t *testing.T) {
