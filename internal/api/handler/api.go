@@ -9,6 +9,7 @@ import (
 	"github.com/compliance-framework/api/internal/api/middleware"
 	"github.com/compliance-framework/api/internal/config"
 	"github.com/compliance-framework/api/internal/service/digest"
+	"github.com/compliance-framework/api/internal/service/notification"
 	evidencesvc "github.com/compliance-framework/api/internal/service/relational/evidence"
 	poamsvc "github.com/compliance-framework/api/internal/service/relational/poam"
 	riskrel "github.com/compliance-framework/api/internal/service/relational/risks"
@@ -21,12 +22,13 @@ import (
 
 // APIServices contains all services needed by API handlers
 type APIServices struct {
-	EvidenceService      *evidencesvc.EvidenceService
-	RiskEnqueuer         evidencesvc.RiskJobEnqueuer
-	DigestService        *digest.Service
-	WorkflowManager      *workflow.Manager
-	NotificationEnqueuer workflow.NotificationEnqueuer
-	DAGExecutor          *workflow.DAGExecutor
+	EvidenceService            *evidencesvc.EvidenceService
+	RiskEnqueuer               evidencesvc.RiskJobEnqueuer
+	DigestService              *digest.Service
+	WorkflowManager            *workflow.Manager
+	NotificationEnqueuer       workflow.NotificationEnqueuer
+	NotificationWorkerEnqueuer notification.WorkerEnqueuer
+	DAGExecutor                *workflow.DAGExecutor
 }
 
 func RegisterHandlers(server *api.Server, logger *zap.SugaredLogger, db *gorm.DB, config *config.Config, services *APIServices) {
@@ -121,7 +123,7 @@ func RegisterHandlers(server *api.Server, logger *zap.SugaredLogger, db *gorm.DB
 	userGroup.Use(middleware.JWTMiddleware(config.JWTPublicKey))
 	userHandler.RegisterPublicRoutes(userGroup)
 
-	notificationsHandler := NewNotificationsHandler(logger, db, config)
+	notificationsHandler := NewNotificationsHandler(logger, db, config, services.NotificationWorkerEnqueuer)
 	notificationsPublicGroup := server.API().Group("/notifications")
 	notificationsPublicGroup.Use(middleware.JWTMiddleware(config.JWTPublicKey))
 	notificationsHandler.RegisterPublic(notificationsPublicGroup)

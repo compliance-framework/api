@@ -11,6 +11,7 @@ import (
 	"github.com/compliance-framework/api/internal/api/handler/auth"
 	"github.com/compliance-framework/api/internal/api/handler/oscal"
 	"github.com/compliance-framework/api/internal/config"
+	"github.com/compliance-framework/api/internal/logging"
 	"github.com/compliance-framework/api/internal/service"
 	"github.com/compliance-framework/api/internal/service/digest"
 	"github.com/compliance-framework/api/internal/service/email"
@@ -45,7 +46,7 @@ func RunServer(cmd *cobra.Command, args []string) {
 	}
 
 	defer func() {
-		if err := sugar.Sync(); err != nil {
+		if err := sugar.Sync(); !logging.IgnoreSyncError(err) {
 			log.Printf("failed to sync zap logger: %v", err)
 		}
 	}()
@@ -163,12 +164,13 @@ func RunServer(cmd *cobra.Command, args []string) {
 
 	// Create services struct for API handlers
 	services := &handler.APIServices{
-		EvidenceService:      evidenceService,
-		RiskEnqueuer:         workerService,
-		DigestService:        digestService,
-		WorkflowManager:      workflowManager,
-		NotificationEnqueuer: workerService,
-		DAGExecutor:          workerService.GetDAGExecutor(),
+		EvidenceService:            evidenceService,
+		RiskEnqueuer:               workerService,
+		DigestService:              digestService,
+		WorkflowManager:            workflowManager,
+		NotificationEnqueuer:       workerService,
+		NotificationWorkerEnqueuer: workerService,
+		DAGExecutor:                workerService.GetDAGExecutor(),
 	}
 
 	handler.RegisterHandlers(server, sugar, db, cfg, services)

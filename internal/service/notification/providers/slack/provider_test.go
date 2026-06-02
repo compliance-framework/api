@@ -88,10 +88,12 @@ func TestProviderMetadataRetriesWorkspaceDetailsAfterResolverError(t *testing.T)
 
 	firstMetadata := provider.ProviderMetadata()
 	assert.Equal(t, "Configured Slack workspace", firstMetadata.Description)
+	assert.Equal(t, "temporary slack failure", firstMetadata.Error)
 	assert.Empty(t, firstMetadata.Metadata)
 
 	secondMetadata := provider.ProviderMetadata()
 	assert.Equal(t, "Configured Slack workspace Recovered Workspace", secondMetadata.Description)
+	assert.Empty(t, secondMetadata.Error)
 	assert.Equal(t, "Recovered Workspace", secondMetadata.Metadata[MetadataKeyWorkspaceName])
 	assert.Equal(t, "T456", secondMetadata.Metadata[MetadataKeyTeamID])
 	assert.Equal(t, 2, attempts)

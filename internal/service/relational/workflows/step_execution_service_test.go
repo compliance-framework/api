@@ -3,6 +3,7 @@ package workflows
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/google/uuid"
@@ -869,4 +870,46 @@ func TestStepExecutionService_Integration(t *testing.T) {
 	completedSteps, err = service.GetCompletedSteps(execution.ID)
 	require.NoError(t, err)
 	assert.Len(t, completedSteps, 2)
+}
+
+// TestGetMyAssignments_FiltersOnStepDueDate covers BCH-1156: when a step execution
+// has its own due_date but the parent workflow_execution.due_date is NULL, a date
+// range filter must still match using the step's due_date (the effective due date
+// shown by the UI).
+func TestGetMyAssignments_FiltersOnStepDueDate(t *testing.T) {
+	db := setupTestDB(t)
+	service := NewStepExecutionService(db, nil)
+
+	workflowDef := createTestWorkflowDefinition()
+	require.NoError(t, db.Create(workflowDef).Error)
+
+	instance := createTestWorkflowInstance(workflowDef.ID)
+	require.NoError(t, db.Create(instance).Error)
+
+	// Execution has no due_date — mirrors real data where due_date lives on the step
+	execution := createTestWorkflowExecution(instance.ID)
+	execution.Status = "in_progress"
+	require.NoError(t, db.Create(execution).Error)
+
+	stepDef := createTestWorkflowStepDefinition(workflowDef.ID)
+	require.NoError(t, db.Create(stepDef).Error)
+
+	may28 := time.Date(2026, 5, 28, 10, 0, 0, 0, time.UTC)
+	stepExec := createTestStepExecution(execution.ID, stepDef.ID)
+	stepExec.DueDate = &may28
+	stepExec.AssignedToType = "user"
+	stepExec.AssignedToID = "test-user-abc"
+	require.NoError(t, db.Create(stepExec).Error)
+
+	after := time.Date(2026, 5, 26, 0, 0, 0, 0, time.UTC)
+	before := time.Date(2026, 5, 28, 23, 59, 59, 0, time.UTC)
+
+	results, total, err := service.GetMyAssignments("test-user-abc", "", MyAssignmentsFilter{
+		DueAfter:  &after,
+		DueBefore: &before,
+	}, 10, 0)
+
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), total, "step with due_date on step_executions (not workflow_executions) must be returned")
+	assert.Len(t, results, 1)
 }

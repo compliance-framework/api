@@ -221,6 +221,9 @@ func NewConfig(logger *zap.SugaredLogger) *Config {
 	if viper.IsSet("worker_queue") {
 		workerConfig.Queue = viper.GetString("worker_queue")
 	}
+	if viper.IsSet("worker_use_polling") {
+		workerConfig.UsePolling = viper.GetBool("worker_use_polling")
+	}
 
 	pprofEnabled := viper.GetBool("pprof_enabled")
 	pprofPort := viper.GetString("pprof_port")

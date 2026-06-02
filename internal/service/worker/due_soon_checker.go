@@ -15,8 +15,10 @@ import (
 // DueSoonCheckerArgs represents the arguments for the periodic due-soon checker job
 type DueSoonCheckerArgs struct{}
 
+const JobTypeWorkflowDueSoonChecker = "workflow_due_soon_checker"
+
 // Kind returns the job kind for River
-func (DueSoonCheckerArgs) Kind() string { return "workflow_due_soon_checker" }
+func (DueSoonCheckerArgs) Kind() string { return JobTypeWorkflowDueSoonChecker }
 
 // Timeout returns the timeout for the due-soon checker job
 func (DueSoonCheckerArgs) Timeout() time.Duration { return 5 * time.Minute }
@@ -119,9 +121,14 @@ func (w *DueSoonCheckerWorker) Work(ctx context.Context, job *river.Job[DueSoonC
 			userName = user.FullName()
 		}
 
+		request := requestWithDueSoonCheckerSourceJob(
+			buildWorkflowTaskDueSoonNotificationRequest(baseArgs, userName, w.webBaseURL),
+			riverJobID(job),
+			step.ID.String(),
+		)
 		if err := notifier.Dispatch(
 			ctx,
-			buildWorkflowTaskDueSoonNotificationRequest(baseArgs, userName, w.webBaseURL),
+			request,
 		); err != nil {
 			return fmt.Errorf("due-soon checker: failed to dispatch reminder for step %s: %w", step.ID.String(), err)
 		}
@@ -130,4 +137,16 @@ func (w *DueSoonCheckerWorker) Work(ctx context.Context, job *river.Job[DueSoonC
 
 	w.logger.Infow("DueSoonCheckerWorker: dispatched due-soon reminders", "count", dispatched)
 	return nil
+}
+
+func requestWithDueSoonCheckerSourceJob(request notification.Request, jobID int64, stepExecutionID string) notification.Request {
+	sourceJobKind := DueSoonCheckerArgs{}.Kind()
+	request.Options.SourceJobKind = sourceJobKind
+	if stepExecutionID != "" {
+		request.Options.CorrelationID = sourceJobKind + ":" + stepExecutionID
+	}
+	if jobID > 0 {
+		request.Options.SourceJobID = fmt.Sprintf("%d", jobID)
+	}
+	return request
 }

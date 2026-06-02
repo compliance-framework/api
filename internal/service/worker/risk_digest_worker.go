@@ -278,7 +278,7 @@ func (w *RiskOpenDigestWorker) Work(ctx context.Context, job *river.Job[RiskOpen
 
 	if err := notificationService.Dispatch(
 		ctx,
-		buildRiskOpenDigestNotificationRequest(args, data),
+		requestWithSourceJobID(buildRiskOpenDigestNotificationRequest(args, data), riverJobID(job)),
 	); err != nil {
 		return fmt.Errorf("dispatch risk-open-digest notification: %w", err)
 	}
