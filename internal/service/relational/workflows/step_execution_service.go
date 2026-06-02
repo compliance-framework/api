@@ -368,7 +368,7 @@ func (s *StepExecutionService) GetCompletedSteps(executionID *uuid.UUID) ([]Step
 func (s *StepExecutionService) GetAssignedSteps(assignedToType, assignedToID string) ([]StepExecution, error) {
 	var stepExecutions []StepExecution
 	err := s.db.Where("assigned_to_type = ? AND assigned_to_id = ? AND status IN ?",
-		assignedToType, assignedToID, []string{"pending", "in_progress", "blocked", "overdue"}).
+		assignedToType, assignedToID, OpenStepStatuses()).
 		Preload("WorkflowExecution").
 		Preload("WorkflowExecution.WorkflowInstance").
 		Preload("WorkflowStepDefinition").
@@ -404,12 +404,13 @@ func (s *StepExecutionService) GetMyAssignments(userID, userEmail string, filter
 		query = query.Where("step_executions.status = ?", filter.Status)
 	}
 
-	// Apply due date filters (on workflow execution)
+	// Filter on effective due date: step's own due_date takes precedence over the
+	// workflow execution's due_date, mirroring getEffectiveDueDate in the UI.
 	if filter.DueBefore != nil {
-		query = query.Where("workflow_executions.due_date <= ?", filter.DueBefore)
+		query = query.Where("COALESCE(step_executions.due_date, workflow_executions.due_date) <= ?", filter.DueBefore)
 	}
 	if filter.DueAfter != nil {
-		query = query.Where("workflow_executions.due_date >= ?", filter.DueAfter)
+		query = query.Where("COALESCE(step_executions.due_date, workflow_executions.due_date) >= ?", filter.DueAfter)
 	}
 
 	// Apply workflow definition filter

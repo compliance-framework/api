@@ -129,12 +129,12 @@ func (w *WorkflowTaskAssignedWorker) Work(ctx context.Context, job *river.Job[Wo
 	}
 
 	if args.AssignedToType == workflows.AssignmentTypeEmail.String() {
-		return w.dispatchToEmailAddress(ctx, args)
+		return w.dispatchToEmailAddress(ctx, args, riverJobID(job))
 	}
-	return w.dispatchToUser(ctx, args)
+	return w.dispatchToUser(ctx, args, riverJobID(job))
 }
 
-func (w *WorkflowTaskAssignedWorker) dispatchToUser(ctx context.Context, args WorkflowTaskAssignedArgs) error {
+func (w *WorkflowTaskAssignedWorker) dispatchToUser(ctx context.Context, args WorkflowTaskAssignedArgs, sourceJobID int64) error {
 	hydratedArgs, ready, err := w.hydrateNotificationArgs(ctx, args)
 	if err != nil {
 		return err
@@ -160,7 +160,7 @@ func (w *WorkflowTaskAssignedWorker) dispatchToUser(ctx context.Context, args Wo
 
 	if err := notifier.Dispatch(
 		ctx,
-		buildWorkflowTaskAssignedNotificationRequest(hydratedArgs, user.FullName(), w.webBaseURL),
+		requestWithSourceJobID(buildWorkflowTaskAssignedNotificationRequest(hydratedArgs, user.FullName(), w.webBaseURL), sourceJobID),
 	); err != nil {
 		return fmt.Errorf("dispatch workflow-task-assigned notification: %w", err)
 	}
@@ -168,7 +168,7 @@ func (w *WorkflowTaskAssignedWorker) dispatchToUser(ctx context.Context, args Wo
 	return nil
 }
 
-func (w *WorkflowTaskAssignedWorker) dispatchToEmailAddress(ctx context.Context, args WorkflowTaskAssignedArgs) error {
+func (w *WorkflowTaskAssignedWorker) dispatchToEmailAddress(ctx context.Context, args WorkflowTaskAssignedArgs, sourceJobID int64) error {
 	hydratedArgs, ready, err := w.hydrateNotificationArgs(ctx, args)
 	if err != nil {
 		return err
@@ -184,7 +184,7 @@ func (w *WorkflowTaskAssignedWorker) dispatchToEmailAddress(ctx context.Context,
 
 	if err := notifier.Dispatch(
 		ctx,
-		buildWorkflowTaskAssignedNotificationRequest(hydratedArgs, "", w.webBaseURL),
+		requestWithSourceJobID(buildWorkflowTaskAssignedNotificationRequest(hydratedArgs, "", w.webBaseURL), sourceJobID),
 	); err != nil {
 		return fmt.Errorf("dispatch workflow-task-assigned direct email notification: %w", err)
 	}
@@ -289,7 +289,7 @@ func (w *WorkflowTaskDueSoonWorker) Work(ctx context.Context, job *river.Job[Wor
 
 	if err := notifier.Dispatch(
 		ctx,
-		buildWorkflowTaskDueSoonNotificationRequest(args, user.FullName(), w.webBaseURL),
+		requestWithSourceJobID(buildWorkflowTaskDueSoonNotificationRequest(args, user.FullName(), w.webBaseURL), riverJobID(job)),
 	); err != nil {
 		return fmt.Errorf("dispatch workflow-task-due-soon notification: %w", err)
 	}

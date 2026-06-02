@@ -23,7 +23,7 @@ type ServiceProviderDescriptor struct {
 
 type Enqueuer interface {
 	IsStarted() bool
-	EnqueueNotificationEmail(ctx context.Context, delivery Delivery) error
+	EnqueueNotificationEmail(ctx context.Context, delivery Delivery) ([]int64, error)
 }
 
 type ContentRenderer interface {
@@ -319,7 +319,7 @@ func (p *Provider) Deliver(ctx context.Context, delivery notification.Delivery) 
 	}
 
 	if enqueuer := p.enqueuer(); enqueuer != nil && enqueuer.IsStarted() {
-		if err := enqueuer.EnqueueNotificationEmail(ctx, providerDelivery); err != nil {
+		if _, err := enqueuer.EnqueueNotificationEmail(ctx, providerDelivery); err != nil {
 			return fmt.Errorf("enqueue email delivery: %w", err)
 		}
 		return nil

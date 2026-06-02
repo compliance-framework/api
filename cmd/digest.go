@@ -6,6 +6,7 @@ import (
 	"log"
 
 	"github.com/compliance-framework/api/internal/config"
+	"github.com/compliance-framework/api/internal/logging"
 	"github.com/compliance-framework/api/internal/service"
 	"github.com/compliance-framework/api/internal/service/digest"
 	"github.com/compliance-framework/api/internal/service/email"
@@ -53,7 +54,7 @@ func runDigestTest(cmd *cobra.Command, args []string) {
 	}
 
 	defer func() {
-		if err := sugar.Sync(); err != nil {
+		if err := sugar.Sync(); !logging.IgnoreSyncError(err) {
 			log.Printf("failed to sync zap logger: %v", err)
 		}
 	}()
@@ -144,7 +145,7 @@ func runDigestPreview(cmd *cobra.Command, args []string) {
 	}
 
 	defer func() {
-		if err := sugar.Sync(); err != nil {
+		if err := sugar.Sync(); !logging.IgnoreSyncError(err) {
 			log.Printf("failed to sync zap logger: %v", err)
 		}
 	}()

@@ -69,7 +69,7 @@ type Sender interface {
 
 type Enqueuer interface {
 	IsStarted() bool
-	EnqueueNotificationSlack(ctx context.Context, delivery Delivery) error
+	EnqueueNotificationSlack(ctx context.Context, delivery Delivery) ([]int64, error)
 }
 
 type SenderProvider func() Sender
@@ -90,6 +90,7 @@ type Provider struct {
 	workspaceConfigurationMu       sync.Mutex
 	workspaceConfigurationLoaded   bool
 	workspaceConfiguration         slacksvc.WorkspaceConfiguration
+	workspaceConfigurationErr      error
 }
 
 const (
@@ -163,7 +164,10 @@ func (p *Provider) ProviderMetadata() notification.ProviderMetadata {
 		Enabled:      p.enabled(),
 	}
 
-	configuration := p.workspaceConfigurationDetails()
+	configuration, err := p.workspaceConfigurationDetails()
+	if err != nil {
+		metadata.Error = err.Error()
+	}
 	if configuration.WorkspaceName != "" {
 		metadata.Description = fmt.Sprintf("Configured Slack workspace %s", configuration.WorkspaceName)
 	}
@@ -213,16 +217,16 @@ func (p *Provider) enabled() bool {
 	return sender != nil && sender.IsEnabled()
 }
 
-func (p *Provider) workspaceConfigurationDetails() slacksvc.WorkspaceConfiguration {
+func (p *Provider) workspaceConfigurationDetails() (slacksvc.WorkspaceConfiguration, error) {
 	if p == nil || p.workspaceConfigurationResolver == nil {
-		return slacksvc.WorkspaceConfiguration{}
+		return slacksvc.WorkspaceConfiguration{}, nil
 	}
 
 	p.workspaceConfigurationMu.Lock()
 	defer p.workspaceConfigurationMu.Unlock()
 
 	if p.workspaceConfigurationLoaded {
-		return p.workspaceConfiguration
+		return p.workspaceConfiguration, p.workspaceConfigurationErr
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -230,12 +234,14 @@ func (p *Provider) workspaceConfigurationDetails() slacksvc.WorkspaceConfigurati
 
 	configuration, err := p.workspaceConfigurationResolver(ctx)
 	if err != nil {
-		return p.workspaceConfiguration
+		p.workspaceConfigurationErr = err
+		return p.workspaceConfiguration, err
 	}
 
 	p.workspaceConfiguration = configuration
+	p.workspaceConfigurationErr = nil
 	p.workspaceConfigurationLoaded = true
-	return p.workspaceConfiguration
+	return p.workspaceConfiguration, nil
 }
 
 func (p *Provider) ResolveUserTarget(user notification.User) (notification.Target, bool, error) {
@@ -346,7 +352,7 @@ func (p *Provider) Deliver(ctx context.Context, delivery notification.Delivery) 
 	}
 
 	if enqueuer := p.enqueuer(); enqueuer != nil && enqueuer.IsStarted() {
-		if err := enqueuer.EnqueueNotificationSlack(ctx, providerDelivery); err != nil {
+		if _, err := enqueuer.EnqueueNotificationSlack(ctx, providerDelivery); err != nil {
 			return fmt.Errorf("enqueue slack delivery: %w", err)
 		}
 		return nil

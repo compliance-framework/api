@@ -121,7 +121,7 @@ func (w *WorkflowExecutionFailedWorker) Work(ctx context.Context, job *river.Job
 		MyTasksURL:           w.webBaseURL + "/my-tasks",
 	}
 	requests := []notification.Request{
-		buildWorkflowExecutionFailedNotificationRequest(args, recipient.ID, model),
+		requestWithSourceJobID(buildWorkflowExecutionFailedNotificationRequest(args, recipient.ID, model), riverJobID(job)),
 	}
 
 	targets, err := w.configuredWorkflowExecutionFailedTargets(ctx)
@@ -130,7 +130,7 @@ func (w *WorkflowExecutionFailedWorker) Work(ctx context.Context, job *river.Job
 	}
 
 	if systemRequest, ok := buildWorkflowExecutionFailedSystemNotificationRequest(args, targets, model); ok {
-		requests = append(requests, systemRequest)
+		requests = append(requests, requestWithSourceJobID(systemRequest, riverJobID(job)))
 	}
 
 	if err := notifier.DispatchFanout(

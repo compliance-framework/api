@@ -9,10 +9,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/compliance-framework/api/internal/config"
 	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/compliance-framework/api/internal/service/relational/workflows"
 	oscalTypes_1_1_3 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
 	"github.com/google/uuid"
+	"github.com/robfig/cron/v3"
 	"go.uber.org/zap"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
@@ -24,28 +26,40 @@ import (
 // - 1 evidence stream per workflow instance (accumulates execution completion evidence)
 // - Streams use label-seeded UUIDs for deterministic identification
 type EvidenceIntegration struct {
-	db                    *gorm.DB
-	logger                *zap.SugaredLogger
-	workflowExecutionSvc  *workflows.WorkflowExecutionService
-	stepExecutionSvc      *workflows.StepExecutionService
-	workflowInstanceSvc   *workflows.WorkflowInstanceService
-	workflowDefinitionSvc *workflows.WorkflowDefinitionService
-	stepDefinitionSvc     *workflows.WorkflowStepDefinitionService
+	db                     *gorm.DB
+	logger                 *zap.SugaredLogger
+	workflowExecutionSvc   *workflows.WorkflowExecutionService
+	stepExecutionSvc       *workflows.StepExecutionService
+	workflowInstanceSvc    *workflows.WorkflowInstanceService
+	workflowDefinitionSvc  *workflows.WorkflowDefinitionService
+	stepDefinitionSvc      *workflows.WorkflowStepDefinitionService
+	defaultGracePeriodDays int
 }
 
 // NewEvidenceIntegration creates a new evidence integration service
 func NewEvidenceIntegration(
 	db *gorm.DB,
 	logger *zap.SugaredLogger,
+	defaultGracePeriodDays ...int,
 ) *EvidenceIntegration {
+	if logger == nil {
+		logger = zap.NewNop().Sugar()
+	}
+
+	gracePeriodDays := config.DefaultWorkflowConfig().GracePeriodDays
+	if len(defaultGracePeriodDays) > 0 {
+		gracePeriodDays = defaultGracePeriodDays[0]
+	}
+
 	return &EvidenceIntegration{
-		db:                    db,
-		logger:                logger,
-		workflowExecutionSvc:  workflows.NewWorkflowExecutionService(db),
-		stepExecutionSvc:      workflows.NewStepExecutionService(db, nil),
-		workflowInstanceSvc:   workflows.NewWorkflowInstanceService(db),
-		workflowDefinitionSvc: workflows.NewWorkflowDefinitionService(db),
-		stepDefinitionSvc:     workflows.NewWorkflowStepDefinitionService(db),
+		db:                     db,
+		logger:                 logger,
+		workflowExecutionSvc:   workflows.NewWorkflowExecutionService(db),
+		stepExecutionSvc:       workflows.NewStepExecutionService(db, nil),
+		workflowInstanceSvc:    workflows.NewWorkflowInstanceService(db),
+		workflowDefinitionSvc:  workflows.NewWorkflowDefinitionService(db),
+		stepDefinitionSvc:      workflows.NewWorkflowStepDefinitionService(db),
+		defaultGracePeriodDays: gracePeriodDays,
 	}
 }
 
@@ -183,7 +197,7 @@ func (e *EvidenceIntegration) GetOrCreateInstanceStream(ctx context.Context, wor
 	return stream, nil
 }
 
-// AddWorkflowExecutionEvidence adds a workflow execution evidence record to the instance stream
+// AddWorkflowExecutionEvidence adds a workflow execution evidence record.
 func (e *EvidenceIntegration) AddWorkflowExecutionEvidence(ctx context.Context, workflowExecutionID *uuid.UUID, status string) error {
 	// Get workflow execution
 	execution, err := e.workflowExecutionSvc.GetByID(workflowExecutionID)
@@ -191,18 +205,19 @@ func (e *EvidenceIntegration) AddWorkflowExecutionEvidence(ctx context.Context, 
 		return fmt.Errorf("failed to get workflow execution: %w", err)
 	}
 
-	// Started evidence may be emitted right before or right after the transition.
-	if status == "started" && execution.Status != "pending" && execution.Status != "in_progress" {
-		return fmt.Errorf("workflow execution is not in pending status, status: %s", execution.Status)
-	}
-	if status == "completed" && execution.Status != "in_progress" && execution.Status != "completed" {
-		return fmt.Errorf("workflow execution is not in  status, status: %s", execution.Status)
+	if status != "started" && status != "completed" {
+		return fmt.Errorf("unsupported workflow execution evidence status %q; expected started or completed", status)
 	}
 
-	// Get or create instance stream (NOT execution stream)
-	stream, err := e.GetOrCreateInstanceStream(ctx, execution.WorkflowInstanceID)
-	if err != nil {
-		return fmt.Errorf("failed to get instance stream: %w", err)
+	// Started evidence may be emitted right before or right after the transition.
+	if status == "started" && execution.Status != "pending" && execution.Status != "in_progress" {
+		return fmt.Errorf("workflow execution is not in pending or in_progress status, status: %s", execution.Status)
+	}
+	if status == "completed" && execution.Status != "in_progress" && execution.Status != "completed" {
+		return fmt.Errorf("workflow execution is not in in_progress or completed status, status: %s", execution.Status)
+	}
+	if execution.StartedAt == nil {
+		return fmt.Errorf("workflow execution %s evidence requires started_at", status)
 	}
 
 	// Get workflow definition through the instance
@@ -217,27 +232,43 @@ func (e *EvidenceIntegration) AddWorkflowExecutionEvidence(ctx context.Context, 
 	}
 	var title string
 	var description string
+	var stream *relational.Evidence
+	endTimestamp := execution.StartedAt
 	switch status {
 	case "started":
+		stream, err = e.GetOrCreateExecutionStream(ctx, execution.ID)
+		if err != nil {
+			return fmt.Errorf("failed to get execution stream: %w", err)
+		}
 		title = fmt.Sprintf("Workflow Execution Started: %s", definition.Name)
 		description = fmt.Sprintf("Workflow execution '%s' started at %s",
 			execution.ID.String(),
 			execution.StartedAt.Format(time.RFC3339),
 		)
 	case "completed":
+		if execution.CompletedAt == nil {
+			return fmt.Errorf("workflow execution completed evidence requires completed_at")
+		}
+		stream, err = e.GetOrCreateInstanceStream(ctx, execution.WorkflowInstanceID)
+		if err != nil {
+			return fmt.Errorf("failed to get instance stream: %w", err)
+		}
 		title = fmt.Sprintf("Workflow Execution Completed: %s", definition.Name)
 		description = fmt.Sprintf("Workflow execution '%s' completed at %s",
 			execution.ID.String(),
-			execution.StartedAt.Format(time.RFC3339),
+			execution.CompletedAt.Format(time.RFC3339),
 		)
+		endTimestamp = execution.CompletedAt
+	default:
+		return fmt.Errorf("unsupported workflow execution evidence status %q; expected started or completed", status)
 	}
 	// Create evidence record
 	evidence := &relational.Evidence{
-		UUID:        stream.UUID, // Same stream UUID as the instance stream
+		UUID:        stream.UUID,
 		Title:       title,
 		Description: description,
 		Start:       *execution.StartedAt,
-		End:         *execution.StartedAt,
+		End:         *endTimestamp,
 		Labels: []relational.Labels{
 			{Name: "workflow.execution.id", Value: execution.ID.String()},
 			{Name: "workflow.definition.id", Value: definition.ID.String()},
@@ -249,10 +280,12 @@ func (e *EvidenceIntegration) AddWorkflowExecutionEvidence(ctx context.Context, 
 
 	if status == "completed" {
 		evidence.Status = datatypes.NewJSONType(oscalTypes_1_1_3.ObjectiveStatus{
-			State: "satisfied",
+			State: relational.EvidenceStatusSatisfied,
 		})
+		evidence.Labels = append(evidence.Labels, e.buildWorkflowCoverageLabels(*definition.ID)...)
+		evidence.Expires = e.calculateCompletionEvidenceExpires(execution.CompletedAt, instance, definition)
 	}
-	if err := e.db.Create(&evidence).Error; err != nil {
+	if err := e.db.Create(evidence).Error; err != nil {
 		return fmt.Errorf("failed to create workflow execution evidence: %w", err)
 	}
 
@@ -345,11 +378,27 @@ func (e *EvidenceIntegration) AddExecutionCompletionEvidence(ctx context.Context
 	if execution.Status != "completed" {
 		return fmt.Errorf("workflow execution is not completed, status: %s", execution.Status)
 	}
+	if execution.StartedAt == nil {
+		return fmt.Errorf("workflow execution completion evidence requires started_at")
+	}
+	if execution.CompletedAt == nil {
+		return fmt.Errorf("workflow execution completion evidence requires completed_at")
+	}
 
 	// Get or create instance stream
 	stream, err := e.GetOrCreateInstanceStream(ctx, execution.WorkflowInstanceID)
 	if err != nil {
 		return fmt.Errorf("failed to get instance stream: %w", err)
+	}
+
+	instance, err := e.workflowInstanceSvc.GetByID(execution.WorkflowInstanceID)
+	if err != nil {
+		return fmt.Errorf("failed to get workflow instance: %w", err)
+	}
+
+	definition, err := e.workflowDefinitionSvc.GetByID(instance.WorkflowDefinitionID)
+	if err != nil {
+		return fmt.Errorf("failed to get workflow definition: %w", err)
 	}
 
 	// Get step executions for metrics
@@ -377,6 +426,8 @@ func (e *EvidenceIntegration) AddExecutionCompletionEvidence(ctx context.Context
 		Description: description,
 		Start:       *execution.StartedAt,
 		End:         *execution.CompletedAt,
+		Status:      datatypes.NewJSONType[oscalTypes_1_1_3.ObjectiveStatus](oscalTypes_1_1_3.ObjectiveStatus{State: relational.EvidenceStatusSatisfied}),
+		Expires:     e.calculateCompletionEvidenceExpires(execution.CompletedAt, instance, definition),
 	}
 
 	// Generate unique ID for this evidence record
@@ -395,6 +446,7 @@ func (e *EvidenceIntegration) AddExecutionCompletionEvidence(ctx context.Context
 		{Name: "workflow.step_count", Value: fmt.Sprintf("%d", len(stepExecutions))},
 		{Name: "evidence.type", Value: "execution_completion"},
 	}
+	labels = append(labels, e.buildWorkflowCoverageLabels(*definition.ID)...)
 
 	if err := e.db.Model(evidence).Association("Labels").Append(labels); err != nil {
 		return fmt.Errorf("failed to add labels: %w", err)
@@ -499,9 +551,19 @@ func (e *EvidenceIntegration) addFailureEvidenceToStream(
 ) error {
 	var stream *relational.Evidence
 	var err error
+	var coverageLabels []relational.Labels
 	if executionStream {
 		stream, err = e.GetOrCreateExecutionStream(ctx, execution.ID)
 	} else {
+		instance, instanceErr := e.workflowInstanceSvc.GetByID(execution.WorkflowInstanceID)
+		if instanceErr != nil {
+			return fmt.Errorf("failed to get workflow instance: %w", instanceErr)
+		}
+		if instance.WorkflowDefinitionID == nil {
+			return fmt.Errorf("workflow instance %s has no workflow definition id", execution.WorkflowInstanceID)
+		}
+		coverageLabels = e.buildWorkflowCoverageLabels(*instance.WorkflowDefinitionID)
+
 		stream, err = e.GetOrCreateInstanceStream(ctx, execution.WorkflowInstanceID)
 	}
 	if err != nil {
@@ -514,7 +576,7 @@ func (e *EvidenceIntegration) addFailureEvidenceToStream(
 		Description: description,
 		Start:       nowOrValue(execution.StartedAt),
 		End:         nowOrValue(execution.FailedAt),
-		Status:      datatypes.NewJSONType[oscalTypes_1_1_3.ObjectiveStatus](oscalTypes_1_1_3.ObjectiveStatus{State: "not-satisfied"}),
+		Status:      datatypes.NewJSONType[oscalTypes_1_1_3.ObjectiveStatus](oscalTypes_1_1_3.ObjectiveStatus{State: relational.EvidenceStatusNotSatisfied}),
 	}
 	id := uuid.New()
 	evidence.ID = &id
@@ -530,6 +592,9 @@ func (e *EvidenceIntegration) addFailureEvidenceToStream(
 		{Name: "workflow.overdue_steps", Value: fmt.Sprintf("%d", overdueCount)},
 		{Name: "workflow.completed_steps", Value: fmt.Sprintf("%d", completedCount)},
 		{Name: "workflow.unresolved_assignees", Value: strings.Join(unresolvedAssignees, ",")},
+	}
+	if !executionStream {
+		labels = append(labels, coverageLabels...)
 	}
 
 	return e.db.Model(evidence).Association("Labels").Append(labels)
@@ -547,6 +612,64 @@ func nowOrValue(ts *time.Time) time.Time {
 		return time.Now()
 	}
 	return *ts
+}
+
+func (e *EvidenceIntegration) buildWorkflowCoverageLabels(definitionID uuid.UUID) []relational.Labels {
+	return []relational.Labels{
+		{Name: workflows.WorkflowEvidencePolicyLabel, Value: workflows.WorkflowPolicyValue(definitionID)},
+		{Name: workflows.WorkflowEvidencePluginLabel, Value: workflows.WorkflowEvidencePluginValue},
+	}
+}
+
+func (e *EvidenceIntegration) calculateCompletionEvidenceExpires(completedAt *time.Time, instance *workflows.WorkflowInstance, definition *workflows.WorkflowDefinition) *time.Time {
+	if completedAt == nil {
+		return nil
+	}
+	effectiveInstance := instance
+	if definition != nil && instance != nil {
+		instanceCopy := *instance
+		instanceCopy.WorkflowDefinition = definition
+		effectiveInstance = &instanceCopy
+	}
+
+	cadence := ""
+	if effectiveInstance != nil {
+		cadence = effectiveInstance.Cadence
+	}
+	if cadence == "" && definition != nil {
+		cadence = definition.SuggestedCadence
+	}
+
+	graceDays := ResolveGraceDays(effectiveInstance, e.defaultGracePeriodDays)
+	expires := nextCadenceExpiryBase(*completedAt, cadence).AddDate(0, 0, graceDays)
+	return &expires
+}
+
+func nextCadenceExpiryBase(completedAt time.Time, cadence string) time.Time {
+	cadenceType := workflows.CadenceType(cadence)
+	if cadenceType.IsCron() {
+		parser := cron.NewParser(cron.Second | cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow)
+		schedule, err := parser.Parse(cadenceType.CronExpression())
+		if err != nil {
+			return completedAt.AddDate(0, 1, 0)
+		}
+		return schedule.Next(completedAt)
+	}
+
+	switch cadenceType {
+	case workflows.CadenceDaily:
+		return completedAt.AddDate(0, 0, 1)
+	case workflows.CadenceWeekly:
+		return completedAt.AddDate(0, 0, 7)
+	case workflows.CadenceQuarterly:
+		return completedAt.AddDate(0, 3, 0)
+	case workflows.CadenceAnnually:
+		return completedAt.AddDate(1, 0, 0)
+	case workflows.CadenceMonthly:
+		return completedAt.AddDate(0, 1, 0)
+	default:
+		return completedAt.AddDate(0, 1, 0)
+	}
 }
 
 // generateExecutionStreamUUID generates a deterministic UUID for an execution stream based on labels
