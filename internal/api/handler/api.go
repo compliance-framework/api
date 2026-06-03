@@ -156,6 +156,9 @@ func registerWorkflowHandlers(server *api.Server, logger *zap.SugaredLogger, db 
 	workflowDefinitionHandler := workflows.NewWorkflowDefinitionHandler(logger, db)
 	workflowDefinitionHandler.Register(workflowGroup.Group("/definitions"))
 
+	workflowImportHandler := workflows.NewWorkflowImportHandler(logger, db)
+	workflowGroup.POST("/import", workflowImportHandler.Import, middleware.RequireAdminGroups(db, config, logger))
+
 	workflowStepDefinitionHandler := workflows.NewWorkflowStepDefinitionHandler(logger, db)
 	workflowStepDefinitionHandler.Register(workflowGroup.Group("/steps"))
 
