@@ -1,7 +1,9 @@
 package workflows
 
 import (
+	"errors"
 	"fmt"
+	"io"
 	"mime/multipart"
 	"net/http"
 
@@ -11,6 +13,15 @@ import (
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
+
+const (
+	maxImportFiles     = 10
+	maxImportFileBytes = 5 * 1024 * 1024
+
+	WorkflowImportBodyLimit = "51M"
+)
+
+var errImportFileTooLarge = errors.New("workflow import file exceeds size limit")
 
 type WorkflowImportHandler struct {
 	*BaseHandler
@@ -55,6 +66,7 @@ type WorkflowImportDataResponse struct {
 //	@Failure		400		{object}	api.Error
 //	@Failure		401		{object}	api.Error
 //	@Failure		403		{object}	api.Error
+//	@Failure		413		{object}	api.Error
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/workflows/import [post]
@@ -68,6 +80,9 @@ func (h *WorkflowImportHandler) Import(ctx echo.Context) error {
 	files := form.File["files"]
 	if len(files) == 0 {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("no files provided")))
+	}
+	if len(files) > maxImportFiles {
+		return ctx.JSON(http.StatusRequestEntityTooLarge, api.NewError(fmt.Errorf("too many files provided: maximum is %d", maxImportFiles)))
 	}
 
 	response := WorkflowImportResponse{
@@ -89,6 +104,9 @@ func (h *WorkflowImportHandler) Import(ctx echo.Context) error {
 	statusCode := http.StatusOK
 	if response.SuccessfulFiles == 0 {
 		statusCode = http.StatusBadRequest
+		if response.FailedFiles > 0 && workflowImportAllFilesTooLarge(response.Results) {
+			statusCode = http.StatusRequestEntityTooLarge
+		}
 	}
 
 	return ctx.JSON(statusCode, WorkflowImportDataResponse{Data: response})
@@ -98,6 +116,11 @@ func (h *WorkflowImportHandler) processWorkflowSeedFile(ctx echo.Context, fileHe
 	result := WorkflowImportFileResult{
 		Filename: fileHeader.Filename,
 		Success:  false,
+	}
+
+	if fileHeader.Size > maxImportFileBytes {
+		result.Message = workflowImportFileTooLargeMessage()
+		return result
 	}
 
 	file, err := fileHeader.Open()
@@ -111,8 +134,15 @@ func (h *WorkflowImportHandler) processWorkflowSeedFile(ctx echo.Context, fileHe
 		}
 	}()
 
-	definitions, err := workflowseed.DecodeSeedDefinitions(file)
+	definitions, err := workflowseed.DecodeSeedDefinitions(&workflowImportLimitedReader{
+		reader:    file,
+		remaining: maxImportFileBytes,
+	})
 	if err != nil {
+		if errors.Is(err, errImportFileTooLarge) {
+			result.Message = workflowImportFileTooLargeMessage()
+			return result
+		}
 		result.Message = fmt.Sprintf("Failed to parse JSON: %v", err)
 		return result
 	}
@@ -121,6 +151,41 @@ func (h *WorkflowImportHandler) processWorkflowSeedFile(ctx echo.Context, fileHe
 	result.Success = true
 	result.Message = workflowImportMessage(len(definitions), result.Summary)
 	return result
+}
+
+type workflowImportLimitedReader struct {
+	reader    io.Reader
+	remaining int64
+}
+
+func (r *workflowImportLimitedReader) Read(p []byte) (int, error) {
+	if r.remaining <= 0 {
+		var b [1]byte
+		n, err := r.reader.Read(b[:])
+		if n > 0 {
+			return 0, errImportFileTooLarge
+		}
+		return 0, err
+	}
+	if int64(len(p)) > r.remaining {
+		p = p[:r.remaining]
+	}
+	n, err := r.reader.Read(p)
+	r.remaining -= int64(n)
+	return n, err
+}
+
+func workflowImportAllFilesTooLarge(results []WorkflowImportFileResult) bool {
+	for _, result := range results {
+		if result.Success || result.Message != workflowImportFileTooLargeMessage() {
+			return false
+		}
+	}
+	return len(results) > 0
+}
+
+func workflowImportFileTooLargeMessage() string {
+	return fmt.Sprintf("Payload too large: file exceeds maximum size of %d bytes", maxImportFileBytes)
 }
 
 func workflowImportMessage(definitions int, summary workflowseed.SeedSummary) string {
