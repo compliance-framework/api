@@ -61,7 +61,7 @@ type WorkflowImportDataResponse struct {
 //	@Tags			Workflows
 //	@Accept			multipart/form-data
 //	@Produce		json
-//	@Param			files	formData	file	true	"Workflow seed JSON files to import"
+//	@Param			files	formData	file	true	"Workflow seed JSON files to import. Upload multiple files by including multiple multipart form-data parts with the same field name, files."
 //	@Success		200		{object}	WorkflowImportDataResponse
 //	@Failure		400		{object}	api.Error
 //	@Failure		401		{object}	api.Error

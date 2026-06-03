@@ -99,6 +99,16 @@ func importWorkflowsFromFileForTest(ctx context.Context, db *gorm.DB, sugar *zap
 	return ImportSeedDefinitions(ctx, db, sugar, definitions), nil
 }
 
+func TestDecodeSeedDefinitionsRejectsTrailingJSON(t *testing.T) {
+	_, err := DecodeSeedDefinitions(strings.NewReader(`[{"key":"valid"}]{"extra":true}`))
+	if err == nil {
+		t.Fatal("expected trailing JSON error, got nil")
+	}
+	if !strings.Contains(err.Error(), "trailing") {
+		t.Fatalf("expected error to mention trailing content, got %q", err.Error())
+	}
+}
+
 func TestImportWorkflowSeedDefinitionRejectsDuplicateStepNames(t *testing.T) {
 	db := setupWorkflowSeedTestDB(t)
 
@@ -125,6 +135,46 @@ func TestImportWorkflowSeedDefinitionRejectsDuplicateStepNames(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "Collect evidence") {
 		t.Fatalf("expected error to contain duplicate step name value, got %q", err.Error())
+	}
+}
+
+func TestImportWorkflowSeedDefinitionRejectsDuplicateInstanceNames(t *testing.T) {
+	db := setupWorkflowSeedTestDB(t)
+	systemID := uuid.New().String()
+
+	summary := ImportSeedDefinitions(context.Background(), db, nil, []SeedDefinition{
+		{
+			Key:     "duplicate-instance-name-test",
+			Name:    "Duplicate Instance Name Test",
+			Version: "1.0.0",
+			Instances: []SeedInstance{
+				{
+					Name:     "Quarterly Review",
+					SystemID: systemID,
+					Cadence:  "monthly",
+				},
+				{
+					Name:     "Quarterly Review",
+					SystemID: systemID,
+					Cadence:  "weekly",
+				},
+			},
+		},
+	})
+
+	if summary.Failed != 1 {
+		t.Fatalf("expected duplicate instance definition to fail once, got failed=%d summary=%+v", summary.Failed, summary)
+	}
+	if summary.Instances != 0 {
+		t.Fatalf("expected no instances to import, got %d", summary.Instances)
+	}
+
+	var count int64
+	if err := db.Model(&WorkflowInstance{}).Count(&count).Error; err != nil {
+		t.Fatalf("failed to count workflow instances: %v", err)
+	}
+	if count != 0 {
+		t.Fatalf("expected duplicate instance import to roll back instances, got %d", count)
 	}
 }
 

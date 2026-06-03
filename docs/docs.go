@@ -25286,7 +25286,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "file",
-                        "description": "Workflow seed JSON files to import",
+                        "description": "Workflow seed JSON files to import. Upload multiple files by including multiple multipart form-data parts with the same field name, files.",
                         "name": "files",
                         "in": "formData",
                         "required": true

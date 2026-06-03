@@ -88,6 +88,13 @@ func DecodeSeedDefinitions(r io.Reader) ([]SeedDefinition, error) {
 	if err := decoder.Decode(&definitions); err != nil {
 		return nil, err
 	}
+	var extra struct{}
+	if err := decoder.Decode(&extra); !errors.Is(err, io.EOF) {
+		if err == nil {
+			return nil, fmt.Errorf("unexpected trailing JSON after workflow seed definitions")
+		}
+		return nil, fmt.Errorf("invalid trailing content after workflow seed definitions: %w", err)
+	}
 	return definitions, nil
 }
 
@@ -312,8 +319,14 @@ func importSeedInstances(tx *gorm.DB, seedDef SeedDefinition, defID *uuid.UUID) 
 	var summary SeedSummary
 	instanceSvc := NewWorkflowInstanceService(tx)
 	assignmentSvc := NewRoleAssignmentService(tx)
+	seenInstanceNames := make(map[string]struct{}, len(seedDef.Instances))
 
 	for _, seedInstance := range seedDef.Instances {
+		if _, exists := seenInstanceNames[seedInstance.Name]; exists {
+			return summary, fmt.Errorf("duplicate instance name %q in workflow definition %q", seedInstance.Name, seedDef.Key)
+		}
+		seenInstanceNames[seedInstance.Name] = struct{}{}
+
 		if seedInstance.Cadence != "" && !CadenceType(seedInstance.Cadence).IsValid() {
 			return summary, fmt.Errorf("invalid cadence %q for workflow instance %q", seedInstance.Cadence, seedInstance.Name)
 		}
