@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/labstack/echo/v4"
+	echomiddleware "github.com/labstack/echo/v4/middleware"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 )
@@ -44,6 +45,29 @@ func TestWorkflowImportRejectsOversizedFileBeforeOpen(t *testing.T) {
 	require.Equal(t, 0, response.Data.SuccessfulFiles)
 	require.Equal(t, 1, response.Data.FailedFiles)
 	require.Contains(t, response.Data.Results[0].Message, "Payload too large")
+}
+
+func TestWorkflowImportBodyLimitAllowsMaxFilesAtMaxSize(t *testing.T) {
+	e := echo.New()
+	handler := NewWorkflowImportHandler(zap.NewNop().Sugar(), nil)
+	e.POST("/workflows/import", handler.Import, echomiddleware.BodyLimit(WorkflowImportBodyLimit))
+
+	content := bytes.Repeat([]byte(" "), maxImportFileBytes)
+	content[0] = '['
+	content[1] = ']'
+
+	req := newMultipartRequest(t, maxImportFiles, content)
+	rec := httptest.NewRecorder()
+
+	e.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	var response WorkflowImportDataResponse
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &response))
+	require.Equal(t, maxImportFiles, response.Data.TotalFiles)
+	require.Equal(t, maxImportFiles, response.Data.SuccessfulFiles)
+	require.Equal(t, 0, response.Data.FailedFiles)
 }
 
 func newMultipartRequest(t *testing.T, fileCount int, content []byte) *http.Request {

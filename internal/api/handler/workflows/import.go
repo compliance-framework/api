@@ -18,7 +18,7 @@ const (
 	maxImportFiles     = 10
 	maxImportFileBytes = 5 * 1024 * 1024
 
-	WorkflowImportBodyLimit = "51M"
+	WorkflowImportBodyLimit = "55000000"
 )
 
 var errImportFileTooLarge = errors.New("workflow import file exceeds size limit")
