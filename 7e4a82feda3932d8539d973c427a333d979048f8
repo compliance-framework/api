@@ -1,0 +1,6 @@
+lisa-addressed:
+---
+[medium] internal/api/handler/workflows/import.go:60 (docs accuracy)
+The new POST /workflows/import route has Swagger annotations, but the tracked generated Swagger artifacts were not updated; `docs/docs.go`, `docs/swagger.json`, and `docs/swagger.yaml` contain no /workflows/import entry, so the documented API contract omits this new admin import endpoint.
+Suggested fix: Run `make swag` and commit the generated updates to `docs/docs.go`, `docs/swagger.json`, and `docs/swagger.yaml` so the new route and response schemas are present in the published Swagger docs.
+Guidance: Run the repository Swagger generation command from the repo root (likely `make swag`) and commit the generated changes to `docs/docs.go`, `docs/swagger.json`, and `docs/swagger.yaml`. Verify the generated artifacts include the new POST `/workflows/import` endpoint from `internal/api/handler/workflows/import.go` and its response schema/counters. Do not change route behavior or auth middleware while fixing this; this is documentation generation only.
