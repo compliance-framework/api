@@ -39,7 +39,7 @@ type WorkflowImportFileResult struct {
 	Filename string                   `json:"filename"`
 	Success  bool                     `json:"success"`
 	Message  string                   `json:"message"`
-	Summary  workflowseed.SeedSummary `json:"summary,omitempty"`
+	Summary  workflowseed.SeedSummary `json:"summary"`
 }
 
 type WorkflowImportResponse struct {
@@ -74,8 +74,18 @@ func (h *WorkflowImportHandler) Import(ctx echo.Context) error {
 	form, err := ctx.MultipartForm()
 	if err != nil {
 		h.sugar.Errorw("Failed to parse multipart form", "error", err)
+		if errors.Is(err, echo.ErrStatusRequestEntityTooLarge) {
+			return ctx.JSON(http.StatusRequestEntityTooLarge, api.NewError(echo.ErrStatusRequestEntityTooLarge))
+		}
+		var echoErr *echo.HTTPError
+		if errors.As(err, &echoErr) {
+			return ctx.JSON(echoErr.Code, api.NewError(echoErr))
+		}
 		return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("failed to parse multipart form: %w", err)))
 	}
+	defer func() {
+		_ = form.RemoveAll()
+	}()
 
 	files := form.File["files"]
 	if len(files) == 0 {

@@ -3,6 +3,7 @@ package workflows
 import (
 	"bytes"
 	"encoding/json"
+	"io"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
@@ -24,7 +25,7 @@ func TestWorkflowImportRejectsTooManyFiles(t *testing.T) {
 	err := handler.Import(ctx)
 
 	require.NoError(t, err)
-	require.Equal(t, http.StatusRequestEntityTooLarge, rec.Code)
+	require.Equal(t, http.StatusRequestEntityTooLarge, rec.Code, rec.Body.String())
 }
 
 func TestWorkflowImportRejectsOversizedFileBeforeOpen(t *testing.T) {
@@ -70,7 +71,35 @@ func TestWorkflowImportBodyLimitAllowsMaxFilesAtMaxSize(t *testing.T) {
 	require.Equal(t, 0, response.Data.FailedFiles)
 }
 
+func TestWorkflowImportPropagatesBodyLimitDuringMultipartParsing(t *testing.T) {
+	e := echo.New()
+	handler := NewWorkflowImportHandler(zap.NewNop().Sugar(), nil)
+	e.POST("/workflows/import", handler.Import, echomiddleware.BodyLimit("1000"))
+
+	body, contentType := newMultipartBody(t, 1, bytes.Repeat([]byte("x"), 128*1024))
+	req := httptest.NewRequest(http.MethodPost, "/workflows/import", io.NopCloser(&readerWithoutLen{
+		reader: bytes.NewReader(body.Bytes()),
+	}))
+	req.ContentLength = -1
+	req.TransferEncoding = []string{"chunked"}
+	req.Header.Set("Content-Type", contentType)
+	rec := httptest.NewRecorder()
+
+	e.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusRequestEntityTooLarge, rec.Code, rec.Body.String())
+}
+
 func newMultipartRequest(t *testing.T, fileCount int, content []byte) *http.Request {
+	t.Helper()
+
+	body, contentType := newMultipartBody(t, fileCount, content)
+	req := httptest.NewRequest(http.MethodPost, "/workflows/import", body)
+	req.Header.Set("Content-Type", contentType)
+	return req
+}
+
+func newMultipartBody(t *testing.T, fileCount int, content []byte) (*bytes.Buffer, string) {
 	t.Helper()
 
 	var body bytes.Buffer
@@ -83,7 +112,13 @@ func newMultipartRequest(t *testing.T, fileCount int, content []byte) *http.Requ
 	}
 	require.NoError(t, writer.Close())
 
-	req := httptest.NewRequest(http.MethodPost, "/workflows/import", &body)
-	req.Header.Set("Content-Type", writer.FormDataContentType())
-	return req
+	return &body, writer.FormDataContentType()
+}
+
+type readerWithoutLen struct {
+	reader *bytes.Reader
+}
+
+func (r *readerWithoutLen) Read(p []byte) (int, error) {
+	return r.reader.Read(p)
 }

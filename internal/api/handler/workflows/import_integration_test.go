@@ -4,11 +4,14 @@ package workflows
 
 import (
 	"bytes"
+	"crypto/rand"
+	"crypto/rsa"
 	"encoding/json"
 	"fmt"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
 	"time"
 
@@ -18,8 +21,8 @@ import (
 	"github.com/compliance-framework/api/internal/service/relational"
 	workflowseed "github.com/compliance-framework/api/internal/service/relational/workflows"
 	"github.com/compliance-framework/api/internal/service/sso"
-	"github.com/golang-jwt/jwt/v5"
 	"github.com/labstack/echo/v4"
+	echomiddleware "github.com/labstack/echo/v4/middleware"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
@@ -189,7 +192,10 @@ func TestWorkflowImportRouteRequiresAdminGroup(t *testing.T) {
 		LastSync:   time.Now(),
 	}).Error)
 
+	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
 	cfg := &config.Config{
+		JWTPublicKey: &privateKey.PublicKey,
 		SSO: &config.SSOConfig{
 			Enabled: true,
 			Providers: map[string]config.SSOProviderConfig{
@@ -203,29 +209,23 @@ func TestWorkflowImportRouteRequiresAdminGroup(t *testing.T) {
 
 	e := echo.New()
 	group := e.Group("/workflows")
-	group.Use(func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
-			c.Set("user", &authn.UserClaims{
-				RegisteredClaims: jwt.RegisteredClaims{
-					Subject: user.Email,
-				},
-				TokenKind: authn.TokenKindUser,
-			})
-			return next(c)
-		}
-	})
-	group.POST("/import", handler.Import, middleware.RequireAdminGroups(db, cfg, logger))
+	group.Use(middleware.JWTMiddleware(cfg.JWTPublicKey))
+	group.POST(
+		"/import",
+		handler.Import,
+		middleware.RequireAdminGroups(db, cfg, logger),
+		echomiddleware.BodyLimit(WorkflowImportBodyLimit),
+	)
 
-	body := &bytes.Buffer{}
-	writer := multipart.NewWriter(body)
-	part, err := writer.CreateFormFile("files", "workflow.json")
+	token, err := authn.GenerateJWTToken(&user, privateKey)
 	require.NoError(t, err)
-	_, err = part.Write([]byte(workflowImportFixture))
+	bodyLimit, err := strconv.ParseInt(WorkflowImportBodyLimit, 10, 64)
 	require.NoError(t, err)
-	require.NoError(t, writer.Close())
 
-	req := httptest.NewRequest(http.MethodPost, "/workflows/import", body)
-	req.Header.Set(echo.HeaderContentType, writer.FormDataContentType())
+	req := httptest.NewRequest(http.MethodPost, "/workflows/import", http.NoBody)
+	req.Header.Set(echo.HeaderAuthorization, "Bearer "+*token)
+	req.Header.Set(echo.HeaderContentType, "multipart/form-data")
+	req.ContentLength = bodyLimit + 1
 	rec := httptest.NewRecorder()
 	e.ServeHTTP(rec, req)
 
