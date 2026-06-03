@@ -1,0 +1,31 @@
+lisa-addressed:
+---
+Comment (internal/api/handler/workflows/import.go:42):
+**Low — `omitempty` on a struct value is a no-op.**
+
+`Summary workflowseed.SeedSummary `json:"summary,omitempty"`` — `omitempty` has no effect on a non-pointer struct, so an all-zeros `summary` object is always serialized in every `WorkflowImportFileResult`, including for failed files where it carries no information.
+
+Suggestion: drop the `omitempty` (it's misleading), or make the field `*workflowseed.SeedSummary` so it can actually be omitted for failed files.
+---
+Comment (internal/api/handler/workflows/import.go:74):
+**Low — over-limit *chunked* uploads report 400, not the documented 413.**
+
+The route is wrapped with Echo `BodyLimit`, but when a request has no `Content-Length` (chunked/streaming), `BodyLimit` returns `echo.ErrStatusRequestEntityTooLarge` *during* `ctx.MultipartForm()` → `ParseMultipartForm`. This handler funnels every `MultipartForm()` error into a generic 400, so the swagger-documented `413` is only ever returned for `Content-Length` overages (rejected by the middleware before the handler) or the explicit `len(files) > maxImportFiles` / per-file-size paths.
+
+Suggestion: when `err` is an `*echo.HTTPError` (or `errors.Is(err, echo.ErrStatusRequestEntityTooLarge)`), propagate its status code instead of hard-coding 400, so over-limit bodies consistently surface as 413.
+---
+Comment (internal/api/handler/workflows/import.go:78):
+**Low — multipart temp files are never cleaned up.**
+
+`ctx.MultipartForm()` parses the whole request; parts exceeding Echo's 32 MB in-memory threshold spill to temp files on disk. With up to `maxImportFiles` (10) × `maxImportFileBytes` (5 MiB) ≈ 50 MB, the overflow is written to `/tmp` and never removed — there's no `defer form.RemoveAll()`. It's bounded and admin-only, and it matches the pre-existing `filter_import.go` / `oscal/import.go` pattern, but since this endpoint deliberately adds resource bounds, cleanup fits the same intent.\n\nSuggestion: `defer func() { if form.File != nil { _ = form.RemoveAll() } }()` after a successful `ctx.MultipartForm()`.
+---
+Comment (internal/api/handler/workflows/import_test.go:53):
+**Low — no single test exercises the full production middleware chain.**
+
+This test registers the route with `BodyLimit` but no admin gate; `TestWorkflowImportRouteRequiresAdminGroup` (integration) registers `RequireAdminGroups` but no `BodyLimit`. Neither matches the production registration in `api.go`, which stacks JWT (group) + `RequireAdminGroups` + `BodyLimit` together — so the ordering/interaction of that exact chain (e.g. admin-gate rejecting *before* the body is read) is never asserted.
+
+Suggestion: one integration test that wires the route exactly as `registerWorkflowHandlers` does and asserts a non-admin oversized request is rejected at the expected layer.
+Implementation guidance: In `internal/api/handler/workflows/import.go`, update the `WorkflowImportFileResult` struct field `Summary workflowseed.SeedSummary `json:"summary,omitempty"``. The simplest acceptable fix is to remove `omitempty` because a non-pointer struct is always serialized; use `json:"summary"` so the JSON tag is honest. Do not convert it to a pointer unless you also update all response construction and tests carefully, because the existing response contract intentionally exposes the exported `SeedSummary` counters and clients should inspect them. Update any tests or golden JSON that expected the tag text or omitted field, but do not change import success/failure semantics.
+Implementation guidance: In `internal/api/handler/workflows/import.go`, in `Import` where `ctx.MultipartForm()` errors are handled, preserve Echo HTTP errors instead of always returning `http.StatusBadRequest`. Check for `*echo.HTTPError` with `errors.As` and return its status code/message through the same response helper used by this handler; at minimum `echo.ErrStatusRequestEntityTooLarge` from `BodyLimit` must produce HTTP 413. Add `errors` import if needed. Add or update a test that sends an over-body-limit multipart request without relying only on `Content-Length` rejection, so the error occurs while `MultipartForm()` is parsing and the handler returns 413. Pitfalls: keep malformed multipart syntax as 400, keep the route-level `BodyLimit`, and do not change per-file or max-file error behavior.
+Implementation guidance: In `internal/api/handler/workflows/import.go`, immediately after a successful `form, err := ctx.MultipartForm()` and after the `err` check, add cleanup for multipart temp files: `defer func() { _ = form.RemoveAll() }()`. Guard only if needed for nil safety, but do not skip cleanup just because `form.File` is empty. This should run for all later return paths after parsing succeeds, including too many files, per-file errors, and decode/import failures. Do not copy the older `filter_import.go` or `oscal/import.go` omission; this endpoint has explicit resource limits and should clean its own multipart spill files.
+Implementation guidance: Add one integration-style test that registers the workflow import route the same way production `registerWorkflowHandlers` does: authenticated `/workflows` group, `RequireAdminGroups` on only `POST /workflows/import`, and the route `BodyLimit` middleware. Put it with the existing workflow import route tests, likely `internal/api/handler/workflows/import_test.go` or the existing integration test file that already covers `TestWorkflowImportRouteRequiresAdminGroup`. The test should send a non-admin request with an oversized multipart body and assert it is rejected by the admin gate before body-limit parsing, i.e. the status should be the expected auth/admin failure, not 413. Build the request so it would exceed `WorkflowImportBodyLimit` if read. Pitfalls: do not weaken production auth, do not move `BodyLimit` to the whole `/workflows` group, and do not require the handler to decode the body for non-admin users.
