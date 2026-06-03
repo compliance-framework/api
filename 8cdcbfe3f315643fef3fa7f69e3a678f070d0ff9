@@ -1,0 +1,333 @@
+lisa-addressed:
+---
+Comment (docs/docs.go:25293):
+_⚠️ Potential issue_ | _🟡 Minor_ | _⚡ Quick win_
+
+<details>
+<summary>🧩 Analysis chain</summary>
+
+🏁 Script executed:
+
+```shell
+#!/bin/bash
+# Description: Check handler annotations for multi-file upload specification
+
+# Search for the Import handler swagger annotations
+rg -n -A 20 -B 5 '`@Router`\s+/workflows/import' internal/api/handler/workflows/
+
+# Also check for multipart form handling that might indicate multi-file support
+rg -n 'ParseMultipartForm\|FormFile\|MultipartForm' internal/api/handler/workflows/import.go
+```
+
+Repository: compliance-framework/api
+
+Length of output: 2168
+
+---
+
+</details>
+
+**Update OpenAPI `files` parameter to indicate multi-file uploads**
+`WorkflowImportHandler.Import` parses `ctx.MultipartForm()`, reads `files := form.File["files"]`, validates `len(files)` against `maxImportFiles`, and iterates per file—so the endpoint supports uploading multiple files under the `files` field. The generated OpenAPI for `POST /workflows/import` currently describes `files` as a single `"type": "file"` parameter without multi-file semantics, which can mislead clients/code generators. Update the Swagger annotations for the `files` parameter to express multi-file upload behavior.
+
+<details>
+<summary>🤖 Prompt for AI Agents</summary>
+
+```
+Verify each finding against current code. Fix only still-valid issues, skip the
+rest with a brief reason, keep changes minimal, and validate.
+
+In `@docs/docs.go` around lines 25286 - 25293, The OpenAPI entry for the request
+parameter "files" incorrectly models a single file while
+WorkflowImportHandler.Import (method Import) actually reads ctx.MultipartForm()
+and handles multiple files; update the Swagger/Swagger-annotated parameter for
+"files" to represent a multi-file form field by changing its schema to an array
+of files (e.g., type: "array", items: { "type": "file" }, and use
+collectionFormat: "multi" or the equivalent for the generator in use) so clients
+understand multiple files under the "files" field are accepted; locate the
+parameter definition for "files" in the docs (the parameter with name "files",
+in "formData") and replace the single-file spec with the array-of-file spec.
+```
+
+</details>
+
+<!-- fingerprinting:phantom:poseidon:puma -->
+
+<!-- This is an auto-generated comment by CodeRabbit -->
+---
+Comment (docs/swagger.json:25287):
+_🧹 Nitpick_ | _🔵 Trivial_ | _⚡ Quick win_
+
+**Clarify multi-file upload capability in the parameter definition.**
+
+The endpoint description mentions "one or more" files and the parameter name is plural ("files"), but the Swagger 2.0 `type: "file"` doesn't explicitly document that multiple files can be uploaded. In Swagger 2.0, multiple file uploads are typically achieved by sending multiple parts with the same parameter name, but this isn't obvious from the current specification.
+
+Consider adding explicit clarification in the parameter description to help API consumers understand they can upload multiple files by repeating the `files` parameter in the multipart form-data.
+
+<details>
+<summary>📝 Suggested description enhancement</summary>
+
+```diff
+                    {
+                        "type": "file",
+-                        "description": "Workflow seed JSON files to import",
++                        "description": "Workflow seed JSON files to import. Multiple files can be uploaded by including multiple parts with this field name in the multipart form-data request.",
+                        "name": "files",
+                        "in": "formData",
+                        "required": true
+                    }
+```
+</details>
+
+<details>
+<summary>🤖 Prompt for AI Agents</summary>
+
+```
+Verify each finding against current code. Fix only still-valid issues, skip the
+rest with a brief reason, keep changes minimal, and validate.
+
+In `@docs/swagger.json` around lines 25280 - 25287, Update the Swagger parameter
+for "files" (parameter name "files", type "file", in "formData") to explicitly
+state that multiple files are supported by repeating the "files" form field in a
+multipart/form-data request (i.e., send multiple parts with the same name), so
+API consumers know to upload one or more files by repeating the "files"
+parameter rather than trying a single multi-file value.
+```
+
+</details>
+
+<!-- fingerprinting:phantom:poseidon:puma -->
+
+<!-- This is an auto-generated comment by CodeRabbit -->
+---
+Comment (docs/swagger.yaml:26051):
+_⚠️ Potential issue_ | _🟡 Minor_ | _⚡ Quick win_
+
+<details>
+<summary>🧩 Analysis chain</summary>
+
+🌐 Web query:
+
+`How to document multiple file upload in OpenAPI 2.0 Swagger multipart/form-data?`
+
+💡 Result:
+
+In OpenAPI 2.0 (Swagger), there is no native support for an array of file objects to perform a multiple file upload in a single parameter [1][2][3]. To handle multiple file uploads, you must use one of the following approaches: 1. Define Separate Parameters (Recommended for static/known counts) If you know the number of files in advance, you can define individual formData parameters for each file [1][2][4]: parameters: - in: formData name: file1 type: file required: true - in: formData name: file2 type: file required: false 2. Use a Binary String Array (Workaround for arbitrary counts) To support an arbitrary number of files, you can use an array of binary strings. While not semantically equivalent to a file parameter in all tooling, this is the accepted workaround for OpenAPI 2.0 [1][2][5]: parameters: - in: formData name: files type: array items: type: string format: binary collectionFormat: multi Note that OpenAPI 2.0 is no longer under active development [6]. For robust support of multiple file uploads, it is recommended to migrate to OpenAPI 3.0 or higher, which supports defining multipart request bodies more expressively [6][5].
+
+Citations:
+
+- 1: https://swagger.io/docs%2Fspecification%2F2-0%2Ffile-upload%2F%2F
+- 2: https://swagger.io/docs/specification/v2_0/file-upload/
+- 3: https://github.com/swagger-api/swagger-editor/issues/467
+- 4: https://github.com/swagger-api/swagger.io/blob/stage/src/content/docs/specification/v2_0/file-upload.md
+- 5: https://thecodebuzz.com/post-file-in-swagger-openapi-v3-0-and-v2-0-examples/
+- 6: https://github.com/swagger-api/swagger-spec/issues/254
+
+---
+
+</details>
+
+**Swagger 2.0 `files` parameter doesn’t accurately model “one or more files”**
+
+The endpoint description says “one or more…seed JSON files”, but `docs/swagger.yaml` defines `files` as a single `type: file` formData parameter (lines 26046-26051), which Swagger 2.0 documents as only one file (no native multi-file support for a single `type: file` parameter). This can mislead API consumers.
+
+Update the spec to reflect multi-file upload (e.g., use Swagger 2.0’s workaround: `type: array` with `items: { type: string, format: binary }` plus `collectionFormat: multi`, or define separate parameters / migrate to OpenAPI 3 for better multipart modeling).
+
+<details>
+<summary>🤖 Prompt for AI Agents</summary>
+
+```
+Verify each finding against current code. Fix only still-valid issues, skip the
+rest with a brief reason, keep changes minimal, and validate.
+
+In `@docs/swagger.yaml` around lines 26046 - 26051, The Swagger spec currently
+models the form-data parameter "files" as a single type: file which only
+supports one file; update the parameter "files" in docs/swagger.yaml to
+represent multiple files by changing it to an array formData parameter (e.g.,
+type: array, items: { type: string, format: binary } and collectionFormat:
+multi) so the endpoint that accepts "one or more seed JSON files" is accurately
+described; locate the parameter named "files" in the parameters block and
+replace its single-file definition with the array/collectionFormat workaround
+(or alternatively note migration to OpenAPI 3 for native multipart file arrays).
+```
+
+</details>
+
+<!-- fingerprinting:phantom:poseidon:puma -->
+
+<!-- This is an auto-generated comment by CodeRabbit -->
+---
+Comment (internal/service/relational/workflows/seedimport.go:91):
+_⚠️ Potential issue_ | _🟠 Major_ | _⚡ Quick win_
+
+**Reject trailing JSON after the definitions array.**
+
+`Decode` stops after the first JSON value. A payload like `[ ... ]{"extra":true}` will import the first array and silently ignore the trailing object, so malformed seed files can partially succeed instead of failing cleanly.
+
+<details>
+<summary>Proposed fix</summary>
+
+```diff
+ func DecodeSeedDefinitions(r io.Reader) ([]SeedDefinition, error) {
+ 	var definitions []SeedDefinition
+ 	decoder := json.NewDecoder(r)
+ 	decoder.DisallowUnknownFields()
+ 	if err := decoder.Decode(&definitions); err != nil {
+ 		return nil, err
+ 	}
++	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
++		if err == nil {
++			return nil, fmt.Errorf("unexpected trailing JSON after workflow seed definitions")
++		}
++		return nil, fmt.Errorf("invalid trailing content after workflow seed definitions: %w", err)
++	}
+ 	return definitions, nil
+ }
+```
+</details>
+
+<!-- suggestion_start -->
+
+<details>
+<summary>📝 Committable suggestion</summary>
+
+> ‼️ **IMPORTANT**
+> Carefully review the code before committing. Ensure that it accurately replaces the highlighted code, contains no missing lines, and has no issues with indentation. Thoroughly test & benchmark the code to ensure it meets the requirements.
+
+```suggestion
+func DecodeSeedDefinitions(r io.Reader) ([]SeedDefinition, error) {
+	var definitions []SeedDefinition
+	decoder := json.NewDecoder(r)
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&definitions); err != nil {
+		return nil, err
+	}
+	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
+		if err == nil {
+			return nil, fmt.Errorf("unexpected trailing JSON after workflow seed definitions")
+		}
+		return nil, fmt.Errorf("invalid trailing content after workflow seed definitions: %w", err)
+	}
+	return definitions, nil
+}
+```
+
+</details>
+
+<!-- suggestion_end -->
+
+<details>
+<summary>🤖 Prompt for AI Agents</summary>
+
+```
+Verify each finding against current code. Fix only still-valid issues, skip the
+rest with a brief reason, keep changes minimal, and validate.
+
+In `@internal/service/relational/workflows/seedimport.go` around lines 84 - 91,
+The DecodeSeedDefinitions function currently allows trailing JSON after the
+array because json.Decoder.Decode stops at the first value; after successfully
+decoding into definitions, try to decode one more value into a temporary
+variable (e.g., var extra interface{}) and if that Decode does not return
+io.EOF, return an error indicating unexpected trailing JSON; update
+DecodeSeedDefinitions to perform this extra decode check so malformed inputs
+like `[...]{...}` are rejected.
+```
+
+</details>
+
+<!-- fingerprinting:phantom:medusa:grasshopper -->
+
+<!-- This is an auto-generated comment by CodeRabbit -->
+---
+Comment (internal/service/relational/workflows/seedimport.go:331):
+_⚠️ Potential issue_ | _🟠 Major_ | _⚡ Quick win_
+
+**Guard duplicate instance names before deriving the deterministic ID.**
+
+Line 331 keys instances only by workflow key + instance name, and this path does not reject duplicate names the way `importSeedSteps` does. Two seed instances with the same name in one definition will upsert the same row, overwrite `system-id`/cadence, and mix both sets of role assignments onto one instance.
+
+<details>
+<summary>Proposed fix</summary>
+
+```diff
+ func importSeedInstances(tx *gorm.DB, seedDef SeedDefinition, defID *uuid.UUID) (SeedSummary, error) {
+ 	var summary SeedSummary
+ 	instanceSvc := NewWorkflowInstanceService(tx)
+ 	assignmentSvc := NewRoleAssignmentService(tx)
++	seenInstanceNames := make(map[string]struct{}, len(seedDef.Instances))
+
+ 	for _, seedInstance := range seedDef.Instances {
++		if _, exists := seenInstanceNames[seedInstance.Name]; exists {
++			return summary, fmt.Errorf("duplicate instance name %q in workflow definition %q", seedInstance.Name, seedDef.Key)
++		}
++		seenInstanceNames[seedInstance.Name] = struct{}{}
++
+ 		if seedInstance.Cadence != "" && !CadenceType(seedInstance.Cadence).IsValid() {
+ 			return summary, fmt.Errorf("invalid cadence %q for workflow instance %q", seedInstance.Cadence, seedInstance.Name)
+ 		}
+```
+</details>
+
+<!-- suggestion_start -->
+
+<details>
+<summary>📝 Committable suggestion</summary>
+
+> ‼️ **IMPORTANT**
+> Carefully review the code before committing. Ensure that it accurately replaces the highlighted code, contains no missing lines, and has no issues with indentation. Thoroughly test & benchmark the code to ensure it meets the requirements.
+
+```suggestion
+	for _, seedInstance := range seedDef.Instances {
+		if _, exists := seenInstanceNames[seedInstance.Name]; exists {
+			return summary, fmt.Errorf("duplicate instance name %q in workflow definition %q", seedInstance.Name, seedDef.Key)
+		}
+		seenInstanceNames[seedInstance.Name] = struct{}{}
+
+		if seedInstance.Cadence != "" && !CadenceType(seedInstance.Cadence).IsValid() {
+			return summary, fmt.Errorf("invalid cadence %q for workflow instance %q", seedInstance.Cadence, seedInstance.Name)
+		}
+
+		systemID, err := uuid.Parse(seedInstance.SystemID)
+		if err != nil {
+			return summary, fmt.Errorf("invalid system-id %q for workflow instance %q: %w", seedInstance.SystemID, seedInstance.Name, err)
+		}
+
+		isActive := true
+		if seedInstance.IsActive != nil {
+			isActive = *seedInstance.IsActive
+		}
+
+		instanceID := deterministicSeedUUID("workflow-instance", seedDef.Key, seedInstance.Name)
+```
+
+</details>
+
+<!-- suggestion_end -->
+
+<details>
+<summary>🤖 Prompt for AI Agents</summary>
+
+```
+Verify each finding against current code. Fix only still-valid issues, skip the
+rest with a brief reason, keep changes minimal, and validate.
+
+In `@internal/service/relational/workflows/seedimport.go` around lines 316 - 331,
+The loop over seedDef.Instances builds a deterministic ID with
+deterministicSeedUUID("workflow-instance", seedDef.Key, seedInstance.Name)
+without checking for duplicate instance names, causing upserts to collide;
+before deriving instanceID (i.e., before calling deterministicSeedUUID) add a
+guard like importSeedSteps does: maintain a local map[string]struct{} of seen
+instance names for this seedDef, check seedInstance.Name against it, and return
+an error if duplicated so duplicate names are rejected rather than merged.
+```
+
+</details>
+
+<!-- fingerprinting:phantom:medusa:grasshopper -->
+
+<!-- This is an auto-generated comment by CodeRabbit -->
+Implementation guidance: Do not hand-edit only `docs/docs.go`. In `internal/api/handler/workflows/import.go`, update the Swagger `@Param files` annotation on `WorkflowImportHandler.Import` so the description explicitly says multiple files are accepted by repeating the `files` multipart form field. Keep the parameter as Swagger 2.0 `formData` `file` unless the project generator demonstrably supports a valid multi-file encoding; Swagger 2.0/swaggo commonly cannot represent a true array of files. Then run the repository Swagger generation command, likely `make swag`, and commit the regenerated `docs/docs.go`, `docs/swagger.json`, and `docs/swagger.yaml`. Pitfall: do not manually edit generated docs without changing the source annotation, or the next swagger generation will erase the fix.
+Implementation guidance: In `internal/api/handler/workflows/import.go`, update the `@Param files` Swagger annotation for `WorkflowImportHandler.Import` to clarify multi-file usage: say that one or more workflow seed JSON files may be uploaded by including multiple multipart parts with the same field name, `files`. Keep the generated parameter as `type: file`, `in: formData`; this is a Swagger 2.0 documentation clarification, not a handler behavior change. Run `make swag` or the repo swagger generation command afterward so `docs/swagger.json`, `docs/swagger.yaml`, and `docs/docs.go` all get the updated description.
+Implementation guidance: Address this through the source Swagger annotation, not by editing only `docs/swagger.yaml`. In `internal/api/handler/workflows/import.go`, change the `@Param files` description on `WorkflowImportHandler.Import` to state that clients upload multiple files by repeating the multipart form-data field named `files`. Do not switch blindly to `type: array` with `items: {type: string, format: binary}` unless the repo Swagger 2.0 generator supports it and the generated docs validate; Swagger 2.0 has poor native support for arbitrary multi-file upload. After the annotation change, run `make swag` or the repository equivalent and verify the regenerated `docs/swagger.yaml`, `docs/swagger.json`, and `docs/docs.go` contain the clearer multi-file description.
+Implementation guidance: In `internal/service/relational/workflows/seedimport.go`, update `DecodeSeedDefinitions`. After the existing successful `decoder.Decode(&definitions)`, perform one additional decode into a temporary value and require `io.EOF`; if the second decode succeeds or returns any non-EOF error, return an error such as `unexpected trailing JSON after workflow seed definitions`. Add `errors` and `io` imports only if they are not already present; use `errors.Is(err, io.EOF)` for the EOF check. Add a focused unit test for `DecodeSeedDefinitions` with input like `[{...valid definition...}]{"extra":true}` or another minimal valid definitions array followed by a second JSON value, and assert it fails. Pitfalls: allow trailing whitespace after the array, keep `DisallowUnknownFields()`, and do not change importer transaction behavior.
+Implementation guidance: In `internal/service/relational/workflows/seedimport.go`, update `importSeedInstances`. Before the `for _, seedInstance := range seedDef.Instances` loop, create `seenInstanceNames := make(map[string]struct{}, len(seedDef.Instances))`. At the top of the loop, before validating cadence and before calling `deterministicSeedUUID("workflow-instance", seedDef.Key, seedInstance.Name)`, check whether `seedInstance.Name` is already in the map; if it is, return the current `summary` with an error like `duplicate instance name %q in workflow definition %q`. Otherwise record it in the map and continue. Add or update a unit test that imports a single workflow definition containing two instances with the same `name` and asserts the definition import fails instead of merging role assignments onto one deterministic instance ID. Pitfalls: scope the duplicate check to one workflow definition only, do not reject the same instance name across different workflow keys, and keep the per-definition transaction semantics in `ImportSeedDefinitions`.
