@@ -25270,6 +25270,67 @@ const docTemplate = `{
                 ]
             }
         },
+        "/workflows/import": {
+            "post": {
+                "description": "Import one or more SOC 2 CCF workflow seed JSON files",
+                "consumes": [
+                    "multipart/form-data"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Workflows"
+                ],
+                "summary": "Import workflow seed definitions",
+                "parameters": [
+                    {
+                        "type": "file",
+                        "description": "Workflow seed JSON files to import",
+                        "name": "files",
+                        "in": "formData",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/workflows.WorkflowImportDataResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
         "/workflows/instances": {
             "get": {
                 "description": "List all workflow instances with optional filtering",
@@ -40622,6 +40683,38 @@ const docTemplate = `{
                 }
             }
         },
+        "workflows.SeedSummary": {
+            "type": "object",
+            "properties": {
+                "control_relationships": {
+                    "type": "integer"
+                },
+                "definitions_created": {
+                    "type": "integer"
+                },
+                "definitions_updated": {
+                    "type": "integer"
+                },
+                "dependencies": {
+                    "type": "integer"
+                },
+                "failed": {
+                    "type": "integer"
+                },
+                "instances": {
+                    "type": "integer"
+                },
+                "role_assignments": {
+                    "type": "integer"
+                },
+                "skipped": {
+                    "type": "integer"
+                },
+                "steps": {
+                    "type": "integer"
+                }
+            }
+        },
         "workflows.StartWorkflowExecutionRequest": {
             "type": "object",
             "required": [
@@ -41235,6 +41328,54 @@ const docTemplate = `{
             "properties": {
                 "data": {
                     "$ref": "#/definitions/workflow.ExecutionStatus"
+                }
+            }
+        },
+        "workflows.WorkflowImportDataResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/workflows.WorkflowImportResponse"
+                }
+            }
+        },
+        "workflows.WorkflowImportFileResult": {
+            "type": "object",
+            "properties": {
+                "filename": {
+                    "type": "string"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "success": {
+                    "type": "boolean"
+                },
+                "summary": {
+                    "$ref": "#/definitions/workflows.SeedSummary"
+                }
+            }
+        },
+        "workflows.WorkflowImportResponse": {
+            "type": "object",
+            "properties": {
+                "failed_files": {
+                    "type": "integer"
+                },
+                "results": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/workflows.WorkflowImportFileResult"
+                    }
+                },
+                "successful_files": {
+                    "type": "integer"
+                },
+                "summary": {
+                    "$ref": "#/definitions/workflows.SeedSummary"
+                },
+                "total_files": {
+                    "type": "integer"
                 }
             }
         },
