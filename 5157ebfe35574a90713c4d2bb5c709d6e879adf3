@@ -1,0 +1,6 @@
+lisa-design:
+- The workflow seed importer now lives in `internal/service/relational/workflows` so the CLI and HTTP route share one decode/import engine, preserving deterministic IDs and per-definition transaction semantics without duplicated logic.
+- `POST /workflows/import` treats a JSON file as successful once it decodes and the shared importer runs; per-definition failures inside that file are surfaced in the file message and summary but do not make the file fail, matching the CLI's continue-on-error batch behavior.
+- The multipart route does not wrap the whole request in one transaction; each workflow definition remains independently transactional inside `ImportSeedDefinitions`, so one bad definition or file cannot roll back other successfully processed files.
+- The import route is registered on the authenticated `/workflows` group with additional `RequireAdminGroups` middleware on only `/workflows/import`, keeping existing workflow routes at their current auth level while making bulk import admin-only.
+- Handler response summaries use the exported `SeedSummary` JSON contract (`definitions_created`, `definitions_updated`, etc.); callers should rely on those aggregate and per-file counters rather than inferring success from database row counts.
