@@ -8959,6 +8959,27 @@ definitions:
       data:
         $ref: '#/definitions/workflows.RoleAssignment'
     type: object
+  workflows.SeedSummary:
+    properties:
+      control_relationships:
+        type: integer
+      definitions_created:
+        type: integer
+      definitions_updated:
+        type: integer
+      dependencies:
+        type: integer
+      failed:
+        type: integer
+      instances:
+        type: integer
+      role_assignments:
+        type: integer
+      skipped:
+        type: integer
+      steps:
+        type: integer
+    type: object
   workflows.StartWorkflowExecutionRequest:
     properties:
       triggered-by:
@@ -9366,6 +9387,37 @@ definitions:
     properties:
       data:
         $ref: '#/definitions/workflow.ExecutionStatus'
+    type: object
+  workflows.WorkflowImportDataResponse:
+    properties:
+      data:
+        $ref: '#/definitions/workflows.WorkflowImportResponse'
+    type: object
+  workflows.WorkflowImportFileResult:
+    properties:
+      filename:
+        type: string
+      message:
+        type: string
+      success:
+        type: boolean
+      summary:
+        $ref: '#/definitions/workflows.SeedSummary'
+    type: object
+  workflows.WorkflowImportResponse:
+    properties:
+      failed_files:
+        type: integer
+      results:
+        items:
+          $ref: '#/definitions/workflows.WorkflowImportFileResult'
+        type: array
+      successful_files:
+        type: integer
+      summary:
+        $ref: '#/definitions/workflows.SeedSummary'
+      total_files:
+        type: integer
     type: object
   workflows.WorkflowInstance:
     properties:
@@ -25986,6 +26038,50 @@ paths:
       summary: Get workflow execution status
       tags:
       - Workflow Executions
+  /workflows/import:
+    post:
+      consumes:
+      - multipart/form-data
+      description: Import one or more SOC 2 CCF workflow seed JSON files
+      parameters:
+      - description: Workflow seed JSON files to import. Upload multiple files by
+          including multiple multipart form-data parts with the same field name, files.
+        in: formData
+        name: files
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/workflows.WorkflowImportDataResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/api.Error'
+        "413":
+          description: Request Entity Too Large
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Import workflow seed definitions
+      tags:
+      - Workflows
   /workflows/instances:
     get:
       description: List all workflow instances with optional filtering
