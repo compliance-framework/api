@@ -226,6 +226,7 @@ func NewConfig(logger *zap.SugaredLogger) *Config {
 	}
 
 	pprofEnabled := viper.GetBool("pprof_enabled")
+	strictDisablePublicAgentEndpoints := viper.GetBool("strict_disable_public_agent_endpoints")
 	pprofPort := viper.GetString("pprof_port")
 	if pprofPort == "" {
 		pprofPort = "6060"
@@ -261,7 +262,7 @@ func NewConfig(logger *zap.SugaredLogger) *Config {
 		Poam:                              poamConfig,
 		PprofEnabled:                      pprofEnabled,
 		PprofPort:                         pprofPort,
-		StrictDisablePublicAgentEndpoints: viper.GetBool("strict_disable_public_agent_endpoints"),
+		StrictDisablePublicAgentEndpoints: strictDisablePublicAgentEndpoints,
 	}
 
 }

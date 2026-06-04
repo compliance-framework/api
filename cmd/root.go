@@ -31,6 +31,7 @@ func setDefaultEnvironmentVariables() {
 	viper.SetDefault("digest_schedule", "@weekly")
 	viper.SetDefault("pprof_enabled", "false")
 	viper.SetDefault("pprof_port", ":6060")
+	viper.SetDefault("strict_disable_public_agent_endpoints", "false")
 }
 
 func bindEnvironmentVariables() {
@@ -60,6 +61,7 @@ func bindEnvironmentVariables() {
 	viper.MustBindEnv("worker_use_polling")
 	viper.MustBindEnv("pprof_enabled")
 	viper.MustBindEnv("pprof_port")
+	viper.MustBindEnv("strict_disable_public_agent_endpoints")
 }
 
 func init() {

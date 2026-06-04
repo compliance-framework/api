@@ -16,6 +16,7 @@ import (
 	workflowsvc "github.com/compliance-framework/api/internal/service/relational/workflows"
 	"github.com/compliance-framework/api/internal/workflow"
 	"github.com/labstack/echo/v4"
+	echomiddleware "github.com/labstack/echo/v4/middleware"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
@@ -155,6 +156,14 @@ func registerWorkflowHandlers(server *api.Server, logger *zap.SugaredLogger, db 
 	// Basic workflow handlers (no manager dependency)
 	workflowDefinitionHandler := workflows.NewWorkflowDefinitionHandler(logger, db)
 	workflowDefinitionHandler.Register(workflowGroup.Group("/definitions"))
+
+	workflowImportHandler := workflows.NewWorkflowImportHandler(logger, db)
+	workflowGroup.POST(
+		"/import",
+		workflowImportHandler.Import,
+		middleware.RequireAdminGroups(db, config, logger),
+		echomiddleware.BodyLimit(workflows.WorkflowImportBodyLimit),
+	)
 
 	workflowStepDefinitionHandler := workflows.NewWorkflowStepDefinitionHandler(logger, db)
 	workflowStepDefinitionHandler.Register(workflowGroup.Group("/steps"))
