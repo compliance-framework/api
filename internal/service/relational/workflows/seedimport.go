@@ -475,6 +475,7 @@ func seedUpdateColumns(value interface{}) ([]string, error) {
 			"evidence_required",
 			"grace_period_days",
 			"updated_at",
+			"deleted_at",
 		}, nil
 	case *WorkflowStepDefinition:
 		return []string{
@@ -487,6 +488,7 @@ func seedUpdateColumns(value interface{}) ([]string, error) {
 			"estimated_duration",
 			"grace_period_days",
 			"updated_at",
+			"deleted_at",
 		}, nil
 	case *ControlRelationship:
 		return []string{
@@ -498,6 +500,7 @@ func seedUpdateColumns(value interface{}) ([]string, error) {
 			"strength",
 			"is_active",
 			"updated_at",
+			"deleted_at",
 		}, nil
 	case *WorkflowInstance:
 		return []string{
@@ -511,6 +514,7 @@ func seedUpdateColumns(value interface{}) ([]string, error) {
 			"next_scheduled_at",
 			"last_executed_at",
 			"updated_at",
+			"deleted_at",
 		}, nil
 	case *RoleAssignment:
 		return []string{

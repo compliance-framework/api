@@ -159,7 +159,7 @@ func (h *WorkflowImportHandler) processWorkflowSeedFile(ctx echo.Context, fileHe
 
 	result.Summary = workflowseed.ImportSeedDefinitions(ctx.Request().Context(), h.db, h.sugar, definitions)
 	result.Success = true
-	result.Message = workflowImportMessage(len(definitions), result.Summary)
+	result.Message = workflowImportMessage(result.Summary)
 	return result
 }
 
@@ -198,8 +198,9 @@ func workflowImportFileTooLargeMessage() string {
 	return fmt.Sprintf("Payload too large: file exceeds maximum size of %d bytes", maxImportFileBytes)
 }
 
-func workflowImportMessage(definitions int, summary workflowseed.SeedSummary) string {
-	message := fmt.Sprintf("imported %d definition(s)", definitions)
+func workflowImportMessage(summary workflowseed.SeedSummary) string {
+	imported := summary.DefinitionsCreated + summary.DefinitionsUpdated
+	message := fmt.Sprintf("imported %d definition(s)", imported)
 	if summary.Failed > 0 {
 		message = fmt.Sprintf("%s, %d failed", message, summary.Failed)
 	}

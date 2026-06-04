@@ -220,6 +220,43 @@ func TestImportWorkflowSeedsTrimsKeyBeforeDeterministicIDs(t *testing.T) {
 	}
 }
 
+func TestImportWorkflowSeedResurrectsSoftDeletedDefinitionOnReimport(t *testing.T) {
+	db := setupWorkflowSeedTestDB(t)
+
+	seedDef := SeedDefinition{
+		Key:         "soft-delete-reimport-test",
+		Name:        "Soft Delete Reimport Test",
+		Description: "first import",
+		Version:     "1.0.0",
+	}
+	firstSummary := ImportSeedDefinitions(context.Background(), db, nil, []SeedDefinition{seedDef})
+	if firstSummary.Failed != 0 || firstSummary.DefinitionsCreated != 1 {
+		t.Fatalf("expected first import to create one definition without failures, got created=%d failed=%d", firstSummary.DefinitionsCreated, firstSummary.Failed)
+	}
+
+	defID := deterministicSeedUUID("workflow-definition", seedDef.Key)
+	if err := db.Delete(&WorkflowDefinition{}, "id = ?", defID).Error; err != nil {
+		t.Fatalf("failed to soft-delete workflow definition: %v", err)
+	}
+
+	seedDef.Description = "second import"
+	secondSummary := ImportSeedDefinitions(context.Background(), db, nil, []SeedDefinition{seedDef})
+	if secondSummary.Failed != 0 || secondSummary.DefinitionsUpdated != 1 {
+		t.Fatalf("expected re-import to update resurrected definition without failures, got updated=%d failed=%d summary=%+v", secondSummary.DefinitionsUpdated, secondSummary.Failed, secondSummary)
+	}
+
+	var definition WorkflowDefinition
+	if err := db.First(&definition, "id = ?", defID).Error; err != nil {
+		t.Fatalf("expected workflow definition to be visible after re-import: %v", err)
+	}
+	if definition.DeletedAt.Valid {
+		t.Fatalf("expected deleted_at to be cleared after re-import, got %+v", definition.DeletedAt)
+	}
+	if definition.Description != "second import" {
+		t.Fatalf("expected re-imported description to persist, got %q", definition.Description)
+	}
+}
+
 func TestImportWorkflowSeedStepGracePeriodDays(t *testing.T) {
 	db := setupWorkflowSeedTestDB(t)
 
@@ -263,7 +300,7 @@ func TestImportWorkflowSeedStepGracePeriodDays(t *testing.T) {
 	}
 }
 
-func TestImportWorkflowSeedPreservesSoftDeletedInstanceSchedule(t *testing.T) {
+func TestImportWorkflowSeedResurrectsSoftDeletedInstanceAndPreservesSchedule(t *testing.T) {
 	db := setupWorkflowSeedTestDB(t)
 
 	seedKey := "soft-deleted-instance-schedule-test"
@@ -321,8 +358,8 @@ func TestImportWorkflowSeedPreservesSoftDeletedInstanceSchedule(t *testing.T) {
 	if err := db.Unscoped().First(&updated, "id = ?", instanceID).Error; err != nil {
 		t.Fatalf("failed to load workflow instance: %v", err)
 	}
-	if !updated.DeletedAt.Valid || !updated.DeletedAt.Time.Equal(deletedAt) {
-		t.Fatalf("expected deleted_at to be preserved, got %+v", updated.DeletedAt)
+	if updated.DeletedAt.Valid {
+		t.Fatalf("expected deleted_at to be cleared, got %+v", updated.DeletedAt)
 	}
 	if updated.NextScheduledAt == nil || !updated.NextScheduledAt.Equal(nextScheduledAt) {
 		t.Fatalf("expected next_scheduled_at to be preserved, got %v", updated.NextScheduledAt)
@@ -332,7 +369,7 @@ func TestImportWorkflowSeedPreservesSoftDeletedInstanceSchedule(t *testing.T) {
 	}
 }
 
-func TestUpsertWorkflowSeedPreservesWorkflowDefinitionAuditAndSoftDeleteFields(t *testing.T) {
+func TestUpsertWorkflowSeedPreservesWorkflowDefinitionAuditAndClearsSoftDeleteField(t *testing.T) {
 	db := setupWorkflowSeedTestDB(t)
 
 	id := uuid.New()
@@ -390,8 +427,8 @@ func TestUpsertWorkflowSeedPreservesWorkflowDefinitionAuditAndSoftDeleteFields(t
 		*updated.GracePeriodDays != updatedGracePeriod {
 		t.Fatalf("expected workflow definition business fields to update, got %+v", updated)
 	}
-	if !updated.DeletedAt.Valid || !updated.DeletedAt.Time.Equal(deletedAt) {
-		t.Fatalf("expected deleted_at to be preserved, got %+v", updated.DeletedAt)
+	if updated.DeletedAt.Valid {
+		t.Fatalf("expected deleted_at to be cleared, got %+v", updated.DeletedAt)
 	}
 	if updated.CreatedByID == nil || *updated.CreatedByID != createdByID {
 		t.Fatalf("expected created_by_id to be preserved, got %v", updated.CreatedByID)
@@ -404,7 +441,7 @@ func TestUpsertWorkflowSeedPreservesWorkflowDefinitionAuditAndSoftDeleteFields(t
 	}
 }
 
-func TestUpsertWorkflowSeedPreservesWorkflowInstanceAuditAndSoftDeleteFields(t *testing.T) {
+func TestUpsertWorkflowSeedPreservesWorkflowInstanceAuditAndClearsSoftDeleteField(t *testing.T) {
 	db := setupWorkflowSeedTestDB(t)
 
 	id := uuid.New()
@@ -475,8 +512,8 @@ func TestUpsertWorkflowSeedPreservesWorkflowInstanceAuditAndSoftDeleteFields(t *
 		!updated.LastExecutedAt.Equal(lastExecutedAt) {
 		t.Fatalf("expected workflow instance business fields to update, got %+v", updated)
 	}
-	if !updated.DeletedAt.Valid || !updated.DeletedAt.Time.Equal(deletedAt) {
-		t.Fatalf("expected deleted_at to be preserved, got %+v", updated.DeletedAt)
+	if updated.DeletedAt.Valid {
+		t.Fatalf("expected deleted_at to be cleared, got %+v", updated.DeletedAt)
 	}
 	if updated.CreatedByID == nil || *updated.CreatedByID != createdByID {
 		t.Fatalf("expected created_by_id to be preserved, got %v", updated.CreatedByID)

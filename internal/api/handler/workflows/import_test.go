@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	workflowseed "github.com/compliance-framework/api/internal/service/relational/workflows"
 	"github.com/labstack/echo/v4"
 	echomiddleware "github.com/labstack/echo/v4/middleware"
 	"github.com/stretchr/testify/require"
@@ -88,6 +89,36 @@ func TestWorkflowImportPropagatesBodyLimitDuringMultipartParsing(t *testing.T) {
 	e.ServeHTTP(rec, req)
 
 	require.Equal(t, http.StatusRequestEntityTooLarge, rec.Code, rec.Body.String())
+}
+
+func TestWorkflowImportMessageUsesPersistedDefinitionCount(t *testing.T) {
+	tests := []struct {
+		name     string
+		summary  workflowseed.SeedSummary
+		expected string
+	}{
+		{
+			name: "partial failure",
+			summary: workflowseed.SeedSummary{
+				DefinitionsUpdated: 20,
+				Failed:             1,
+			},
+			expected: "imported 20 definition(s), 1 failed",
+		},
+		{
+			name: "all failed",
+			summary: workflowseed.SeedSummary{
+				Failed: 21,
+			},
+			expected: "imported 0 definition(s), 21 failed",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			require.Equal(t, tc.expected, workflowImportMessage(tc.summary))
+		})
+	}
 }
 
 func newMultipartRequest(t *testing.T, fileCount int, content []byte) *http.Request {
