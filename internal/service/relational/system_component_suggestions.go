@@ -39,10 +39,24 @@ func NewSystemComponentSuggestionService(db *gorm.DB, evidenceSvc EvidenceQuerie
 
 // SuggestForImplementedRequirement finds DefinedComponents that are relevant to the control of the given
 // ImplementedRequirement by tracing the path: Control → Filter → Evidence → ComponentDefinitionLabels.
-// Components already present as SystemComponents in the SSP's SystemImplementation are excluded.
+// Components already linked to this ImplementedRequirement via a ByComponent entry are excluded;
+// components merely present elsewhere in the SSP's SystemImplementation are still suggested.
 func (s *SystemComponentSuggestionService) SuggestForImplementedRequirement(
 	sspID uuid.UUID,
 	implReqID uuid.UUID,
+) ([]SystemComponentSuggestion, error) {
+	return s.suggestForParent(sspID, implReqID, implReqID, "implemented_requirements")
+}
+
+// suggestForParent finds DefinedComponents relevant to the control of the given ImplementedRequirement
+// and excludes those already linked to the given parent (ImplementedRequirement or Statement) via
+// ByComponent. Exclusion is evaluated per parent, not per SSP: a component applied to one requirement
+// must still be suggested for other requirements whose evidence matches it.
+func (s *SystemComponentSuggestionService) suggestForParent(
+	sspID uuid.UUID,
+	implReqID uuid.UUID,
+	parentID uuid.UUID,
+	parentType string,
 ) ([]SystemComponentSuggestion, error) {
 	// 1. Get the SystemImplementation for this SSP
 	var systemImpl SystemImplementation
@@ -62,24 +76,42 @@ func (s *SystemComponentSuggestionService) SuggestForImplementedRequirement(
 
 	// 3. Load Filters associated with this control via the filter_controls join table.
 	//
-	// NOTE: We match Filters by control_id string only (case-insensitive), ignoring
-	// the catalog context (control_catalog_id column). This means Filters from
-	// different catalogs that share the same control ID string (e.g. "AC-1") will
-	// all be evaluated. In practice this is acceptable since control IDs rarely
-	// collide across catalogs used together.
+	// When the SSP is linked to profiles (via the ssp_profiles join table), resolution
+	// is scoped to the catalogs those profiles import: a filter_controls row only
+	// matches if its (control_catalog_id, control_id) pair appears in profile_controls
+	// for one of the SSP's profiles. This prevents controls that share the same ID
+	// string in different catalogs (e.g. "AC-1") from cross-matching, mirroring the
+	// catalog-scoped join used by RiskEvidenceWorker.
 	//
-	// TODO: To scope by catalog, join through:
-	//   SSP → ProfileID → Profile → resolved Catalog IDs → filter_controls.control_catalog_id
-	// This requires deriving the relevant catalog IDs from the SSP/profile and including
-	// filter_controls.control_catalog_id in the join conditions.
-	var filters []Filter
+	// SSPs without linked profiles carry no catalog scope to resolve against, so they
+	// fall back to a global case-insensitive match on the control ID string.
+	var linkedProfileCount int64
 	if err := s.db.
+		Table("ssp_profiles").
+		Where("system_security_plan_id = ?", sspID).
+		Count(&linkedProfileCount).Error; err != nil {
+		return nil, fmt.Errorf("failed to count linked profiles for SSP %s: %w", sspID, err)
+	}
+
+	filterQuery := s.db.
 		Joins("JOIN filter_controls ON filter_controls.filter_id = filters.id").
 		// Normalize on upper case.
 		// We don't need to concern about index hits as for now - these tables will not grow
 		// on a typical CCF usage.
 		Where("UPPER(filter_controls.control_id) = UPPER(?)", implReq.ControlId).
-		Find(&filters).Error; err != nil {
+		// A Filter may reference the same control ID in several catalogs; collapse duplicates.
+		Group("filters.id")
+	if linkedProfileCount > 0 {
+		filterQuery = filterQuery.
+			// profile_controls.control_catalog_id is uuid while filter_controls.control_catalog_id
+			// is text (inconsistent join-table generation); compare both as text.
+			Joins("JOIN profile_controls ON CAST(profile_controls.control_catalog_id AS text) = CAST(filter_controls.control_catalog_id AS text) AND UPPER(profile_controls.control_id) = UPPER(filter_controls.control_id)").
+			Joins("JOIN ssp_profiles ON ssp_profiles.profile_id = profile_controls.profile_id").
+			Where("ssp_profiles.system_security_plan_id = ?", sspID)
+	}
+
+	var filters []Filter
+	if err := filterQuery.Find(&filters).Error; err != nil {
 		return nil, fmt.Errorf("failed to query filters for control %s: %w", implReq.ControlId, err)
 	}
 
@@ -143,14 +175,18 @@ func (s *SystemComponentSuggestionService) SuggestForImplementedRequirement(
 		candidateIDs[i] = *c.ID
 	}
 
-	// 7. Find existing SystemComponents in this SystemImplementation that are already linked
-	//    to one of the candidate DefinedComponents
+	// 7. Find candidate DefinedComponents already linked to THIS parent via a ByComponent entry.
+	//    Components that only exist as SystemComponents elsewhere in the SystemImplementation
+	//    (linked to other requirements/statements) remain suggestible here: applying them again
+	//    reuses the existing SystemComponent and only adds the missing ByComponent link.
 	var existingIDs []uuid.UUID
 	if err := s.db.
-		Model(&SystemComponent{}).
-		Where("system_implementation_id = ? AND defined_component_id IN ?", systemImplID, candidateIDs).
-		Pluck("defined_component_id", &existingIDs).Error; err != nil {
-		return nil, fmt.Errorf("failed to query existing system components: %w", err)
+		Table("by_components").
+		Joins("JOIN system_components ON system_components.id = by_components.component_uuid").
+		Where("system_components.system_implementation_id = ? AND system_components.defined_component_id IN ?", systemImplID, candidateIDs).
+		Where("by_components.parent_id = ? AND by_components.parent_type = ?", parentID, parentType).
+		Pluck("system_components.defined_component_id", &existingIDs).Error; err != nil {
+		return nil, fmt.Errorf("failed to query existing by-component links: %w", err)
 	}
 
 	existingSet := make(map[uuid.UUID]struct{}, len(existingIDs))
@@ -158,7 +194,7 @@ func (s *SystemComponentSuggestionService) SuggestForImplementedRequirement(
 		existingSet[id] = struct{}{}
 	}
 
-	// 8. Build suggestions from candidates not already present
+	// 8. Build suggestions from candidates not already linked to this parent
 	suggestions := make([]SystemComponentSuggestion, 0, len(candidates))
 	for _, c := range candidates {
 		if _, alreadyLinked := existingSet[*c.ID]; alreadyLinked {
@@ -182,7 +218,8 @@ func (s *SystemComponentSuggestionService) SuggestForImplementedRequirement(
 }
 
 // SuggestForStatement returns the same candidate components as the parent ImplementedRequirement,
-// after validating that the statement belongs to the given requirement and SSP.
+// after validating that the statement belongs to the given requirement and SSP. Exclusion is
+// evaluated against the statement's own ByComponent links, not the requirement's.
 func (s *SystemComponentSuggestionService) SuggestForStatement(
 	sspID uuid.UUID,
 	implReqID uuid.UUID,
@@ -191,7 +228,7 @@ func (s *SystemComponentSuggestionService) SuggestForStatement(
 	if err := s.validateStatementForImplementedRequirement(sspID, implReqID, stmtID); err != nil {
 		return nil, err
 	}
-	return s.SuggestForImplementedRequirement(sspID, implReqID)
+	return s.suggestForParent(sspID, implReqID, stmtID, "statements")
 }
 
 // ApplyForImplementedRequirement creates missing SystemComponents for all suggestions related to the given
@@ -267,7 +304,7 @@ func (s *SystemComponentSuggestionService) applyForParent(
 		return err
 	}
 
-	suggestions, err := s.SuggestForImplementedRequirement(sspID, implReqID)
+	suggestions, err := s.suggestForParent(sspID, implReqID, parentID, parentType)
 	if err != nil {
 		return err
 	}
@@ -310,7 +347,7 @@ func (s *SystemComponentSuggestionService) applySuggestionForParent(
 		)
 	}
 
-	suggestions, err := s.SuggestForImplementedRequirement(sspID, implReqID)
+	suggestions, err := s.suggestForParent(sspID, implReqID, parentID, parentType)
 	if err != nil {
 		return err
 	}
@@ -391,13 +428,17 @@ func (s *SystemComponentSuggestionService) ensureSystemComponent(
 	}
 
 	// Load the component to get its ID (either newly created or existing).
+	// Use a fresh struct: after a no-op conflict, `component` still carries the UUID
+	// generated by BeforeCreate, and First would add that primary key to the WHERE
+	// clause, hiding the existing row.
+	var persisted SystemComponent
 	if err := tx.
 		Where("system_implementation_id = ? AND defined_component_id = ?", systemImplID, definedComponentID).
-		First(&component).Error; err != nil {
+		First(&persisted).Error; err != nil {
 		return nil, fmt.Errorf("failed to load system component for defined component %s: %w", definedComponentID, err)
 	}
 
-	return &component, nil
+	return &persisted, nil
 }
 
 func (s *SystemComponentSuggestionService) ensureByComponentLink(

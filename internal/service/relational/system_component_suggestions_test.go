@@ -34,6 +34,39 @@ func (m *mockEvidenceQuerier) GetLatestForFilters(_ ...labelfilter.Filter) ([]Ev
 	return evidences, nil
 }
 
+// scopedEvidenceQuerier honours the simple label=value condition of each filter,
+// returning only evidence whose labels match. Catalog-scoping tests need this:
+// they assert that excluding a catalog's Filter also excludes its evidence, which
+// the indiscriminate mockEvidenceQuerier cannot express.
+type scopedEvidenceQuerier struct {
+	db *gorm.DB
+}
+
+func (m *scopedEvidenceQuerier) GetLatestForFilters(filters ...labelfilter.Filter) ([]Evidence, error) {
+	seen := make(map[uuid.UUID]struct{})
+	out := make([]Evidence, 0)
+	for _, f := range filters {
+		if f.Scope == nil || f.Scope.Condition == nil {
+			continue
+		}
+		var evidences []Evidence
+		if err := m.db.
+			Joins("JOIN evidence_labels el ON el.evidence_id = evidences.id").
+			Where("el.labels_name = ? AND el.labels_value = ?", f.Scope.Condition.Label, f.Scope.Condition.Value).
+			Find(&evidences).Error; err != nil {
+			return nil, err
+		}
+		for _, e := range evidences {
+			if _, ok := seen[*e.ID]; ok {
+				continue
+			}
+			seen[*e.ID] = struct{}{}
+			out = append(out, e)
+		}
+	}
+	return out, nil
+}
+
 // ---------------------------------------------------------------------------
 // Test DB setup
 // ---------------------------------------------------------------------------
@@ -117,6 +150,18 @@ func setupTestDB(t *testing.T) *gorm.DB {
 			value TEXT
 		)`).Error)
 
+	require.NoError(t, db.Exec(`CREATE TABLE IF NOT EXISTS profile_controls (
+		profile_id TEXT,
+		control_catalog_id TEXT,
+		control_id TEXT
+	)`).Error)
+
+	require.NoError(t, db.Exec(`CREATE TABLE IF NOT EXISTS ssp_profiles (
+		system_security_plan_id TEXT,
+		profile_id TEXT,
+		PRIMARY KEY (system_security_plan_id, profile_id)
+	)`).Error)
+
 	return db
 }
 
@@ -127,6 +172,13 @@ func setupTestDB(t *testing.T) *gorm.DB {
 // seedFilterForControl inserts a Filter record and a filter_controls row linking it
 // to the given controlID string. Returns the Filter ID.
 func seedFilterForControl(t *testing.T, db *gorm.DB, controlID, labelKey, labelValue string) uuid.UUID {
+	t.Helper()
+	return seedFilterForControlInCatalog(t, db, uuid.Nil, controlID, labelKey, labelValue)
+}
+
+// seedFilterForControlInCatalog inserts a Filter record and a filter_controls row linking it
+// to the given (catalogID, controlID) pair. Returns the Filter ID.
+func seedFilterForControlInCatalog(t *testing.T, db *gorm.DB, catalogID uuid.UUID, controlID, labelKey, labelValue string) uuid.UUID {
 	t.Helper()
 	filterID := uuid.New()
 	lf := labelfilter.Filter{
@@ -149,10 +201,32 @@ func seedFilterForControl(t *testing.T, db *gorm.DB, controlID, labelKey, labelV
 
 	require.NoError(t, db.Exec(
 		`INSERT INTO filter_controls (filter_id, control_catalog_id, control_id) VALUES (?, ?, ?)`,
-		filterID, uuid.Nil, controlID,
+		filterID, catalogID, controlID,
 	).Error)
 
 	return filterID
+}
+
+// linkSSPToProfileWithControls links the SSP to a new profile via ssp_profiles and
+// registers each (catalogID, controlID) pair in profile_controls, scoping the SSP's
+// control resolution to that catalog. Returns the profile ID.
+func linkSSPToProfileWithControls(t *testing.T, db *gorm.DB, sspID, catalogID uuid.UUID, controlIDs ...string) uuid.UUID {
+	t.Helper()
+	profileID := uuid.New()
+
+	require.NoError(t, db.Exec(
+		`INSERT INTO ssp_profiles (system_security_plan_id, profile_id) VALUES (?, ?)`,
+		sspID, profileID,
+	).Error)
+
+	for _, controlID := range controlIDs {
+		require.NoError(t, db.Exec(
+			`INSERT INTO profile_controls (profile_id, control_catalog_id, control_id) VALUES (?, ?, ?)`,
+			profileID, catalogID, controlID,
+		).Error)
+	}
+
+	return profileID
 }
 
 // seedEvidenceWithLabel inserts an Evidence record and an evidence_labels row.
@@ -354,7 +428,90 @@ func TestSuggestForImplementedRequirement_CaseInsensitiveControlID(t *testing.T)
 	assert.Equal(t, *dc.ID, suggestions[0].DefinedComponentID)
 }
 
-func TestSuggestForImplementedRequirement_AlreadyLinkedFiltered(t *testing.T) {
+// catalog-scoping tests: the same control ID ("ac-1") exists in two catalogs, each
+// with its own Filter/Evidence/DefinedComponent chain. Returns both components.
+func seedAmbiguousControlInTwoCatalogs(t *testing.T, db *gorm.DB, catalogA, catalogB uuid.UUID) (dcA, dcB DefinedComponent) {
+	t.Helper()
+	dcA = seedDefinedComponentWithLabels(t, db, "plugin", "component-a")
+	seedFilterForControlInCatalog(t, db, catalogA, "ac-1", "plugin", "component-a")
+	seedEvidenceWithLabel(t, db, "plugin", "component-a")
+
+	dcB = seedDefinedComponentWithLabels(t, db, "plugin", "component-b")
+	seedFilterForControlInCatalog(t, db, catalogB, "AC-1", "plugin", "component-b")
+	seedEvidenceWithLabel(t, db, "plugin", "component-b")
+	return dcA, dcB
+}
+
+func TestSuggestForImplementedRequirement_ScopedToLinkedCatalog(t *testing.T) {
+	db := setupTestDB(t)
+	svc := NewSystemComponentSuggestionService(db, &scopedEvidenceQuerier{db: db})
+
+	catalogA, catalogB := uuid.New(), uuid.New()
+	dcA, _ := seedAmbiguousControlInTwoCatalogs(t, db, catalogA, catalogB)
+
+	// SSP linked to a profile that imports "ac-1" from catalog A only
+	sspID, implReqID := seedSSPWithImplReq(t, db, "ac-1")
+	linkSSPToProfileWithControls(t, db, sspID, catalogA, "ac-1")
+
+	suggestions, err := svc.SuggestForImplementedRequirement(sspID, implReqID)
+	require.NoError(t, err)
+	require.Len(t, suggestions, 1, "only the component from the linked catalog should be suggested")
+	assert.Equal(t, *dcA.ID, suggestions[0].DefinedComponentID)
+}
+
+func TestSuggestForImplementedRequirement_ScopedToLinkedCatalog_CaseInsensitive(t *testing.T) {
+	db := setupTestDB(t)
+	svc := NewSystemComponentSuggestionService(db, &scopedEvidenceQuerier{db: db})
+
+	catalogA, catalogB := uuid.New(), uuid.New()
+	_, dcB := seedAmbiguousControlInTwoCatalogs(t, db, catalogA, catalogB)
+
+	// Profile registers the control lowercase while the catalog-B filter uses "AC-1"
+	sspID, implReqID := seedSSPWithImplReq(t, db, "AC-1")
+	linkSSPToProfileWithControls(t, db, sspID, catalogB, "ac-1")
+
+	suggestions, err := svc.SuggestForImplementedRequirement(sspID, implReqID)
+	require.NoError(t, err)
+	require.Len(t, suggestions, 1)
+	assert.Equal(t, *dcB.ID, suggestions[0].DefinedComponentID)
+}
+
+func TestSuggestForImplementedRequirement_NoLinkedProfiles_GlobalFallback(t *testing.T) {
+	db := setupTestDB(t)
+	svc := NewSystemComponentSuggestionService(db, &scopedEvidenceQuerier{db: db})
+
+	catalogA, catalogB := uuid.New(), uuid.New()
+	dcA, dcB := seedAmbiguousControlInTwoCatalogs(t, db, catalogA, catalogB)
+
+	// SSP without linked profiles: no catalog scope, so both catalogs' components match
+	sspID, implReqID := seedSSPWithImplReq(t, db, "ac-1")
+
+	suggestions, err := svc.SuggestForImplementedRequirement(sspID, implReqID)
+	require.NoError(t, err)
+	require.Len(t, suggestions, 2)
+	ids := []uuid.UUID{suggestions[0].DefinedComponentID, suggestions[1].DefinedComponentID}
+	assert.Contains(t, ids, *dcA.ID)
+	assert.Contains(t, ids, *dcB.ID)
+}
+
+func TestSuggestForImplementedRequirement_LinkedProfileWithoutControl_NoSuggestions(t *testing.T) {
+	db := setupTestDB(t)
+	svc := NewSystemComponentSuggestionService(db, &scopedEvidenceQuerier{db: db})
+
+	catalogA, catalogB := uuid.New(), uuid.New()
+	seedAmbiguousControlInTwoCatalogs(t, db, catalogA, catalogB)
+
+	// The SSP's profile imports a different control from catalog A, so "ac-1"
+	// resolves to no catalog in scope and nothing is suggested.
+	sspID, implReqID := seedSSPWithImplReq(t, db, "ac-1")
+	linkSSPToProfileWithControls(t, db, sspID, catalogA, "si-4")
+
+	suggestions, err := svc.SuggestForImplementedRequirement(sspID, implReqID)
+	require.NoError(t, err)
+	assert.Empty(t, suggestions, "controls outside the linked profiles' catalogs must not resolve")
+}
+
+func TestSuggestForImplementedRequirement_LinkedToSameRequirementExcluded(t *testing.T) {
 	db := setupTestDB(t)
 	svc := NewSystemComponentSuggestionService(db, &mockEvidenceQuerier{db: db})
 
@@ -364,11 +521,28 @@ func TestSuggestForImplementedRequirement_AlreadyLinkedFiltered(t *testing.T) {
 	seedEvidenceWithLabel(t, db, labelKey, labelValue)
 	sspID, implReqID := seedSSPWithImplReq(t, db, "ac-1")
 
-	// Get the SystemImplementation ID to create a pre-existing SystemComponent
+	// Apply the suggestion so the component is linked to THIS requirement via ByComponent
+	require.NoError(t, svc.ApplySuggestionForImplementedRequirement(sspID, implReqID, *dc.ComponentDefinitionID, *dc.ID))
+
+	suggestions, err := svc.SuggestForImplementedRequirement(sspID, implReqID)
+	require.NoError(t, err)
+	assert.Empty(t, suggestions, "component linked to this requirement should not appear as suggestion")
+}
+
+func TestSuggestForImplementedRequirement_ExistingSystemComponentWithoutLinkStillSuggested(t *testing.T) {
+	db := setupTestDB(t)
+	svc := NewSystemComponentSuggestionService(db, &mockEvidenceQuerier{db: db})
+
+	const labelKey, labelValue = "plugin", "nginx"
+	dc := seedDefinedComponentWithLabels(t, db, labelKey, labelValue)
+	seedFilterForControl(t, db, "ac-1", labelKey, labelValue)
+	seedEvidenceWithLabel(t, db, labelKey, labelValue)
+	sspID, implReqID := seedSSPWithImplReq(t, db, "ac-1")
+
 	var systemImpl SystemImplementation
 	require.NoError(t, db.Where("system_security_plan_id = ?", sspID).First(&systemImpl).Error)
 
-	// Pre-create a SystemComponent that is already linked to the DefinedComponent
+	// Pre-create a SystemComponent for the DefinedComponent, but without any ByComponent link
 	existing := SystemComponent{
 		Type:                   dc.Type,
 		Title:                  dc.Title,
@@ -381,7 +555,39 @@ func TestSuggestForImplementedRequirement_AlreadyLinkedFiltered(t *testing.T) {
 
 	suggestions, err := svc.SuggestForImplementedRequirement(sspID, implReqID)
 	require.NoError(t, err)
-	assert.Empty(t, suggestions, "component already linked should not appear as suggestion")
+	require.Len(t, suggestions, 1, "component present in the SSP but not linked to this requirement should still be suggested")
+	assert.Equal(t, *dc.ID, suggestions[0].DefinedComponentID)
+}
+
+func TestSuggestForImplementedRequirement_LinkedToOtherRequirementStillSuggested(t *testing.T) {
+	db := setupTestDB(t)
+	svc := NewSystemComponentSuggestionService(db, &mockEvidenceQuerier{db: db})
+
+	// One DefinedComponent whose evidence matches the controls of two requirements
+	const labelKey, labelValue = "plugin", "nginx"
+	dc := seedDefinedComponentWithLabels(t, db, labelKey, labelValue)
+	seedFilterForControl(t, db, "ac-1", labelKey, labelValue)
+	seedFilterForControl(t, db, "ac-2", labelKey, labelValue)
+	seedEvidenceWithLabel(t, db, labelKey, labelValue)
+
+	sspID, implReqA := seedSSPWithImplReq(t, db, "ac-1")
+	var ci ControlImplementation
+	require.NoError(t, db.Where("system_security_plan_id = ?", sspID).First(&ci).Error)
+	implReqB := ImplementedRequirement{ControlId: "ac-2", ControlImplementationId: *ci.ID}
+	require.NoError(t, db.Create(&implReqB).Error)
+
+	// Apply the suggestion on requirement A only
+	require.NoError(t, svc.ApplySuggestionForImplementedRequirement(sspID, implReqA, *dc.ComponentDefinitionID, *dc.ID))
+
+	// Requirement A no longer suggests it, requirement B still does
+	suggestionsA, err := svc.SuggestForImplementedRequirement(sspID, implReqA)
+	require.NoError(t, err)
+	assert.Empty(t, suggestionsA)
+
+	suggestionsB, err := svc.SuggestForImplementedRequirement(sspID, *implReqB.ID)
+	require.NoError(t, err)
+	require.Len(t, suggestionsB, 1, "component linked to another requirement must still be suggested here")
+	assert.Equal(t, *dc.ID, suggestionsB[0].DefinedComponentID)
 }
 
 func TestSuggestForImplementedRequirement_MultipleComponents(t *testing.T) {
@@ -497,6 +703,33 @@ func TestSuggestForStatement_ReturnsMatchingComponent(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, suggestions, 1)
 	assert.Equal(t, *dc.ID, suggestions[0].DefinedComponentID)
+}
+
+func TestSuggestForStatement_EvaluatedPerStatement(t *testing.T) {
+	db := setupTestDB(t)
+	svc := NewSystemComponentSuggestionService(db, &mockEvidenceQuerier{db: db})
+
+	const labelKey, labelValue = "plugin", "sshd"
+	dc := seedDefinedComponentWithLabels(t, db, labelKey, labelValue)
+	seedFilterForControl(t, db, "ac-1", labelKey, labelValue)
+	seedEvidenceWithLabel(t, db, labelKey, labelValue)
+	sspID, implReqID := seedSSPWithImplReq(t, db, "ac-1")
+	stmtID := seedStatementForImplReq(t, db, implReqID, "ac-1_smt.a")
+
+	// Linking the component to the parent requirement must not exclude it for the statement
+	require.NoError(t, svc.ApplySuggestionForImplementedRequirement(sspID, implReqID, *dc.ComponentDefinitionID, *dc.ID))
+
+	suggestions, err := svc.SuggestForStatement(sspID, implReqID, stmtID)
+	require.NoError(t, err)
+	require.Len(t, suggestions, 1, "component linked to the requirement should still be suggested for its statement")
+	assert.Equal(t, *dc.ID, suggestions[0].DefinedComponentID)
+
+	// Once linked to the statement itself, it is excluded for the statement
+	require.NoError(t, svc.ApplySuggestionForStatement(sspID, implReqID, stmtID, *dc.ComponentDefinitionID, *dc.ID))
+
+	suggestions, err = svc.SuggestForStatement(sspID, implReqID, stmtID)
+	require.NoError(t, err)
+	assert.Empty(t, suggestions, "component linked to this statement should not appear as suggestion")
 }
 
 func TestSuggestForStatement_NotFound(t *testing.T) {
