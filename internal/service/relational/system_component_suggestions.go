@@ -76,21 +76,27 @@ func (s *SystemComponentSuggestionService) suggestForParent(
 
 	// 3. Load Filters associated with this control via the filter_controls join table.
 	//
-	// When the SSP is linked to profiles (via the ssp_profiles join table), resolution
-	// is scoped to the catalogs those profiles import: a filter_controls row only
-	// matches if its (control_catalog_id, control_id) pair appears in profile_controls
+	// When the SSP's linked profiles have resolved controls (rows in profile_controls),
+	// resolution is scoped to the catalogs those profiles import: a filter_controls row
+	// only matches if its (control_catalog_id, control_id) pair appears in profile_controls
 	// for one of the SSP's profiles. This prevents controls that share the same ID
 	// string in different catalogs (e.g. "AC-1") from cross-matching, mirroring the
 	// catalog-scoped join used by RiskEvidenceWorker.
 	//
-	// SSPs without linked profiles carry no catalog scope to resolve against, so they
-	// fall back to a global case-insensitive match on the control ID string.
-	var linkedProfileCount int64
+	// We gate on the presence of profile_controls reachable through ssp_profiles, not on
+	// ssp_profiles alone: an SSP may be linked to a profile whose controls have not been
+	// resolved yet (SyncProfileControls not run, aborted via the stale-sync guard, or a
+	// profile that resolves to zero controls). Such an SSP carries no catalog scope to
+	// enforce, so it falls back to a global case-insensitive match on the control ID
+	// string, mirroring getControlIDsForProfile's empty-pivot fallback. Gating on
+	// ssp_profiles alone would instead resolve to nothing in that window.
+	var scopedControlCount int64
 	if err := s.db.
-		Table("ssp_profiles").
-		Where("system_security_plan_id = ?", sspID).
-		Count(&linkedProfileCount).Error; err != nil {
-		return nil, fmt.Errorf("failed to count linked profiles for SSP %s: %w", sspID, err)
+		Table("profile_controls").
+		Joins("JOIN ssp_profiles ON ssp_profiles.profile_id = profile_controls.profile_id").
+		Where("ssp_profiles.system_security_plan_id = ?", sspID).
+		Count(&scopedControlCount).Error; err != nil {
+		return nil, fmt.Errorf("failed to count scoped profile controls for SSP %s: %w", sspID, err)
 	}
 
 	filterQuery := s.db.
@@ -101,7 +107,7 @@ func (s *SystemComponentSuggestionService) suggestForParent(
 		Where("UPPER(filter_controls.control_id) = UPPER(?)", implReq.ControlId).
 		// A Filter may reference the same control ID in several catalogs; collapse duplicates.
 		Group("filters.id")
-	if linkedProfileCount > 0 {
+	if scopedControlCount > 0 {
 		filterQuery = filterQuery.
 			// profile_controls.control_catalog_id is uuid while filter_controls.control_catalog_id
 			// is text (inconsistent join-table generation); compare both as text. Postgres renders

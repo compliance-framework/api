@@ -538,6 +538,29 @@ func TestSuggestForImplementedRequirement_ScopedToLinkedCatalog_CatalogIDCaseIns
 	assert.Equal(t, *dc.ID, suggestions[0].DefinedComponentID)
 }
 
+func TestSuggestForImplementedRequirement_LinkedProfileWithoutResolvedControls_GlobalFallback(t *testing.T) {
+	db := setupTestDB(t)
+	svc := NewSystemComponentSuggestionService(db, &scopedEvidenceQuerier{db: db})
+
+	catalogA, catalogB := uuid.New(), uuid.New()
+	dcA, dcB := seedAmbiguousControlInTwoCatalogs(t, db, catalogA, catalogB)
+
+	// The SSP is linked to a profile (ssp_profiles has a row) but the profile has no
+	// resolved controls yet (profile_controls is empty) — e.g. SyncProfileControls has
+	// not run, aborted via the stale-sync guard, or the profile resolves to zero controls.
+	// There is no catalog scope to enforce, so resolution must fall back to global
+	// matching, mirroring getControlIDsForProfile's empty-pivot fallback.
+	sspID, implReqID := seedSSPWithImplReq(t, db, "ac-1")
+	linkSSPToProfileWithControls(t, db, sspID, catalogA) // no control IDs → no profile_controls rows
+
+	suggestions, err := svc.SuggestForImplementedRequirement(sspID, implReqID)
+	require.NoError(t, err)
+	require.Len(t, suggestions, 2, "a profile with no resolved controls carries no scope; both catalogs' components should be suggested")
+	ids := []uuid.UUID{suggestions[0].DefinedComponentID, suggestions[1].DefinedComponentID}
+	assert.Contains(t, ids, *dcA.ID)
+	assert.Contains(t, ids, *dcB.ID)
+}
+
 func TestSuggestForImplementedRequirement_LinkedToSameRequirementExcluded(t *testing.T) {
 	db := setupTestDB(t)
 	svc := NewSystemComponentSuggestionService(db, &mockEvidenceQuerier{db: db})
