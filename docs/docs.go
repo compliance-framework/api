@@ -16631,7 +16631,7 @@ const docTemplate = `{
         },
         "/oscal/system-security-plans/{id}/system-characteristics/authorization-boundary/diagrams": {
             "post": {
-                "description": "Creates a new Diagram under the Authorization Boundary of a System Security Plan.",
+                "description": "Creates a new Diagram under the Authorization Boundary of a System Security Plan. Creates the Authorization Boundary grouping if it does not exist yet.",
                 "consumes": [
                     "application/json"
                 ],
@@ -16896,7 +16896,7 @@ const docTemplate = `{
         },
         "/oscal/system-security-plans/{id}/system-characteristics/data-flow/diagrams": {
             "post": {
-                "description": "Creates a new Diagram under the Data Flow of a System Security Plan.",
+                "description": "Creates a new Diagram under the Data Flow of a System Security Plan. Creates the Data Flow grouping if it does not exist yet.",
                 "consumes": [
                     "application/json"
                 ],
@@ -17161,7 +17161,7 @@ const docTemplate = `{
         },
         "/oscal/system-security-plans/{id}/system-characteristics/network-architecture/diagrams": {
             "post": {
-                "description": "Creates a new Diagram under the Network Architecture of a System Security Plan.",
+                "description": "Creates a new Diagram under the Network Architecture of a System Security Plan. Creates the Network Architecture grouping if it does not exist yet.",
                 "consumes": [
                     "application/json"
                 ],

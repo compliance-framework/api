@@ -20433,7 +20433,8 @@ paths:
       consumes:
       - application/json
       description: Creates a new Diagram under the Authorization Boundary of a System
-        Security Plan.
+        Security Plan. Creates the Authorization Boundary grouping if it does not
+        exist yet.
       parameters:
       - description: System Security Plan ID
         in: path
@@ -20607,7 +20608,7 @@ paths:
       consumes:
       - application/json
       description: Creates a new Diagram under the Data Flow of a System Security
-        Plan.
+        Plan. Creates the Data Flow grouping if it does not exist yet.
       parameters:
       - description: System Security Plan ID
         in: path
@@ -20782,7 +20783,8 @@ paths:
       consumes:
       - application/json
       description: Creates a new Diagram under the Network Architecture of a System
-        Security Plan.
+        Security Plan. Creates the Network Architecture grouping if it does not exist
+        yet.
       parameters:
       - description: System Security Plan ID
         in: path

@@ -2319,7 +2319,7 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) TestCreateAuthorizationBound
 	suite.True(found, "created diagram should be present in authorization boundary")
 }
 
-// Negative: Network Architecture missing, invalid IDs and invalid body
+// Network Architecture diagram creation: invalid IDs, missing grouping auto-create, invalid body
 func (suite *SystemSecurityPlanApiIntegrationSuite) TestCreateNetworkArchitectureDiagram_Negative() {
 	logConf := zap.NewDevelopmentConfig()
 	logConf.Level = zap.NewAtomicLevelAt(zap.ErrorLevel)
@@ -2340,7 +2340,7 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) TestCreateNetworkArchitectur
 	server.E().ServeHTTP(resp, req)
 	suite.Equal(http.StatusBadRequest, resp.Code)
 
-	// 2) Missing Network Architecture -> 404
+	// 2) Missing Network Architecture -> grouping is auto-created on first diagram POST
 	ssp := suite.createBasicSSP()
 	ssp.SystemCharacteristics.NetworkArchitecture = nil
 	req = suite.createRequest(http.MethodPost, "/api/oscal/system-security-plans", ssp)
@@ -2348,13 +2348,28 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) TestCreateNetworkArchitectur
 	server.E().ServeHTTP(resp, req)
 	suite.Equal(http.StatusCreated, resp.Code)
 
-	// Attempt to create diagram when NA is missing
+	// Create diagram when NA is missing
 	diagram := oscalTypes_1_1_3.Diagram{UUID: uuid.New().String(), Description: "NA diag"}
 	req = suite.createRequest(http.MethodPost,
 		fmt.Sprintf("/api/oscal/system-security-plans/%s/system-characteristics/network-architecture/diagrams", ssp.UUID), diagram)
 	resp = httptest.NewRecorder()
 	server.E().ServeHTTP(resp, req)
-	suite.Equal(http.StatusNotFound, resp.Code)
+	suite.Equal(http.StatusCreated, resp.Code)
+
+	// The grouping should now exist and contain the diagram
+	req = suite.createRequest(http.MethodGet,
+		fmt.Sprintf("/api/oscal/system-security-plans/%s/system-characteristics/network-architecture", ssp.UUID), nil)
+	resp = httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Equal(http.StatusOK, resp.Code)
+
+	var naResponse handler.GenericDataResponse[*oscalTypes_1_1_3.NetworkArchitecture]
+	err = json.Unmarshal(resp.Body.Bytes(), &naResponse)
+	suite.Require().NoError(err)
+	suite.Require().NotNil(naResponse.Data)
+	suite.Require().NotNil(naResponse.Data.Diagrams)
+	suite.Require().Len(*naResponse.Data.Diagrams, 1)
+	suite.Equal(diagram.UUID, (*naResponse.Data.Diagrams)[0].UUID)
 
 	// 3) Invalid/Missing diagram UUID -> 400
 	// Recreate SSP with NA present
@@ -2385,7 +2400,7 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) TestCreateNetworkArchitectur
 	suite.Equal(http.StatusBadRequest, resp.Code)
 }
 
-// Negative: Data Flow missing, invalid IDs and invalid body
+// Data Flow diagram creation: invalid IDs, missing grouping auto-create, invalid body
 func (suite *SystemSecurityPlanApiIntegrationSuite) TestCreateDataFlowDiagram_Negative() {
 	logConf := zap.NewDevelopmentConfig()
 	logConf.Level = zap.NewAtomicLevelAt(zap.ErrorLevel)
@@ -2406,7 +2421,7 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) TestCreateDataFlowDiagram_Ne
 	server.E().ServeHTTP(resp, req)
 	suite.Equal(http.StatusBadRequest, resp.Code)
 
-	// 2) Missing Data Flow -> 404
+	// 2) Missing Data Flow -> grouping is auto-created on first diagram POST
 	ssp := suite.createBasicSSP()
 	ssp.SystemCharacteristics.DataFlow = nil
 	req = suite.createRequest(http.MethodPost, "/api/oscal/system-security-plans", ssp)
@@ -2419,7 +2434,22 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) TestCreateDataFlowDiagram_Ne
 		fmt.Sprintf("/api/oscal/system-security-plans/%s/system-characteristics/data-flow/diagrams", ssp.UUID), diagram)
 	resp = httptest.NewRecorder()
 	server.E().ServeHTTP(resp, req)
-	suite.Equal(http.StatusNotFound, resp.Code)
+	suite.Equal(http.StatusCreated, resp.Code)
+
+	// The grouping should now exist and contain the diagram
+	req = suite.createRequest(http.MethodGet,
+		fmt.Sprintf("/api/oscal/system-security-plans/%s/system-characteristics/data-flow", ssp.UUID), nil)
+	resp = httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Equal(http.StatusOK, resp.Code)
+
+	var dfResponse handler.GenericDataResponse[*oscalTypes_1_1_3.DataFlow]
+	err = json.Unmarshal(resp.Body.Bytes(), &dfResponse)
+	suite.Require().NoError(err)
+	suite.Require().NotNil(dfResponse.Data)
+	suite.Require().NotNil(dfResponse.Data.Diagrams)
+	suite.Require().Len(*dfResponse.Data.Diagrams, 1)
+	suite.Equal(diagram.UUID, (*dfResponse.Data.Diagrams)[0].UUID)
 
 	// 3) Invalid/Missing diagram UUID -> 400
 	// Recreate SSP with DF present
