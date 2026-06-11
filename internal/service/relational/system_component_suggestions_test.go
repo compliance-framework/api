@@ -2,7 +2,6 @@ package relational
 
 import (
 	"errors"
-	"strings"
 	"testing"
 	"time"
 
@@ -510,32 +509,6 @@ func TestSuggestForImplementedRequirement_LinkedProfileWithoutControl_NoSuggesti
 	suggestions, err := svc.SuggestForImplementedRequirement(sspID, implReqID)
 	require.NoError(t, err)
 	assert.Empty(t, suggestions, "controls outside the linked profiles' catalogs must not resolve")
-}
-
-func TestSuggestForImplementedRequirement_ScopedToLinkedCatalog_CatalogIDCaseInsensitive(t *testing.T) {
-	db := setupTestDB(t)
-	svc := NewSystemComponentSuggestionService(db, &scopedEvidenceQuerier{db: db})
-
-	catalog := uuid.New()
-	dc := seedDefinedComponentWithLabels(t, db, "plugin", "component-a")
-	seedFilterForControlInCatalog(t, db, catalog, "ac-1", "plugin", "component-a")
-	seedEvidenceWithLabel(t, db, "plugin", "component-a")
-
-	// filter_controls holds the catalog UUID upper-cased while profile_controls (via the
-	// link below) holds it lower-case, as Postgres uuid::text renders it. The scoped join
-	// must still match across the case difference.
-	require.NoError(t, db.Exec(
-		`UPDATE filter_controls SET control_catalog_id = ? WHERE control_catalog_id = ?`,
-		strings.ToUpper(catalog.String()), catalog.String(),
-	).Error)
-
-	sspID, implReqID := seedSSPWithImplReq(t, db, "ac-1")
-	linkSSPToProfileWithControls(t, db, sspID, catalog, "ac-1")
-
-	suggestions, err := svc.SuggestForImplementedRequirement(sspID, implReqID)
-	require.NoError(t, err)
-	require.Len(t, suggestions, 1, "catalog ID case must not affect scoped resolution")
-	assert.Equal(t, *dc.ID, suggestions[0].DefinedComponentID)
 }
 
 func TestSuggestForImplementedRequirement_LinkedProfileWithoutResolvedControls_GlobalFallback(t *testing.T) {

@@ -231,9 +231,33 @@ func MigrateUpWithConfig(db *gorm.DB, cfg *config.Config) error {
 		// while still allowing multiple rows with NULL defined_component_id
 		// The WHERE clause makes this a partial index that only enforces uniqueness when defined_component_id IS NOT NULL
 		if err := db.Exec(`
-			CREATE UNIQUE INDEX IF NOT EXISTS idx_system_components_unique_impl_defined 
+			CREATE UNIQUE INDEX IF NOT EXISTS idx_system_components_unique_impl_defined
 			ON system_components (system_implementation_id, defined_component_id)
 			WHERE defined_component_id IS NOT NULL
+		`).Error; err != nil {
+			return err
+		}
+
+		// Align filter_controls.control_catalog_id (historically text) with
+		// profile_controls.control_catalog_id and controls.catalog_id, which are both uuid.
+		// The mismatch forced every catalog-scoped join (suggestion service, filter handler,
+		// risk evidence worker) to CAST around it. Idempotent and safe to run every boot:
+		// it only fires while the column is still text. NULLIF guards any legacy empty
+		// strings that ''::uuid would otherwise reject; real values are uuid.UUID.String().
+		if err := db.Exec(`
+			DO $$
+			BEGIN
+			  IF EXISTS (
+			    SELECT 1 FROM information_schema.columns
+			    WHERE table_name = 'filter_controls'
+			      AND column_name = 'control_catalog_id'
+			      AND data_type = 'text'
+			  ) THEN
+			    ALTER TABLE filter_controls
+			      ALTER COLUMN control_catalog_id TYPE uuid
+			      USING NULLIF(control_catalog_id, '')::uuid;
+			  END IF;
+			END $$;
 		`).Error; err != nil {
 			return err
 		}
