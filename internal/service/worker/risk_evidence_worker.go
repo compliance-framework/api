@@ -202,7 +202,9 @@ func (w *RiskEvidenceWorker) resolveSSPsViaFilters(ctx context.Context, evidence
 	if err := w.db.WithContext(ctx).
 		Table("filter_controls fc").
 		Select("DISTINCT ssp.id AS system_security_plan_id, fc.control_catalog_id, fc.control_id").
-		Joins("JOIN profile_controls pc ON CAST(pc.control_catalog_id AS uuid) = CAST(fc.control_catalog_id AS uuid) AND UPPER(pc.control_id) = UPPER(fc.control_id)").
+		// fc.control_catalog_id and pc.control_catalog_id are both uuid (filter_controls aligned
+		// by the type migration in MigrateUpWithConfig), so they compare directly.
+		Joins("JOIN profile_controls pc ON pc.control_catalog_id = fc.control_catalog_id AND UPPER(pc.control_id) = UPPER(fc.control_id)").
 		Joins("JOIN ssp_profiles sp ON CAST(sp.profile_id AS uuid) = CAST(pc.profile_id AS uuid)").
 		Joins("JOIN system_security_plans ssp ON CAST(ssp.id AS uuid) = CAST(sp.system_security_plan_id AS uuid)").
 		Joins("JOIN control_implementations ci ON CAST(ci.system_security_plan_id AS uuid) = CAST(ssp.id AS uuid)").

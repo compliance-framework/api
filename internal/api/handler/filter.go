@@ -115,7 +115,7 @@ func (h *FilterHandler) List(ctx echo.Context) error {
 	if controlID != "" && componentID == "" {
 		query = query.
 			Joins("JOIN filter_controls ON filter_controls.filter_id = filters.id").
-			Joins("JOIN controls ON controls.catalog_id = filter_controls.control_catalog_id::uuid AND controls.id = filter_controls.control_id").
+			Joins("JOIN controls ON controls.catalog_id = filter_controls.control_catalog_id AND controls.id = filter_controls.control_id").
 			Where("controls.id = ?", controlID).
 			Distinct()
 	}

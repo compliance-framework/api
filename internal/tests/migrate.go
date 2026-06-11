@@ -196,9 +196,29 @@ func (t *TestMigrator) Up() error {
 	if t.db.Name() == "postgres" {
 		// Partial unique index for system_components
 		if err := t.db.Exec(`
-			CREATE UNIQUE INDEX IF NOT EXISTS idx_system_components_unique_impl_defined 
+			CREATE UNIQUE INDEX IF NOT EXISTS idx_system_components_unique_impl_defined
 			ON system_components (system_implementation_id, defined_component_id)
 			WHERE defined_component_id IS NOT NULL
+		`).Error; err != nil {
+			return err
+		}
+
+		// Align filter_controls.control_catalog_id to uuid (matching production migration in
+		// service.MigrateUpWithConfig) so integration tests exercise the same uuid join path.
+		if err := t.db.Exec(`
+			DO $$
+			BEGIN
+			  IF EXISTS (
+			    SELECT 1 FROM information_schema.columns
+			    WHERE table_name = 'filter_controls'
+			      AND column_name = 'control_catalog_id'
+			      AND data_type = 'text'
+			  ) THEN
+			    ALTER TABLE filter_controls
+			      ALTER COLUMN control_catalog_id TYPE uuid
+			      USING NULLIF(control_catalog_id, '')::uuid;
+			  END IF;
+			END $$;
 		`).Error; err != nil {
 			return err
 		}
