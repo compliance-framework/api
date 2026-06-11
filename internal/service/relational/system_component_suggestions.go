@@ -104,8 +104,10 @@ func (s *SystemComponentSuggestionService) suggestForParent(
 	if linkedProfileCount > 0 {
 		filterQuery = filterQuery.
 			// profile_controls.control_catalog_id is uuid while filter_controls.control_catalog_id
-			// is text (inconsistent join-table generation); compare both as text.
-			Joins("JOIN profile_controls ON CAST(profile_controls.control_catalog_id AS text) = CAST(filter_controls.control_catalog_id AS text) AND UPPER(profile_controls.control_id) = UPPER(filter_controls.control_id)").
+			// is text (inconsistent join-table generation); compare both as text. Postgres renders
+			// uuid::text as canonical lower-case, but filter_controls holds free text, so lower-case
+			// both sides to stay robust if a catalog UUID was ever written upper-cased.
+			Joins("JOIN profile_controls ON LOWER(CAST(profile_controls.control_catalog_id AS text)) = LOWER(CAST(filter_controls.control_catalog_id AS text)) AND UPPER(profile_controls.control_id) = UPPER(filter_controls.control_id)").
 			Joins("JOIN ssp_profiles ON ssp_profiles.profile_id = profile_controls.profile_id").
 			Where("ssp_profiles.system_security_plan_id = ?", sspID)
 	}
