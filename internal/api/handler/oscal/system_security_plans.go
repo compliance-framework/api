@@ -565,7 +565,7 @@ func (h *SystemSecurityPlanHandler) GetCharacteristicsNetworkArchitecture(ctx ec
 // CreateCharacteristicsNetworkArchitectureDiagram godoc
 //
 //	@Summary		Create a Network Architecture Diagram
-//	@Description	Creates a new Diagram under the Network Architecture of a System Security Plan.
+//	@Description	Creates a new Diagram under the Network Architecture of a System Security Plan. Creates the Network Architecture grouping if it does not exist yet.
 //	@Tags			System Security Plans
 //	@Accept			json
 //	@Produce		json
@@ -600,7 +600,14 @@ func (h *SystemSecurityPlanHandler) CreateCharacteristicsNetworkArchitectureDiag
 
 	na := ssp.SystemCharacteristics.NetworkArchitecture
 	if na == nil || na.ID == nil {
-		return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("no network architecture for system security plan %s", idParam)))
+		if ssp.SystemCharacteristics.ID == nil {
+			return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("no system characteristics for system security plan %s", idParam)))
+		}
+		na = &relational.NetworkArchitecture{SystemCharacteristicsId: *ssp.SystemCharacteristics.ID}
+		if err := h.db.Create(na).Error; err != nil {
+			h.sugar.Errorf("Failed to create network architecture: %v", err)
+			return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		}
 	}
 
 	// Bind incoming diagram
@@ -803,7 +810,7 @@ func (h *SystemSecurityPlanHandler) GetCharacteristicsDataFlow(ctx echo.Context)
 // CreateCharacteristicsDataFlowDiagram godoc
 //
 //	@Summary		Create a Data Flow Diagram
-//	@Description	Creates a new Diagram under the Data Flow of a System Security Plan.
+//	@Description	Creates a new Diagram under the Data Flow of a System Security Plan. Creates the Data Flow grouping if it does not exist yet.
 //	@Tags			System Security Plans
 //	@Accept			json
 //	@Produce		json
@@ -838,7 +845,14 @@ func (h *SystemSecurityPlanHandler) CreateCharacteristicsDataFlowDiagram(ctx ech
 
 	df := ssp.SystemCharacteristics.DataFlow
 	if df == nil || df.ID == nil {
-		return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("no data flow for system security plan %s", idParam)))
+		if ssp.SystemCharacteristics.ID == nil {
+			return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("no system characteristics for system security plan %s", idParam)))
+		}
+		df = &relational.DataFlow{SystemCharacteristicsId: *ssp.SystemCharacteristics.ID}
+		if err := h.db.Create(df).Error; err != nil {
+			h.sugar.Errorf("Failed to create data flow: %v", err)
+			return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		}
 	}
 
 	var oscalDiag oscalTypes_1_1_3.Diagram
@@ -1037,7 +1051,7 @@ func (h *SystemSecurityPlanHandler) GetCharacteristicsAuthorizationBoundary(ctx 
 // CreateCharacteristicsAuthorizationBoundaryDiagram godoc
 //
 //	@Summary		Create an Authorization Boundary Diagram
-//	@Description	Creates a new Diagram under the Authorization Boundary of a System Security Plan.
+//	@Description	Creates a new Diagram under the Authorization Boundary of a System Security Plan. Creates the Authorization Boundary grouping if it does not exist yet.
 //	@Tags			System Security Plans
 //	@Accept			json
 //	@Produce		json
@@ -1072,7 +1086,14 @@ func (h *SystemSecurityPlanHandler) CreateCharacteristicsAuthorizationBoundaryDi
 
 	ab := ssp.SystemCharacteristics.AuthorizationBoundary
 	if ab == nil || ab.ID == nil {
-		return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("no authorization boundary for system security plan %s", idParam)))
+		if ssp.SystemCharacteristics.ID == nil {
+			return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("no system characteristics for system security plan %s", idParam)))
+		}
+		ab = &relational.AuthorizationBoundary{SystemCharacteristicsId: *ssp.SystemCharacteristics.ID}
+		if err := h.db.Create(ab).Error; err != nil {
+			h.sugar.Errorf("Failed to create authorization boundary: %v", err)
+			return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		}
 	}
 
 	var oscalDiag oscalTypes_1_1_3.Diagram
