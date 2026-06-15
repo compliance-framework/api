@@ -2,6 +2,7 @@ package worker
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/compliance-framework/api/internal/config"
 	"github.com/compliance-framework/api/internal/service/email"
+	"github.com/compliance-framework/api/internal/service/llm"
 	"github.com/compliance-framework/api/internal/service/notification"
 	emailprovider "github.com/compliance-framework/api/internal/service/notification/providers/email"
 	slackprovider "github.com/compliance-framework/api/internal/service/notification/providers/slack"
@@ -45,6 +47,7 @@ type Service struct {
 	startedMu  sync.RWMutex
 	pgxPool    *pgxpool.Pool
 	digestCfg  *config.Config
+	aiEnabled  bool
 	webBaseURL string
 
 	// Workflow services
@@ -100,6 +103,7 @@ func NewServiceWithDigest(
 			emailSvc:  emailSvc,
 			digestSvc: digestSvc,
 			digestCfg: digestCfg,
+			aiEnabled: false,
 			logger:    logger,
 			started:   false,
 		}, nil
@@ -314,11 +318,24 @@ func NewServiceWithDigest(
 	poamOpenDigestSchedulerWorker := NewPoamOpenDigestSchedulerWorker(db, clientProxy, poamCfg.OpenDigestWindow, logger)
 	river.AddWorker(workers, river.WorkFunc(poamOpenDigestSchedulerWorker.Work))
 
+	aiEnabled := digestCfg != nil && digestCfg.AI != nil && digestCfg.AI.Enabled
+	if aiEnabled {
+		llmClient := llm.NewAnthropicClient(llm.AnthropicConfig{
+			Enabled:        true,
+			APIKey:         digestCfg.AI.APIKey,
+			Model:          digestCfg.AI.Model,
+			BaseURL:        digestCfg.AI.BaseURL,
+			RequestTimeout: digestCfg.AI.RequestTimeout,
+		})
+		dashboardSuggestionWorker := NewDashboardSuggestionWorker(db, llmClient, digestCfg.AI, logger)
+		river.AddWorker(workers, river.WorkFunc(dashboardSuggestionWorker.Work))
+	}
+
 	// Configure periodic jobs
 	periodicJobs := periodicJobsFromConfig(digestCfg, logger)
 
 	// Create River client with pgxv5 driver
-	riverConfig := buildRiverConfig(cfg, workers, periodicJobs)
+	riverConfig := buildRiverConfig(cfg, workers, periodicJobs, aiConfigFromConfig(digestCfg))
 
 	// Create the client
 	client, err := river.NewClient(riverpgxv5.New(pgxPool), &riverConfig)
@@ -338,6 +355,7 @@ func NewServiceWithDigest(
 		slackSvc:   slackService,
 		userRepo:   userRepo,
 		digestCfg:  digestCfg,
+		aiEnabled:  aiEnabled,
 		webBaseURL: webBaseURL,
 		logger:     logger,
 		started:    false,
@@ -698,8 +716,8 @@ func periodicJobsFromConfig(cfg *config.Config, logger *zap.SugaredLogger) []*ri
 	return periodicJobs
 }
 
-func buildRiverConfig(cfg *config.WorkerConfig, workers *river.Workers, periodicJobs []*river.PeriodicJob) river.Config {
-	return river.Config{
+func buildRiverConfig(cfg *config.WorkerConfig, workers *river.Workers, periodicJobs []*river.PeriodicJob, aiCfg ...*config.AIConfig) river.Config {
+	riverConfig := river.Config{
 		PollOnly: cfg.UsePolling,
 		Queues: map[string]river.QueueConfig{
 			"email": {
@@ -730,6 +748,23 @@ func buildRiverConfig(cfg *config.WorkerConfig, workers *river.Workers, periodic
 		Workers:      workers,
 		PeriodicJobs: periodicJobs,
 	}
+	if len(aiCfg) > 0 && aiCfg[0] != nil && aiCfg[0].Enabled {
+		maxWorkers := aiCfg[0].QueueWorkers
+		if maxWorkers <= 0 {
+			maxWorkers = config.DefaultAIConfig().QueueWorkers
+		}
+		riverConfig.Queues[DashboardSuggestionQueue] = river.QueueConfig{
+			MaxWorkers: maxWorkers,
+		}
+	}
+	return riverConfig
+}
+
+func aiConfigFromConfig(cfg *config.Config) *config.AIConfig {
+	if cfg == nil {
+		return nil
+	}
+	return cfg.AI
 }
 
 func (s *Service) emailQueue() string {
@@ -1066,6 +1101,34 @@ func (s *Service) EnqueueOrphanedRiskCleanup(ctx context.Context, sspID uuid.UUI
 	})
 	if err != nil {
 		return fmt.Errorf("failed to enqueue orphaned risk cleanup job for ssp %s: %w", sspID, err)
+	}
+	return nil
+}
+
+func (s *Service) EnqueueDashboardSuggestionCells(ctx context.Context, runID uuid.UUID, cellCount int) error {
+	if s == nil || s.config == nil || !s.config.Enabled || s.client == nil || !s.aiEnabled {
+		return ErrDashboardSuggestionWorkerDisabled
+	}
+	if cellCount <= 0 {
+		return nil
+	}
+
+	params := make([]river.InsertManyParams, 0, cellCount)
+	for cellIndex := 0; cellIndex < cellCount; cellIndex++ {
+		params = append(params, river.InsertManyParams{
+			Args: DashboardSuggestionCellArgs{
+				RunID:     runID,
+				CellIndex: cellIndex,
+			},
+			InsertOpts: JobInsertOptionsForDashboardSuggestionCell(),
+		})
+	}
+
+	if _, err := s.client.InsertMany(ctx, params); err != nil {
+		if errors.Is(err, ErrDashboardSuggestionWorkerDisabled) {
+			return err
+		}
+		return fmt.Errorf("failed to enqueue dashboard suggestion cell jobs for run %s: %w", runID, err)
 	}
 	return nil
 }
