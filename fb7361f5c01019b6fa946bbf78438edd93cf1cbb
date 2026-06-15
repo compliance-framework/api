@@ -5,3 +5,7 @@ lisa-design:
 - SSP-scoped filter visibility is applied at filter selection time as global plus same SSP; no sspId intentionally means org-wide union across global and all SSP-bound filters.
 - Evidence status aggregation counts distinct evidence stream UUIDs so overlapping filters tied to the same control cannot inflate org-wide compliance counts.
 - PUT /api/filters treats an omitted or null sspId as clearing the binding to global, matching the full-replacement shape of the existing filter update request.
+
+lisa-selfreview: pass 1 (verdict=request_changes)
+- [medium] internal/api/handler/oscal/dashboard_suggestions.go:147 (correctness): If ResolveScope returns zero controls or zero label sets, PlannedCalls returns 0 but Generate still creates a pending DashboardSuggestionRun, creates no cells, and enqueues cellCount=0. Because active runs are unique per SSP while status is pending/running, this can leave an SSP with a pending run that has no worker cells to complete and blocks subsequent generate attempts with 409.
+- [low] internal/api/handler/evidence.go:819 (correctness): With the new sspId filtering, a control can have filters but none visible for the requested SSP. ForControl then returns GenericDataListResponse[evidence.StatusCount] instead of the endpoint's EvidenceDataListResponse shape, dropping the control metadata and changing the response schema for an empty scoped result.
