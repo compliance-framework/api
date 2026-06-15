@@ -30,9 +30,9 @@ type DashboardSuggestionEvent struct {
 	EventType    string            `json:"eventType" gorm:"type:varchar(64);not null;index"`
 	ActorUserID  *uuid.UUID        `json:"actorUserId" gorm:"type:uuid;index"`
 	OccurredAt   time.Time         `json:"occurredAt" gorm:"not null;index"`
-	Details      string            `json:"details" gorm:"type:text;not null"`
-	Payload      datatypes.JSONMap `json:"payload" gorm:"type:jsonb;not null"`
-	Snapshot     datatypes.JSONMap `json:"snapshot" gorm:"type:jsonb;not null"`
+	Details      *string           `json:"details" gorm:"type:text"`
+	Payload      datatypes.JSONMap `json:"payload" gorm:"type:jsonb"`
+	Snapshot     datatypes.JSONMap `json:"snapshot" gorm:"type:jsonb"`
 
 	Run        *DashboardSuggestionRun `json:"-" gorm:"foreignKey:RunID;references:ID"`
 	Suggestion *DashboardSuggestion    `json:"-" gorm:"foreignKey:SuggestionID;references:ID"`

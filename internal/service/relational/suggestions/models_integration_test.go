@@ -173,10 +173,11 @@ func (suite *DashboardSuggestionsIntegrationSuite) TestDeletingRunCascadesCellsA
 }
 
 func (suite *DashboardSuggestionsIntegrationSuite) TestDashboardSuggestionEventsAreAppendOnly() {
+	details := "Dashboard suggestion run started."
 	event := suggestionrel.DashboardSuggestionEvent{
 		EventType:  string(suggestionrel.DashboardSuggestionEventTypeRunStarted),
 		OccurredAt: time.Now().UTC(),
-		Details:    "Dashboard suggestion run started.",
+		Details:    &details,
 		Payload:    datatypes.JSONMap{"model": "test-model"},
 		Snapshot:   datatypes.JSONMap{},
 	}
