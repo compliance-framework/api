@@ -138,6 +138,11 @@ func mapAnthropicError(err error) error {
 			return fmt.Errorf("%w: %v", ErrRateLimited, err)
 		case 529:
 			return fmt.Errorf("%w: %v", ErrOverloaded, err)
+		case http.StatusRequestTimeout, http.StatusConflict:
+			return fmt.Errorf("%w: %v", ErrOverloaded, err)
+		}
+		if apiErr.StatusCode >= 500 {
+			return fmt.Errorf("%w: %v", ErrOverloaded, err)
 		}
 		return err
 	}

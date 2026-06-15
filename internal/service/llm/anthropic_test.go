@@ -44,6 +44,42 @@ func TestAnthropicClientErrorMapping(t *testing.T) {
 			expected: ErrOverloaded,
 		},
 		{
+			name:     "request timeout",
+			status:   http.StatusRequestTimeout,
+			body:     `{"type":"error","error":{"type":"request_timeout_error","message":"try later"}}`,
+			expected: ErrOverloaded,
+		},
+		{
+			name:     "conflict",
+			status:   http.StatusConflict,
+			body:     `{"type":"error","error":{"type":"conflict_error","message":"try later"}}`,
+			expected: ErrOverloaded,
+		},
+		{
+			name:     "internal server error",
+			status:   http.StatusInternalServerError,
+			body:     `{"type":"error","error":{"type":"api_error","message":"try later"}}`,
+			expected: ErrOverloaded,
+		},
+		{
+			name:     "bad gateway",
+			status:   http.StatusBadGateway,
+			body:     `{"type":"error","error":{"type":"api_error","message":"try later"}}`,
+			expected: ErrOverloaded,
+		},
+		{
+			name:     "service unavailable",
+			status:   http.StatusServiceUnavailable,
+			body:     `{"type":"error","error":{"type":"api_error","message":"try later"}}`,
+			expected: ErrOverloaded,
+		},
+		{
+			name:     "gateway timeout",
+			status:   http.StatusGatewayTimeout,
+			body:     `{"type":"error","error":{"type":"api_error","message":"try later"}}`,
+			expected: ErrOverloaded,
+		},
+		{
 			name:     "malformed body",
 			status:   http.StatusOK,
 			body:     `{`,
