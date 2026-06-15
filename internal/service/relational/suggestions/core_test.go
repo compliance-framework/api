@@ -45,6 +45,33 @@ func TestCanonicalizeFilterRefusesOrAndNotEquals(t *testing.T) {
 	require.False(t, ok)
 }
 
+func TestCanonicalizeFilterRefusesConflictingDuplicateLabelConditions(t *testing.T) {
+	filter := labelfilter.Filter{Scope: &labelfilter.Scope{Query: &labelfilter.Query{
+		Operator: "AND",
+		Scopes: []labelfilter.Scope{
+			{Condition: &labelfilter.Condition{Label: "env", Operator: "=", Value: "prod"}},
+			{Condition: &labelfilter.Condition{Label: "Env", Operator: "=", Value: "stage"}},
+		},
+	}}}
+
+	_, ok := CanonicalizeFilter(filter)
+	require.False(t, ok)
+}
+
+func TestCanonicalizeFilterAcceptsDuplicateSameLabelConditions(t *testing.T) {
+	filter := labelfilter.Filter{Scope: &labelfilter.Scope{Query: &labelfilter.Query{
+		Operator: "AND",
+		Scopes: []labelfilter.Scope{
+			{Condition: &labelfilter.Condition{Label: "env", Operator: "=", Value: "prod"}},
+			{Condition: &labelfilter.Condition{Label: "Env", Operator: "=", Value: "prod"}},
+		},
+	}}}
+
+	labels, ok := CanonicalizeFilter(filter)
+	require.True(t, ok)
+	require.Equal(t, map[string]string{"env": "prod"}, labels)
+}
+
 func TestResolveSnapshot(t *testing.T) {
 	controls := []string{"catalog-b:AC-2", "catalog-a:AC-1"}
 	hashes := []string{"h2", "h1"}

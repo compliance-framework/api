@@ -133,7 +133,15 @@ func canonicalizeScope(scope labelfilter.Scope, labels map[string]string) bool {
 		if condition.Operator != "=" {
 			return false
 		}
-		labels[strings.ToLower(condition.Label)] = condition.Value
+		key := strings.ToLower(condition.Label)
+		existing, seen := labels[key]
+		if seen && existing != condition.Value {
+			return false
+		}
+		if seen {
+			return true
+		}
+		labels[key] = condition.Value
 		return true
 	}
 	query := scope.Query
