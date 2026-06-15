@@ -228,3 +228,180 @@ func (suite *DashboardSuggestionsIntegrationSuite) TestDashboardSuggestionReason
 	).Error
 	suite.Error(err)
 }
+
+func (suite *DashboardSuggestionsIntegrationSuite) TestAcceptCreatesOneSSPBoundFilterAndLinksControls() {
+	sspID := uuid.New()
+	runID := uuid.New()
+	catalogID := uuid.New()
+	actorID := uuid.New()
+	labels := map[string]string{"env": "prod", "repo": "payments-api"}
+	hash := suggestionrel.CanonicalLabelSetHash(labels)
+	suite.seedSuggestionSSPAndRun(sspID, runID)
+
+	low := suite.seedDashboardSuggestion(runID, sspID, catalogID, "AC-1", labels, hash, "low name", 0.4, nil)
+	high := suite.seedDashboardSuggestion(runID, sspID, catalogID, "AC-2", labels, hash, "high name", 0.9, nil)
+
+	svc := suggestionrel.NewSuggestionService(suite.DB)
+	suite.Require().NoError(svc.Accept(sspID, []uuid.UUID{*low.ID, *high.ID}, actorID))
+
+	var filters []relational.Filter
+	suite.Require().NoError(suite.DB.Where("ssp_id = ?", sspID).Find(&filters).Error)
+	suite.Require().Len(filters, 1)
+	suite.Equal("high name", filters[0].Name)
+	filterLabels, ok := suggestionrel.CanonicalizeFilter(filters[0].Filter.Data())
+	suite.True(ok)
+	suite.Equal(labels, filterLabels)
+
+	var linkCount int64
+	suite.Require().NoError(suite.DB.Table("filter_controls").Where("filter_id = ?", filters[0].ID).Count(&linkCount).Error)
+	suite.Equal(int64(2), linkCount)
+
+	var accepted []suggestionrel.DashboardSuggestion
+	suite.Require().NoError(suite.DB.Where("id IN ?", []uuid.UUID{*low.ID, *high.ID}).Find(&accepted).Error)
+	for _, suggestion := range accepted {
+		suite.Equal(suggestionrel.DashboardSuggestionStatusAccepted, suggestion.Status)
+		suite.Require().NotNil(suggestion.AcceptedFilterID)
+		suite.Equal(*filters[0].ID, *suggestion.AcceptedFilterID)
+	}
+
+	var eventCount int64
+	suite.Require().NoError(suite.DB.Model(&suggestionrel.DashboardSuggestionEvent{}).
+		Where("event_type = ?", string(suggestionrel.DashboardSuggestionEventTypeAccepted)).
+		Count(&eventCount).Error)
+	suite.Equal(int64(2), eventCount)
+}
+
+func (suite *DashboardSuggestionsIntegrationSuite) TestAcceptExtendsSameSSPMatchingFilter() {
+	sspID := uuid.New()
+	runID := uuid.New()
+	catalogID := uuid.New()
+	actorID := uuid.New()
+	labels := map[string]string{"env": "prod"}
+	hash := suggestionrel.CanonicalLabelSetHash(labels)
+	suite.seedSuggestionSSPAndRun(sspID, runID)
+
+	filter := relational.Filter{Name: "existing", SSPID: &sspID, Filter: datatypes.NewJSONType(suggestionrel.BuildLabelFilter(labels))}
+	suite.Require().NoError(suite.DB.Create(&filter).Error)
+	suggestion := suite.seedDashboardSuggestion(runID, sspID, catalogID, "AC-1", labels, hash, "ignored", 0.8, filter.ID)
+
+	svc := suggestionrel.NewSuggestionService(suite.DB)
+	suite.Require().NoError(svc.Accept(sspID, []uuid.UUID{*suggestion.ID}, actorID))
+
+	var filterCount int64
+	suite.Require().NoError(suite.DB.Model(&relational.Filter{}).Where("ssp_id = ?", sspID).Count(&filterCount).Error)
+	suite.Equal(int64(1), filterCount)
+
+	var linkCount int64
+	suite.Require().NoError(suite.DB.Table("filter_controls").Where("filter_id = ? AND control_id = ?", filter.ID, "AC-1").Count(&linkCount).Error)
+	suite.Equal(int64(1), linkCount)
+}
+
+func (suite *DashboardSuggestionsIntegrationSuite) TestInsertExcludesMatchingGlobalFilterAndDoesNotModifyIt() {
+	sspID := uuid.New()
+	runID := uuid.New()
+	catalogID := uuid.New()
+	labels := map[string]string{"env": "prod"}
+	hash := suggestionrel.CanonicalLabelSetHash(labels)
+	suite.seedSuggestionSSPAndRun(sspID, runID)
+
+	global := relational.Filter{Name: "global", Filter: datatypes.NewJSONType(suggestionrel.BuildLabelFilter(labels))}
+	suite.Require().NoError(suite.DB.Create(&global).Error)
+	suite.Require().NoError(suite.DB.Exec(
+		`INSERT INTO filter_controls (filter_id, control_catalog_id, control_id) VALUES (?, ?, ?)`,
+		global.ID, catalogID, "AC-1",
+	).Error)
+
+	svc := suggestionrel.NewSuggestionService(suite.DB)
+	result, err := svc.InsertValidatedMappings(runID, sspID, suggestionrel.PromptVersion, []suggestionrel.ValidatedMapping{{
+		ControlKey:         suggestionrel.ControlKey(catalogID, "AC-1"),
+		LabelSetHash:       hash,
+		LabelSet:           labels,
+		Action:             suggestionrel.MappingActionNewFilter,
+		ProposedFilterName: "new",
+		Confidence:         0.8,
+		Reasoning:          "matches",
+	}}, 10)
+	suite.Require().NoError(err)
+	suite.Equal(0, result.Inserted)
+	suite.Equal(1, result.Excluded)
+
+	var suggestionCount int64
+	suite.Require().NoError(suite.DB.Model(&suggestionrel.DashboardSuggestion{}).Where("run_id = ?", runID).Count(&suggestionCount).Error)
+	suite.Zero(suggestionCount)
+
+	var reloaded relational.Filter
+	suite.Require().NoError(suite.DB.First(&reloaded, "id = ?", global.ID).Error)
+	suite.Nil(reloaded.SSPID)
+}
+
+func (suite *DashboardSuggestionsIntegrationSuite) TestAcceptSSPIsolationAndGlobalFiltersStayVisible() {
+	sspA := uuid.New()
+	sspB := uuid.New()
+	runID := uuid.New()
+	catalogID := uuid.New()
+	actorID := uuid.New()
+	labels := map[string]string{"env": "prod"}
+	hash := suggestionrel.CanonicalLabelSetHash(labels)
+	suite.seedSuggestionSSPAndRun(sspA, runID)
+	suite.Require().NoError(suite.DB.Create(&relational.SystemSecurityPlan{UUIDModel: relational.UUIDModel{ID: &sspB}}).Error)
+	global := relational.Filter{Name: "global", Filter: datatypes.NewJSONType(suggestionrel.BuildLabelFilter(map[string]string{"env": "stage"}))}
+	suite.Require().NoError(suite.DB.Create(&global).Error)
+
+	suggestion := suite.seedDashboardSuggestion(runID, sspA, catalogID, "AC-1", labels, hash, "ssp-a only", 0.8, nil)
+	svc := suggestionrel.NewSuggestionService(suite.DB)
+	suite.Require().NoError(svc.Accept(sspA, []uuid.UUID{*suggestion.ID}, actorID))
+
+	var sspBFilterCount int64
+	suite.Require().NoError(suite.DB.Model(&relational.Filter{}).Where("ssp_id = ?", sspB).Count(&sspBFilterCount).Error)
+	suite.Zero(sspBFilterCount)
+
+	var globalCount int64
+	suite.Require().NoError(suite.DB.Model(&relational.Filter{}).Where("id = ? AND ssp_id IS NULL", global.ID).Count(&globalCount).Error)
+	suite.Equal(int64(1), globalCount)
+}
+
+func (suite *DashboardSuggestionsIntegrationSuite) seedSuggestionSSPAndRun(sspID uuid.UUID, runID uuid.UUID) {
+	suite.Require().NoError(suite.DB.Create(&relational.SystemSecurityPlan{UUIDModel: relational.UUIDModel{ID: &sspID}}).Error)
+	suite.Require().NoError(suite.DB.Create(&suggestionrel.DashboardSuggestionRun{
+		UUIDModel:       relational.UUIDModel{ID: &runID},
+		SSPID:           sspID,
+		Status:          "completed",
+		Model:           "test-model",
+		PromptVersion:   suggestionrel.PromptVersion,
+		Scope:           datatypes.JSONMap{"controlKeys": []string{}, "labelSetHashes": []string{}},
+		PlannedCalls:    1,
+		SuggestionCount: 0,
+		Stats:           datatypes.JSONMap{},
+	}).Error)
+}
+
+func (suite *DashboardSuggestionsIntegrationSuite) seedDashboardSuggestion(
+	runID uuid.UUID,
+	sspID uuid.UUID,
+	catalogID uuid.UUID,
+	controlID string,
+	labels map[string]string,
+	hash string,
+	name string,
+	confidence float64,
+	targetFilterID *uuid.UUID,
+) suggestionrel.DashboardSuggestion {
+	suggestion := suggestionrel.DashboardSuggestion{
+		RunID:              runID,
+		SSPID:              sspID,
+		ControlCatalogID:   catalogID,
+		ControlID:          controlID,
+		LabelSet:           datatypes.JSONMap{},
+		LabelSetHash:       hash,
+		TargetFilterID:     targetFilterID,
+		ProposedFilterName: name,
+		Reasoning:          "Evidence satisfies the control and belongs to the system.",
+		Confidence:         confidence,
+		Status:             suggestionrel.DashboardSuggestionStatusPending,
+	}
+	for key, value := range labels {
+		suggestion.LabelSet[key] = value
+	}
+	suite.Require().NoError(suite.DB.Create(&suggestion).Error)
+	return suggestion
+}
