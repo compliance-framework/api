@@ -143,7 +143,7 @@ func (s *SuggestionService) InsertValidatedMappings(runID uuid.UUID, sspID uuid.
 	result := InsertMappingsResult{}
 	err := s.db.Transaction(func(tx *gorm.DB) error {
 		var run DashboardSuggestionRun
-		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ?", runID).First(&run).Error; err != nil {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ? AND ssp_id = ?", runID, sspID).First(&run).Error; err != nil {
 			return err
 		}
 		capacity := maxSuggestionsPerRun - run.SuggestionCount

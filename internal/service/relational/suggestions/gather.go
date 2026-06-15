@@ -197,11 +197,15 @@ func (s *SuggestionService) gatherAllLabelSets() ([]LabelSetInput, error) {
 
 	byHash := map[string]*LabelSetInput{}
 	for _, group := range byEvidence {
-		hash := CanonicalLabelSetHash(group.labels)
+		labels, ok := NormalizeLabelSet(group.labels)
+		if !ok {
+			continue
+		}
+		hash := CanonicalLabelSetHash(labels)
 		labelSet := byHash[hash]
 		if labelSet == nil {
-			copied := make(map[string]string, len(group.labels))
-			for key, value := range group.labels {
+			copied := make(map[string]string, len(labels))
+			for key, value := range labels {
 				copied[key] = value
 			}
 			labelSet = &LabelSetInput{Hash: hash, Labels: copied}

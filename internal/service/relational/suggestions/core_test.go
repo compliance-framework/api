@@ -19,6 +19,23 @@ func TestCanonicalLabelSetHashStable(t *testing.T) {
 	require.NotEqual(t, got, CanonicalLabelSetHash(map[string]string{"env": "prod", "repo": "API"}))
 }
 
+func TestNormalizeLabelSetCollapsesSameValueCaseDuplicates(t *testing.T) {
+	labels, ok := NormalizeLabelSet(map[string]string{"Env": "prod", "env": "prod", "Repo": "api"})
+	require.True(t, ok)
+	require.Equal(t, map[string]string{"env": "prod", "repo": "api"}, labels)
+	require.Equal(t, CanonicalLabelSetHash(map[string]string{"env": "prod", "repo": "api"}), CanonicalLabelSetHash(map[string]string{"Env": "prod", "env": "prod", "Repo": "api"}))
+}
+
+func TestCanonicalLabelSetHashConflictingCaseDuplicatesDeterministic(t *testing.T) {
+	_, ok := NormalizeLabelSet(map[string]string{"Env": "prod", "env": "stage"})
+	require.False(t, ok)
+
+	got := CanonicalLabelSetHash(map[string]string{"Env": "prod", "env": "stage"})
+	require.Equal(t, got, CanonicalLabelSetHash(map[string]string{"env": "stage", "Env": "prod"}))
+	require.NotEqual(t, got, CanonicalLabelSetHash(map[string]string{"env": "stage"}))
+	require.NotEqual(t, got, CanonicalLabelSetHash(map[string]string{"env": "prod"}))
+}
+
 func TestBuildLabelFilterCanonicalizeRoundTrip(t *testing.T) {
 	labels := map[string]string{"env": "prod", "repo": "api"}
 	filter := BuildLabelFilter(labels)

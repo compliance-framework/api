@@ -380,6 +380,78 @@ func (suite *DashboardSuggestionsIntegrationSuite) TestInsertExcludesMatchingGlo
 	suite.Nil(reloaded.SSPID)
 }
 
+func (suite *DashboardSuggestionsIntegrationSuite) TestInsertValidatedMappingsRejectsRunSSPMismatch() {
+	sspA := uuid.New()
+	sspB := uuid.New()
+	runID := uuid.New()
+	catalogID := uuid.New()
+	labels := map[string]string{"env": "prod"}
+	hash := suggestionrel.CanonicalLabelSetHash(labels)
+	suite.seedSuggestionSSPAndRun(sspA, runID)
+	suite.Require().NoError(suite.DB.Create(&relational.SystemSecurityPlan{UUIDModel: relational.UUIDModel{ID: &sspB}}).Error)
+
+	svc := suggestionrel.NewSuggestionService(suite.DB)
+	result, err := svc.InsertValidatedMappings(runID, sspB, suggestionrel.PromptVersion, []suggestionrel.ValidatedMapping{{
+		ControlKey:         suggestionrel.ControlKey(catalogID, "AC-1"),
+		LabelSetHash:       hash,
+		LabelSet:           labels,
+		Action:             suggestionrel.MappingActionNewFilter,
+		ProposedFilterName: "prod",
+		Confidence:         0.8,
+		Reasoning:          "matches",
+	}}, 10)
+	suite.Error(err)
+	suite.Equal(suggestionrel.InsertMappingsResult{}, result)
+
+	var suggestionCount int64
+	suite.Require().NoError(suite.DB.Model(&suggestionrel.DashboardSuggestion{}).
+		Where("ssp_id IN ?", []uuid.UUID{sspA, sspB}).
+		Count(&suggestionCount).Error)
+	suite.Zero(suggestionCount)
+
+	var run suggestionrel.DashboardSuggestionRun
+	suite.Require().NoError(suite.DB.First(&run, "id = ?", runID).Error)
+	suite.Zero(run.SuggestionCount)
+}
+
+func (suite *DashboardSuggestionsIntegrationSuite) TestGatherLabelSetsNormalizesAndSkipsCaseVariantDuplicates() {
+	sspID := uuid.New()
+	runID := uuid.New()
+	suite.seedSuggestionSSPAndRun(sspID, runID)
+
+	sameValueEvidenceID := uuid.New()
+	sameValueEvidenceUUID := uuid.New()
+	conflictingEvidenceID := uuid.New()
+	conflictingEvidenceUUID := uuid.New()
+	now := time.Now().UTC()
+	suite.insertEvidenceLabels(sameValueEvidenceID, sameValueEvidenceUUID, "same value", now, map[string]string{
+		"Env":  "prod",
+		"env":  "prod",
+		"Repo": "api",
+	})
+	suite.insertEvidenceLabels(conflictingEvidenceID, conflictingEvidenceUUID, "conflicting", now, map[string]string{
+		"Env": "prod",
+		"env": "stage",
+	})
+
+	normalized := map[string]string{"env": "prod", "repo": "api"}
+	hash := suggestionrel.CanonicalLabelSetHash(normalized)
+	conflictingHash := suggestionrel.CanonicalLabelSetHash(map[string]string{"Env": "prod", "env": "stage"})
+	svc := suggestionrel.NewSuggestionService(suite.DB)
+
+	snapshot, err := svc.ResolveScope(sspID, suggestionrel.Scope{})
+	suite.Require().NoError(err)
+	suite.Contains(snapshot.LabelSetHashes, hash)
+	suite.NotContains(snapshot.LabelSetHashes, conflictingHash)
+
+	input, err := svc.GatherCellInput(sspID, suggestionrel.GridCell{LabelSetHashes: []string{hash}}, suggestionrel.GatherOptions{})
+	suite.Require().NoError(err)
+	suite.Require().Len(input.LabelSets, 1)
+	suite.Equal(hash, input.LabelSets[0].Hash)
+	suite.Equal(normalized, input.LabelSets[0].Labels)
+	suite.Equal(1, input.LabelSets[0].EvidenceCount)
+}
+
 func (suite *DashboardSuggestionsIntegrationSuite) TestAcceptSSPIsolationAndGlobalFiltersStayVisible() {
 	sspA := uuid.New()
 	sspB := uuid.New()
@@ -450,4 +522,24 @@ func (suite *DashboardSuggestionsIntegrationSuite) seedDashboardSuggestion(
 	}
 	suite.Require().NoError(suite.DB.Create(&suggestion).Error)
 	return suggestion
+}
+
+func (suite *DashboardSuggestionsIntegrationSuite) insertEvidenceLabels(id uuid.UUID, streamUUID uuid.UUID, title string, collectedAt time.Time, labels map[string]string) {
+	suite.Require().NoError(suite.DB.Exec(
+		`INSERT INTO evidences (id, uuid, title, description, start, "end") VALUES (?, ?, ?, ?, ?, ?)`,
+		id,
+		streamUUID,
+		title,
+		title,
+		collectedAt,
+		collectedAt,
+	).Error)
+	for key, value := range labels {
+		suite.Require().NoError(suite.DB.Exec(
+			`INSERT INTO evidence_labels (evidence_id, labels_name, labels_value) VALUES (?, ?, ?)`,
+			id,
+			key,
+			value,
+		).Error)
+	}
 }

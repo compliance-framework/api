@@ -79,9 +79,26 @@ func ResolveSnapshot(scope Scope, allControlKeys []string, allLabelSetHashes []s
 }
 
 func CanonicalLabelSetHash(labels map[string]string) string {
-	lines := canonicalLabelLines(labels)
+	normalized, ok := NormalizeLabelSet(labels)
+	lines := canonicalLabelLines(normalized)
+	if !ok {
+		lines = conflictingLabelLines(labels)
+	}
 	sum := sha256.Sum256([]byte(strings.Join(lines, "\n")))
 	return hex.EncodeToString(sum[:])
+}
+
+func NormalizeLabelSet(labels map[string]string) (map[string]string, bool) {
+	normalized := make(map[string]string, len(labels))
+	for key, value := range labels {
+		lowerKey := strings.ToLower(key)
+		existing, seen := normalized[lowerKey]
+		if seen && existing != value {
+			return nil, false
+		}
+		normalized[lowerKey] = value
+	}
+	return normalized, true
 }
 
 func BuildLabelFilter(labels map[string]string) labelfilter.Filter {
@@ -159,21 +176,23 @@ func canonicalizeScope(scope labelfilter.Scope, labels map[string]string) bool {
 func canonicalLabelLines(labels map[string]string) []string {
 	keys := make([]string, 0, len(labels))
 	for key := range labels {
-		keys = append(keys, strings.ToLower(key))
+		keys = append(keys, key)
 	}
 	sort.Strings(keys)
 
 	lines := make([]string, 0, len(keys))
-	for _, lowerKey := range keys {
-		value := ""
-		for key, candidate := range labels {
-			if strings.ToLower(key) == lowerKey {
-				value = candidate
-				break
-			}
-		}
-		lines = append(lines, fmt.Sprintf("%s=%s", lowerKey, value))
+	for _, key := range keys {
+		lines = append(lines, fmt.Sprintf("%s=%s", key, labels[key]))
 	}
+	return lines
+}
+
+func conflictingLabelLines(labels map[string]string) []string {
+	lines := make([]string, 0, len(labels))
+	for key, value := range labels {
+		lines = append(lines, fmt.Sprintf("%s=%s", strings.ToLower(key), value))
+	}
+	sort.Strings(lines)
 	return lines
 }
 
