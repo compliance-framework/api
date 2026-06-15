@@ -272,6 +272,26 @@ func (suite *DashboardSuggestionsIntegrationSuite) TestAcceptCreatesOneSSPBoundF
 	suite.Equal(int64(2), eventCount)
 }
 
+func (suite *DashboardSuggestionsIntegrationSuite) TestAcceptUsesDeterministicNameTieBreak() {
+	sspID := uuid.New()
+	runID := uuid.New()
+	catalogID := uuid.New()
+	actorID := uuid.New()
+	labels := map[string]string{"env": "prod"}
+	hash := suggestionrel.CanonicalLabelSetHash(labels)
+	suite.seedSuggestionSSPAndRun(sspID, runID)
+
+	first := suite.seedDashboardSuggestion(runID, sspID, catalogID, "AC-1", labels, hash, "z-name", 0.8, nil)
+	second := suite.seedDashboardSuggestion(runID, sspID, catalogID, "AC-2", labels, hash, "a-name", 0.8, nil)
+
+	svc := suggestionrel.NewSuggestionService(suite.DB)
+	suite.Require().NoError(svc.Accept(sspID, []uuid.UUID{*first.ID, *second.ID}, actorID))
+
+	var filter relational.Filter
+	suite.Require().NoError(suite.DB.First(&filter, "ssp_id = ?", sspID).Error)
+	suite.Equal("a-name", filter.Name)
+}
+
 func (suite *DashboardSuggestionsIntegrationSuite) TestConcurrentAcceptsCreateOneSSPBoundFilterForSameHash() {
 	sspID := uuid.New()
 	runID := uuid.New()
@@ -419,16 +439,16 @@ func (suite *DashboardSuggestionsIntegrationSuite) TestGatherLabelSetsNormalizes
 	runID := uuid.New()
 	suite.seedSuggestionSSPAndRun(sspID, runID)
 
-	sameValueEvidenceID := uuid.New()
-	sameValueEvidenceUUID := uuid.New()
 	conflictingEvidenceID := uuid.New()
 	conflictingEvidenceUUID := uuid.New()
 	now := time.Now().UTC()
-	suite.insertEvidenceLabels(sameValueEvidenceID, sameValueEvidenceUUID, "same value", now, map[string]string{
-		"Env":  "prod",
-		"env":  "prod",
-		"Repo": "api",
-	})
+	for _, title := range []string{"zeta", "alpha", "gamma", "beta"} {
+		suite.insertEvidenceLabels(uuid.New(), uuid.New(), title, now, map[string]string{
+			"Env":  "prod",
+			"env":  "prod",
+			"Repo": "api",
+		})
+	}
 	suite.insertEvidenceLabels(conflictingEvidenceID, conflictingEvidenceUUID, "conflicting", now, map[string]string{
 		"Env": "prod",
 		"env": "stage",
@@ -449,7 +469,61 @@ func (suite *DashboardSuggestionsIntegrationSuite) TestGatherLabelSetsNormalizes
 	suite.Require().Len(input.LabelSets, 1)
 	suite.Equal(hash, input.LabelSets[0].Hash)
 	suite.Equal(normalized, input.LabelSets[0].Labels)
-	suite.Equal(1, input.LabelSets[0].EvidenceCount)
+	suite.Equal(4, input.LabelSets[0].EvidenceCount)
+	suite.Equal([]string{"alpha", "beta", "gamma"}, input.LabelSets[0].SampleTitles)
+}
+
+func (suite *DashboardSuggestionsIntegrationSuite) TestGatherControlsUsesMatchingImplementationWhenSSPHasDuplicateImplementations() {
+	sspID := uuid.New()
+	runID := uuid.New()
+	catalogID := uuid.New()
+	profileID := uuid.New()
+	controlID := "AC-1"
+	suite.seedSuggestionSSPAndRun(sspID, runID)
+
+	suite.Require().NoError(suite.DB.Create(&relational.Profile{UUIDModel: relational.UUIDModel{ID: &profileID}}).Error)
+	suite.Require().NoError(suite.DB.Create(&relational.Control{
+		CatalogID: catalogID,
+		ID:        controlID,
+		Title:     "Access Control Policy",
+		Parts:     datatypes.NewJSONSlice([]relational.Part{}),
+	}).Error)
+	suite.Require().NoError(suite.DB.Exec(
+		`INSERT INTO ssp_profiles (system_security_plan_id, profile_id) VALUES (?, ?)`,
+		sspID,
+		profileID,
+	).Error)
+	suite.Require().NoError(suite.DB.Exec(
+		`INSERT INTO profile_controls (profile_id, control_catalog_id, control_id) VALUES (?, ?, ?)`,
+		profileID,
+		catalogID,
+		controlID,
+	).Error)
+
+	emptyImplementationID := uuid.New()
+	matchingImplementationID := uuid.New()
+	suite.Require().NoError(suite.DB.Create(&relational.ControlImplementation{
+		UUIDModel:            relational.UUIDModel{ID: &emptyImplementationID},
+		SystemSecurityPlanId: sspID,
+	}).Error)
+	suite.Require().NoError(suite.DB.Create(&relational.ControlImplementation{
+		UUIDModel:            relational.UUIDModel{ID: &matchingImplementationID},
+		SystemSecurityPlanId: sspID,
+	}).Error)
+	suite.Require().NoError(suite.DB.Create(&relational.ImplementedRequirement{
+		UUIDModel:               relational.UUIDModel{ID: ptrUUID(uuid.New())},
+		ControlImplementationId: matchingImplementationID,
+		ControlId:               controlID,
+		Remarks:                 "implemented requirement remarks",
+	}).Error)
+
+	svc := suggestionrel.NewSuggestionService(suite.DB)
+	input, err := svc.GatherCellInput(sspID, suggestionrel.GridCell{
+		ControlKeys: []string{suggestionrel.ControlKey(catalogID, controlID)},
+	}, suggestionrel.GatherOptions{})
+	suite.Require().NoError(err)
+	suite.Require().Len(input.Controls, 1)
+	suite.Equal("implemented requirement remarks", input.Controls[0].ImplementationText)
 }
 
 func (suite *DashboardSuggestionsIntegrationSuite) TestAcceptSSPIsolationAndGlobalFiltersStayVisible() {
@@ -542,4 +616,8 @@ func (suite *DashboardSuggestionsIntegrationSuite) insertEvidenceLabels(id uuid.
 			value,
 		).Error)
 	}
+}
+
+func ptrUUID(id uuid.UUID) *uuid.UUID {
+	return &id
 }

@@ -70,14 +70,14 @@ func (s *SuggestionService) gatherControls(sspID uuid.UUID, controlKeys []string
 	for _, key := range controlKeys {
 		keys[key] = struct{}{}
 	}
-	catalogIDs := make([]uuid.UUID, 0, len(controlKeys))
+	catalogIDStrings := make([]string, 0, len(controlKeys))
 	controlIDs := make([]string, 0, len(controlKeys))
 	for _, key := range controlKeys {
 		catalogID, controlID, err := ParseControlKey(key)
 		if err != nil {
 			return nil, err
 		}
-		catalogIDs = append(catalogIDs, catalogID)
+		catalogIDStrings = append(catalogIDStrings, catalogID.String())
 		controlIDs = append(controlIDs, controlID)
 	}
 
@@ -89,23 +89,33 @@ func (s *SuggestionService) gatherControls(sspID uuid.UUID, controlKeys []string
 			c.title,
 			c.parts::text AS parts,
 			COALESCE(m.title, '') AS catalog_title,
-			TRIM(CONCAT_WS(E'\n',
-				NULLIF(ir.remarks, ''),
-				string_agg(NULLIF(st.remarks, ''), E'\n' ORDER BY st.statement_id)
-			)) AS implementation_text
+			COALESCE(impl.implementation_text, '') AS implementation_text
 		FROM controls c
-		JOIN profile_controls pc ON pc.control_catalog_id = c.catalog_id AND pc.control_id = c.id
-		JOIN ssp_profiles sp ON sp.profile_id = pc.profile_id AND sp.system_security_plan_id = @ssp_id
-		LEFT JOIN metadata m ON m.parent_type = 'catalogs' AND m.parent_id = c.catalog_id::text
-		LEFT JOIN control_implementations ci ON ci.system_security_plan_id = @ssp_id
-		LEFT JOIN implemented_requirements ir ON ir.control_implementation_id = ci.id AND UPPER(ir.control_id) = UPPER(c.id)
-		LEFT JOIN statements st ON st.implemented_requirement_id = ir.id
-		WHERE c.catalog_id IN @catalog_ids AND c.id IN @control_ids
-		GROUP BY c.catalog_id, c.id, c.title, c.parts, m.title, ir.remarks
+		JOIN profile_controls pc ON pc.control_catalog_id::text = c.catalog_id::text AND pc.control_id::text = c.id::text
+		JOIN ssp_profiles sp ON sp.profile_id::text = pc.profile_id::text AND sp.system_security_plan_id::text = CAST(@ssp_id AS text)
+		LEFT JOIN metadata m ON m.parent_type::text = 'catalogs' AND m.parent_id::text = c.catalog_id::text
+		LEFT JOIN LATERAL (
+			SELECT TRIM(string_agg(piece, E'\n' ORDER BY sort_key)) AS implementation_text
+			FROM (
+				SELECT NULLIF(ir.remarks, '') AS piece, '0' AS sort_key
+				FROM control_implementations ci
+				JOIN implemented_requirements ir ON ir.control_implementation_id::text = ci.id::text AND UPPER(ir.control_id) = UPPER(c.id)
+				WHERE ci.system_security_plan_id::text = CAST(@ssp_id AS text)
+				UNION ALL
+				SELECT NULLIF(st.remarks, '') AS piece, '1:' || st.statement_id::text AS sort_key
+				FROM control_implementations ci
+				JOIN implemented_requirements ir ON ir.control_implementation_id::text = ci.id::text AND UPPER(ir.control_id) = UPPER(c.id)
+				JOIN statements st ON st.implemented_requirement_id::text = ir.id::text
+				WHERE ci.system_security_plan_id::text = CAST(@ssp_id AS text)
+			) pieces
+			WHERE piece IS NOT NULL
+		) impl ON true
+		WHERE c.catalog_id::text IN @catalog_ids AND c.id::text IN @control_ids
+		GROUP BY c.catalog_id, c.id, c.title, c.parts, m.title, impl.implementation_text
 		ORDER BY c.catalog_id ASC, c.id ASC
 	`, map[string]any{
 		"ssp_id":      sspID,
-		"catalog_ids": catalogIDs,
+		"catalog_ids": catalogIDStrings,
 		"control_ids": controlIDs,
 	}).Scan(&rows).Error; err != nil {
 		return nil, err
@@ -212,14 +222,18 @@ func (s *SuggestionService) gatherAllLabelSets() ([]LabelSetInput, error) {
 			byHash[hash] = labelSet
 		}
 		labelSet.EvidenceCount++
-		if group.title != "" && len(labelSet.SampleTitles) < 3 {
+		if group.title != "" {
 			labelSet.SampleTitles = append(labelSet.SampleTitles, group.title)
-			sort.Strings(labelSet.SampleTitles)
 		}
 	}
 
 	out := make([]LabelSetInput, 0, len(byHash))
 	for _, labelSet := range byHash {
+		sort.Strings(labelSet.SampleTitles)
+		labelSet.SampleTitles = dedupeStrings(labelSet.SampleTitles)
+		if len(labelSet.SampleTitles) > 3 {
+			labelSet.SampleTitles = labelSet.SampleTitles[:3]
+		}
 		out = append(out, *labelSet)
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Hash < out[j].Hash })
@@ -354,10 +368,8 @@ func normalizeGatherOptions(opts GatherOptions) GatherOptions {
 
 func truncate(value string, limit int) string {
 	value = strings.TrimSpace(value)
-	if limit <= 0 || len(value) <= limit {
-		return value
-	}
-	return value[:limit] + ReasoningTruncatedMarker
+	truncated, _ := truncateRunes(value, limit, ReasoningTruncatedMarker)
+	return truncated
 }
 
 func extractPartText(partsJSON string) string {

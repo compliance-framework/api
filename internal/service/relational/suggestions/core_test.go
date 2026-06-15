@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/compliance-framework/api/internal/converters/labelfilter"
 	"github.com/google/uuid"
@@ -191,6 +192,42 @@ func TestValidateMappingsControlCap(t *testing.T) {
 	result := ValidateRawMappings(input, raw)
 	require.Len(t, result.Mappings, MaxMappingsPerControlPerCell)
 	require.Equal(t, 1, result.Counts["dropped_control_cap"])
+}
+
+func TestValidateMappingsTruncatesMultibyteTextAtRuneBoundary(t *testing.T) {
+	controlKey := ControlKey(uuid.New(), "AC-1")
+	labelHash := CanonicalLabelSetHash(map[string]string{"env": "prod"})
+	input := CellInput{
+		Controls:  []ControlInput{{ControlKey: controlKey}},
+		LabelSets: []LabelSetInput{{Hash: labelHash, Labels: map[string]string{"env": "prod"}}},
+	}
+
+	result := ValidateRawMappings(input, []RawMapping{{
+		ControlKey:         controlKey,
+		LabelSetHash:       labelHash,
+		Action:             MappingActionNewFilter,
+		ProposedFilterName: strings.Repeat("á", 121),
+		Confidence:         0.8,
+		Reasoning:          strings.Repeat("🙂", MaxReasoningLength+1),
+	}})
+
+	require.Len(t, result.Mappings, 1)
+	require.Equal(t, 1, result.Counts["reasoning_truncated"])
+	require.Equal(t, 1, result.Counts["name_truncated"])
+	require.True(t, utf8.ValidString(result.Mappings[0].Reasoning))
+	require.True(t, strings.HasSuffix(result.Mappings[0].Reasoning, ReasoningTruncatedMarker))
+	require.True(t, utf8.ValidString(result.Mappings[0].ProposedFilterName))
+	require.Equal(t, 120, utf8.RuneCountInString(result.Mappings[0].ProposedFilterName))
+}
+
+func TestFallbackAndGatherTruncatePreserveUTF8(t *testing.T) {
+	name := fallbackFilterName(map[string]string{"emoji": strings.Repeat("🙂", 121)})
+	require.True(t, utf8.ValidString(name))
+	require.Equal(t, 120, utf8.RuneCountInString(name))
+
+	value := truncate("  "+strings.Repeat("á", 6)+"  ", 3)
+	require.True(t, utf8.ValidString(value))
+	require.Equal(t, strings.Repeat("á", 3)+ReasoningTruncatedMarker, value)
 }
 
 func TestPromptGolden(t *testing.T) {

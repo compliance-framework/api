@@ -225,7 +225,10 @@ func (s *SuggestionService) Accept(sspID uuid.UUID, suggestionIDs []uuid.UUID, a
 				if group[i].Confidence != group[j].Confidence {
 					return group[i].Confidence > group[j].Confidence
 				}
-				return group[i].LabelSetHash < group[j].LabelSetHash
+				if group[i].ProposedFilterName != group[j].ProposedFilterName {
+					return group[i].ProposedFilterName < group[j].ProposedFilterName
+				}
+				return suggestionIDString(group[i]) < suggestionIDString(group[j])
 			})
 			labels := jsonMapToLabels(group[0].LabelSet)
 			filterID, created, err := s.acceptFilterForHash(tx, sspID, hash, labels, group)
@@ -272,6 +275,13 @@ func (s *SuggestionService) Accept(sspID uuid.UUID, suggestionIDs []uuid.UUID, a
 		}
 		return nil
 	})
+}
+
+func suggestionIDString(suggestion DashboardSuggestion) string {
+	if suggestion.ID == nil {
+		return ""
+	}
+	return suggestion.ID.String()
 }
 
 func (s *SuggestionService) Reject(sspID uuid.UUID, suggestionIDs []uuid.UUID, reason string, actorID uuid.UUID) error {

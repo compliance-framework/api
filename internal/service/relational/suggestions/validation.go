@@ -123,8 +123,8 @@ func ValidateRawMappings(input CellInput, rawMappings []RawMapping) ValidationRe
 			counts["rejected_empty_reasoning"]++
 			continue
 		}
-		if len(reasoning) > MaxReasoningLength {
-			reasoning = reasoning[:MaxReasoningLength] + ReasoningTruncatedMarker
+		if truncated, ok := truncateRunes(reasoning, MaxReasoningLength, ReasoningTruncatedMarker); ok {
+			reasoning = truncated
 			counts["reasoning_truncated"]++
 		}
 
@@ -151,8 +151,8 @@ func ValidateRawMappings(input CellInput, rawMappings []RawMapping) ValidationRe
 				name = fallbackFilterName(labelSet.Labels)
 				counts["fallback_name"]++
 			}
-			if len(name) > 120 {
-				name = name[:120]
+			if truncated, ok := truncateRunes(name, 120, ""); ok {
+				name = truncated
 				counts["name_truncated"]++
 			}
 		}
@@ -231,10 +231,35 @@ func fallbackFilterName(labels map[string]string) string {
 	if name == "" {
 		return "Evidence label set"
 	}
-	if len(name) > 120 {
-		return name[:120]
+	truncated, _ := truncateRunes(name, 120, "")
+	return truncated
+}
+
+func truncateRunes(value string, limit int, marker string) (string, bool) {
+	if limit <= 0 {
+		return value, false
 	}
-	return name
+	count := 0
+	for index := range value {
+		if count == limit {
+			return value[:index] + marker, true
+		}
+		count++
+	}
+	return value, false
+}
+
+func dedupeStrings(values []string) []string {
+	if len(values) < 2 {
+		return values
+	}
+	out := values[:0]
+	for _, value := range values {
+		if len(out) == 0 || out[len(out)-1] != value {
+			out = append(out, value)
+		}
+	}
+	return out
 }
 
 func ParseControlKey(controlKey string) (uuid.UUID, string, error) {
