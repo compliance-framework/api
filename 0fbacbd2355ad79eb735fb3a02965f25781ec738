@@ -1,0 +1,7 @@
+lisa-design:
+- The Anthropic client uses `messages.create` with `output_config.format` JSON schema structured output, not tool calling or prompt-only JSON instructions, so callers depend on provider-side schema-constrained JSON.
+- SDK retries are disabled with `option.WithMaxRetries(0)` because the exported error sentinels are the retry contract and the later River worker owns retry behavior.
+- The wrapper passes `option.WithoutEnvironmentDefaults()` so this package only uses `CCF_AI_API_KEY`/`CCF_AI_BASE_URL`, not ambient `ANTHROPIC_*` credentials or base URLs.
+- `ErrInvalidOutput` covers Anthropic HTTP 400 responses and malformed/unparseable successful provider responses; Go field-level validation remains out of this package and belongs to later phases.
+- `AIConfig.APIKey` is kept on the runtime config for client construction but is redacted via `String`/`GoString` and omitted from JSON/YAML to avoid accidental logs or persisted config dumps.
+- `NewAnthropicClient` returns an inert client when disabled and `CompleteStructured` returns `ErrDisabled`; no network call is made at construction time.
