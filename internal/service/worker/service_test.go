@@ -741,7 +741,7 @@ func TestBuildRiverConfig_IncludesSendSlackQueue(t *testing.T) {
 		Workers: 7,
 	}
 
-	riverConfig := buildRiverConfig(cfg, river.NewWorkers(), nil)
+	riverConfig := buildRiverConfig(cfg, river.NewWorkers(), nil, nil)
 
 	sendSlackQueue, ok := riverConfig.Queues["slack"]
 	assert.True(t, ok)
@@ -751,7 +751,7 @@ func TestBuildRiverConfig_IncludesSendSlackQueue(t *testing.T) {
 func TestBuildRiverConfig_PollOnlyDisabledByDefault(t *testing.T) {
 	cfg := config.DefaultWorkerConfig()
 
-	riverConfig := buildRiverConfig(cfg, river.NewWorkers(), nil)
+	riverConfig := buildRiverConfig(cfg, river.NewWorkers(), nil, nil)
 
 	assert.False(t, riverConfig.PollOnly)
 }
@@ -760,7 +760,7 @@ func TestBuildRiverConfig_PollOnlyCanBeEnabled(t *testing.T) {
 	cfg := config.DefaultWorkerConfig()
 	cfg.UsePolling = true
 
-	riverConfig := buildRiverConfig(cfg, river.NewWorkers(), nil)
+	riverConfig := buildRiverConfig(cfg, river.NewWorkers(), nil, nil)
 
 	assert.True(t, riverConfig.PollOnly)
 }
