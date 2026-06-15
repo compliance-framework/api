@@ -28,6 +28,11 @@ var unsupportedAnthropicSchemaKeywords = map[string]struct{}{
 	"minLength":        {},
 	"maxLength":        {},
 	"pattern":          {},
+	"minItems":         {},
+	"maxItems":         {},
+	"uniqueItems":      {},
+	"minProperties":    {},
+	"maxProperties":    {},
 }
 
 type AnthropicConfig struct {

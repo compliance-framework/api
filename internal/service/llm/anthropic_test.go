@@ -210,10 +210,22 @@ func TestSanitizeAnthropicSchema(t *testing.T) {
 		"properties": map[string]any{
 			"name": map[string]any{"type": "string", "minLength": float64(1), "pattern": ".+"},
 			"scores": map[string]any{
-				"type": "array",
+				"type":        "array",
+				"minItems":    float64(1),
+				"maxItems":    float64(5),
+				"uniqueItems": true,
 				"items": []any{
 					map[string]any{"type": "number", "minimum": float64(0), "multipleOf": float64(0.5)},
 				},
+			},
+			"metadata": map[string]any{
+				"type":          "object",
+				"minProperties": float64(1),
+				"maxProperties": float64(3),
+				"properties": map[string]any{
+					"source": map[string]any{"type": "string"},
+				},
+				"required": []any{"source"},
 			},
 		},
 	}
@@ -228,6 +240,13 @@ func TestSanitizeAnthropicSchema(t *testing.T) {
 			"scores": map[string]any{
 				"type":  "array",
 				"items": []any{map[string]any{"type": "number"}},
+			},
+			"metadata": map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"source": map[string]any{"type": "string"},
+				},
+				"required": []any{"source"},
 			},
 		},
 	}, sanitized)
