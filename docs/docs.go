@@ -27711,6 +27711,9 @@ const docTemplate = `{
                 },
                 "name": {
                     "type": "string"
+                },
+                "sspId": {
+                    "type": "string"
                 }
             }
         },
@@ -37177,6 +37180,9 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "name": {
+                    "type": "string"
+                },
+                "sspId": {
                     "type": "string"
                 }
             }
