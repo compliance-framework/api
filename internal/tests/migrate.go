@@ -7,6 +7,7 @@ import (
 	"github.com/compliance-framework/api/internal/service/relational"
 	poamrel "github.com/compliance-framework/api/internal/service/relational/poam"
 	riskrel "github.com/compliance-framework/api/internal/service/relational/risks"
+	suggestionrel "github.com/compliance-framework/api/internal/service/relational/suggestions"
 	templaterel "github.com/compliance-framework/api/internal/service/relational/templates"
 	"gorm.io/gorm"
 )
@@ -184,6 +185,10 @@ func (t *TestMigrator) Up() error {
 		&relational.Labels{},
 		&relational.SelectSubjectById{},
 		&relational.Filter{},
+		&suggestionrel.DashboardSuggestionRun{},
+		&suggestionrel.DashboardSuggestionRunCell{},
+		&suggestionrel.DashboardSuggestion{},
+		&suggestionrel.DashboardSuggestionEvent{},
 		&relational.Step{},
 	); err != nil {
 		return err
@@ -203,8 +208,8 @@ func (t *TestMigrator) Up() error {
 			return err
 		}
 
-		// Align filter_controls.control_catalog_id to uuid (matching production migration in
-		// service.MigrateUpWithConfig) so integration tests exercise the same uuid join path.
+		// Align join-table control_catalog_id columns to uuid (matching production migration
+		// in service.MigrateUpWithConfig) so integration tests exercise the same uuid join path.
 		if err := t.db.Exec(`
 			DO $$
 			BEGIN
@@ -219,6 +224,106 @@ func (t *TestMigrator) Up() error {
 			      USING NULLIF(control_catalog_id, '')::uuid;
 			  END IF;
 			END $$;
+		`).Error; err != nil {
+			return err
+		}
+
+		if err := t.db.Exec(`
+			DO $$
+			BEGIN
+			  IF EXISTS (
+			    SELECT 1 FROM information_schema.columns
+			    WHERE table_name = 'profile_controls'
+			      AND column_name = 'control_catalog_id'
+			      AND data_type = 'text'
+			  ) THEN
+			    ALTER TABLE profile_controls
+			      ALTER COLUMN control_catalog_id TYPE uuid
+			      USING NULLIF(control_catalog_id, '')::uuid;
+			  END IF;
+			END $$;
+		`).Error; err != nil {
+			return err
+		}
+
+		if err := t.db.Exec(`
+			DO $$
+			BEGIN
+			  IF EXISTS (
+			    SELECT 1 FROM information_schema.columns
+			    WHERE table_name = 'filters'
+			      AND column_name = 'ssp_id'
+			  ) AND NOT EXISTS (
+			    SELECT 1 FROM pg_constraint
+			    WHERE conname = 'fk_filters_system_security_plan'
+			  ) THEN
+			    ALTER TABLE filters
+			      ADD CONSTRAINT fk_filters_system_security_plan
+			      FOREIGN KEY (ssp_id)
+			      REFERENCES system_security_plans(id)
+			      ON DELETE CASCADE;
+			  END IF;
+			END $$;
+		`).Error; err != nil {
+			return err
+		}
+
+		if err := t.db.Exec(`
+			DO $$
+			BEGIN
+			  IF EXISTS (
+			    SELECT 1 FROM information_schema.columns
+			    WHERE table_name = 'dashboard_suggestion_run_cells'
+			      AND column_name = 'run_id'
+			  ) AND NOT EXISTS (
+			    SELECT 1 FROM pg_constraint
+			    WHERE conname = 'fk_dashboard_suggestion_run_cells_run'
+			  ) THEN
+			    ALTER TABLE dashboard_suggestion_run_cells
+			      ADD CONSTRAINT fk_dashboard_suggestion_run_cells_run
+			      FOREIGN KEY (run_id)
+			      REFERENCES dashboard_suggestion_runs(id)
+			      ON DELETE CASCADE;
+			  END IF;
+			END $$;
+		`).Error; err != nil {
+			return err
+		}
+
+		if err := t.db.Exec(`
+			DO $$
+			BEGIN
+			  IF EXISTS (
+			    SELECT 1 FROM information_schema.columns
+			    WHERE table_name = 'dashboard_suggestions'
+			      AND column_name = 'run_id'
+			  ) AND NOT EXISTS (
+			    SELECT 1 FROM pg_constraint
+			    WHERE conname = 'fk_dashboard_suggestions_run'
+			  ) THEN
+			    ALTER TABLE dashboard_suggestions
+			      ADD CONSTRAINT fk_dashboard_suggestions_run
+			      FOREIGN KEY (run_id)
+			      REFERENCES dashboard_suggestion_runs(id)
+			      ON DELETE CASCADE;
+			  END IF;
+			END $$;
+		`).Error; err != nil {
+			return err
+		}
+
+		if err := t.db.Exec(`
+			CREATE UNIQUE INDEX IF NOT EXISTS idx_dashboard_suggestions_unique_pending
+			ON dashboard_suggestions (ssp_id, control_catalog_id, control_id, label_set_hash)
+			WHERE status = 'pending'
+		`).Error; err != nil {
+			return err
+		}
+
+		if err := t.db.Exec(`
+			CREATE UNIQUE INDEX IF NOT EXISTS idx_dashboard_suggestion_runs_unique_active
+			ON dashboard_suggestion_runs (ssp_id)
+			WHERE status IN ('pending', 'running')
 		`).Error; err != nil {
 			return err
 		}
@@ -405,6 +510,10 @@ func (t *TestMigrator) Down() error {
 		"evidence_labels",
 		"evidence_subjects",
 		&relational.Labels{},
+		&suggestionrel.DashboardSuggestionEvent{},
+		&suggestionrel.DashboardSuggestion{},
+		&suggestionrel.DashboardSuggestionRunCell{},
+		&suggestionrel.DashboardSuggestionRun{},
 		&relational.Filter{},
 	)
 }

@@ -13,6 +13,7 @@ import (
 	"github.com/compliance-framework/api/internal/service/relational"
 	poamrel "github.com/compliance-framework/api/internal/service/relational/poam"
 	riskrel "github.com/compliance-framework/api/internal/service/relational/risks"
+	suggestionrel "github.com/compliance-framework/api/internal/service/relational/suggestions"
 	templaterel "github.com/compliance-framework/api/internal/service/relational/templates"
 	"github.com/compliance-framework/api/internal/service/relational/workflows"
 	"gorm.io/datatypes"
@@ -178,6 +179,10 @@ func MigrateUpWithConfig(db *gorm.DB, cfg *config.Config) error {
 		&relational.Labels{},
 		&relational.SelectSubjectById{},
 		&relational.Filter{},
+		&suggestionrel.DashboardSuggestionRun{},
+		&suggestionrel.DashboardSuggestionRunCell{},
+		&suggestionrel.DashboardSuggestion{},
+		&suggestionrel.DashboardSuggestionEvent{},
 		&relational.Step{},
 	)
 	if err != nil {
@@ -238,8 +243,8 @@ func MigrateUpWithConfig(db *gorm.DB, cfg *config.Config) error {
 			return err
 		}
 
-		// Align filter_controls.control_catalog_id (historically text) with
-		// profile_controls.control_catalog_id and controls.catalog_id, which are both uuid.
+		// Align control_catalog_id join columns (historically text) with
+		// controls.catalog_id, which is uuid.
 		// The mismatch forced every catalog-scoped join (suggestion service, filter handler,
 		// risk evidence worker) to CAST around it. Idempotent and safe to run every boot:
 		// it only fires while the column is still text. NULLIF guards any legacy empty
@@ -258,6 +263,106 @@ func MigrateUpWithConfig(db *gorm.DB, cfg *config.Config) error {
 			      USING NULLIF(control_catalog_id, '')::uuid;
 			  END IF;
 			END $$;
+		`).Error; err != nil {
+			return err
+		}
+
+		if err := db.Exec(`
+			DO $$
+			BEGIN
+			  IF EXISTS (
+			    SELECT 1 FROM information_schema.columns
+			    WHERE table_name = 'profile_controls'
+			      AND column_name = 'control_catalog_id'
+			      AND data_type = 'text'
+			  ) THEN
+			    ALTER TABLE profile_controls
+			      ALTER COLUMN control_catalog_id TYPE uuid
+			      USING NULLIF(control_catalog_id, '')::uuid;
+			  END IF;
+			END $$;
+		`).Error; err != nil {
+			return err
+		}
+
+		if err := db.Exec(`
+			DO $$
+			BEGIN
+			  IF EXISTS (
+			    SELECT 1 FROM information_schema.columns
+			    WHERE table_name = 'filters'
+			      AND column_name = 'ssp_id'
+			  ) AND NOT EXISTS (
+			    SELECT 1 FROM pg_constraint
+			    WHERE conname = 'fk_filters_system_security_plan'
+			  ) THEN
+			    ALTER TABLE filters
+			      ADD CONSTRAINT fk_filters_system_security_plan
+			      FOREIGN KEY (ssp_id)
+			      REFERENCES system_security_plans(id)
+			      ON DELETE CASCADE;
+			  END IF;
+			END $$;
+		`).Error; err != nil {
+			return err
+		}
+
+		if err := db.Exec(`
+			DO $$
+			BEGIN
+			  IF EXISTS (
+			    SELECT 1 FROM information_schema.columns
+			    WHERE table_name = 'dashboard_suggestion_run_cells'
+			      AND column_name = 'run_id'
+			  ) AND NOT EXISTS (
+			    SELECT 1 FROM pg_constraint
+			    WHERE conname = 'fk_dashboard_suggestion_run_cells_run'
+			  ) THEN
+			    ALTER TABLE dashboard_suggestion_run_cells
+			      ADD CONSTRAINT fk_dashboard_suggestion_run_cells_run
+			      FOREIGN KEY (run_id)
+			      REFERENCES dashboard_suggestion_runs(id)
+			      ON DELETE CASCADE;
+			  END IF;
+			END $$;
+		`).Error; err != nil {
+			return err
+		}
+
+		if err := db.Exec(`
+			DO $$
+			BEGIN
+			  IF EXISTS (
+			    SELECT 1 FROM information_schema.columns
+			    WHERE table_name = 'dashboard_suggestions'
+			      AND column_name = 'run_id'
+			  ) AND NOT EXISTS (
+			    SELECT 1 FROM pg_constraint
+			    WHERE conname = 'fk_dashboard_suggestions_run'
+			  ) THEN
+			    ALTER TABLE dashboard_suggestions
+			      ADD CONSTRAINT fk_dashboard_suggestions_run
+			      FOREIGN KEY (run_id)
+			      REFERENCES dashboard_suggestion_runs(id)
+			      ON DELETE CASCADE;
+			  END IF;
+			END $$;
+		`).Error; err != nil {
+			return err
+		}
+
+		if err := db.Exec(`
+			CREATE UNIQUE INDEX IF NOT EXISTS idx_dashboard_suggestions_unique_pending
+			ON dashboard_suggestions (ssp_id, control_catalog_id, control_id, label_set_hash)
+			WHERE status = 'pending'
+		`).Error; err != nil {
+			return err
+		}
+
+		if err := db.Exec(`
+			CREATE UNIQUE INDEX IF NOT EXISTS idx_dashboard_suggestion_runs_unique_active
+			ON dashboard_suggestion_runs (ssp_id)
+			WHERE status IN ('pending', 'running')
 		`).Error; err != nil {
 			return err
 		}
@@ -652,6 +757,10 @@ func MigrateDown(db *gorm.DB) error {
 		"evidence_labels",
 		"evidence_subjects",
 		&relational.Labels{},
+		&suggestionrel.DashboardSuggestionEvent{},
+		&suggestionrel.DashboardSuggestion{},
+		&suggestionrel.DashboardSuggestionRunCell{},
+		&suggestionrel.DashboardSuggestionRun{},
 		&relational.Filter{},
 		"filter_controls",
 		"filter_system_components",
