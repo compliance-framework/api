@@ -55,6 +55,7 @@ func TestAnthropicClientErrorMapping(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				require.Equal(t, "/v1/messages", r.URL.Path)
+				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(tt.status)
 				_, _ = w.Write([]byte(tt.body))
 			}))
@@ -152,6 +153,30 @@ func TestAnthropicClientStructuredOutputSchemaPassthrough(t *testing.T) {
 	require.Equal(t, "claude-test", resp.Model)
 	require.Equal(t, 12, resp.InputTokens)
 	require.Equal(t, 7, resp.OutputTokens)
+}
+
+func TestAnthropicClientTransportErrorIsRetryable(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	baseURL := server.URL
+	server.Close()
+
+	client := NewAnthropicClient(AnthropicConfig{
+		Enabled:        true,
+		APIKey:         "test-key",
+		Model:          "claude-test",
+		BaseURL:        baseURL,
+		RequestTimeout: time.Second,
+	})
+
+	_, err := client.CompleteStructured(context.Background(), StructuredRequest{
+		Prompt:    "prompt",
+		Schema:    map[string]any{"type": "object"},
+		MaxTokens: 64,
+	})
+
+	require.Error(t, err)
+	require.ErrorIs(t, err, ErrOverloaded)
+	require.NotErrorIs(t, err, ErrInvalidOutput)
 }
 
 func TestAnthropicClientDisabled(t *testing.T) {

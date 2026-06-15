@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/anthropics/anthropic-sdk-go"
@@ -144,5 +145,8 @@ func mapAnthropicError(err error) error {
 	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 		return err
 	}
-	return fmt.Errorf("%w: %v", ErrInvalidOutput, err)
+	if strings.HasPrefix(err.Error(), "error parsing response json:") {
+		return fmt.Errorf("%w: %v", ErrInvalidOutput, err)
+	}
+	return fmt.Errorf("%w: %v", ErrOverloaded, err)
 }
