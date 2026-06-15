@@ -1,0 +1,7 @@
+lisa-design:
+- Dashboard suggestion SSP routes are registered only when AI config is enabled; the unauthenticated config probe is always registered so the UI can hide entry points when disabled.
+- Generate creates the run, scoped superseded events, run-start event, and cell rows inside one GORM transaction before calling the enqueue seam; enqueue failure rolls the transaction back and maps disabled workers to 503.
+- The Phase 5 worker method is only a seam in worker.Service; the real River job registration remains out of scope and enabled workers without Phase 4 return a clear not-registered error.
+- SSP-scoped filter visibility is applied at filter selection time as global plus same SSP; no sspId intentionally means org-wide union across global and all SSP-bound filters.
+- Evidence status aggregation counts distinct evidence stream UUIDs so overlapping filters tied to the same control cannot inflate org-wide compliance counts.
+- PUT /api/filters treats an omitted or null sspId as clearing the binding to global, matching the full-replacement shape of the existing filter update request.
