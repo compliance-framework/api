@@ -1,0 +1,8 @@
+lisa-design:
+- The worker keeps the River job unit at one dashboard-suggestion cell and uses `dashboard_suggestion_cell` args `(run_id, cell_index)` with `ByArgs` uniqueness so retries/redelivery never re-run an entire suggestion run.
+- The `suggestion` River queue and Anthropic LLM client are registered only when `CCF_AI_ENABLED=true`; disabled enqueue returns `ErrDashboardSuggestionWorkerDisabled` so Phase 5 can map it to 503.
+- Suggestion persistence was refactored into `InsertValidatedMappingsTx` instead of duplicating Phase 3 exclusion/cap/event logic; the existing `InsertValidatedMappings` API still wraps it in its own transaction.
+- Cell completion locks and re-checks the run-cell row before inserting suggestions, preventing duplicate deliveries from inserting after another worker already completed the cell.
+- Non-retryable LLM failures mark the cell failed and return `river.JobCancel`; retryable provider failures get one in-job retry and only mark the cell failed when River is on the final attempt.
+- Finalization is done from the same transaction that completes or fails the last pending cell, using the locked run row and aggregate cell stats to choose `completed` when any cell succeeded and `failed` when all cells failed.
+- `EnqueueDashboardSuggestionCells` uses the service River client's non-transactional `InsertMany`, matching the existing worker service enqueue seam; callers depend on `ByArgs` uniqueness for idempotence if enqueue is retried.
