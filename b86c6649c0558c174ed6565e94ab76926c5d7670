@@ -6,3 +6,6 @@ lisa-design:
 - Accept groups suggestions by label_set_hash and chooses the highest-confidence proposed name for any new SSP-bound filter, while rechecking target filters and same-SSP matching filters transactionally to avoid duplicate dashboards.
 - The run-level suggestion cap is enforced under a row lock on dashboard_suggestion_runs and increments suggestion_count only for rows actually inserted after ON CONFLICT DO NOTHING.
 - Implementation text gathering uses implemented requirement remarks plus statement remarks for the SSP's control implementation, truncated per cell; catalog control prose comes from the control parts JSON.
+
+lisa-selfreview: pass 1 (verdict=request_changes)
+- [medium] internal/service/relational/suggestions/service.go:323 (concurrency/races): acceptFilterForHash rechecks existing same-SSP filters inside the transaction, but it does not lock a stable resource or enforce a uniqueness constraint before creating a new filter. Two concurrent Accept calls for different pending suggestions with the same label_set_hash can both lock their own suggestion rows, both scan filters and find no matching SSP-bound filter, then both create identical SSP filters. That violates the accept-time dedupe guarantee and can produce duplicate dashboards for the same SSP label set.
