@@ -1,0 +1,8 @@
+lisa-design:
+- The canonical label-set hash lowercases keys only and preserves values exactly; this same helper is used for filters, validation, insert exclusions, and accept-time rechecks to keep dedupe boundaries identical.
+- Filter construction is centralized in BuildLabelFilter as sorted AND-of-equality labelfilter expressions; model output never carries filter syntax and CanonicalizeFilter refuses OR, !=, and other non-equality shapes.
+- Scope resolution uses the SSP's resolved profile_controls reached through ssp_profiles and returns sorted opaque "<catalog_id>:<control_id>" keys; it intentionally does not reintroduce global case-insensitive control matching.
+- Same-SSP filters are the only valid extend_filter targets; global filters are visible for duplicate-name/coverage exclusion only and are never extended or modified during accept.
+- Accept groups suggestions by label_set_hash and chooses the highest-confidence proposed name for any new SSP-bound filter, while rechecking target filters and same-SSP matching filters transactionally to avoid duplicate dashboards.
+- The run-level suggestion cap is enforced under a row lock on dashboard_suggestion_runs and increments suggestion_count only for rows actually inserted after ON CONFLICT DO NOTHING.
+- Implementation text gathering uses implemented requirement remarks plus statement remarks for the SSP's control implementation, truncated per cell; catalog control prose comes from the control parts JSON.
