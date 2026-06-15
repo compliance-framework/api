@@ -41,6 +41,7 @@ type Config struct {
 	Workflow                          *WorkflowConfig
 	Risk                              *RiskConfig
 	Poam                              *PoamConfig
+	AI                                *AIConfig
 	PprofEnabled                      bool   // Enable or disable pprof debugging server
 	PprofPort                         string // Port for pprof debugging server
 	StrictDisablePublicAgentEndpoints bool
@@ -210,6 +211,11 @@ func NewConfig(logger *zap.SugaredLogger) *Config {
 		poamConfig = DefaultPoamConfig()
 	}
 
+	aiConfig, err := LoadAIConfig()
+	if err != nil {
+		logger.Fatalw("Invalid AI config", "error", err)
+	}
+
 	// Worker configuration
 	workerConfig := DefaultWorkerConfig()
 	if viper.IsSet("worker_enabled") {
@@ -260,6 +266,7 @@ func NewConfig(logger *zap.SugaredLogger) *Config {
 		Workflow:                          workflowConfig,
 		Risk:                              riskConfig,
 		Poam:                              poamConfig,
+		AI:                                aiConfig,
 		PprofEnabled:                      pprofEnabled,
 		PprofPort:                         pprofPort,
 		StrictDisablePublicAgentEndpoints: strictDisablePublicAgentEndpoints,
