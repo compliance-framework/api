@@ -1,0 +1,37 @@
+lisa-addressed:
+---
+Comment (internal/service/llm/anthropic.go:86):
+**[Medium] Structured-output schema is passed through verbatim, but the Go SDK does not strip unsupported JSON-Schema keywords.**
+
+Anthropic structured outputs do **not** support `minimum`/`maximum`/`minLength`/`maxLength`/`multipleOf` and similar constraints. The Python and TypeScript SDKs silently *remove* these from the schema before sending and validate them client-side; the Go SDK does **not**. So if a downstream (Phase 2/3) caller passes a schema containing any of those keywords, the live `/v1/messages` request will likely return **400 → `ErrInvalidOutput`** (non-retryable), and that structured call will fail permanently.
+
+The design comment below (line 134) frames this as the API merely "not enforcing" the constraints — but the real risk is the API *rejecting* them, which is precisely why the other SDKs strip them.
+
+Suggestion: strip unsupported keywords from `req.Schema` before building `JSONOutputFormatParam` (a small recursive walk dropping the unsupported keys), or document loudly that callers must pre-sanitize. Either way, verify the behavior against the real API — see the related note on the passthrough test, which currently masks this.
+---
+Comment (internal/service/llm/anthropic_test.go:156):
+**[Medium] This passthrough test gives false confidence about unsupported schema keywords.**
+
+The schema under test deliberately includes `minLength` (line 125) and `minimum` (line 128) — keywords Anthropic structured outputs do not support. But the test asserts the schema round-trips byte-for-byte against an `httptest` fake that echoes success regardless of payload, so it proves the wire shape, not that the **real** API accepts such a schema. As written, it reads as "schemas with min/max constraints work," which is the opposite of the likely live behavior (400).
+
+Pair this with the schema-stripping fix on `anthropic.go`: once the client sanitizes the schema, assert here that the unsupported keywords were *removed* from the outgoing `format.schema`.
+---
+Comment (internal/config/config.go:216):
+**[Low] AI config validation fatals at startup even when AI is disabled.**
+
+`LoadAIConfig()` → `Validate()` rejects any provider other than `anthropic`, and a failure here calls `logger.Fatalw`, aborting boot. That means a typo or leftover `CCF_AI_PROVIDER` takes down the **entire app** even with `CCF_AI_ENABLED=false` and no intent to use AI at all.
+
+Suggestion: skip provider validation when `!cfg.Enabled` (validate only the enabled path), so a misconfigured-but-disabled AI block does not block unrelated startup.
+---
+Comment (internal/service/llm/anthropic.go:80):
+**[Low] `MaxTokens` is not defaulted.**
+
+If a caller leaves `StructuredRequest.MaxTokens` at its zero value, this sends `max_tokens: 0`, which the API rejects with a 400 → mapped to `ErrInvalidOutput` (non-retryable). For a shared client this is an easy footgun. Consider defaulting to a sane value (mirroring the model/timeout defaulting already done in `NewAnthropicClient`) when `req.MaxTokens <= 0`, or validating it up front with a clearer error.
+---
+Comment (internal/service/llm/anthropic.go:116):
+**[Nit] Redundant condition.** `block.Type == "text" || block.Text != ""` — the second clause adds nothing for the structured-output path (a `text` block already has `Type == "text"`), and it would also match a non-text block that happened to carry text. `block.Type == "text"` alone is clearer and safer.
+Implementation guidance: In internal/service/llm/anthropic.go, sanitize the JSON schema before assigning it to anthropic.JSONOutputFormatParam{Schema: ...}. Add a small helper such as `sanitizeAnthropicSchema(schema map[string]any) map[string]any` that recursively copies maps and slices and drops Anthropic-unsupported validation-only keywords including at least `minimum`, `maximum`, `exclusiveMinimum`, `exclusiveMaximum`, `multipleOf`, `minLength`, `maxLength`, and `pattern`. Do not mutate `req.Schema` in place, because callers/tests may reuse it. Keep using `messages.create` with `output_config.format` JSON schema; do not switch to tool calling or prompt-only JSON. Do not add Go field-level validation here; the recorded design says field validation belongs to later phases. Keep HTTP 400 mapped to ErrInvalidOutput for genuinely invalid provider requests. Update comments near the 400 mapping so they say unsupported schema constraints are stripped before sending, while malformed/rejected schemas still return ErrInvalidOutput.
+Implementation guidance: In internal/service/llm/anthropic_test.go, update TestAnthropicClientStructuredOutputSchemaPassthrough after adding schema sanitization in anthropic.go. Keep unsupported keywords in the input schema (`minLength`, `minimum`, and at least one more such as `maximum` or `pattern`) so the test proves they are handled. In the httptest handler, assert the outgoing `payload["output_config"].(map[string]any)["format"].(map[string]any)["schema"]` no longer contains those unsupported keys at any depth, while supported keys such as `type`, `properties`, `items`, and `required` are preserved. Do not keep asserting byte-for-byte equality with the original schema, because that would reintroduce the false confidence this review flagged. Also add a focused unit test for the sanitizer helper if that makes nested object/array cases clearer.
+Implementation guidance: In internal/config/ai.go, change `func (c *AIConfig) Validate() error` so provider validation only applies when AI is enabled. At the top of Validate, after any existing normalization/defaulting performed by LoadAIConfigFromViper, add `if !c.Enabled { return nil }`. Then keep the existing switch for enabled configs, normalizing `anthropic` to `AIProviderAnthropic` and returning `fmt.Errorf("CCF_AI_PROVIDER must be %q", AIProviderAnthropic)` for unsupported enabled providers. Do not move this into internal/config/config.go; keep the behavior local to AIConfig. Add tests in internal/config/ai_test.go: one where `ai_enabled=false` and `ai_provider="bogus"` returns no error, and one existing/updated case where `ai_enabled=true` and `ai_provider="bogus"` still errors.
+Implementation guidance: In internal/service/llm/anthropic.go, avoid sending `max_tokens: 0`. Add a default constant near the existing defaults, for example `DefaultAnthropicMaxTokens = 4096`, then in CompleteStructured compute a local `maxTokens := req.MaxTokens`; if `maxTokens <= 0`, set it to `DefaultAnthropicMaxTokens`; use `MaxTokens: int64(maxTokens)` in MessageNewParams. Do not mutate the incoming `req`. Do not classify this as ErrInvalidOutput, because it is not a provider output/schema problem. Add a test in internal/service/llm/anthropic_test.go using the existing httptest request decoding pattern to call CompleteStructured with `StructuredRequest{MaxTokens: 0}` and assert the outgoing payload has `max_tokens` equal to the new default, plus a case that a positive caller-provided MaxTokens is preserved.
+Implementation guidance: In internal/service/llm/anthropic.go, simplify structuredRawJSON. Change the loop condition from `if block.Type == "text" || block.Text != ""` to `if block.Type == "text"`. Keep the existing JSON validity check and ErrInvalidOutput behavior unchanged. Do not add fallback parsing for non-text content blocks; structured output should be returned in a text block. Run the existing llm tests afterward because this is small but touches response parsing.
