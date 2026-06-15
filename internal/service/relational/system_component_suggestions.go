@@ -101,6 +101,7 @@ func (s *SystemComponentSuggestionService) suggestForParent(
 
 	filterQuery := s.db.
 		Joins("JOIN filter_controls ON filter_controls.filter_id = filters.id").
+		Where("filters.ssp_id IS NULL OR filters.ssp_id = ?", sspID).
 		// Normalize on upper case.
 		// We don't need to concern about index hits as for now - these tables will not grow
 		// on a typical CCF usage.

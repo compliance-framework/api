@@ -12,6 +12,10 @@ import (
 func RegisterHandlers(server *api.Server, logger *zap.SugaredLogger, db *gorm.DB, config *config.Config, evidenceSvc *evidencesvc.EvidenceService, jobEnqueuer SSPJobEnqueuer) {
 	oscalGroup := server.API().Group("/oscal")
 	oscalGroup.Use(middleware.JWTMiddleware(config.JWTPublicKey))
+	jwtMiddleware := middleware.JWTMiddleware(config.JWTPublicKey)
+
+	dashboardSuggestionHandler := NewDashboardSuggestionHandler(logger, db, config.AI, jobEnqueuer)
+	dashboardSuggestionHandler.RegisterConfig(server.API().Group("/dashboard-suggestions"))
 
 	catalogHandler := NewCatalogHandler(logger, db)
 	catalogHandler.Register(oscalGroup.Group("/catalogs"))
@@ -21,6 +25,9 @@ func RegisterHandlers(server *api.Server, logger *zap.SugaredLogger, db *gorm.DB
 
 	sspHandler := NewSystemSecurityPlanHandler(logger, db, evidenceSvc, jobEnqueuer)
 	sspHandler.Register(oscalGroup.Group("/system-security-plans"))
+	if config.AI != nil && config.AI.Enabled {
+		dashboardSuggestionHandler.Register(oscalGroup.Group("/system-security-plans"), jwtMiddleware)
+	}
 
 	partyHandler := NewPartyHandler(logger, db)
 	partyHandler.Register(oscalGroup.Group("/parties"))

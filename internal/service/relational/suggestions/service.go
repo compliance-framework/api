@@ -91,6 +91,13 @@ func (s *SuggestionService) ResolveScope(sspID uuid.UUID, scope Scope) (Snapshot
 	return ResolveSnapshot(scope, controls, labelSets)
 }
 
+func (s *SuggestionService) GatherLabelSets(hashes []string) ([]LabelSetInput, error) {
+	if len(hashes) == 0 {
+		return s.gatherAllLabelSets()
+	}
+	return s.gatherLabelSets(hashes)
+}
+
 func (s *SuggestionService) GatherCellInput(sspID uuid.UUID, cell GridCell, opts GatherOptions) (GatheredInput, error) {
 	stats := map[string]int{}
 	controls, err := s.gatherControls(sspID, cell.ControlKeys, opts)

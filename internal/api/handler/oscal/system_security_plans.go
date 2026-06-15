@@ -30,6 +30,7 @@ import (
 // Defined here to avoid a circular import between the oscal handler and worker packages.
 type SSPJobEnqueuer interface {
 	EnqueueOrphanedRiskCleanup(ctx context.Context, sspID uuid.UUID, oldProfileID, newProfileID *uuid.UUID) error
+	EnqueueDashboardSuggestionCells(ctx context.Context, runID uuid.UUID, cellCount int) error
 }
 
 // profileSummary is a lightweight DTO returned by the multi-profile list endpoint.

@@ -1069,3 +1069,14 @@ func (s *Service) EnqueueOrphanedRiskCleanup(ctx context.Context, sspID uuid.UUI
 	}
 	return nil
 }
+
+// EnqueueDashboardSuggestionCells is the Phase 5 HTTP seam for dashboard
+// suggestion generation. The actual River job implementation is provided by
+// the worker phase; until then, enabled workers report that this worker is
+// unavailable rather than silently accepting a run.
+func (s *Service) EnqueueDashboardSuggestionCells(ctx context.Context, runID uuid.UUID, cellCount int) error {
+	if !s.config.Enabled || s.client == nil {
+		return fmt.Errorf("worker service is disabled")
+	}
+	return fmt.Errorf("dashboard suggestion worker is not registered")
+}

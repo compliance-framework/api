@@ -31,6 +31,12 @@ type FilterApiIntegrationSuite struct {
 	tests.IntegrationTestSuite
 }
 
+func (suite *FilterApiIntegrationSuite) authorize(req *http.Request) {
+	token, err := suite.GetAuthToken()
+	suite.Require().NoError(err)
+	req.Header.Set(echo.HeaderAuthorization, fmt.Sprintf("Bearer %s", *token))
+}
+
 func (suite *FilterApiIntegrationSuite) TestCreate() {
 	suite.Run("Simple", func() {
 		err := suite.Migrator.Refresh()
@@ -58,6 +64,7 @@ func (suite *FilterApiIntegrationSuite) TestCreate() {
 		reqBody, _ := json.Marshal(createReq)
 		req := httptest.NewRequest(http.MethodPost, "/api/filters", bytes.NewReader(reqBody))
 		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+		suite.authorize(req)
 		server.E().ServeHTTP(rec, req)
 		assert.Equal(suite.T(), http.StatusCreated, rec.Code)
 	})
@@ -103,6 +110,7 @@ func (suite *FilterApiIntegrationSuite) TestCreate() {
 		reqBody, _ := json.Marshal(createReq)
 		req := httptest.NewRequest(http.MethodPost, "/api/filters", bytes.NewReader(reqBody))
 		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+		suite.authorize(req)
 		server.E().ServeHTTP(rec, req)
 		assert.Equal(suite.T(), http.StatusCreated, rec.Code)
 	})
@@ -145,6 +153,7 @@ func (suite *FilterApiIntegrationSuite) TestCreate() {
 		reqBody, _ := json.Marshal(createReq)
 		req := httptest.NewRequest(http.MethodPost, "/api/filters", bytes.NewReader(reqBody))
 		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+		suite.authorize(req)
 		server.E().ServeHTTP(rec, req)
 		assert.Equal(suite.T(), http.StatusCreated, rec.Code)
 	})
@@ -190,6 +199,7 @@ func (suite *FilterApiIntegrationSuite) TestList() {
 		rec := httptest.NewRecorder()
 		req := httptest.NewRequest(http.MethodPost, "/api/filters", bytes.NewReader(body))
 		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+		suite.authorize(req)
 		server.E().ServeHTTP(rec, req)
 		assert.Equal(suite.T(), http.StatusCreated, rec.Code)
 
@@ -210,12 +220,14 @@ func (suite *FilterApiIntegrationSuite) TestList() {
 		rec = httptest.NewRecorder()
 		req = httptest.NewRequest(http.MethodPost, "/api/filters", bytes.NewReader(body))
 		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+		suite.authorize(req)
 		server.E().ServeHTTP(rec, req)
 		assert.Equal(suite.T(), http.StatusCreated, rec.Code)
 
 		// Fetch filters linked to AC-1
 		rec = httptest.NewRecorder()
 		req = httptest.NewRequest(http.MethodGet, "/api/filters?controlId=AC-1", nil)
+		suite.authorize(req)
 		server.E().ServeHTTP(rec, req)
 		assert.Equal(suite.T(), http.StatusOK, rec.Code)
 
@@ -269,6 +281,7 @@ func (suite *FilterApiIntegrationSuite) TestList() {
 		rec := httptest.NewRecorder()
 		req := httptest.NewRequest(http.MethodPost, "/api/filters", bytes.NewReader(body))
 		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+		suite.authorize(req)
 		server.E().ServeHTTP(rec, req)
 		assert.Equal(suite.T(), http.StatusCreated, rec.Code)
 
@@ -289,12 +302,14 @@ func (suite *FilterApiIntegrationSuite) TestList() {
 		rec = httptest.NewRecorder()
 		req = httptest.NewRequest(http.MethodPost, "/api/filters", bytes.NewReader(body))
 		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+		suite.authorize(req)
 		server.E().ServeHTTP(rec, req)
 		assert.Equal(suite.T(), http.StatusCreated, rec.Code)
 
 		// Fetch filters linked to our component
 		rec = httptest.NewRecorder()
 		req = httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/filters?componentId=%s", id.String()), nil)
+		suite.authorize(req)
 		server.E().ServeHTTP(rec, req)
 		assert.Equal(suite.T(), http.StatusOK, rec.Code)
 
@@ -352,6 +367,7 @@ func (suite *FilterApiIntegrationSuite) TestUpdate() {
 		reqBody, _ := json.Marshal(updateReq)
 		req := httptest.NewRequest(http.MethodPut, fmt.Sprintf("/api/filters/%s", filter.ID), bytes.NewReader(reqBody))
 		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+		suite.authorize(req)
 		server.E().ServeHTTP(rec, req)
 		assert.Equal(suite.T(), http.StatusOK, rec.Code)
 
@@ -411,6 +427,7 @@ func (suite *FilterApiIntegrationSuite) TestUpdate() {
 		reqBody, _ := json.Marshal(updateReq)
 		req := httptest.NewRequest(http.MethodPut, fmt.Sprintf("/api/filters/%s", filter.ID), bytes.NewReader(reqBody))
 		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+		suite.authorize(req)
 		server.E().ServeHTTP(rec, req)
 		assert.Equal(suite.T(), http.StatusBadRequest, rec.Code)
 
@@ -489,6 +506,7 @@ func (suite *FilterApiIntegrationSuite) TestUpdate() {
 		reqBody, _ := json.Marshal(updateReq)
 		req := httptest.NewRequest(http.MethodPut, fmt.Sprintf("/api/filters/%s", filter.ID), bytes.NewReader(reqBody))
 		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+		suite.authorize(req)
 		server.E().ServeHTTP(rec, req)
 		assert.Equal(suite.T(), http.StatusOK, rec.Code)
 
@@ -565,6 +583,7 @@ func (suite *FilterApiIntegrationSuite) TestUpdate() {
 		reqBody, _ := json.Marshal(updateReq)
 		req := httptest.NewRequest(http.MethodPut, fmt.Sprintf("/api/filters/%s", filter.ID), bytes.NewReader(reqBody))
 		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+		suite.authorize(req)
 		server.E().ServeHTTP(rec, req)
 		assert.Equal(suite.T(), http.StatusOK, rec.Code)
 
@@ -575,4 +594,63 @@ func (suite *FilterApiIntegrationSuite) TestUpdate() {
 		suite.Len(updatedFilter.Controls, 1)
 		suite.Equal("AC-1", updatedFilter.Controls[0].ID)
 	})
+}
+
+func (suite *FilterApiIntegrationSuite) TestListSSPScopesAndAuth() {
+	suite.Require().NoError(suite.Migrator.Refresh())
+
+	logger, _ := zap.NewDevelopment()
+	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
+	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
+	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, &APIServices{})
+
+	sspA := uuid.New()
+	sspB := uuid.New()
+	suite.Require().NoError(suite.DB.Create(&relational.SystemSecurityPlan{UUIDModel: relational.UUIDModel{ID: &sspA}}).Error)
+	suite.Require().NoError(suite.DB.Create(&relational.SystemSecurityPlan{UUIDModel: relational.UUIDModel{ID: &sspB}}).Error)
+	global := relational.Filter{Name: "global", Filter: datatypes.NewJSONType(labelfilter.Filter{})}
+	aFilter := relational.Filter{Name: "ssp-a", SSPID: &sspA, Filter: datatypes.NewJSONType(labelfilter.Filter{})}
+	bFilter := relational.Filter{Name: "ssp-b", SSPID: &sspB, Filter: datatypes.NewJSONType(labelfilter.Filter{})}
+	suite.Require().NoError(suite.DB.Create(&global).Error)
+	suite.Require().NoError(suite.DB.Create(&aFilter).Error)
+	suite.Require().NoError(suite.DB.Create(&bFilter).Error)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/filters?sspId=%s", sspA), nil)
+	suite.authorize(req)
+	server.E().ServeHTTP(rec, req)
+	suite.Equal(http.StatusOK, rec.Code, rec.Body.String())
+	var scoped GenericDataListResponse[FilterWithAssociations]
+	suite.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &scoped))
+	suite.Len(scoped.Data, 2)
+	for _, filter := range scoped.Data {
+		suite.True(filter.SSPID == nil || *filter.SSPID == sspA)
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/api/filters?scope=global", nil)
+	suite.authorize(req)
+	server.E().ServeHTTP(rec, req)
+	suite.Equal(http.StatusOK, rec.Code, rec.Body.String())
+	var globalOnly GenericDataListResponse[FilterWithAssociations]
+	suite.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &globalOnly))
+	suite.Len(globalOnly.Data, 1)
+	suite.Nil(globalOnly.Data[0].SSPID)
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/api/filters", nil)
+	suite.authorize(req)
+	server.E().ServeHTTP(rec, req)
+	suite.Equal(http.StatusOK, rec.Code, rec.Body.String())
+	var all GenericDataListResponse[FilterWithAssociations]
+	suite.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &all))
+	suite.Len(all.Data, 3)
+
+	createReq := createFilterRequest{Name: "unauth", Filter: labelfilter.Filter{}}
+	body, _ := json.Marshal(createReq)
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/api/filters", bytes.NewReader(body))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	server.E().ServeHTTP(rec, req)
+	suite.Equal(http.StatusUnauthorized, rec.Code)
 }

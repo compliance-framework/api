@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/compliance-framework/api/internal/api"
 	"github.com/compliance-framework/api/internal/service/relational"
@@ -96,15 +97,23 @@ func (h *FilterHandler) Get(ctx echo.Context) error {
 // List godoc
 //
 //	@Summary		List filters
-//	@Description	Retrieves all filters, optionally filtered by controlId or componentId.
+//	@Description	Retrieves filters, optionally filtered by controlId, componentId, sspId, or global scope.
 //	@Tags			Filters
 //	@Produce		json
-//	@Success		200	{object}	GenericDataListResponse[FilterWithAssociations]
-//	@Failure		500	{object}	api.Error
+//	@Param			controlId	query		string	false	"Control ID"
+//	@Param			componentId	query		string	false	"Component ID"
+//	@Param			sspId		query		string	false	"System Security Plan ID; returns global + same-SSP filters"
+//	@Param			scope		query		string	false	"Filter scope. Use 'global' for global filters only"
+//	@Success		200			{object}	GenericDataListResponse[FilterWithAssociations]
+//	@Failure		400			{object}	api.Error
+//	@Failure		401			{object}	api.Error
+//	@Failure		500			{object}	api.Error
 //	@Router			/filters [get]
 func (h *FilterHandler) List(ctx echo.Context) error {
 	controlID := ctx.QueryParam("controlId")
 	componentID := ctx.QueryParam("componentId")
+	scope := strings.TrimSpace(ctx.QueryParam("scope"))
+	sspIDParam := strings.TrimSpace(ctx.QueryParam("sspId"))
 
 	if controlID != "" && componentID != "" {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("controlId and componentId are mutually exclusive")))
@@ -126,6 +135,19 @@ func (h *FilterHandler) List(ctx echo.Context) error {
 			Joins("JOIN system_components ON system_components.id = filter_system_components.system_component_id").
 			Where("system_components.id = ?", componentID).
 			Distinct()
+	}
+
+	switch {
+	case scope == "global":
+		query = query.Where("filters.ssp_id IS NULL")
+	case scope != "":
+		return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("unsupported scope %q", scope)))
+	case sspIDParam != "":
+		sspID, err := uuid.Parse(sspIDParam)
+		if err != nil {
+			return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+		}
+		query = query.Where("filters.ssp_id IS NULL OR filters.ssp_id = ?", sspID)
 	}
 
 	var filters []relational.Filter
@@ -196,6 +218,7 @@ func (h *FilterHandler) Create(ctx echo.Context) error {
 
 	filter := relational.Filter{
 		Name:   req.Name,
+		SSPID:  req.SSPID,
 		Filter: datatypes.NewJSONType(req.Filter),
 	}
 
@@ -275,6 +298,7 @@ func (h *FilterHandler) Update(ctx echo.Context) error {
 	}
 
 	filter.Name = req.Name
+	filter.SSPID = req.SSPID
 	filter.Filter = datatypes.NewJSONType(req.Filter)
 
 	// Note: nil and empty slices are semantically different here.

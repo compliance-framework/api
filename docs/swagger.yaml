@@ -629,6 +629,14 @@ definitions:
           $ref: '#/definitions/oscal.ProfileHandler'
         type: array
     type: object
+  handler.GenericDataListResponse-oscal_dashboardSuggestionResponse:
+    properties:
+      data:
+        description: Items from the list response
+        items:
+          $ref: '#/definitions/oscal.dashboardSuggestionResponse'
+        type: array
+    type: object
   handler.GenericDataListResponse-oscal_profileSummary:
     properties:
       data:
@@ -941,6 +949,22 @@ definitions:
           $ref: '#/definitions/relational.User'
         type: array
     type: object
+  handler.GenericDataListResponse-suggestions_DashboardSuggestionEvent:
+    properties:
+      data:
+        description: Items from the list response
+        items:
+          $ref: '#/definitions/suggestions.DashboardSuggestionEvent'
+        type: array
+    type: object
+  handler.GenericDataListResponse-suggestions_LabelSetInput:
+    properties:
+      data:
+        description: Items from the list response
+        items:
+          $ref: '#/definitions/suggestions.LabelSetInput'
+        type: array
+    type: object
   handler.GenericDataResponse-array_oscalTypes_1_1_3_AssessmentAssets:
     properties:
       data:
@@ -1124,6 +1148,27 @@ definitions:
       data:
         allOf:
         - $ref: '#/definitions/oscal.ProfileHandler'
+        description: Wrapped response data
+    type: object
+  handler.GenericDataResponse-oscal_acceptDashboardSuggestionsResponse:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/oscal.acceptDashboardSuggestionsResponse'
+        description: Wrapped response data
+    type: object
+  handler.GenericDataResponse-oscal_dashboardSuggestionConfigResponse:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/oscal.dashboardSuggestionConfigResponse'
+        description: Wrapped response data
+    type: object
+  handler.GenericDataResponse-oscal_dashboardSuggestionRunResponse:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/oscal.dashboardSuggestionRunResponse'
         description: Wrapped response data
     type: object
   handler.GenericDataResponse-oscalTypes_1_1_3_Activity:
@@ -1750,6 +1795,8 @@ definitions:
       filter:
         $ref: '#/definitions/labelfilter.Filter'
       name:
+        type: string
+      sspId:
         type: string
     required:
     - filter
@@ -2967,10 +3014,139 @@ definitions:
       uuid:
         type: string
     type: object
+  oscal.acceptDashboardSuggestionsResponse:
+    properties:
+      acceptedFilterIds:
+        items:
+          type: string
+        type: array
+      suggestions:
+        items:
+          $ref: '#/definitions/oscal.dashboardSuggestionResponse'
+        type: array
+    type: object
   oscal.addProfileRequest:
     properties:
       profileId:
         type: string
+    type: object
+  oscal.dashboardSuggestionConfigResponse:
+    properties:
+      enabled:
+        type: boolean
+    type: object
+  oscal.dashboardSuggestionDecisionRequest:
+    properties:
+      ids:
+        items:
+          type: string
+        type: array
+      reason:
+        type: string
+    required:
+    - ids
+    type: object
+  oscal.dashboardSuggestionResponse:
+    properties:
+      acceptedFilterId:
+        type: string
+      confidence:
+        type: number
+      controlCatalogId:
+        type: string
+      controlId:
+        type: string
+      controlTitle:
+        type: string
+      decidedAt:
+        type: string
+      decidedByUserId:
+        type: string
+      id:
+        type: string
+      labelSet:
+        $ref: '#/definitions/datatypes.JSONMap'
+      labelSetHash:
+        type: string
+      proposedFilterName:
+        type: string
+      reasoning:
+        type: string
+      rejectReason:
+        type: string
+      runId:
+        type: string
+      sspId:
+        type: string
+      status:
+        type: string
+      targetFilterId:
+        type: string
+      targetFilterName:
+        type: string
+    type: object
+  oscal.dashboardSuggestionRunResponse:
+    properties:
+      cells:
+        items:
+          $ref: '#/definitions/suggestions.DashboardSuggestionRunCell'
+        type: array
+      completedAt:
+        type: string
+      completedCells:
+        type: integer
+      error:
+        type: string
+      failedCells:
+        type: integer
+      id:
+        type: string
+      inputTokens:
+        type: integer
+      model:
+        type: string
+      outputTokens:
+        type: integer
+      plannedCalls:
+        type: integer
+      promptVersion:
+        type: string
+      scope:
+        $ref: '#/definitions/datatypes.JSONMap'
+      sspId:
+        type: string
+      startedAt:
+        type: string
+      stats:
+        $ref: '#/definitions/datatypes.JSONMap'
+      status:
+        type: string
+      suggestionCount:
+        type: integer
+      suggestions:
+        items:
+          $ref: '#/definitions/suggestions.DashboardSuggestion'
+        type: array
+      triggeredByUserId:
+        type: string
+    type: object
+  oscal.dashboardSuggestionScopeRequest:
+    properties:
+      controlKeys:
+        items:
+          type: string
+        type: array
+      labelSetHashes:
+        items:
+          type: string
+        type: array
+    type: object
+  oscal.generateDashboardSuggestionsRequest:
+    properties:
+      scope:
+        $ref: '#/definitions/oscal.dashboardSuggestionScopeRequest'
+      supersedePending:
+        type: boolean
     type: object
   oscal.profileSummary:
     properties:
@@ -8151,6 +8327,106 @@ definitions:
       totalPages:
         type: integer
     type: object
+  suggestions.DashboardSuggestion:
+    properties:
+      acceptedFilterId:
+        type: string
+      confidence:
+        type: number
+      controlCatalogId:
+        type: string
+      controlId:
+        type: string
+      decidedAt:
+        type: string
+      decidedByUserId:
+        type: string
+      id:
+        type: string
+      labelSet:
+        $ref: '#/definitions/datatypes.JSONMap'
+      labelSetHash:
+        type: string
+      proposedFilterName:
+        type: string
+      reasoning:
+        type: string
+      rejectReason:
+        type: string
+      runId:
+        type: string
+      sspId:
+        type: string
+      status:
+        type: string
+      targetFilterId:
+        type: string
+    type: object
+  suggestions.DashboardSuggestionEvent:
+    properties:
+      actorUserId:
+        type: string
+      details:
+        type: string
+      eventType:
+        type: string
+      id:
+        type: string
+      occurredAt:
+        type: string
+      payload:
+        $ref: '#/definitions/datatypes.JSONMap'
+      runId:
+        type: string
+      snapshot:
+        $ref: '#/definitions/datatypes.JSONMap'
+      suggestionId:
+        type: string
+    type: object
+  suggestions.DashboardSuggestionRunCell:
+    properties:
+      cellIndex:
+        type: integer
+      completedAt:
+        type: string
+      controlKeys:
+        items:
+          type: string
+        type: array
+      error:
+        type: string
+      inputTokens:
+        type: integer
+      labelSetHashes:
+        items:
+          type: string
+        type: array
+      mappingsRejected:
+        type: integer
+      mappingsReturned:
+        type: integer
+      outputTokens:
+        type: integer
+      runId:
+        type: string
+      status:
+        type: string
+    type: object
+  suggestions.LabelSetInput:
+    properties:
+      evidence_count:
+        type: integer
+      hash:
+        type: string
+      labels:
+        additionalProperties:
+          type: string
+        type: object
+      sample_titles:
+        items:
+          type: string
+        type: array
+    type: object
   templates.batchRiskTemplateItem:
     properties:
       dedupe-label-keys:
@@ -10740,6 +11016,19 @@ paths:
       summary: Get OAuth2 token
       tags:
       - Auth
+  /dashboard-suggestions/config:
+    get:
+      description: Returns whether AI dashboard suggestions are enabled.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-oscal_dashboardSuggestionConfigResponse'
+      summary: Get dashboard suggestions feature configuration
+      tags:
+      - Dashboard Suggestions
   /evidence:
     post:
       consumes:
@@ -10890,6 +11179,10 @@ paths:
         name: id
         required: true
         type: string
+      - description: System Security Plan ID; limits filters to global + same-SSP
+        in: query
+        name: sspId
+        type: string
       produces:
       - application/json
       responses:
@@ -10897,6 +11190,10 @@ paths:
           description: OK
           schema:
             $ref: '#/definitions/handler.GenericDataListResponse-evidence_StatusCount'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
         "500":
           description: Internal Server Error
           schema:
@@ -10944,6 +11241,10 @@ paths:
         in: path
         name: id
         required: true
+        type: string
+      - description: System Security Plan ID; limits filters to global + same-SSP
+        in: query
+        name: sspId
         type: string
       produces:
       - application/json
@@ -11171,7 +11472,25 @@ paths:
       - Evidence
   /filters:
     get:
-      description: Retrieves all filters, optionally filtered by controlId or componentId.
+      description: Retrieves filters, optionally filtered by controlId, componentId,
+        sspId, or global scope.
+      parameters:
+      - description: Control ID
+        in: query
+        name: controlId
+        type: string
+      - description: Component ID
+        in: query
+        name: componentId
+        type: string
+      - description: System Security Plan ID; returns global + same-SSP filters
+        in: query
+        name: sspId
+        type: string
+      - description: Filter scope. Use 'global' for global filters only
+        in: query
+        name: scope
+        type: string
       produces:
       - application/json
       responses:
@@ -11179,6 +11498,14 @@ paths:
           description: OK
           schema:
             $ref: '#/definitions/handler.GenericDataListResponse-handler_FilterWithAssociations'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
         "500":
           description: Internal Server Error
           schema:
@@ -19979,6 +20306,343 @@ paths:
       summary: Suggest system components for an implemented requirement
       tags:
       - System Security Plans
+  /oscal/system-security-plans/{id}/dashboard-suggestion-runs/{runId}:
+    get:
+      description: Returns a dashboard suggestion run with cell progress.
+      parameters:
+      - description: System Security Plan ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Dashboard suggestion run ID
+        in: path
+        name: runId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-oscal_dashboardSuggestionRunResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Get a dashboard suggestion run
+      tags:
+      - Dashboard Suggestions
+  /oscal/system-security-plans/{id}/dashboard-suggestion-runs/latest:
+    get:
+      description: Returns the latest dashboard suggestion run with cell progress.
+      parameters:
+      - description: System Security Plan ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-oscal_dashboardSuggestionRunResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Get latest dashboard suggestion run for an SSP
+      tags:
+      - Dashboard Suggestions
+  /oscal/system-security-plans/{id}/dashboard-suggestions:
+    get:
+      description: Lists dashboard suggestions joined with control title and target
+        filter name.
+      parameters:
+      - description: System Security Plan ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Suggestion status (default pending)
+        in: query
+        name: status
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-oscal_dashboardSuggestionResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: List dashboard suggestions for an SSP
+      tags:
+      - Dashboard Suggestions
+  /oscal/system-security-plans/{id}/dashboard-suggestions/{suggestionId}/events:
+    get:
+      description: Returns audit events for one dashboard suggestion.
+      parameters:
+      - description: System Security Plan ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Dashboard suggestion ID
+        in: path
+        name: suggestionId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-suggestions_DashboardSuggestionEvent'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: List dashboard suggestion events
+      tags:
+      - Dashboard Suggestions
+  /oscal/system-security-plans/{id}/dashboard-suggestions/accept:
+    post:
+      consumes:
+      - application/json
+      description: Accepts pending dashboard suggestions and creates or extends SSP-bound
+        filters.
+      parameters:
+      - description: System Security Plan ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Suggestion IDs
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/oscal.dashboardSuggestionDecisionRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-oscal_acceptDashboardSuggestionsResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Accept dashboard suggestions
+      tags:
+      - Dashboard Suggestions
+  /oscal/system-security-plans/{id}/dashboard-suggestions/generate:
+    post:
+      consumes:
+      - application/json
+      description: Creates a dashboard suggestion run, snapshots the resolved scope,
+        creates run cells, and enqueues cell processing.
+      parameters:
+      - description: System Security Plan ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Generation request
+        in: body
+        name: request
+        schema:
+          $ref: '#/definitions/oscal.generateDashboardSuggestionsRequest'
+      produces:
+      - application/json
+      responses:
+        "202":
+          description: Accepted
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-oscal_dashboardSuggestionRunResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/api.Error'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Generate dashboard suggestions for an SSP
+      tags:
+      - Dashboard Suggestions
+  /oscal/system-security-plans/{id}/dashboard-suggestions/label-sets:
+    get:
+      description: Returns canonical evidence label sets for dashboard suggestion
+        scope selection.
+      parameters:
+      - description: System Security Plan ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-suggestions_LabelSetInput'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: List dashboard suggestion label sets
+      tags:
+      - Dashboard Suggestions
+  /oscal/system-security-plans/{id}/dashboard-suggestions/reject:
+    post:
+      consumes:
+      - application/json
+      description: Rejects pending dashboard suggestions.
+      parameters:
+      - description: System Security Plan ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Suggestion IDs and reason
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/oscal.dashboardSuggestionDecisionRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-oscal_dashboardSuggestionResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Reject dashboard suggestions
+      tags:
+      - Dashboard Suggestions
   /oscal/system-security-plans/{id}/import-profile:
     get:
       description: Retrieves import-profile for a given SSP.

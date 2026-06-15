@@ -52,7 +52,7 @@ func exportDashboards(cmd *cobra.Command, args []string) {
 
 	var dashboards []relational.Filter
 	if err := db.
-		Select("id", "name", "filter").
+		Select("id", "name", "ssp_id", "filter").
 		Preload("Controls", func(db *gorm.DB) *gorm.DB {
 			return db.Select("id", "catalog_id")
 		}).
@@ -75,7 +75,8 @@ func exportDashboards(cmd *cobra.Command, args []string) {
 	exports := make([]dashboardJSON, 0, len(dashboards))
 	for _, f := range dashboards {
 		fe := dashboardJSON{
-			Name: f.Name,
+			Name:  f.Name,
+			SSPID: f.SSPID,
 		}
 		// Extract underlying filter and omit if empty
 		lf := f.Filter.Data()

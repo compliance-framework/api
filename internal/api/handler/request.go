@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/compliance-framework/api/internal/converters/labelfilter"
+	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 )
 
@@ -28,6 +29,7 @@ func ParseIntervalListQueryParam(intervalQuery string, def []time.Duration) ([]t
 // createFilterRequest defines the request payload for method Create
 type createFilterRequest struct {
 	Name       string             `json:"name" yaml:"name" validate:"required"`
+	SSPID      *uuid.UUID         `json:"sspId" yaml:"ssp_id"`
 	Filter     labelfilter.Filter `json:"filter" yaml:"filter" validate:"required"`
 	Controls   *[]string          `json:"controls" yaml:"controls"`
 	Components *[]string          `json:"components" yaml:"components"`

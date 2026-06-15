@@ -76,7 +76,8 @@ func importDashboards(cmd *cobra.Command, args []string) {
 	created := 0
 	for _, in := range inputs {
 		rec := relational.Filter{
-			Name: in.Name,
+			Name:  in.Name,
+			SSPID: in.SSPID,
 		}
 		if in.ID != nil {
 			rec.ID = in.ID

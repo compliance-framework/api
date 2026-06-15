@@ -163,20 +163,16 @@ func (h *ProfileHandler) ComplianceProgress(ctx echo.Context) error {
 		return ctx.JSON(http.StatusOK, handler.GenericDataResponse[ProfileComplianceProgress]{Data: response})
 	}
 
-	filtersByControl, err := h.loadFiltersByControl(scopeControls)
-	if err != nil {
-		h.sugar.Errorw("failed to load filters for profile controls", "profileID", id, "error", err)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
-	}
-
 	sspImplementedControls := map[string]struct{}{}
 	hasImplementationScope := false
+	var sspIDForFilters *uuid.UUID
 	sspIDParam := strings.TrimSpace(ctx.QueryParam("sspId"))
 	if sspIDParam != "" {
 		sspID, parseErr := uuid.Parse(sspIDParam)
 		if parseErr != nil {
 			return ctx.JSON(http.StatusBadRequest, api.NewError(parseErr))
 		}
+		sspIDForFilters = &sspID
 
 		sspImplementedControls, err = h.loadImplementedControlsForSSP(sspID)
 		if err != nil {
@@ -187,6 +183,12 @@ func (h *ProfileHandler) ComplianceProgress(ctx echo.Context) error {
 			return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 		}
 		hasImplementationScope = true
+	}
+
+	filtersByControl, err := h.loadFiltersByControl(scopeControls, sspIDForFilters)
+	if err != nil {
+		h.sugar.Errorw("failed to load filters for profile controls", "profileID", id, "error", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
 	groups := map[string]*profileComplianceGroupAccumulator{}
@@ -383,13 +385,18 @@ func flattenProfileComplianceControls(catalog *relational.Catalog) []profileComp
 	return flattened
 }
 
-func (h *ProfileHandler) loadFiltersByControl(scopeControls []profileComplianceControlScope) (map[profileControlKey][]labelfilter.Filter, error) {
+func (h *ProfileHandler) loadFiltersByControl(scopeControls []profileComplianceControlScope, sspID *uuid.UUID) (map[profileControlKey][]labelfilter.Filter, error) {
 	filtersByControl := make(map[profileControlKey][]labelfilter.Filter, len(scopeControls))
 	if len(scopeControls) == 0 {
 		return filtersByControl, nil
 	}
 
-	query := h.db.Model(&relational.Control{}).Preload("Filters")
+	query := h.db.Model(&relational.Control{})
+	if sspID != nil {
+		query = query.Preload("Filters", "ssp_id IS NULL OR ssp_id = ?", *sspID)
+	} else {
+		query = query.Preload("Filters")
+	}
 	for idx, scopeControl := range scopeControls {
 		condition := h.db.Where("catalog_id = ? AND id = ?", scopeControl.CatalogID, scopeControl.ControlID)
 		if idx == 0 {
@@ -430,7 +437,7 @@ func (h *ProfileHandler) getStatusCountsForFilters(filters []labelfilter.Filter)
 
 	rows := []ProfileComplianceStatusCount{}
 	if err := query.Model(&relational.Evidence{}).
-		Select("count(*) as count, status->>'state' as status").
+		Select("count(DISTINCT uuid) as count, status->>'state' as status").
 		Group("status->>'state'").
 		Scan(&rows).Error; err != nil {
 		return nil, err

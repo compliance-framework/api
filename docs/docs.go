@@ -1819,6 +1819,26 @@ const docTemplate = `{
                 }
             }
         },
+        "/dashboard-suggestions/config": {
+            "get": {
+                "description": "Returns whether AI dashboard suggestions are enabled.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Dashboard Suggestions"
+                ],
+                "summary": "Get dashboard suggestions feature configuration",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-oscal_dashboardSuggestionConfigResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/evidence": {
             "post": {
                 "description": "Creates a new Evidence record including activities, inventory items, components, and subjects.",
@@ -1887,6 +1907,12 @@ const docTemplate = `{
                         "name": "id",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "System Security Plan ID; limits filters to global + same-SSP",
+                        "name": "sspId",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -1894,6 +1920,12 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/handler.GenericDataListResponse-evidence_StatusCount"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
                         }
                     },
                     "500": {
@@ -1969,6 +2001,12 @@ const docTemplate = `{
                         "name": "id",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "System Security Plan ID; limits filters to global + same-SSP",
+                        "name": "sspId",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -2463,7 +2501,7 @@ const docTemplate = `{
         },
         "/filters": {
             "get": {
-                "description": "Retrieves all filters, optionally filtered by controlId or componentId.",
+                "description": "Retrieves filters, optionally filtered by controlId, componentId, sspId, or global scope.",
                 "produces": [
                     "application/json"
                 ],
@@ -2471,11 +2509,49 @@ const docTemplate = `{
                     "Filters"
                 ],
                 "summary": "List filters",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Control ID",
+                        "name": "controlId",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Component ID",
+                        "name": "componentId",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "System Security Plan ID; returns global + same-SSP filters",
+                        "name": "sspId",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter scope. Use 'global' for global filters only",
+                        "name": "scope",
+                        "in": "query"
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/handler.GenericDataListResponse-handler_FilterWithAssociations"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
                         }
                     },
                     "500": {
@@ -15943,6 +16019,525 @@ const docTemplate = `{
                 ]
             }
         },
+        "/oscal/system-security-plans/{id}/dashboard-suggestion-runs/latest": {
+            "get": {
+                "description": "Returns the latest dashboard suggestion run with cell progress.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Dashboard Suggestions"
+                ],
+                "summary": "Get latest dashboard suggestion run for an SSP",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "System Security Plan ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-oscal_dashboardSuggestionRunResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/oscal/system-security-plans/{id}/dashboard-suggestion-runs/{runId}": {
+            "get": {
+                "description": "Returns a dashboard suggestion run with cell progress.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Dashboard Suggestions"
+                ],
+                "summary": "Get a dashboard suggestion run",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "System Security Plan ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Dashboard suggestion run ID",
+                        "name": "runId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-oscal_dashboardSuggestionRunResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/oscal/system-security-plans/{id}/dashboard-suggestions": {
+            "get": {
+                "description": "Lists dashboard suggestions joined with control title and target filter name.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Dashboard Suggestions"
+                ],
+                "summary": "List dashboard suggestions for an SSP",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "System Security Plan ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Suggestion status (default pending)",
+                        "name": "status",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataListResponse-oscal_dashboardSuggestionResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/oscal/system-security-plans/{id}/dashboard-suggestions/accept": {
+            "post": {
+                "description": "Accepts pending dashboard suggestions and creates or extends SSP-bound filters.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Dashboard Suggestions"
+                ],
+                "summary": "Accept dashboard suggestions",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "System Security Plan ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Suggestion IDs",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/oscal.dashboardSuggestionDecisionRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-oscal_acceptDashboardSuggestionsResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/oscal/system-security-plans/{id}/dashboard-suggestions/generate": {
+            "post": {
+                "description": "Creates a dashboard suggestion run, snapshots the resolved scope, creates run cells, and enqueues cell processing.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Dashboard Suggestions"
+                ],
+                "summary": "Generate dashboard suggestions for an SSP",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "System Security Plan ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Generation request",
+                        "name": "request",
+                        "in": "body",
+                        "schema": {
+                            "$ref": "#/definitions/oscal.generateDashboardSuggestionsRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "Accepted",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-oscal_dashboardSuggestionRunResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/oscal/system-security-plans/{id}/dashboard-suggestions/label-sets": {
+            "get": {
+                "description": "Returns canonical evidence label sets for dashboard suggestion scope selection.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Dashboard Suggestions"
+                ],
+                "summary": "List dashboard suggestion label sets",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "System Security Plan ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataListResponse-suggestions_LabelSetInput"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/oscal/system-security-plans/{id}/dashboard-suggestions/reject": {
+            "post": {
+                "description": "Rejects pending dashboard suggestions.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Dashboard Suggestions"
+                ],
+                "summary": "Reject dashboard suggestions",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "System Security Plan ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Suggestion IDs and reason",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/oscal.dashboardSuggestionDecisionRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataListResponse-oscal_dashboardSuggestionResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/oscal/system-security-plans/{id}/dashboard-suggestions/{suggestionId}/events": {
+            "get": {
+                "description": "Returns audit events for one dashboard suggestion.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Dashboard Suggestions"
+                ],
+                "summary": "List dashboard suggestion events",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "System Security Plan ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Dashboard suggestion ID",
+                        "name": "suggestionId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataListResponse-suggestions_DashboardSuggestionEvent"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
         "/oscal/system-security-plans/{id}/import-profile": {
             "get": {
                 "description": "Retrieves import-profile for a given SSP.",
@@ -28283,6 +28878,18 @@ const docTemplate = `{
                 }
             }
         },
+        "handler.GenericDataListResponse-oscal_dashboardSuggestionResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscal.dashboardSuggestionResponse"
+                    }
+                }
+            }
+        },
         "handler.GenericDataListResponse-oscal_profileSummary": {
             "type": "object",
             "properties": {
@@ -28375,6 +28982,30 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/relational.User"
+                    }
+                }
+            }
+        },
+        "handler.GenericDataListResponse-suggestions_DashboardSuggestionEvent": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/suggestions.DashboardSuggestionEvent"
+                    }
+                }
+            }
+        },
+        "handler.GenericDataListResponse-suggestions_LabelSetInput": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/suggestions.LabelSetInput"
                     }
                 }
             }
@@ -29377,6 +30008,45 @@ const docTemplate = `{
                 }
             }
         },
+        "handler.GenericDataResponse-oscal_acceptDashboardSuggestionsResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Wrapped response data",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/oscal.acceptDashboardSuggestionsResponse"
+                        }
+                    ]
+                }
+            }
+        },
+        "handler.GenericDataResponse-oscal_dashboardSuggestionConfigResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Wrapped response data",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/oscal.dashboardSuggestionConfigResponse"
+                        }
+                    ]
+                }
+            }
+        },
+        "handler.GenericDataResponse-oscal_dashboardSuggestionRunResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Wrapped response data",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/oscal.dashboardSuggestionRunResponse"
+                        }
+                    ]
+                }
+            }
+        },
         "handler.GenericDataResponse-poam_PoamItemControlLink": {
             "type": "object",
             "properties": {
@@ -29806,6 +30476,9 @@ const docTemplate = `{
                     "$ref": "#/definitions/labelfilter.Filter"
                 },
                 "name": {
+                    "type": "string"
+                },
+                "sspId": {
                     "type": "string"
                 }
             }
@@ -31633,11 +32306,208 @@ const docTemplate = `{
                 }
             }
         },
+        "oscal.acceptDashboardSuggestionsResponse": {
+            "type": "object",
+            "properties": {
+                "acceptedFilterIds": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "suggestions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscal.dashboardSuggestionResponse"
+                    }
+                }
+            }
+        },
         "oscal.addProfileRequest": {
             "type": "object",
             "properties": {
                 "profileId": {
                     "type": "string"
+                }
+            }
+        },
+        "oscal.dashboardSuggestionConfigResponse": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "oscal.dashboardSuggestionDecisionRequest": {
+            "type": "object",
+            "required": [
+                "ids"
+            ],
+            "properties": {
+                "ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "reason": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscal.dashboardSuggestionResponse": {
+            "type": "object",
+            "properties": {
+                "acceptedFilterId": {
+                    "type": "string"
+                },
+                "confidence": {
+                    "type": "number"
+                },
+                "controlCatalogId": {
+                    "type": "string"
+                },
+                "controlId": {
+                    "type": "string"
+                },
+                "controlTitle": {
+                    "type": "string"
+                },
+                "decidedAt": {
+                    "type": "string"
+                },
+                "decidedByUserId": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "labelSet": {
+                    "$ref": "#/definitions/datatypes.JSONMap"
+                },
+                "labelSetHash": {
+                    "type": "string"
+                },
+                "proposedFilterName": {
+                    "type": "string"
+                },
+                "reasoning": {
+                    "type": "string"
+                },
+                "rejectReason": {
+                    "type": "string"
+                },
+                "runId": {
+                    "type": "string"
+                },
+                "sspId": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "targetFilterId": {
+                    "type": "string"
+                },
+                "targetFilterName": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscal.dashboardSuggestionRunResponse": {
+            "type": "object",
+            "properties": {
+                "cells": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/suggestions.DashboardSuggestionRunCell"
+                    }
+                },
+                "completedAt": {
+                    "type": "string"
+                },
+                "completedCells": {
+                    "type": "integer"
+                },
+                "error": {
+                    "type": "string"
+                },
+                "failedCells": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "inputTokens": {
+                    "type": "integer"
+                },
+                "model": {
+                    "type": "string"
+                },
+                "outputTokens": {
+                    "type": "integer"
+                },
+                "plannedCalls": {
+                    "type": "integer"
+                },
+                "promptVersion": {
+                    "type": "string"
+                },
+                "scope": {
+                    "$ref": "#/definitions/datatypes.JSONMap"
+                },
+                "sspId": {
+                    "type": "string"
+                },
+                "startedAt": {
+                    "type": "string"
+                },
+                "stats": {
+                    "$ref": "#/definitions/datatypes.JSONMap"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "suggestionCount": {
+                    "type": "integer"
+                },
+                "suggestions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/suggestions.DashboardSuggestion"
+                    }
+                },
+                "triggeredByUserId": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscal.dashboardSuggestionScopeRequest": {
+            "type": "object",
+            "properties": {
+                "controlKeys": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "labelSetHashes": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "oscal.generateDashboardSuggestionsRequest": {
+            "type": "object",
+            "properties": {
+                "scope": {
+                    "$ref": "#/definitions/oscal.dashboardSuggestionScopeRequest"
+                },
+                "supersedePending": {
+                    "type": "boolean"
                 }
             }
         },
@@ -39472,6 +40342,158 @@ const docTemplate = `{
                 },
                 "totalPages": {
                     "type": "integer"
+                }
+            }
+        },
+        "suggestions.DashboardSuggestion": {
+            "type": "object",
+            "properties": {
+                "acceptedFilterId": {
+                    "type": "string"
+                },
+                "confidence": {
+                    "type": "number"
+                },
+                "controlCatalogId": {
+                    "type": "string"
+                },
+                "controlId": {
+                    "type": "string"
+                },
+                "decidedAt": {
+                    "type": "string"
+                },
+                "decidedByUserId": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "labelSet": {
+                    "$ref": "#/definitions/datatypes.JSONMap"
+                },
+                "labelSetHash": {
+                    "type": "string"
+                },
+                "proposedFilterName": {
+                    "type": "string"
+                },
+                "reasoning": {
+                    "type": "string"
+                },
+                "rejectReason": {
+                    "type": "string"
+                },
+                "runId": {
+                    "type": "string"
+                },
+                "sspId": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "targetFilterId": {
+                    "type": "string"
+                }
+            }
+        },
+        "suggestions.DashboardSuggestionEvent": {
+            "type": "object",
+            "properties": {
+                "actorUserId": {
+                    "type": "string"
+                },
+                "details": {
+                    "type": "string"
+                },
+                "eventType": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "occurredAt": {
+                    "type": "string"
+                },
+                "payload": {
+                    "$ref": "#/definitions/datatypes.JSONMap"
+                },
+                "runId": {
+                    "type": "string"
+                },
+                "snapshot": {
+                    "$ref": "#/definitions/datatypes.JSONMap"
+                },
+                "suggestionId": {
+                    "type": "string"
+                }
+            }
+        },
+        "suggestions.DashboardSuggestionRunCell": {
+            "type": "object",
+            "properties": {
+                "cellIndex": {
+                    "type": "integer"
+                },
+                "completedAt": {
+                    "type": "string"
+                },
+                "controlKeys": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "error": {
+                    "type": "string"
+                },
+                "inputTokens": {
+                    "type": "integer"
+                },
+                "labelSetHashes": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "mappingsRejected": {
+                    "type": "integer"
+                },
+                "mappingsReturned": {
+                    "type": "integer"
+                },
+                "outputTokens": {
+                    "type": "integer"
+                },
+                "runId": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
+        "suggestions.LabelSetInput": {
+            "type": "object",
+            "properties": {
+                "evidence_count": {
+                    "type": "integer"
+                },
+                "hash": {
+                    "type": "string"
+                },
+                "labels": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "sample_titles": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 }
             }
         },
