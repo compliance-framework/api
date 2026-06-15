@@ -1,0 +1,30 @@
+lisa-addressed:
+---
+Comment (internal/service/worker/service.go:null):
+**[Medium] `worker not registered` surfaces as an opaque HTTP 500.**
+
+This returns `"dashboard suggestion worker is not registered"`, but `generateError` (internal/api/handler/oscal/dashboard_suggestions.go:720) only maps `ErrDashboardSuggestionWorkerDisabled` / `"worker service is disabled"` to 503. The not-registered string matches neither branch, so it falls through to **500** — meaning *every* `generate` returns a 500 once AI is enabled with a real worker, until the Phase 5 River job lands. The design note intends a "clear not-registered error"; a 500 reads as a server fault to clients and alerting.
+
+The transaction rolls back cleanly so there is no orphan run — this is purely the status code. Suggested fix: map not-registered to **503** (or 501 Not Implemented) with a clear message, e.g. add a sentinel `ErrDashboardSuggestionWorkerNotRegistered` and handle it alongside the disabled case in `generateError`. Currently untested (the suite uses a fake enqueuer).
+Replies:
+**lisa implementation guidance:** Add an explicit sentinel error for the Phase 5 dashboard suggestion worker seam and map it to a non-500 response. In internal/service/worker/service.go, define/export an error such as ErrDashboardSuggestionWorkerNotRegistered = errors.New("dashboard suggestion worker is not registered") and have the method at line 1081 return that sentinel instead of a fresh/opaque error string. Then update internal/api/handler/oscal/dashboard_suggestions.go in DashboardSuggestionHandler.generateError to detect that sentinel with errors.Is and return HTTP 503 Service Unavailable, or 501 Not Implemented if the project has a clear existing convention for unimplemented server capabilities. Prefer 503 if there is no convention, and keep the response message clear. Do not change the existing transaction behavior in Generate: the run, cells, and events must still roll back when enqueue returns this error. Add an HTTP/integration test for Generate with AI config enabled and the real worker service/enqueuer path that currently returns not-registered; assert the status is the chosen non-500 status and that no pending run or cells remain in the database.
+
+<!-- lisa-guidance-posted -->
+---
+Comment (internal/api/handler/oscal/dashboard_suggestions.go:345):
+**[Low] HTTP-layer test coverage gap on the consequential mutations.**
+
+The integration suite covers `Generate`/conflict/validation/empty-scope/flag-off/config, but `Accept` (here — creates/extends SSP-bound filters), `Reject`, `ListSuggestions`, and `Events` have no HTTP test, and the `supersedePending=true` path (`supersedePendingInScope`, line 522) is entirely unexercised. `supersedePendingInScope` has non-trivial OR'd control-key filter construction plus per-suggestion superseded audit events — exactly the kind of logic worth a regression test. Suggest adding at least: (1) an Accept test asserting filter create/extend + `acceptedFilterIds`, and (2) a generate-with-supersede test asserting prior pending suggestions in scope flip to `superseded` with an audit event.
+Replies:
+**lisa implementation guidance:** Add focused HTTP integration coverage in internal/api/handler/oscal/dashboard_suggestions_integration_test.go for the consequential dashboard suggestion mutations. First, add an Accept test that seeds a completed run with pending DashboardSuggestion rows for an SSP and label set, calls the Accept endpoint, and asserts the response acceptedFilterIds are returned, an SSP-bound filter is created or an existing SSP-bound/global-compatible filter is extended as intended, filter_controls rows link the accepted controls, the suggestions move to accepted, and accepted events are written. Second, add a Reject test that calls Reject on pending suggestions and asserts status rejected, reject reason/actor/decided_at are persisted, and reject events are written. Third, add a ListSuggestions and Events HTTP smoke/regression test that verifies SSP scoping and response shape. Fourth, add a generate-with-supersedePending=true test that seeds prior pending suggestions inside and outside the new resolved scope, invokes Generate with supersedePending true, and asserts only in-scope prior pending suggestions become superseded and each superseded suggestion has an audit event. Be careful to keep these as HTTP handler/integration tests, not only service tests, and avoid relying on the real AI worker; use the existing fake enqueuer/test setup used by Generate tests.
+
+<!-- lisa-guidance-posted -->
+---
+Comment (internal/api/handler/filter.go:301):
+**[Low] `Update` silently clears the SSP binding on a partial update.**
+
+`filter.SSPID = req.SSPID`: a PUT that omits `sspId` deserializes to `nil` and unbinds the filter to global. The git notes call this deliberate full-replacement semantics, so this is likely intended — just confirm the OpenAPI doc and any clients reflect it, since a client doing a partial-looking update (e.g. only changing `name`) will inadvertently move an SSP-scoped filter back to global. A one-line comment here noting the intentional clear-on-omit would prevent future "bug" reports.
+Replies:
+**lisa implementation guidance:** Keep the existing PUT /api/filters full-replacement behavior in internal/api/handler/filter.go: Update must continue assigning filter.SSPID = req.SSPID so omitted or null sspId clears the binding to global. Add a short code comment immediately above that assignment explaining that PUT is full replacement and omitted/null sspId intentionally clears the SSP binding. Also check the OpenAPI annotations/request schema for the filter update endpoint in the same file and make sure the sspId field description says omitted or null clears the binding to global; do not convert this endpoint to PATCH semantics and do not preserve the existing SSPID when req.SSPID is nil.
+
+<!-- lisa-guidance-posted -->
