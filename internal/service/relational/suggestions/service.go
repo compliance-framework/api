@@ -352,7 +352,7 @@ func (s *SuggestionService) acceptFilterForHash(tx *gorm.DB, sspID uuid.UUID, ha
 }
 
 func lockAcceptFilterHash(tx *gorm.DB, sspID uuid.UUID, hash string) error {
-	if tx.Dialector.Name() != "postgres" {
+	if tx.Name() != "postgres" {
 		return nil
 	}
 
