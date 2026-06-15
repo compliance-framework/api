@@ -716,7 +716,7 @@ func periodicJobsFromConfig(cfg *config.Config, logger *zap.SugaredLogger) []*ri
 	return periodicJobs
 }
 
-func buildRiverConfig(cfg *config.WorkerConfig, workers *river.Workers, periodicJobs []*river.PeriodicJob, aiCfg ...*config.AIConfig) river.Config {
+func buildRiverConfig(cfg *config.WorkerConfig, workers *river.Workers, periodicJobs []*river.PeriodicJob, aiCfg *config.AIConfig) river.Config {
 	riverConfig := river.Config{
 		PollOnly: cfg.UsePolling,
 		Queues: map[string]river.QueueConfig{
@@ -748,8 +748,8 @@ func buildRiverConfig(cfg *config.WorkerConfig, workers *river.Workers, periodic
 		Workers:      workers,
 		PeriodicJobs: periodicJobs,
 	}
-	if len(aiCfg) > 0 && aiCfg[0] != nil && aiCfg[0].Enabled {
-		maxWorkers := aiCfg[0].QueueWorkers
+	if aiCfg != nil && aiCfg.Enabled {
+		maxWorkers := aiCfg.QueueWorkers
 		if maxWorkers <= 0 {
 			maxWorkers = config.DefaultAIConfig().QueueWorkers
 		}

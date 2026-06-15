@@ -11,6 +11,7 @@ import (
 const (
 	JobTypeDashboardSuggestionCell = "dashboard_suggestion_cell"
 	DashboardSuggestionQueue       = "suggestion"
+	DashboardSuggestionMaxAttempts = 3
 )
 
 var ErrDashboardSuggestionWorkerDisabled = errors.New("dashboard suggestion worker is disabled")
@@ -27,7 +28,7 @@ func (DashboardSuggestionCellArgs) Timeout() time.Duration { return 5 * time.Min
 func JobInsertOptionsForDashboardSuggestionCell() *river.InsertOpts {
 	return &river.InsertOpts{
 		Queue:       DashboardSuggestionQueue,
-		MaxAttempts: 3,
+		MaxAttempts: DashboardSuggestionMaxAttempts,
 		UniqueOpts: river.UniqueOpts{
 			ByArgs: true,
 		},

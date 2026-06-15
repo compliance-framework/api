@@ -216,6 +216,8 @@ func (w *DashboardSuggestionWorker) completeCell(
 	if w.aiCfg != nil && w.aiCfg.MaxSuggestionsPerRun > 0 {
 		maxSuggestions = w.aiCfg.MaxSuggestionsPerRun
 	}
+	// mappings_rejected is an operational unserved count: invalid/excluded/capped
+	// mappings plus requested label sets that had no gathered evidence.
 	rejected := rawCount - len(validation.Mappings) + missingLabelSets
 	if rejected < 0 {
 		rejected = 0
@@ -262,6 +264,14 @@ func (w *DashboardSuggestionWorker) completeCell(
 func (w *DashboardSuggestionWorker) handleAttemptFailure(ctx context.Context, job *river.Job[DashboardSuggestionCellArgs], err error) error {
 	if isFinalAttempt(job) {
 		if markErr := w.failCellAndMaybeFinalize(ctx, job.Args, err); markErr != nil {
+			if w.logger != nil {
+				w.logger.Errorw("failed to mark dashboard suggestion cell failed on final attempt",
+					"run_id", job.Args.RunID,
+					"cell_index", job.Args.CellIndex,
+					"error", err,
+					"mark_error", markErr,
+				)
+			}
 			return markErr
 		}
 	}
@@ -269,7 +279,10 @@ func (w *DashboardSuggestionWorker) handleAttemptFailure(ctx context.Context, jo
 }
 
 func (w *DashboardSuggestionWorker) failCellAndMaybeFinalize(ctx context.Context, args DashboardSuggestionCellArgs, cause error) error {
-	return w.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	detachedCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+	defer cancel()
+
+	return w.db.WithContext(detachedCtx).Transaction(func(tx *gorm.DB) error {
 		now := time.Now().UTC()
 		message := cause.Error()
 		update := tx.Model(&suggestionrel.DashboardSuggestionRunCell{}).
@@ -408,7 +421,7 @@ func isFinalAttempt(job *river.Job[DashboardSuggestionCellArgs]) bool {
 	}
 	maxAttempts := job.MaxAttempts
 	if maxAttempts <= 0 {
-		maxAttempts = 3
+		maxAttempts = DashboardSuggestionMaxAttempts
 	}
 	return job.Attempt >= maxAttempts
 }

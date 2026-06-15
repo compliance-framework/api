@@ -31,7 +31,7 @@ func TestDashboardSuggestionCellJobType(t *testing.T) {
 
 	opts := JobInsertOptionsForDashboardSuggestionCell()
 	require.Equal(t, DashboardSuggestionQueue, opts.Queue)
-	require.Equal(t, 3, opts.MaxAttempts)
+	require.Equal(t, DashboardSuggestionMaxAttempts, opts.MaxAttempts)
 	require.True(t, opts.UniqueOpts.ByArgs)
 }
 
@@ -52,7 +52,7 @@ func TestBuildRiverConfigSuggestionQueueGated(t *testing.T) {
 	t.Parallel()
 
 	cfg := config.DefaultWorkerConfig()
-	withoutAI := buildRiverConfig(cfg, river.NewWorkers(), nil)
+	withoutAI := buildRiverConfig(cfg, river.NewWorkers(), nil, nil)
 	_, ok := withoutAI.Queues[DashboardSuggestionQueue]
 	require.False(t, ok)
 
@@ -154,6 +154,64 @@ func TestDashboardSuggestionWorkerFinalizationMatrix(t *testing.T) {
 	})
 }
 
+func TestDashboardSuggestionWorkerFailCellDetachedFromCancelledContext(t *testing.T) {
+	db := newDashboardSuggestionWorkerTestDB(t)
+	runID, _ := seedDashboardSuggestionRun(t, db, dashboardSuggestionRunStatusRunning, 1)
+	seedDashboardSuggestionCell(t, db, runID, 0, dashboardSuggestionCellStatusPending)
+	worker := NewDashboardSuggestionWorker(db, &llm.FakeClient{}, config.DefaultAIConfig(), zap.NewNop().Sugar())
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	require.NoError(t, worker.failCellAndMaybeFinalize(ctx, DashboardSuggestionCellArgs{RunID: runID, CellIndex: 0}, errors.New("provider failed")))
+
+	var cell suggestionrel.DashboardSuggestionRunCell
+	require.NoError(t, db.First(&cell, "run_id = ? AND cell_index = ?", runID, 0).Error)
+	require.Equal(t, dashboardSuggestionCellStatusFailed, cell.Status)
+	require.NotNil(t, cell.CompletedAt)
+	require.NotNil(t, cell.Error)
+	require.Equal(t, "provider failed", *cell.Error)
+
+	var run suggestionrel.DashboardSuggestionRun
+	require.NoError(t, db.First(&run, "id = ?", runID).Error)
+	require.Equal(t, dashboardSuggestionRunStatusFailed, run.Status)
+	require.NotNil(t, run.CompletedAt)
+	assertRunEventCount(t, db, runID, suggestionrel.DashboardSuggestionEventTypeRunFailed, 1)
+}
+
+func TestDashboardSuggestionWorkerCompleteCellCountsMissingLabelSetsAsRejected(t *testing.T) {
+	db := newDashboardSuggestionWorkerTestDB(t)
+	runID, sspID := seedDashboardSuggestionRun(t, db, dashboardSuggestionRunStatusRunning, 1)
+	seedDashboardSuggestionCellWithLabelSets(t, db, runID, 0, dashboardSuggestionCellStatusPending, []string{"hash-with-evidence", "hash-without-evidence"})
+	worker := NewDashboardSuggestionWorker(db, &llm.FakeClient{}, config.DefaultAIConfig(), zap.NewNop().Sugar())
+	run := suggestionrel.DashboardSuggestionRun{
+		UUIDModel:     relational.UUIDModel{ID: &runID},
+		SSPID:         sspID,
+		PromptVersion: suggestionrel.PromptVersion,
+		Stats:         datatypes.JSONMap{},
+	}
+	cell := suggestionrel.DashboardSuggestionRunCell{RunID: runID, CellIndex: 0}
+	catalogID := uuid.New()
+	validation := suggestionrel.ValidationResult{
+		Mappings: []suggestionrel.ValidatedMapping{{
+			ControlKey:         suggestionrel.ControlKey(catalogID, "AC-1"),
+			LabelSet:           map[string]string{"component": "api"},
+			LabelSetHash:       "hash-with-evidence",
+			ProposedFilterName: "API scope",
+			Confidence:         0.8,
+			Reasoning:          "evidence matches",
+		}},
+	}
+	response := &llm.StructuredResponse{InputTokens: 2, OutputTokens: 3}
+
+	require.NoError(t, worker.completeCell(context.Background(), run, cell, response, validation, 1, 1))
+
+	var stored suggestionrel.DashboardSuggestionRunCell
+	require.NoError(t, db.First(&stored, "run_id = ? AND cell_index = ?", runID, 0).Error)
+	require.Equal(t, dashboardSuggestionCellStatusCompleted, stored.Status)
+	require.Equal(t, 1, stored.MappingsReturned)
+	require.Equal(t, 1, stored.MappingsRejected)
+}
+
 func TestDashboardSuggestionWorkerLLMRetryAndNonRetryableFailure(t *testing.T) {
 	t.Run("retryable error retries once in job", func(t *testing.T) {
 		fake := &llm.FakeClient{
@@ -224,6 +282,17 @@ func seedDashboardSuggestionRun(t *testing.T, db *gorm.DB, status string, planne
 func seedDashboardSuggestionCell(t *testing.T, db *gorm.DB, runID uuid.UUID, cellIndex int, status string) {
 	t.Helper()
 	seedDashboardSuggestionCellWithStats(t, db, runID, cellIndex, status, 0, 0, 0, 0, nil)
+}
+
+func seedDashboardSuggestionCellWithLabelSets(t *testing.T, db *gorm.DB, runID uuid.UUID, cellIndex int, status string, labelSetHashes []string) {
+	t.Helper()
+	require.NoError(t, db.Create(&suggestionrel.DashboardSuggestionRunCell{
+		RunID:          runID,
+		CellIndex:      cellIndex,
+		ControlKeys:    datatypes.NewJSONSlice([]string{}),
+		LabelSetHashes: datatypes.NewJSONSlice(labelSetHashes),
+		Status:         status,
+	}).Error)
 }
 
 func seedDashboardSuggestionCellWithStats(t *testing.T, db *gorm.DB, runID uuid.UUID, cellIndex int, status string, inputTokens int, outputTokens int, mappingsReturned int, mappingsRejected int, message *string) {
