@@ -1,0 +1,14 @@
+lisa-addressed:
+---
+Comment (internal/service/llm/anthropic.go:30):
+**[Medium] Sanitizer keyword list is incomplete — array/object constraints still slip through and will hit the same 400 this fix targets.**
+
+Nice fix, and the non-mutating recursive walk + dedicated `TestSanitizeAnthropicSchema` are exactly right. But the keyword set only covers numeric and string constraints; Anthropic structured outputs also reject **array and object constraints**, which are not stripped here:
+
+- `minItems`, `maxItems`, `uniqueItems` (array)
+- `minProperties`, `maxProperties` (object)
+
+`minItems` in particular is extremely common ("the array must have at least one element"), so a Phase-2/3 schema using it would still produce the permanent `400 → ErrInvalidOutput` this change was meant to prevent — same failure mode, just a missed subset. Suggest adding those five keywords to `unsupportedAnthropicSchemaKeywords` and extending `TestSanitizeAnthropicSchema` to cover an array with `minItems`/`maxItems`/`uniqueItems` and an object with `minProperties`/`maxProperties`.
+
+(Optional, to make this robust against the next addition: rather than maintaining a denylist of unsupported keywords, an allowlist of the *supported* keywords — `type`, `properties`, `items`, `required`, `enum`, `const`, `anyOf`, `allOf`, `$ref`, `$defs`, `description`, `format`, `additionalProperties` — fails safe when Anthropics schema surface changes. Your call; the denylist is fine if you prefer to keep the supported set permissive.)
+Implementation guidance: In internal/service/llm/anthropic.go, extend the existing `unsupportedAnthropicSchemaKeywords` denylist. Add exactly these missing Anthropic-unsupported constraint keywords: `minItems`, `maxItems`, `uniqueItems`, `minProperties`, and `maxProperties`. Keep the current recursive copy behavior in `sanitizeAnthropicSchemaValue`; do not mutate `req.Schema`, do not switch away from `messages.create`/`output_config.format`, and do not add Go field-level validation in this package. In internal/service/llm/anthropic_test.go, extend `TestSanitizeAnthropicSchema` so the input schema includes an array property with `minItems`, `maxItems`, and `uniqueItems`, plus an object property with `minProperties` and `maxProperties`. Update the expected sanitized schema to preserve supported structure keys (`type`, `properties`, `items`, `required` if present) while removing those five new constraint keys. Ensure `requireNoUnsupportedAnthropicSchemaKeywords` checks the shared `unsupportedAnthropicSchemaKeywords` map so adding the keywords makes the helper catch them recursively.
