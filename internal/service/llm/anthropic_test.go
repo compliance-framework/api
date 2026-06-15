@@ -215,6 +215,66 @@ func TestAnthropicClientTransportErrorIsRetryable(t *testing.T) {
 	require.NotErrorIs(t, err, ErrInvalidOutput)
 }
 
+func TestAnthropicClientRequestTimeoutIsRetryable(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(25 * time.Millisecond)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"id":"msg_test",
+			"type":"message",
+			"role":"assistant",
+			"model":"claude-test",
+			"content":[{"type":"text","text":"{}"}],
+			"stop_reason":"end_turn",
+			"stop_sequence":"",
+			"usage":{"input_tokens":1,"output_tokens":1}
+		}`))
+	}))
+	t.Cleanup(server.Close)
+
+	client := NewAnthropicClient(AnthropicConfig{
+		Enabled:        true,
+		APIKey:         "test-key",
+		Model:          "claude-test",
+		BaseURL:        server.URL,
+		RequestTimeout: time.Millisecond,
+	})
+
+	_, err := client.CompleteStructured(context.Background(), StructuredRequest{
+		Prompt:    "prompt",
+		Schema:    map[string]any{"type": "object"},
+		MaxTokens: 64,
+	})
+
+	require.Error(t, err)
+	require.ErrorIs(t, err, ErrOverloaded)
+}
+
+func TestAnthropicClientCallerCanceledContextPassesThrough(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	t.Cleanup(server.Close)
+
+	client := NewAnthropicClient(AnthropicConfig{
+		Enabled:        true,
+		APIKey:         "test-key",
+		Model:          "claude-test",
+		BaseURL:        server.URL,
+		RequestTimeout: time.Second,
+	})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, err := client.CompleteStructured(ctx, StructuredRequest{
+		Prompt:    "prompt",
+		Schema:    map[string]any{"type": "object"},
+		MaxTokens: 64,
+	})
+
+	require.ErrorIs(t, err, context.Canceled)
+	require.NotErrorIs(t, err, ErrOverloaded)
+}
+
 func TestAnthropicClientDisabled(t *testing.T) {
 	client := NewAnthropicClient(AnthropicConfig{Enabled: false})
 	_, err := client.CompleteStructured(context.Background(), StructuredRequest{})

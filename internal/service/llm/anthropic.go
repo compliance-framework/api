@@ -92,7 +92,7 @@ func (c *AnthropicClient) CompleteStructured(ctx context.Context, req Structured
 
 	msg, err := c.client.Messages.New(callCtx, params, option.WithRequestTimeout(c.requestTimeout), option.WithMaxRetries(0))
 	if err != nil {
-		return nil, mapAnthropicError(err)
+		return nil, mapAnthropicError(ctx, callCtx, err)
 	}
 
 	raw, err := structuredRawJSON(msg)
@@ -124,7 +124,7 @@ func structuredRawJSON(msg *anthropic.Message) (json.RawMessage, error) {
 	return nil, fmt.Errorf("%w: provider response did not contain text json", ErrInvalidOutput)
 }
 
-func mapAnthropicError(err error) error {
+func mapAnthropicError(ctx context.Context, callCtx context.Context, err error) error {
 	var apiErr *anthropic.Error
 	if errors.As(err, &apiErr) {
 		switch apiErr.StatusCode {
@@ -148,6 +148,12 @@ func mapAnthropicError(err error) error {
 	}
 
 	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		if parentErr := ctx.Err(); parentErr != nil {
+			return parentErr
+		}
+		if callCtx.Err() != nil {
+			return fmt.Errorf("%w: %v", ErrOverloaded, err)
+		}
 		return err
 	}
 	if strings.HasPrefix(err.Error(), "error parsing response json:") {
