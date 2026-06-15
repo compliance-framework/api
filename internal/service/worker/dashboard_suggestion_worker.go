@@ -30,6 +30,8 @@ const (
 )
 
 type DashboardSuggestionWorker struct {
+	river.WorkerDefaults[DashboardSuggestionCellArgs]
+
 	db                *gorm.DB
 	suggestionService *suggestionrel.SuggestionService
 	llmClient         llm.Client
@@ -45,6 +47,15 @@ func NewDashboardSuggestionWorker(db *gorm.DB, llmClient llm.Client, aiCfg *conf
 		aiCfg:             aiCfg,
 		logger:            logger,
 	}
+}
+
+func (w *DashboardSuggestionWorker) Timeout(job *river.Job[DashboardSuggestionCellArgs]) time.Duration {
+	requestTimeout := dashboardSuggestionRequestTimeout(w.aiCfg)
+	timeout := 2*requestTimeout + 30*time.Second
+	if timeout < 5*time.Minute {
+		return 5 * time.Minute
+	}
+	return timeout
 }
 
 func (w *DashboardSuggestionWorker) Work(ctx context.Context, job *river.Job[DashboardSuggestionCellArgs]) error {
@@ -160,13 +171,7 @@ func (w *DashboardSuggestionWorker) loadPendingCellAndStartRun(ctx context.Conte
 }
 
 func (w *DashboardSuggestionWorker) completeWithOneRetry(ctx context.Context, prompt string) (*llm.StructuredResponse, error) {
-	requestTimeout := time.Duration(0)
-	if w.aiCfg != nil {
-		requestTimeout = w.aiCfg.RequestTimeout
-	}
-	if requestTimeout <= 0 {
-		requestTimeout = config.DefaultAIConfig().RequestTimeout
-	}
+	requestTimeout := dashboardSuggestionRequestTimeout(w.aiCfg)
 
 	req := llm.StructuredRequest{
 		System:    suggestionrel.SystemPrompt,
@@ -189,6 +194,13 @@ func (w *DashboardSuggestionWorker) completeWithOneRetry(ctx context.Context, pr
 		}
 	}
 	return nil, lastErr
+}
+
+func dashboardSuggestionRequestTimeout(aiCfg *config.AIConfig) time.Duration {
+	if aiCfg != nil && aiCfg.RequestTimeout > 0 {
+		return aiCfg.RequestTimeout
+	}
+	return config.DefaultAIConfig().RequestTimeout
 }
 
 func (w *DashboardSuggestionWorker) completeCell(

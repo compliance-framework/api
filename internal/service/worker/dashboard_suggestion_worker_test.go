@@ -35,6 +35,19 @@ func TestDashboardSuggestionCellJobType(t *testing.T) {
 	require.True(t, opts.UniqueOpts.ByArgs)
 }
 
+func TestDashboardSuggestionWorkerTimeout(t *testing.T) {
+	t.Parallel()
+
+	worker := NewDashboardSuggestionWorker(nil, nil, config.DefaultAIConfig(), zap.NewNop().Sugar())
+	require.Equal(t, 5*time.Minute, worker.Timeout(nil))
+
+	worker = NewDashboardSuggestionWorker(nil, nil, &config.AIConfig{RequestTimeout: 3 * time.Minute}, zap.NewNop().Sugar())
+	require.Equal(t, 6*time.Minute+30*time.Second, worker.Timeout(nil))
+
+	worker = NewDashboardSuggestionWorker(nil, nil, &config.AIConfig{}, zap.NewNop().Sugar())
+	require.Equal(t, 5*time.Minute, worker.Timeout(nil))
+}
+
 func TestBuildRiverConfigSuggestionQueueGated(t *testing.T) {
 	t.Parallel()
 

@@ -328,7 +328,7 @@ func NewServiceWithDigest(
 			RequestTimeout: digestCfg.AI.RequestTimeout,
 		})
 		dashboardSuggestionWorker := NewDashboardSuggestionWorker(db, llmClient, digestCfg.AI, logger)
-		river.AddWorker(workers, river.WorkFunc(dashboardSuggestionWorker.Work))
+		river.AddWorker(workers, dashboardSuggestionWorker)
 	}
 
 	// Configure periodic jobs
