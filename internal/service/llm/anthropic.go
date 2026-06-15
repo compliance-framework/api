@@ -16,7 +16,19 @@ import (
 const (
 	DefaultAnthropicModel          = "claude-opus-4-8"
 	DefaultAnthropicRequestTimeout = 120 * time.Second
+	DefaultAnthropicMaxTokens      = 4096
 )
+
+var unsupportedAnthropicSchemaKeywords = map[string]struct{}{
+	"minimum":          {},
+	"maximum":          {},
+	"exclusiveMinimum": {},
+	"exclusiveMaximum": {},
+	"multipleOf":       {},
+	"minLength":        {},
+	"maxLength":        {},
+	"pattern":          {},
+}
 
 type AnthropicConfig struct {
 	Enabled        bool
@@ -76,14 +88,19 @@ func (c *AnthropicClient) CompleteStructured(ctx context.Context, req Structured
 	callCtx, cancel := context.WithTimeout(ctx, c.requestTimeout)
 	defer cancel()
 
+	maxTokens := req.MaxTokens
+	if maxTokens <= 0 {
+		maxTokens = DefaultAnthropicMaxTokens
+	}
+
 	params := anthropic.MessageNewParams{
-		MaxTokens: int64(req.MaxTokens),
+		MaxTokens: int64(maxTokens),
 		Model:     anthropic.Model(c.model),
 		Messages: []anthropic.MessageParam{
 			anthropic.NewUserMessage(anthropic.NewTextBlock(req.Prompt)),
 		},
 		OutputConfig: anthropic.OutputConfigParam{
-			Format: anthropic.JSONOutputFormatParam{Schema: req.Schema},
+			Format: anthropic.JSONOutputFormatParam{Schema: sanitizeAnthropicSchema(req.Schema)},
 		},
 	}
 	if req.System != "" {
@@ -113,7 +130,7 @@ func structuredRawJSON(msg *anthropic.Message) (json.RawMessage, error) {
 		return nil, fmt.Errorf("%w: empty provider response", ErrInvalidOutput)
 	}
 	for _, block := range msg.Content {
-		if block.Type == "text" || block.Text != "" {
+		if block.Type == "text" {
 			raw := json.RawMessage(block.Text)
 			if !json.Valid(raw) {
 				return nil, fmt.Errorf("%w: provider returned non-json text content", ErrInvalidOutput)
@@ -124,6 +141,33 @@ func structuredRawJSON(msg *anthropic.Message) (json.RawMessage, error) {
 	return nil, fmt.Errorf("%w: provider response did not contain text json", ErrInvalidOutput)
 }
 
+func sanitizeAnthropicSchema(schema map[string]any) map[string]any {
+	sanitized, _ := sanitizeAnthropicSchemaValue(schema).(map[string]any)
+	return sanitized
+}
+
+func sanitizeAnthropicSchemaValue(value any) any {
+	switch typed := value.(type) {
+	case map[string]any:
+		sanitized := make(map[string]any, len(typed))
+		for key, child := range typed {
+			if _, unsupported := unsupportedAnthropicSchemaKeywords[key]; unsupported {
+				continue
+			}
+			sanitized[key] = sanitizeAnthropicSchemaValue(child)
+		}
+		return sanitized
+	case []any:
+		sanitized := make([]any, len(typed))
+		for i, child := range typed {
+			sanitized[i] = sanitizeAnthropicSchemaValue(child)
+		}
+		return sanitized
+	default:
+		return value
+	}
+}
+
 func mapAnthropicError(ctx context.Context, callCtx context.Context, err error) error {
 	var apiErr *anthropic.Error
 	if errors.As(err, &apiErr) {
@@ -131,8 +175,8 @@ func mapAnthropicError(ctx context.Context, callCtx context.Context, err error) 
 		case http.StatusUnauthorized:
 			return fmt.Errorf("%w: %v", ErrAuth, err)
 		case http.StatusBadRequest:
-			// Anthropic structured-output schemas intentionally do not enforce numeric
-			// min/max or string length constraints; Phase 3 re-validates fields in Go.
+			// Unsupported structured-output validation constraints are stripped before
+			// sending; malformed or otherwise rejected schemas are still invalid input.
 			return fmt.Errorf("%w: %v", ErrInvalidOutput, err)
 		case http.StatusTooManyRequests:
 			return fmt.Errorf("%w: %v", ErrRateLimited, err)

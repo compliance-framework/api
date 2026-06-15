@@ -122,10 +122,11 @@ func TestAnthropicClientStructuredOutputSchemaPassthrough(t *testing.T) {
 	schema := map[string]any{
 		"type": "object",
 		"properties": map[string]any{
-			"answer": map[string]any{"type": "string", "minLength": float64(2)},
+			"answer": map[string]any{"type": "string", "minLength": float64(2), "pattern": "^ok$"},
 			"items": map[string]any{
-				"type":  "array",
-				"items": map[string]any{"type": "integer", "minimum": float64(1)},
+				"type":      "array",
+				"maxLength": float64(10),
+				"items":     map[string]any{"type": "integer", "minimum": float64(1), "maximum": float64(5)},
 			},
 		},
 		"required": []any{"answer", "items"},
@@ -153,7 +154,17 @@ func TestAnthropicClientStructuredOutputSchemaPassthrough(t *testing.T) {
 		outputConfig := payload["output_config"].(map[string]any)
 		format := outputConfig["format"].(map[string]any)
 		require.Equal(t, "json_schema", format["type"])
-		require.Equal(t, schema, format["schema"])
+		sanitizedSchema := format["schema"].(map[string]any)
+		requireNoUnsupportedAnthropicSchemaKeywords(t, sanitizedSchema)
+		require.Equal(t, "object", sanitizedSchema["type"])
+		require.Equal(t, []any{"answer", "items"}, sanitizedSchema["required"])
+
+		properties := sanitizedSchema["properties"].(map[string]any)
+		require.Equal(t, map[string]any{"type": "string"}, properties["answer"])
+		require.Equal(t, map[string]any{
+			"type":  "array",
+			"items": map[string]any{"type": "integer"},
+		}, properties["items"])
 
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{
@@ -189,6 +200,89 @@ func TestAnthropicClientStructuredOutputSchemaPassthrough(t *testing.T) {
 	require.Equal(t, "claude-test", resp.Model)
 	require.Equal(t, 12, resp.InputTokens)
 	require.Equal(t, 7, resp.OutputTokens)
+	require.Equal(t, float64(2), schema["properties"].(map[string]any)["answer"].(map[string]any)["minLength"])
+}
+
+func TestSanitizeAnthropicSchema(t *testing.T) {
+	schema := map[string]any{
+		"type":      "object",
+		"maxLength": float64(20),
+		"properties": map[string]any{
+			"name": map[string]any{"type": "string", "minLength": float64(1), "pattern": ".+"},
+			"scores": map[string]any{
+				"type": "array",
+				"items": []any{
+					map[string]any{"type": "number", "minimum": float64(0), "multipleOf": float64(0.5)},
+				},
+			},
+		},
+	}
+
+	sanitized := sanitizeAnthropicSchema(schema)
+
+	requireNoUnsupportedAnthropicSchemaKeywords(t, sanitized)
+	require.Equal(t, map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"name": map[string]any{"type": "string"},
+			"scores": map[string]any{
+				"type":  "array",
+				"items": []any{map[string]any{"type": "number"}},
+			},
+		},
+	}, sanitized)
+	require.Contains(t, schema, "maxLength")
+	require.Contains(t, schema["properties"].(map[string]any)["name"].(map[string]any), "minLength")
+}
+
+func TestAnthropicClientMaxTokensDefaultAndOverride(t *testing.T) {
+	tests := []struct {
+		name     string
+		request  int
+		expected float64
+	}{
+		{name: "default", request: 0, expected: float64(DefaultAnthropicMaxTokens)},
+		{name: "override", request: 123, expected: 123},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				var payload map[string]any
+				require.NoError(t, json.NewDecoder(r.Body).Decode(&payload))
+				require.Equal(t, tt.expected, payload["max_tokens"])
+
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(`{
+					"id":"msg_test",
+					"type":"message",
+					"role":"assistant",
+					"model":"claude-test",
+					"content":[{"type":"text","text":"{}"}],
+					"stop_reason":"end_turn",
+					"stop_sequence":"",
+					"usage":{"input_tokens":1,"output_tokens":1}
+				}`))
+			}))
+			t.Cleanup(server.Close)
+
+			client := NewAnthropicClient(AnthropicConfig{
+				Enabled:        true,
+				APIKey:         "test-key",
+				Model:          "claude-test",
+				BaseURL:        server.URL,
+				RequestTimeout: time.Second,
+			})
+
+			_, err := client.CompleteStructured(context.Background(), StructuredRequest{
+				Prompt:    "prompt",
+				Schema:    map[string]any{"type": "object"},
+				MaxTokens: tt.request,
+			})
+
+			require.NoError(t, err)
+		})
+	}
 }
 
 func TestAnthropicClientTransportErrorIsRetryable(t *testing.T) {
@@ -284,4 +378,21 @@ func TestAnthropicClientDisabled(t *testing.T) {
 func strconvQuote(s string) string {
 	b, _ := json.Marshal(s)
 	return string(b)
+}
+
+func requireNoUnsupportedAnthropicSchemaKeywords(t *testing.T, value any) {
+	t.Helper()
+
+	switch typed := value.(type) {
+	case map[string]any:
+		for key, child := range typed {
+			_, unsupported := unsupportedAnthropicSchemaKeywords[key]
+			require.Falsef(t, unsupported, "schema contains unsupported keyword %q", key)
+			requireNoUnsupportedAnthropicSchemaKeywords(t, child)
+		}
+	case []any:
+		for _, child := range typed {
+			requireNoUnsupportedAnthropicSchemaKeywords(t, child)
+		}
+	}
 }

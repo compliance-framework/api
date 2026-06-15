@@ -90,6 +90,10 @@ func LoadAIConfig() (*AIConfig, error) {
 }
 
 func (c *AIConfig) Validate() error {
+	if !c.Enabled {
+		return nil
+	}
+
 	switch strings.ToLower(strings.TrimSpace(c.Provider)) {
 	case AIProviderAnthropic:
 		c.Provider = AIProviderAnthropic

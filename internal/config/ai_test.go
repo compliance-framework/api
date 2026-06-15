@@ -30,6 +30,7 @@ func TestLoadAIConfigDefaults(t *testing.T) {
 
 func TestLoadAIConfigRejectsUnsupportedProvider(t *testing.T) {
 	v := viper.New()
+	v.Set("ai_enabled", true)
 	v.Set("ai_provider", "openai")
 
 	cfg, err := LoadAIConfigFromViper(v)
@@ -37,6 +38,19 @@ func TestLoadAIConfigRejectsUnsupportedProvider(t *testing.T) {
 	require.Nil(t, cfg)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "CCF_AI_PROVIDER")
+}
+
+func TestLoadAIConfigAllowsUnsupportedProviderWhenDisabled(t *testing.T) {
+	v := viper.New()
+	v.Set("ai_enabled", false)
+	v.Set("ai_provider", "openai")
+
+	cfg, err := LoadAIConfigFromViper(v)
+
+	require.NoError(t, err)
+	require.NotNil(t, cfg)
+	require.False(t, cfg.Enabled)
+	require.Equal(t, "openai", cfg.Provider)
 }
 
 func TestAIConfigRedactsAPIKeyFromStringifiedAndJSONOutput(t *testing.T) {
