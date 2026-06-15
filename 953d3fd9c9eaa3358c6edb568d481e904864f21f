@@ -1,0 +1,9 @@
+lisa-addressed:
+---
+Comment (internal/service/relational/suggestions/events.go:35):
+**Low / non-blocking:** `Payload` and `Snapshot` (and `Details` above) are declared `NOT NULL`, which diverges from `risk_events` — the table the commit note says this one mirrors. There, `Payload`, `RiskSnapshot`, and `Details` are all nullable.
+
+`datatypes.JSONMap` serializes a nil map to SQL `NULL`, so any future Phase-3/5 writer that creates an event without setting **both** `Payload` and `Snapshot` (e.g. a `run_started` event that has no suggestion snapshot yet) will hit a `NOT NULL` violation at insert time rather than storing an empty object.
+
+If every event is genuinely required to carry a payload and snapshot, this is fine — just flagging that it's stricter than the sibling audit table and worth confirming it's intentional rather than a copy divergence. If not, consider dropping `not null` on `payload`/`snapshot` (and `details`) to match `risk_events`.
+Implementation guidance: In internal/service/relational/suggestions/events.go, make DashboardSuggestionEvent match the nullable audit metadata shape used by internal/service/relational/risks/events.go. Change Details from string to *string with gorm:"type:text" (no not null), and remove ;not null from Payload and Snapshot so nil datatypes.JSONMap values can persist as SQL NULL. Do not change EventType or OccurredAt nullability, and keep the append-only BeforeUpdate/BeforeDelete hooks intact. Update any compile errors in suggestion tests/fixtures, especially internal/service/relational/suggestions/models_integration_test.go where Details is assigned a string literal; use a local string variable or pointer helper instead of taking the address of a literal.
