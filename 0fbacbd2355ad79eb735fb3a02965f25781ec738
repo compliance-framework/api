@@ -5,3 +5,7 @@ lisa-design:
 - `ErrInvalidOutput` covers Anthropic HTTP 400 responses and malformed/unparseable successful provider responses; Go field-level validation remains out of this package and belongs to later phases.
 - `AIConfig.APIKey` is kept on the runtime config for client construction but is redacted via `String`/`GoString` and omitted from JSON/YAML to avoid accidental logs or persisted config dumps.
 - `NewAnthropicClient` returns an inert client when disabled and `CompleteStructured` returns `ErrDisabled`; no network call is made at construction time.
+
+lisa-selfreview: pass 1 (verdict=request_changes)
+- [medium] internal/service/llm/anthropic.go:147 (correctness): Non-HTTP SDK/client failures fall through to ErrInvalidOutput. The design says ErrInvalidOutput is for Anthropic HTTP 400s and malformed/unparseable successful provider responses, while exported sentinels are the retry contract. A DNS failure, connection reset, TLS failure, or other transport error would be reported as a non-retryable/schema-style output problem instead of a transient provider/client failure, so the later River worker can make the wrong retry/discard decision.
+- [low] .env.example:35 (docs accuracy and internal consistency): README.md tells operators that available environment variables are shown in .env.example, but this branch adds CCF_AI_* configuration without adding those keys to the example. From a clean checkout, users cannot discover how to enable AI, set CCF_AI_API_KEY, choose the model/base URL, or tune the chunk/worker/run limits via the documented setup path.
