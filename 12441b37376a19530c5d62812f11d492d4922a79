@@ -1,0 +1,7 @@
+lisa-design:
+- Dashboard suggestion persistence lives in internal/service/relational/suggestions with passive GORM models only; no service, handler, worker, hash, or accept logic was added so Phase 3/5 own behavior.
+- dashboard_suggestion_events mirrors risk_events immutability with BeforeUpdate/BeforeDelete errors; audit rows are append-only at the GORM model layer.
+- filters.ssp_id is nullable and not backfilled; NULL remains the global-filter contract, and only non-NULL SSP-bound filters cascade when an SSP is deleted.
+- Required PostgreSQL FKs that must exist despite DisableForeignKeyConstraintWhenMigrating are installed explicitly in the production and test migrators: filters.ssp_id, dashboard_suggestion_run_cells.run_id, and dashboard_suggestions.run_id.
+- profile_controls.control_catalog_id is aligned to uuid in the same raw migration block as filter_controls because catalog-scoped joins compare those columns directly.
+- Pending-suggestion and active-run uniqueness are PostgreSQL partial indexes only; later idempotent inserts and concurrent-run checks depend on the exact column lists and WHERE clauses.
