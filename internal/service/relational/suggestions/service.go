@@ -144,75 +144,82 @@ func (g GatheredInput) CellInput() CellInput {
 }
 
 func (s *SuggestionService) InsertValidatedMappings(runID uuid.UUID, sspID uuid.UUID, promptVersion string, mappings []ValidatedMapping, maxSuggestionsPerRun int) (InsertMappingsResult, error) {
+	result := InsertMappingsResult{}
+	err := s.db.Transaction(func(tx *gorm.DB) error {
+		var err error
+		result, err = s.InsertValidatedMappingsTx(tx, runID, sspID, promptVersion, mappings, maxSuggestionsPerRun)
+		return err
+	})
+	return result, err
+}
+
+func (s *SuggestionService) InsertValidatedMappingsTx(tx *gorm.DB, runID uuid.UUID, sspID uuid.UUID, promptVersion string, mappings []ValidatedMapping, maxSuggestionsPerRun int) (InsertMappingsResult, error) {
 	if maxSuggestionsPerRun <= 0 {
 		maxSuggestionsPerRun = DefaultMaxSuggestionsPerRun
 	}
 	result := InsertMappingsResult{}
-	err := s.db.Transaction(func(tx *gorm.DB) error {
-		var run DashboardSuggestionRun
-		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ? AND ssp_id = ?", runID, sspID).First(&run).Error; err != nil {
-			return err
-		}
-		capacity := maxSuggestionsPerRun - run.SuggestionCount
-		if capacity <= 0 {
-			result.Capped = len(mappings)
-			return nil
-		}
+	var run DashboardSuggestionRun
+	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ? AND ssp_id = ?", runID, sspID).First(&run).Error; err != nil {
+		return result, err
+	}
+	capacity := maxSuggestionsPerRun - run.SuggestionCount
+	if capacity <= 0 {
+		result.Capped = len(mappings)
+		return result, nil
+	}
 
-		for _, mapping := range mappings {
-			if capacity <= 0 {
-				result.Capped++
-				continue
-			}
-			excluded, err := s.mappingExcluded(tx, sspID, promptVersion, mapping)
-			if err != nil {
-				return err
-			}
-			if excluded {
-				result.Excluded++
-				continue
-			}
-			catalogID, controlID, err := ParseControlKey(mapping.ControlKey)
-			if err != nil {
-				return err
-			}
-			suggestion := DashboardSuggestion{
-				RunID:              runID,
-				SSPID:              sspID,
-				ControlCatalogID:   catalogID,
-				ControlID:          controlID,
-				LabelSet:           labelsToJSONMap(mapping.LabelSet),
-				LabelSetHash:       mapping.LabelSetHash,
-				TargetFilterID:     mapping.TargetFilterID,
-				ProposedFilterName: mapping.ProposedFilterName,
-				Reasoning:          mapping.Reasoning,
-				Confidence:         mapping.Confidence,
-				Status:             DashboardSuggestionStatusPending,
-			}
-			create := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&suggestion)
-			if create.Error != nil {
-				return create.Error
-			}
-			if create.RowsAffected == 0 {
-				result.Excluded++
-				continue
-			}
-			result.Inserted++
-			capacity--
-			if err := tx.Model(&DashboardSuggestionRun{}).
-				Where("id = ?", runID).
-				UpdateColumn("suggestion_count", gorm.Expr("suggestion_count + 1")).Error; err != nil {
-				return err
-			}
-			if err := createSuggestionEvent(tx, &suggestion, DashboardSuggestionEventTypeSuggestionCreated, nil, datatypes.JSONMap{
-				"prompt_version": promptVersion,
-			}); err != nil {
-				return err
-			}
+	for _, mapping := range mappings {
+		if capacity <= 0 {
+			result.Capped++
+			continue
 		}
-		return nil
-	})
-	return result, err
+		excluded, err := s.mappingExcluded(tx, sspID, promptVersion, mapping)
+		if err != nil {
+			return result, err
+		}
+		if excluded {
+			result.Excluded++
+			continue
+		}
+		catalogID, controlID, err := ParseControlKey(mapping.ControlKey)
+		if err != nil {
+			return result, err
+		}
+		suggestion := DashboardSuggestion{
+			RunID:              runID,
+			SSPID:              sspID,
+			ControlCatalogID:   catalogID,
+			ControlID:          controlID,
+			LabelSet:           labelsToJSONMap(mapping.LabelSet),
+			LabelSetHash:       mapping.LabelSetHash,
+			TargetFilterID:     mapping.TargetFilterID,
+			ProposedFilterName: mapping.ProposedFilterName,
+			Reasoning:          mapping.Reasoning,
+			Confidence:         mapping.Confidence,
+			Status:             DashboardSuggestionStatusPending,
+		}
+		create := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&suggestion)
+		if create.Error != nil {
+			return result, create.Error
+		}
+		if create.RowsAffected == 0 {
+			result.Excluded++
+			continue
+		}
+		result.Inserted++
+		capacity--
+		if err := tx.Model(&DashboardSuggestionRun{}).
+			Where("id = ?", runID).
+			UpdateColumn("suggestion_count", gorm.Expr("suggestion_count + 1")).Error; err != nil {
+			return result, err
+		}
+		if err := createSuggestionEvent(tx, &suggestion, DashboardSuggestionEventTypeSuggestionCreated, nil, datatypes.JSONMap{
+			"prompt_version": promptVersion,
+		}); err != nil {
+			return result, err
+		}
+	}
+	return result, nil
 }
 
 func (s *SuggestionService) Accept(sspID uuid.UUID, suggestionIDs []uuid.UUID, actorID uuid.UUID) error {
@@ -470,8 +477,35 @@ func createSuggestionEvent(tx *gorm.DB, suggestion *DashboardSuggestion, eventTy
 	return tx.Create(&event).Error
 }
 
+func CreateRunEventTx(tx *gorm.DB, run *DashboardSuggestionRun, eventType DashboardSuggestionEventType, payload datatypes.JSONMap) error {
+	snapshot, err := runSnapshot(run)
+	if err != nil {
+		return err
+	}
+	event := DashboardSuggestionEvent{
+		RunID:      run.ID,
+		EventType:  string(eventType),
+		OccurredAt: time.Now().UTC(),
+		Payload:    payload,
+		Snapshot:   snapshot,
+	}
+	return tx.Create(&event).Error
+}
+
 func suggestionSnapshot(suggestion *DashboardSuggestion) (datatypes.JSONMap, error) {
 	raw, err := json.Marshal(suggestion)
+	if err != nil {
+		return nil, err
+	}
+	var snapshot datatypes.JSONMap
+	if err := json.Unmarshal(raw, &snapshot); err != nil {
+		return nil, err
+	}
+	return snapshot, nil
+}
+
+func runSnapshot(run *DashboardSuggestionRun) (datatypes.JSONMap, error) {
+	raw, err := json.Marshal(run)
 	if err != nil {
 		return nil, err
 	}
