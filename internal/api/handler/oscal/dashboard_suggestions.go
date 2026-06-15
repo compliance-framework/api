@@ -718,7 +718,9 @@ func (h *DashboardSuggestionHandler) generateError(ctx echo.Context, err error) 
 	if errors.As(err, &pgErr) && pgErr.Code == "23505" {
 		return ctx.JSON(http.StatusConflict, api.NewError(fmt.Errorf("active dashboard suggestion run already exists")))
 	}
-	if errors.Is(err, ErrDashboardSuggestionWorkerDisabled) || strings.Contains(strings.ToLower(err.Error()), "worker service is disabled") {
+	if errors.Is(err, ErrDashboardSuggestionWorkerDisabled) ||
+		errors.Is(err, workersvc.ErrDashboardSuggestionWorkerDisabled) ||
+		strings.Contains(strings.ToLower(err.Error()), "worker service is disabled") {
 		return ctx.JSON(http.StatusServiceUnavailable, api.NewError(ErrDashboardSuggestionWorkerDisabled))
 	}
 	if errors.Is(err, workersvc.ErrDashboardSuggestionWorkerNotRegistered) {

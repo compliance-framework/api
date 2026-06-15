@@ -205,6 +205,28 @@ func (suite *DashboardSuggestionsHTTPSuite) TestGenerateWorkerNotRegisteredRetur
 	suite.Equal(int64(0), cellCount)
 }
 
+func (suite *DashboardSuggestionsHTTPSuite) TestGenerateWorkerDisabledSentinelReturnsServiceUnavailableAndRollsBack() {
+	sspID, _, _ := suite.seedScope([]string{"AC-1"}, []map[string]string{{"env": "prod"}})
+	enqueuer := &dashboardSuggestionFakeEnqueuer{err: workersvc.ErrDashboardSuggestionWorkerDisabled}
+	server := suite.newServer(true, enqueuer, 0)
+
+	rec, req := suite.req(http.MethodPost, fmt.Sprintf("/api/oscal/system-security-plans/%s/dashboard-suggestions/generate", sspID), nil)
+	server.E().ServeHTTP(rec, req)
+	suite.Equal(http.StatusServiceUnavailable, rec.Code, rec.Body.String())
+	suite.Contains(rec.Body.String(), ErrDashboardSuggestionWorkerDisabled.Error())
+
+	var runCount int64
+	suite.Require().NoError(suite.DB.Model(&suggestionrel.DashboardSuggestionRun{}).Where("ssp_id = ?", sspID).Count(&runCount).Error)
+	suite.Equal(int64(0), runCount)
+
+	var cellCount int64
+	suite.Require().NoError(suite.DB.Model(&suggestionrel.DashboardSuggestionRunCell{}).
+		Joins("JOIN dashboard_suggestion_runs ON dashboard_suggestion_runs.id = dashboard_suggestion_run_cells.run_id").
+		Where("dashboard_suggestion_runs.ssp_id = ?", sspID).
+		Count(&cellCount).Error)
+	suite.Equal(int64(0), cellCount)
+}
+
 func (suite *DashboardSuggestionsHTTPSuite) TestGenerateRejectsEmptyResolvedScopeWithoutCreatingRun() {
 	sspID, _, _ := suite.seedScope(nil, nil)
 
