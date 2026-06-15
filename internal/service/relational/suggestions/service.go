@@ -1,6 +1,8 @@
 package suggestions
 
 import (
+	"crypto/sha256"
+	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -306,6 +308,10 @@ func (s *SuggestionService) Reject(sspID uuid.UUID, suggestionIDs []uuid.UUID, r
 }
 
 func (s *SuggestionService) acceptFilterForHash(tx *gorm.DB, sspID uuid.UUID, hash string, labels map[string]string, group []DashboardSuggestion) (uuid.UUID, bool, error) {
+	if err := lockAcceptFilterHash(tx, sspID, hash); err != nil {
+		return uuid.Nil, false, err
+	}
+
 	for _, suggestion := range group {
 		if suggestion.TargetFilterID == nil {
 			continue
@@ -343,6 +349,17 @@ func (s *SuggestionService) acceptFilterForHash(tx *gorm.DB, sspID uuid.UUID, ha
 		return uuid.Nil, false, err
 	}
 	return *filter.ID, true, nil
+}
+
+func lockAcceptFilterHash(tx *gorm.DB, sspID uuid.UUID, hash string) error {
+	if tx.Dialector.Name() != "postgres" {
+		return nil
+	}
+
+	sum := sha256.Sum256([]byte(sspID.String() + ":" + hash))
+	key1 := int32(binary.BigEndian.Uint32(sum[0:4]))
+	key2 := int32(binary.BigEndian.Uint32(sum[4:8]))
+	return tx.Exec("SELECT pg_advisory_xact_lock(?, ?)", key1, key2).Error
 }
 
 func loadPendingSuggestions(tx *gorm.DB, sspID uuid.UUID, ids []uuid.UUID) ([]DashboardSuggestion, error) {

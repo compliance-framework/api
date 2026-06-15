@@ -3,6 +3,7 @@
 package suggestions_test
 
 import (
+	"sync"
 	"testing"
 	"time"
 
@@ -269,6 +270,51 @@ func (suite *DashboardSuggestionsIntegrationSuite) TestAcceptCreatesOneSSPBoundF
 		Where("event_type = ?", string(suggestionrel.DashboardSuggestionEventTypeAccepted)).
 		Count(&eventCount).Error)
 	suite.Equal(int64(2), eventCount)
+}
+
+func (suite *DashboardSuggestionsIntegrationSuite) TestConcurrentAcceptsCreateOneSSPBoundFilterForSameHash() {
+	sspID := uuid.New()
+	runID := uuid.New()
+	catalogID := uuid.New()
+	actorID := uuid.New()
+	labels := map[string]string{"env": "prod", "repo": "payments-api"}
+	hash := suggestionrel.CanonicalLabelSetHash(labels)
+	suite.seedSuggestionSSPAndRun(sspID, runID)
+
+	first := suite.seedDashboardSuggestion(runID, sspID, catalogID, "AC-1", labels, hash, "first", 0.8, nil)
+	second := suite.seedDashboardSuggestion(runID, sspID, catalogID, "AC-2", labels, hash, "second", 0.7, nil)
+
+	svc := suggestionrel.NewSuggestionService(suite.DB)
+	errs := make(chan error, 2)
+	var wg sync.WaitGroup
+	wg.Add(2)
+	for _, suggestionID := range []uuid.UUID{*first.ID, *second.ID} {
+		go func(id uuid.UUID) {
+			defer wg.Done()
+			errs <- svc.Accept(sspID, []uuid.UUID{id}, actorID)
+		}(suggestionID)
+	}
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		suite.Require().NoError(err)
+	}
+
+	var filters []relational.Filter
+	suite.Require().NoError(suite.DB.Where("ssp_id = ?", sspID).Find(&filters).Error)
+	suite.Require().Len(filters, 1)
+	filterLabels, ok := suggestionrel.CanonicalizeFilter(filters[0].Filter.Data())
+	suite.True(ok)
+	suite.Equal(labels, filterLabels)
+
+	var accepted []suggestionrel.DashboardSuggestion
+	suite.Require().NoError(suite.DB.Where("id IN ?", []uuid.UUID{*first.ID, *second.ID}).Find(&accepted).Error)
+	suite.Require().Len(accepted, 2)
+	for _, suggestion := range accepted {
+		suite.Equal(suggestionrel.DashboardSuggestionStatusAccepted, suggestion.Status)
+		suite.Require().NotNil(suggestion.AcceptedFilterID)
+		suite.Equal(*filters[0].ID, *suggestion.AcceptedFilterID)
+	}
 }
 
 func (suite *DashboardSuggestionsIntegrationSuite) TestAcceptExtendsSameSSPMatchingFilter() {
