@@ -1,0 +1,19 @@
+lisa-addressed:
+---
+Comment (internal/api/handler/oscal/dashboard_suggestions.go:724):
+**[Low] Follow-up: the *disabled* sentinel from the real worker still maps to 500.**
+
+Nice fix on the not-registered path (sentinel + 503 + rollback test — verified passing). One residual from my earlier note: the **disabled** path isn't covered by the same treatment.
+
+`worker.EnqueueDashboardSuggestionCells` returns `worker.ErrDashboardSuggestionWorkerDisabled` (message `"dashboard suggestion worker is disabled"`) when `!s.config.Enabled || s.client == nil || !s.aiEnabled`. In `generateError`, line 721 matches only the **oscal-package** `ErrDashboardSuggestionWorkerDisabled` (distinct value → `errors.Is` false) or the substring `"worker service is disabled"` — which `"dashboard suggestion worker is disabled"` does **not** contain. So this path falls through to **500**.
+
+Reachable because the production enqueuer is always the real worker (cmd/run.go), never `nil`, so the handler's own `nil`-check 503 branch is dead in prod; and since `worker.aiEnabled == config.AI.Enabled`, AI-routes-enabled + `cfg.Worker.Enabled=false` (or nil River client) hits exactly this. It's an edge/misconfig (not the happy path), hence Low, but it's the same 500-vs-503 class.
+
+One-liner fix: add the worker sentinel to the existing disabled branch, e.g.
+```go
+if errors.Is(err, ErrDashboardSuggestionWorkerDisabled) ||
+    errors.Is(err, workersvc.ErrDashboardSuggestionWorkerDisabled) ||
+    strings.Contains(strings.ToLower(err.Error()), "worker service is disabled") {
+```
+and ideally an integration test with `fakeEnqueuer{err: workersvc.ErrDashboardSuggestionWorkerDisabled}` asserting 503 (mirrors the not-registered test you just added).
+Implementation guidance: Fix internal/api/handler/oscal/dashboard_suggestions.go in DashboardSuggestionHandler.generateError so disabled errors returned by the real worker service also map to HTTP 503. Import the worker service package if needed, and extend the existing disabled branch at generateError around line 721 to include errors.Is(err, workersvc.ErrDashboardSuggestionWorkerDisabled) in addition to the handler-local ErrDashboardSuggestionWorkerDisabled and existing string fallback. Keep the not-registered 503 handling and transaction rollback behavior unchanged. Add an HTTP/integration test mirroring the not-registered test path with a fake enqueuer returning internal/service/worker.ErrDashboardSuggestionWorkerDisabled, and assert Generate returns 503 with a clear disabled-worker response and leaves no pending run or cells behind.
