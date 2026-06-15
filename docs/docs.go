@@ -30479,7 +30479,11 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "sspId": {
-                    "type": "string"
+                    "description": "System Security Plan ID. On PUT, omitted or null clears the binding to global.",
+                    "type": "string",
+                    "format": "uuid",
+                    "x-nullable": true,
+                    "example": "00000000-0000-0000-0000-000000000000"
                 }
             }
         },

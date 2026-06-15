@@ -1797,7 +1797,12 @@ definitions:
       name:
         type: string
       sspId:
+        description: System Security Plan ID. On PUT, omitted or null clears the binding
+          to global.
+        example: 00000000-0000-0000-0000-000000000000
+        format: uuid
         type: string
+        x-nullable: true
     required:
     - filter
     - name

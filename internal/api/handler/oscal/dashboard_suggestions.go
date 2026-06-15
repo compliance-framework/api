@@ -15,6 +15,7 @@ import (
 	"github.com/compliance-framework/api/internal/config"
 	"github.com/compliance-framework/api/internal/service/relational"
 	suggestionrel "github.com/compliance-framework/api/internal/service/relational/suggestions"
+	workersvc "github.com/compliance-framework/api/internal/service/worker"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/labstack/echo/v4"
@@ -719,6 +720,9 @@ func (h *DashboardSuggestionHandler) generateError(ctx echo.Context, err error) 
 	}
 	if errors.Is(err, ErrDashboardSuggestionWorkerDisabled) || strings.Contains(strings.ToLower(err.Error()), "worker service is disabled") {
 		return ctx.JSON(http.StatusServiceUnavailable, api.NewError(ErrDashboardSuggestionWorkerDisabled))
+	}
+	if errors.Is(err, workersvc.ErrDashboardSuggestionWorkerNotRegistered) {
+		return ctx.JSON(http.StatusServiceUnavailable, api.NewError(workersvc.ErrDashboardSuggestionWorkerNotRegistered))
 	}
 	return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 }

@@ -17,6 +17,7 @@ import (
 	"github.com/compliance-framework/api/internal/config"
 	"github.com/compliance-framework/api/internal/service/relational"
 	suggestionrel "github.com/compliance-framework/api/internal/service/relational/suggestions"
+	workersvc "github.com/compliance-framework/api/internal/service/worker"
 	"github.com/compliance-framework/api/internal/tests"
 	oscalTypes_1_1_3 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
 	"github.com/google/uuid"
@@ -182,6 +183,28 @@ func (suite *DashboardSuggestionsHTTPSuite) TestGenerateValidationAndWorkerDisab
 	suite.Equal(http.StatusServiceUnavailable, rec.Code, rec.Body.String())
 }
 
+func (suite *DashboardSuggestionsHTTPSuite) TestGenerateWorkerNotRegisteredReturnsServiceUnavailableAndRollsBack() {
+	sspID, _, _ := suite.seedScope([]string{"AC-1"}, []map[string]string{{"env": "prod"}})
+	enqueuer := &dashboardSuggestionFakeEnqueuer{err: workersvc.ErrDashboardSuggestionWorkerNotRegistered}
+	server := suite.newServer(true, enqueuer, 0)
+
+	rec, req := suite.req(http.MethodPost, fmt.Sprintf("/api/oscal/system-security-plans/%s/dashboard-suggestions/generate", sspID), nil)
+	server.E().ServeHTTP(rec, req)
+	suite.Equal(http.StatusServiceUnavailable, rec.Code, rec.Body.String())
+	suite.Contains(rec.Body.String(), workersvc.ErrDashboardSuggestionWorkerNotRegistered.Error())
+
+	var runCount int64
+	suite.Require().NoError(suite.DB.Model(&suggestionrel.DashboardSuggestionRun{}).Where("ssp_id = ?", sspID).Count(&runCount).Error)
+	suite.Equal(int64(0), runCount)
+
+	var cellCount int64
+	suite.Require().NoError(suite.DB.Model(&suggestionrel.DashboardSuggestionRunCell{}).
+		Joins("JOIN dashboard_suggestion_runs ON dashboard_suggestion_runs.id = dashboard_suggestion_run_cells.run_id").
+		Where("dashboard_suggestion_runs.ssp_id = ?", sspID).
+		Count(&cellCount).Error)
+	suite.Equal(int64(0), cellCount)
+}
+
 func (suite *DashboardSuggestionsHTTPSuite) TestGenerateRejectsEmptyResolvedScopeWithoutCreatingRun() {
 	sspID, _, _ := suite.seedScope(nil, nil)
 
@@ -248,6 +271,153 @@ func (suite *DashboardSuggestionsHTTPSuite) TestFlagOffDoesNotRegisterScopedRout
 	suite.False(response.Data.Enabled)
 }
 
+func (suite *DashboardSuggestionsHTTPSuite) TestAcceptCreatesSSPFilterAndWritesEvents() {
+	sspID, controlKeys, _ := suite.seedScope([]string{"AC-1", "AC-2"}, []map[string]string{{"env": "prod"}})
+	runID := suite.seedSuggestionRun(sspID)
+	catalogID, _ := suite.parseControlKey(controlKeys[0])
+	labels := map[string]string{"env": "prod"}
+	hash := suggestionrel.CanonicalLabelSetHash(labels)
+	first := suite.seedDashboardSuggestion(runID, sspID, catalogID, "AC-1", labels, hash, "prod evidence", 0.9)
+	second := suite.seedDashboardSuggestion(runID, sspID, catalogID, "AC-2", labels, hash, "prod evidence", 0.7)
+
+	body := dashboardSuggestionDecisionRequest{IDs: []uuid.UUID{*first.ID, *second.ID}}
+	rec, req := suite.req(http.MethodPost, fmt.Sprintf("/api/oscal/system-security-plans/%s/dashboard-suggestions/accept", sspID), body)
+	suite.server.E().ServeHTTP(rec, req)
+	suite.Equal(http.StatusOK, rec.Code, rec.Body.String())
+
+	var response apihandler.GenericDataResponse[acceptDashboardSuggestionsResponse]
+	suite.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &response))
+	suite.Require().Len(response.Data.AcceptedFilterIDs, 1)
+	filterID := response.Data.AcceptedFilterIDs[0]
+
+	var filter relational.Filter
+	suite.Require().NoError(suite.DB.First(&filter, "id = ? AND ssp_id = ?", filterID, sspID).Error)
+	suite.Equal("prod evidence", filter.Name)
+
+	var linkCount int64
+	suite.Require().NoError(suite.DB.Table("filter_controls").Where("filter_id = ?", filterID).Count(&linkCount).Error)
+	suite.Equal(int64(2), linkCount)
+
+	var accepted []suggestionrel.DashboardSuggestion
+	suite.Require().NoError(suite.DB.Where("id IN ?", []uuid.UUID{*first.ID, *second.ID}).Find(&accepted).Error)
+	for _, suggestion := range accepted {
+		suite.Equal(suggestionrel.DashboardSuggestionStatusAccepted, suggestion.Status)
+		suite.Require().NotNil(suggestion.AcceptedFilterID)
+		suite.Equal(filterID, *suggestion.AcceptedFilterID)
+	}
+
+	var eventCount int64
+	suite.Require().NoError(suite.DB.Model(&suggestionrel.DashboardSuggestionEvent{}).
+		Where("event_type = ? AND suggestion_id IN ?", suggestionrel.DashboardSuggestionEventTypeAccepted, []uuid.UUID{*first.ID, *second.ID}).
+		Count(&eventCount).Error)
+	suite.Equal(int64(2), eventCount)
+}
+
+func (suite *DashboardSuggestionsHTTPSuite) TestRejectPersistsDecisionAndWritesEvents() {
+	sspID, controlKeys, _ := suite.seedScope([]string{"AC-1"}, []map[string]string{{"env": "prod"}})
+	runID := suite.seedSuggestionRun(sspID)
+	catalogID, _ := suite.parseControlKey(controlKeys[0])
+	suggestion := suite.seedDashboardSuggestion(runID, sspID, catalogID, "AC-1", map[string]string{"env": "prod"}, suggestionrel.CanonicalLabelSetHash(map[string]string{"env": "prod"}), "prod", 0.8)
+
+	body := dashboardSuggestionDecisionRequest{IDs: []uuid.UUID{*suggestion.ID}, Reason: "not applicable"}
+	rec, req := suite.req(http.MethodPost, fmt.Sprintf("/api/oscal/system-security-plans/%s/dashboard-suggestions/reject", sspID), body)
+	suite.server.E().ServeHTTP(rec, req)
+	suite.Equal(http.StatusOK, rec.Code, rec.Body.String())
+
+	var reloaded suggestionrel.DashboardSuggestion
+	suite.Require().NoError(suite.DB.First(&reloaded, "id = ?", suggestion.ID).Error)
+	suite.Equal(suggestionrel.DashboardSuggestionStatusRejected, reloaded.Status)
+	suite.Require().NotNil(reloaded.RejectReason)
+	suite.Equal("not applicable", *reloaded.RejectReason)
+	suite.Require().NotNil(reloaded.DecidedByUserID)
+	suite.Require().NotNil(reloaded.DecidedAt)
+
+	var eventCount int64
+	suite.Require().NoError(suite.DB.Model(&suggestionrel.DashboardSuggestionEvent{}).
+		Where("suggestion_id = ? AND event_type = ?", suggestion.ID, suggestionrel.DashboardSuggestionEventTypeRejected).
+		Count(&eventCount).Error)
+	suite.Equal(int64(1), eventCount)
+}
+
+func (suite *DashboardSuggestionsHTTPSuite) TestListSuggestionsAndEventsScopeBySSP() {
+	sspID, controlKeys, _ := suite.seedScope([]string{"AC-1"}, []map[string]string{{"env": "prod"}})
+	otherSSPID, _, _ := suite.seedScope([]string{"AC-9"}, []map[string]string{{"env": "stage"}})
+	runID := suite.seedSuggestionRun(sspID)
+	otherRunID := suite.seedSuggestionRun(otherSSPID)
+	catalogID, _ := suite.parseControlKey(controlKeys[0])
+	suggestion := suite.seedDashboardSuggestion(runID, sspID, catalogID, "AC-1", map[string]string{"env": "prod"}, suggestionrel.CanonicalLabelSetHash(map[string]string{"env": "prod"}), "prod", 0.8)
+	_ = suite.seedDashboardSuggestion(otherRunID, otherSSPID, catalogID, "AC-1", map[string]string{"env": "prod"}, suggestionrel.CanonicalLabelSetHash(map[string]string{"env": "prod"}), "hidden", 0.8)
+	suite.Require().NoError(suite.DB.Create(&suggestionrel.DashboardSuggestionEvent{
+		RunID:        &runID,
+		SuggestionID: suggestion.ID,
+		EventType:    string(suggestionrel.DashboardSuggestionEventTypeSuggestionCreated),
+		OccurredAt:   time.Now().UTC(),
+		Payload:      datatypes.JSONMap{"source": "test"},
+		Snapshot:     datatypes.JSONMap{},
+	}).Error)
+
+	rec, req := suite.req(http.MethodGet, fmt.Sprintf("/api/oscal/system-security-plans/%s/dashboard-suggestions", sspID), nil)
+	suite.server.E().ServeHTTP(rec, req)
+	suite.Equal(http.StatusOK, rec.Code, rec.Body.String())
+	var listResponse apihandler.GenericDataListResponse[dashboardSuggestionResponse]
+	suite.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &listResponse))
+	suite.Require().Len(listResponse.Data, 1)
+	suite.Equal(*suggestion.ID, *listResponse.Data[0].ID)
+	suite.Equal("Control AC-1", listResponse.Data[0].ControlTitle)
+
+	rec, req = suite.req(http.MethodGet, fmt.Sprintf("/api/oscal/system-security-plans/%s/dashboard-suggestions/%s/events", sspID, suggestion.ID), nil)
+	suite.server.E().ServeHTTP(rec, req)
+	suite.Equal(http.StatusOK, rec.Code, rec.Body.String())
+	var eventsResponse apihandler.GenericDataListResponse[suggestionrel.DashboardSuggestionEvent]
+	suite.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &eventsResponse))
+	suite.Require().Len(eventsResponse.Data, 1)
+	suite.Equal(string(suggestionrel.DashboardSuggestionEventTypeSuggestionCreated), eventsResponse.Data[0].EventType)
+
+	rec, req = suite.req(http.MethodGet, fmt.Sprintf("/api/oscal/system-security-plans/%s/dashboard-suggestions/%s/events", otherSSPID, suggestion.ID), nil)
+	suite.server.E().ServeHTTP(rec, req)
+	suite.Equal(http.StatusNotFound, rec.Code, rec.Body.String())
+}
+
+func (suite *DashboardSuggestionsHTTPSuite) TestGenerateSupersedesOnlyPendingSuggestionsInScope() {
+	sspID, controlKeys, hashes := suite.seedScope([]string{"AC-1", "AC-2"}, []map[string]string{{"env": "prod"}, {"env": "stage"}})
+	runID := suite.seedSuggestionRun(sspID)
+	ac1CatalogID, _ := suite.parseControlKey(controlKeys[0])
+	ac2CatalogID, _ := suite.parseControlKey(controlKeys[1])
+	prodHash := hashes[0]
+	stageHash := hashes[1]
+
+	inScope := suite.seedDashboardSuggestion(runID, sspID, ac1CatalogID, "AC-1", map[string]string{"env": "prod"}, prodHash, "in scope", 0.9)
+	outByControl := suite.seedDashboardSuggestion(runID, sspID, ac2CatalogID, "AC-2", map[string]string{"env": "prod"}, prodHash, "out control", 0.8)
+	outByLabel := suite.seedDashboardSuggestion(runID, sspID, ac1CatalogID, "AC-1", map[string]string{"env": "stage"}, stageHash, "out label", 0.7)
+
+	body := generateDashboardSuggestionsRequest{
+		SupersedePending: true,
+		Scope: &dashboardSuggestionScopeRequest{
+			ControlKeys:    []string{controlKeys[0]},
+			LabelSetHashes: []string{prodHash},
+		},
+	}
+	rec, req := suite.req(http.MethodPost, fmt.Sprintf("/api/oscal/system-security-plans/%s/dashboard-suggestions/generate", sspID), body)
+	suite.server.E().ServeHTTP(rec, req)
+	suite.Equal(http.StatusAccepted, rec.Code, rec.Body.String())
+
+	statuses := map[uuid.UUID]string{}
+	var suggestions []suggestionrel.DashboardSuggestion
+	suite.Require().NoError(suite.DB.Where("id IN ?", []uuid.UUID{*inScope.ID, *outByControl.ID, *outByLabel.ID}).Find(&suggestions).Error)
+	for _, suggestion := range suggestions {
+		statuses[*suggestion.ID] = suggestion.Status
+	}
+	suite.Equal(suggestionrel.DashboardSuggestionStatusSuperseded, statuses[*inScope.ID])
+	suite.Equal(suggestionrel.DashboardSuggestionStatusPending, statuses[*outByControl.ID])
+	suite.Equal(suggestionrel.DashboardSuggestionStatusPending, statuses[*outByLabel.ID])
+
+	var eventCount int64
+	suite.Require().NoError(suite.DB.Model(&suggestionrel.DashboardSuggestionEvent{}).
+		Where("suggestion_id = ? AND event_type = ?", inScope.ID, suggestionrel.DashboardSuggestionEventTypeSuperseded).
+		Count(&eventCount).Error)
+	suite.Equal(int64(1), eventCount)
+}
+
 func stringSliceFromJSONValue(value any) []string {
 	raw, ok := value.([]any)
 	if !ok {
@@ -260,4 +430,54 @@ func stringSliceFromJSONValue(value any) []string {
 		}
 	}
 	return out
+}
+
+func (suite *DashboardSuggestionsHTTPSuite) seedSuggestionRun(sspID uuid.UUID) uuid.UUID {
+	runID := uuid.New()
+	suite.Require().NoError(suite.DB.Create(&suggestionrel.DashboardSuggestionRun{
+		UUIDModel:     relational.UUIDModel{ID: &runID},
+		SSPID:         sspID,
+		Status:        "completed",
+		Model:         "test-model",
+		PromptVersion: suggestionrel.PromptVersion,
+		Scope:         datatypes.JSONMap{"controlKeys": []string{}, "labelSetHashes": []string{}},
+		PlannedCalls:  1,
+		Stats:         datatypes.JSONMap{},
+	}).Error)
+	return runID
+}
+
+func (suite *DashboardSuggestionsHTTPSuite) seedDashboardSuggestion(
+	runID uuid.UUID,
+	sspID uuid.UUID,
+	catalogID uuid.UUID,
+	controlID string,
+	labels map[string]string,
+	hash string,
+	name string,
+	confidence float64,
+) suggestionrel.DashboardSuggestion {
+	suggestion := suggestionrel.DashboardSuggestion{
+		RunID:              runID,
+		SSPID:              sspID,
+		ControlCatalogID:   catalogID,
+		ControlID:          controlID,
+		LabelSet:           datatypes.JSONMap{},
+		LabelSetHash:       hash,
+		ProposedFilterName: name,
+		Reasoning:          "test reasoning",
+		Confidence:         confidence,
+		Status:             suggestionrel.DashboardSuggestionStatusPending,
+	}
+	for key, value := range labels {
+		suggestion.LabelSet[key] = value
+	}
+	suite.Require().NoError(suite.DB.Create(&suggestion).Error)
+	return suggestion
+}
+
+func (suite *DashboardSuggestionsHTTPSuite) parseControlKey(key string) (uuid.UUID, string) {
+	catalogID, controlID, err := suggestionrel.ParseControlKey(key)
+	suite.Require().NoError(err)
+	return catalogID, controlID
 }

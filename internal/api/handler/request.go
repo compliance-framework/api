@@ -28,8 +28,9 @@ func ParseIntervalListQueryParam(intervalQuery string, def []time.Duration) ([]t
 
 // createFilterRequest defines the request payload for method Create
 type createFilterRequest struct {
-	Name       string             `json:"name" yaml:"name" validate:"required"`
-	SSPID      *uuid.UUID         `json:"sspId" yaml:"ssp_id"`
+	Name string `json:"name" yaml:"name" validate:"required"`
+	// System Security Plan ID. On PUT, omitted or null clears the binding to global.
+	SSPID      *uuid.UUID         `json:"sspId" yaml:"ssp_id" extensions:"x-nullable" example:"00000000-0000-0000-0000-000000000000" swaggertype:"string" format:"uuid"`
 	Filter     labelfilter.Filter `json:"filter" yaml:"filter" validate:"required"`
 	Controls   *[]string          `json:"controls" yaml:"controls"`
 	Components *[]string          `json:"components" yaml:"components"`

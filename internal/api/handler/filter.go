@@ -298,6 +298,7 @@ func (h *FilterHandler) Update(ctx echo.Context) error {
 	}
 
 	filter.Name = req.Name
+	// PUT is full replacement: omitted or null sspId intentionally clears the SSP binding.
 	filter.SSPID = req.SSPID
 	filter.Filter = datatypes.NewJSONType(req.Filter)
 
