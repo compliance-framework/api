@@ -29,6 +29,7 @@ import (
 type dashboardSuggestionFakeEnqueuer struct {
 	runID     uuid.UUID
 	cellCount int
+	calls     int
 	err       error
 }
 
@@ -37,6 +38,7 @@ func (f *dashboardSuggestionFakeEnqueuer) EnqueueOrphanedRiskCleanup(context.Con
 }
 
 func (f *dashboardSuggestionFakeEnqueuer) EnqueueDashboardSuggestionCells(_ context.Context, runID uuid.UUID, cellCount int) error {
+	f.calls++
 	f.runID = runID
 	f.cellCount = cellCount
 	return f.err
@@ -178,6 +180,55 @@ func (suite *DashboardSuggestionsHTTPSuite) TestGenerateValidationAndWorkerDisab
 	rec, req = suite.req(http.MethodPost, fmt.Sprintf("/api/oscal/system-security-plans/%s/dashboard-suggestions/generate", disabledSSPID), nil)
 	workerDisabledServer.E().ServeHTTP(rec, req)
 	suite.Equal(http.StatusServiceUnavailable, rec.Code, rec.Body.String())
+}
+
+func (suite *DashboardSuggestionsHTTPSuite) TestGenerateRejectsEmptyResolvedScopeWithoutCreatingRun() {
+	sspID, _, _ := suite.seedScope(nil, nil)
+
+	rec, req := suite.req(http.MethodPost, fmt.Sprintf("/api/oscal/system-security-plans/%s/dashboard-suggestions/generate", sspID), nil)
+	suite.server.E().ServeHTTP(rec, req)
+	suite.Equal(http.StatusUnprocessableEntity, rec.Code, rec.Body.String())
+	suite.Contains(rec.Body.String(), "no controls resolved for dashboard suggestions")
+	suite.Equal(0, suite.enqueuer.calls)
+
+	var runCount int64
+	suite.Require().NoError(suite.DB.Model(&suggestionrel.DashboardSuggestionRun{}).Where("ssp_id = ?", sspID).Count(&runCount).Error)
+	suite.Equal(int64(0), runCount)
+
+	var cellCount int64
+	suite.Require().NoError(suite.DB.Model(&suggestionrel.DashboardSuggestionRunCell{}).
+		Joins("JOIN dashboard_suggestion_runs ON dashboard_suggestion_runs.id = dashboard_suggestion_run_cells.run_id").
+		Where("dashboard_suggestion_runs.ssp_id = ?", sspID).
+		Count(&cellCount).Error)
+	suite.Equal(int64(0), cellCount)
+
+	var profileIDRaw string
+	suite.Require().NoError(suite.DB.Raw(`SELECT profile_id FROM ssp_profiles WHERE system_security_plan_id = ? LIMIT 1`, sspID).Scan(&profileIDRaw).Error)
+	profileID, err := uuid.Parse(profileIDRaw)
+	suite.Require().NoError(err)
+	catalog := relational.Catalog{}
+	suite.Require().NoError(suite.DB.First(&catalog).Error)
+	suite.Require().NoError(suite.DB.Create(&relational.Control{CatalogID: *catalog.ID, ID: "AC-1", Title: "Control AC-1"}).Error)
+	suite.Require().NoError(suite.DB.Exec(
+		`INSERT INTO profile_controls (profile_id, control_catalog_id, control_id) VALUES (?, ?, ?)`,
+		profileID, catalog.ID, "AC-1",
+	).Error)
+	evidence := relational.Evidence{
+		UUID:   uuid.New(),
+		Title:  "evidence-valid-after-empty-scope",
+		Start:  time.Now().UTC(),
+		End:    time.Now().UTC(),
+		Status: datatypes.NewJSONType(oscalTypes_1_1_3.ObjectiveStatus{State: "satisfied"}),
+		Labels: []relational.Labels{
+			{Name: "env", Value: "prod"},
+		},
+	}
+	suite.Require().NoError(suite.DB.Create(&evidence).Error)
+
+	rec, req = suite.req(http.MethodPost, fmt.Sprintf("/api/oscal/system-security-plans/%s/dashboard-suggestions/generate", sspID), nil)
+	suite.server.E().ServeHTTP(rec, req)
+	suite.Equal(http.StatusAccepted, rec.Code, rec.Body.String())
+	suite.Equal(1, suite.enqueuer.calls)
 }
 
 func (suite *DashboardSuggestionsHTTPSuite) TestFlagOffDoesNotRegisterScopedRoutesAndConfigReportsFalse() {

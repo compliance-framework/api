@@ -144,6 +144,12 @@ func (h *DashboardSuggestionHandler) Generate(ctx echo.Context) error {
 		if resolveErr != nil {
 			return resolveErr
 		}
+		if len(snapshot.ControlKeys) == 0 {
+			return &emptyDashboardSuggestionScopeError{message: "no controls resolved for dashboard suggestions"}
+		}
+		if len(snapshot.LabelSetHashes) == 0 {
+			return &emptyDashboardSuggestionScopeError{message: "no evidence label sets resolved for dashboard suggestions"}
+		}
 		plannedCalls := suggestionrel.PlannedCalls(len(snapshot.ControlKeys), len(snapshot.LabelSetHashes), h.chunkConfig())
 		if h.maxCallsPerRun() > 0 && plannedCalls > h.maxCallsPerRun() {
 			return &plannedCallsExceededError{Planned: plannedCalls, Limit: h.maxCallsPerRun()}
@@ -682,9 +688,21 @@ func (e *plannedCallsExceededError) Error() string {
 	return fmt.Sprintf("planned calls %d exceeds limit %d", e.Planned, e.Limit)
 }
 
+type emptyDashboardSuggestionScopeError struct {
+	message string
+}
+
+func (e *emptyDashboardSuggestionScopeError) Error() string {
+	return e.message
+}
+
 func (h *DashboardSuggestionHandler) generateError(ctx echo.Context, err error) error {
 	var scopeErr *suggestionrel.ScopeError
 	if errors.As(err, &scopeErr) {
+		return ctx.JSON(http.StatusUnprocessableEntity, api.NewError(err))
+	}
+	var emptyScopeErr *emptyDashboardSuggestionScopeError
+	if errors.As(err, &emptyScopeErr) {
 		return ctx.JSON(http.StatusUnprocessableEntity, api.NewError(err))
 	}
 	var plannedErr *plannedCallsExceededError

@@ -817,7 +817,8 @@ func (h *EvidenceHandler) ForControl(ctx echo.Context) error {
 	}
 
 	if len(filters) == 0 {
-		return ctx.JSON(http.StatusOK, GenericDataListResponse[evidencesvc.StatusCount]{Data: []evidencesvc.StatusCount{}})
+		response.Data = []PublicEvidenceResponse{}
+		return ctx.JSON(http.StatusOK, response)
 	}
 
 	evidenceList, err := h.evidenceService.GetLatestForFilters(filters...)
