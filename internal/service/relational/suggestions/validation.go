@@ -219,15 +219,23 @@ func validateProposedFilterLabels(raw map[string]string, evidenceLabels map[stri
 		return nil, counts, false
 	}
 
-	var normalized map[string]string
-	if len(raw) > 0 {
-		normalized, ok = NormalizeLabelSet(raw)
-		if !ok {
+	if len(raw) == 0 {
+		filterLabels := defaultFilterLabelSubset(evidence)
+		if len(filterLabels) > 0 {
+			counts["fallback_filter_labels"]++
+		}
+		if policy, found := evidence["_policy"]; found {
+			filterLabels["_policy"] = policy
+		}
+		if len(filterLabels) == 0 {
 			return nil, counts, false
 		}
-	} else {
-		normalized = map[string]string{}
-		counts["fallback_filter_labels"]++
+		return filterLabels, counts, true
+	}
+
+	normalized, ok := NormalizeLabelSet(raw)
+	if !ok {
+		return nil, counts, false
 	}
 
 	filterLabels := make(map[string]string, len(normalized)+1)

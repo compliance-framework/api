@@ -227,6 +227,38 @@ func TestValidateMappingsFilterLabelSubsetRules(t *testing.T) {
 	}, result.Mappings[0].ProposedFilterLabelSet)
 }
 
+func TestValidateMappingsEmptyFilterLabelsUseDefaultSubset(t *testing.T) {
+	controlKey := ControlKey(uuid.New(), "AC-1")
+	labels := map[string]string{
+		"_policy":      "secret_scanning_push_protection",
+		"organization": "compliance-framework",
+		"provider":     "github",
+		"repository":   "todo-app",
+		"type":         "repository",
+	}
+	hash := CanonicalLabelSetHash(labels)
+	input := CellInput{
+		Controls:  []ControlInput{{ControlKey: controlKey}},
+		LabelSets: []LabelSetInput{{Hash: hash, Labels: labels}},
+	}
+
+	result := ValidateRawMappings(input, []RawMapping{{
+		ControlKey:   controlKey,
+		LabelSetHash: hash,
+		Action:       MappingActionNewFilter,
+		Confidence:   0.9,
+		Reasoning:    "matches",
+	}})
+
+	require.Equal(t, 1, result.Counts["fallback_filter_labels"])
+	require.Len(t, result.Mappings, 1)
+	require.Equal(t, map[string]string{
+		"_policy":  "secret_scanning_push_protection",
+		"provider": "github",
+		"type":     "repository",
+	}, result.Mappings[0].ProposedFilterLabelSet)
+}
+
 func TestValidateMappingsDedupesByProposedFilterSubset(t *testing.T) {
 	controlKey := ControlKey(uuid.New(), "AC-1")
 	subset := map[string]string{

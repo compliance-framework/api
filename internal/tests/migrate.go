@@ -321,13 +321,7 @@ func (t *TestMigrator) Up() error {
 		}
 
 		if err := t.db.Exec(`
-			DROP INDEX IF EXISTS idx_dashboard_suggestions_unique_pending_filter_labels
-		`).Error; err != nil {
-			return err
-		}
-
-		if err := t.db.Exec(`
-			CREATE UNIQUE INDEX idx_dashboard_suggestions_unique_pending_filter_labels
+			CREATE UNIQUE INDEX IF NOT EXISTS idx_dashboard_suggestions_unique_pending_filter_labels
 			ON dashboard_suggestions (ssp_id, control_catalog_id, control_id, proposed_filter_label_set)
 			WHERE status = 'pending'
 			  AND proposed_filter_label_set IS NOT NULL
