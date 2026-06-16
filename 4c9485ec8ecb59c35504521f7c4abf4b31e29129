@@ -1,0 +1,6 @@
+lisa-addressed:
+---
+[low] internal/service/relational/suggestions/models.go:67 (docs accuracy)
+DashboardSuggestion now exposes proposedFilterLabelSet in API responses, but the checked-in generated Swagger artifacts still omit that property from suggestions.DashboardSuggestion, so clients using the published OpenAPI docs will not see the new response field.
+Suggested fix: Run the Swagger generation target (make swag) and commit the updated docs/docs.go, docs/swagger.json, and docs/swagger.yaml so suggestions.DashboardSuggestion includes proposedFilterLabelSet.
+Guidance: Run the repo Swagger generation target from the repository root, likely `make swag`, and commit the regenerated `docs/docs.go`, `docs/swagger.json`, and `docs/swagger.yaml`. Verify the `suggestions.DashboardSuggestion` definition in all three generated artifacts includes a `proposedFilterLabelSet` property, using the same JSON-map shape as `labelSet` (a `$ref` to `#/definitions/datatypes.JSONMap` in JSON/docs.go and `$ref: #/definitions/datatypes.JSONMap` in YAML). Do not hand-edit only one artifact; keep the generated files in sync with `internal/service/relational/suggestions/models.go` where `DashboardSuggestion.ProposedFilterLabelSet` already has `json:"proposedFilterLabelSet"`.
