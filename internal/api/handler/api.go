@@ -45,7 +45,9 @@ func RegisterHandlers(server *api.Server, logger *zap.SugaredLogger, db *gorm.DB
 	healthHandler.Register(server.API().Group("/health"))
 
 	filterHandler := NewFilterHandler(logger, db)
-	filterHandler.Register(server.API().Group("/filters"))
+	filterGroup := server.API().Group("/filters")
+	filterGroup.Use(middleware.JWTMiddleware(config.JWTPublicKey))
+	filterHandler.Register(filterGroup)
 
 	heartbeatHandler := NewHeartbeatHandler(logger, db)
 	agentIngestMiddleware := middleware.AgentJWTOrPublicMiddleware(db, config.JWTPublicKey, !config.StrictDisablePublicAgentEndpoints)

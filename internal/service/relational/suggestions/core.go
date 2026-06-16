@@ -12,15 +12,16 @@ import (
 )
 
 const (
-	DefaultMaxControlsPerChunk        = 40
-	DefaultMaxLabelSetsPerChunk       = 200
-	DefaultMaxSuggestionsPerRun       = 500
-	MaxMappingsPerControlPerCell      = 10
-	MaxReasoningLength                = 2000
-	ReasoningTruncatedMarker          = "\n[truncated]"
-	DashboardSuggestionStatusPending  = "pending"
-	DashboardSuggestionStatusAccepted = "accepted"
-	DashboardSuggestionStatusRejected = "rejected"
+	DefaultMaxControlsPerChunk          = 40
+	DefaultMaxLabelSetsPerChunk         = 200
+	DefaultMaxSuggestionsPerRun         = 500
+	MaxMappingsPerControlPerCell        = 10
+	MaxReasoningLength                  = 2000
+	ReasoningTruncatedMarker            = "\n[truncated]"
+	DashboardSuggestionStatusPending    = "pending"
+	DashboardSuggestionStatusAccepted   = "accepted"
+	DashboardSuggestionStatusRejected   = "rejected"
+	DashboardSuggestionStatusSuperseded = "superseded"
 )
 
 type ChunkConfig struct {

@@ -242,6 +242,36 @@ func (suite *EvidenceServiceSearchIntegrationSuite) TestStatusCountsReturnEmptyS
 	suite.Empty(rows)
 }
 
+func (suite *EvidenceServiceSearchIntegrationSuite) TestStatusCountsByFiltersDedupesOverlappingEvidenceStreams() {
+	suite.Require().NoError(suite.Migrator.Refresh())
+
+	now := time.Now().UTC()
+	evidence := relational.Evidence{
+		UUID:  uuid.New(),
+		Title: "overlapping evidence",
+		Start: now.Add(-time.Minute),
+		End:   now,
+		Status: datatypes.NewJSONType(oscalTypes_1_1_3.ObjectiveStatus{
+			State: "satisfied",
+		}),
+		Labels: []relational.Labels{
+			{Name: "env", Value: "prod"},
+			{Name: "tier", Value: "app"},
+		},
+	}
+	suite.Require().NoError(suite.DB.Create(&evidence).Error)
+
+	svc := NewEvidenceService(suite.DB, nil, nil, nil)
+	rows, err := svc.GetStatusCountsByFilters(
+		labelfilter.Filter{Scope: &labelfilter.Scope{Condition: &labelfilter.Condition{Label: "env", Operator: "=", Value: "prod"}}},
+		labelfilter.Filter{Scope: &labelfilter.Scope{Condition: &labelfilter.Condition{Label: "tier", Operator: "=", Value: "app"}}},
+	)
+	suite.Require().NoError(err)
+	suite.Require().Len(rows, 1)
+	suite.Equal("satisfied", rows[0].Status)
+	suite.Equal(int64(1), rows[0].Count)
+}
+
 func relationalEvidenceTitles(items []relational.Evidence) []string {
 	titles := make([]string, 0, len(items))
 	for _, item := range items {

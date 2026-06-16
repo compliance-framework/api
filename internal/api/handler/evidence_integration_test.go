@@ -49,6 +49,49 @@ func (suite *EvidenceApiIntegrationSuite) setupServer() *api.Server {
 	return server
 }
 
+func (suite *EvidenceApiIntegrationSuite) TestForControlWithScopedOutFiltersKeepsResponseShape() {
+	err := suite.Migrator.Refresh()
+	suite.Require().NoError(err)
+
+	visibleSSPID := uuid.New()
+	hiddenSSPID := uuid.New()
+	suite.Require().NoError(suite.DB.Create(&relational.SystemSecurityPlan{UUIDModel: relational.UUIDModel{ID: &visibleSSPID}}).Error)
+	suite.Require().NoError(suite.DB.Create(&relational.SystemSecurityPlan{UUIDModel: relational.UUIDModel{ID: &hiddenSSPID}}).Error)
+
+	catalog := relational.Catalog{}
+	suite.Require().NoError(suite.DB.Create(&catalog).Error)
+	control := relational.Control{CatalogID: *catalog.ID, ID: "AC-1", Title: "Access Control 1"}
+	filter := relational.Filter{
+		Name:  "Hidden SSP Filter",
+		SSPID: &hiddenSSPID,
+		Filter: datatypes.NewJSONType(labelfilter.Filter{
+			Scope: &labelfilter.Scope{
+				Condition: &labelfilter.Condition{Label: "provider", Operator: "=", Value: "aws"},
+			},
+		}),
+	}
+	suite.Require().NoError(suite.DB.Create(&filter).Error)
+	control.Filters = []relational.Filter{filter}
+	suite.Require().NoError(suite.DB.Create(&control).Error)
+
+	server := suite.setupServer()
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/evidence/for-control/%s?sspId=%s", control.ID, visibleSSPID), nil)
+	server.E().ServeHTTP(rec, req)
+	suite.Equal(http.StatusOK, rec.Code, rec.Body.String())
+
+	var response map[string]any
+	suite.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &response))
+	metadata, ok := response["metadata"].(map[string]any)
+	suite.Require().True(ok, rec.Body.String())
+	controlMetadata, ok := metadata["control"].(map[string]any)
+	suite.Require().True(ok, rec.Body.String())
+	suite.Equal("AC-1", controlMetadata["id"])
+	data, ok := response["data"].([]any)
+	suite.Require().True(ok, rec.Body.String())
+	suite.Empty(data)
+}
+
 func (suite *EvidenceApiIntegrationSuite) TestCreate() {
 	err := suite.Migrator.Refresh()
 	suite.Require().NoError(err)

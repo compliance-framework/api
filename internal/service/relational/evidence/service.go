@@ -431,7 +431,7 @@ func (s *EvidenceService) GetStatusCountsAtPoint(filter labelfilter.Filter, endB
 	}
 	var rows []StatusCount
 	if err := q.Model(&relational.Evidence{}).
-		Select("count(*) as count, status->>'state' as status").
+		Select("count(DISTINCT uuid) as count, status->>'state' as status").
 		Group("status->>'state'").
 		Scan(&rows).Error; err != nil {
 		return nil, err
