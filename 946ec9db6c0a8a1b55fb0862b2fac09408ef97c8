@@ -1,0 +1,23 @@
+lisa-addressed:
+---
+Comment (internal/api/handler/oscal/dashboard_suggestions.go:260):
+**[Medium] Preview must reflect the `maxCallsPerRun` limit — right now it green-lights plans that `Generate` will reject.**
+
+`Generate` enforces the cap (dashboard_suggestions.go:163-164): `plannedCalls > maxCallsPerRun` → 422 `plannedCallsExceeded`. `Preview` skips that check entirely and returns a 200 with the raw `plannedCalls`. So for any scope above the limit, the UI shows a clean, "valid" preview and then the user gets a 422 when they actually click generate — which is exactly the case a preview exists to catch. A preview that says "OK" for a plan the server will refuse is worse than no preview.
+
+Fix — pick one (recommend the first; it keeps the count visible):
+1. **Surface the limit in the 200 response** so the UI can show "not allowed" without a second round-trip. Add fields to `dashboardSuggestionPreviewResponse`:
+```go
+type dashboardSuggestionPreviewResponse struct {
+    PlannedCalls   int  `json:"plannedCalls"`
+    ControlCount   int  `json:"controlCount"`
+    LabelSetCount  int  `json:"labelSetCount"`
+    MaxCallsPerRun int  `json:"maxCallsPerRun"` // 0 = no limit
+    ExceedsLimit   bool `json:"exceedsLimit"`
+}
+```
+set `ExceedsLimit = h.maxCallsPerRun() > 0 && plan.PlannedCalls > h.maxCallsPerRun()`.
+2. **Or mirror Generate exactly** — return the same 422 `plannedCallsExceeded` (it already carries `{plannedCalls, limit}`) so the two endpoints agree. Downside: the caller loses the count in the success shape.
+
+Either way, add a test: a scope whose chunked `plannedCalls` exceeds a configured `maxCallsPerRun` (e.g. `newServerWithChunks(..., maxCalls=1, ...)` with a scope that plans >1) asserting the preview signals not-allowed (flag set, or 422), mirroring the existing exceeded-limit Generate test.
+Implementation guidance: Fix internal/api/handler/oscal/dashboard_suggestions.go so DashboardSuggestionHandler.Preview accounts for the same maxCallsPerRun limit that Generate enforces. Prefer keeping Preview read-only and returning HTTP 200 with explicit limit metadata: extend dashboardSuggestionPreviewResponse to include MaxCallsPerRun int `json:"maxCallsPerRun"` where 0 means no limit, and ExceedsLimit bool `json:"exceedsLimit"`; set maxCalls := h.maxCallsPerRun() once, set ExceedsLimit to maxCalls > 0 && plan.PlannedCalls > maxCalls, and include MaxCallsPerRun: maxCalls in the response. Do not create runs/cells/events or enqueue work from Preview, and do not duplicate the planning formula outside the shared resolve-and-plan helper. Add a focused HTTP integration test in internal/api/handler/oscal/dashboard_suggestions_integration_test.go using a configured maxCallsPerRun below the previewed chunked plannedCalls, asserting Preview returns the accurate plannedCalls plus maxCallsPerRun and exceedsLimit=true. Also assert a scope at or under the limit returns exceedsLimit=false. Keep the existing Generate plannedCallsExceeded 422 behavior unchanged.
