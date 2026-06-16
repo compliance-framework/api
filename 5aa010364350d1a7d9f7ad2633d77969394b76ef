@@ -1,0 +1,6 @@
+lisa-design:
+- Proposed filters now persist `proposed_filter_label_set` separately from the full `label_set`/`label_set_hash`; the full hash remains provenance for run scope, supersede, and cell linkage, while filter creation/matching uses the subset.
+- Validation sanitizes model-selected filter labels by removing `_agent` and `_plugin`, requiring all other key/value pairs to exist on the evidence label set, and adding `_policy` from the evidence when present so accepted filters keep the policy discriminator.
+- Missing or empty model-selected filter labels fall back to a constrained default (`_policy`, `provider`, `type` when available, otherwise all non-gathering identity labels) so legacy callers do not create match-everything filters.
+- Duplicate proposed suggestions are collapsed by `control_key` plus canonical proposed-filter labels, not by full `label_set_hash`; a Postgres partial unique index backs this for concurrent worker inserts.
+- Accept-time filter reuse, target-filter validation, and existing-filter exclusion compare canonical proposed-filter labels instead of full evidence label hashes; accepted/rejected provenance checks still compare the full `label_set_hash`.
