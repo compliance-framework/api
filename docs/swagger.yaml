@@ -1164,6 +1164,13 @@ definitions:
         - $ref: '#/definitions/oscal.dashboardSuggestionConfigResponse'
         description: Wrapped response data
     type: object
+  handler.GenericDataResponse-oscal_dashboardSuggestionPreviewResponse:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/oscal.dashboardSuggestionPreviewResponse'
+        description: Wrapped response data
+    type: object
   handler.GenericDataResponse-oscal_dashboardSuggestionRunResponse:
     properties:
       data:
@@ -3050,6 +3057,15 @@ definitions:
         type: string
     required:
     - ids
+    type: object
+  oscal.dashboardSuggestionPreviewResponse:
+    properties:
+      controlCount:
+        type: integer
+      labelSetCount:
+        type: integer
+      plannedCalls:
+        type: integer
     type: object
   oscal.dashboardSuggestionResponse:
     properties:
@@ -20601,6 +20617,51 @@ paths:
       security:
       - OAuth2Password: []
       summary: List dashboard suggestion label sets
+      tags:
+      - Dashboard Suggestions
+  /oscal/system-security-plans/{id}/dashboard-suggestions/preview:
+    post:
+      consumes:
+      - application/json
+      description: Resolves the requested dashboard suggestion scope and returns planned
+        call counts without creating runs or enqueueing work.
+      parameters:
+      - description: System Security Plan ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Preview request
+        in: body
+        name: request
+        schema:
+          $ref: '#/definitions/oscal.generateDashboardSuggestionsRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-oscal_dashboardSuggestionPreviewResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Preview dashboard suggestion generation for an SSP
       tags:
       - Dashboard Suggestions
   /oscal/system-security-plans/{id}/dashboard-suggestions/reject:

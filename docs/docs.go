@@ -16403,6 +16403,75 @@ const docTemplate = `{
                 ]
             }
         },
+        "/oscal/system-security-plans/{id}/dashboard-suggestions/preview": {
+            "post": {
+                "description": "Resolves the requested dashboard suggestion scope and returns planned call counts without creating runs or enqueueing work.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Dashboard Suggestions"
+                ],
+                "summary": "Preview dashboard suggestion generation for an SSP",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "System Security Plan ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Preview request",
+                        "name": "request",
+                        "in": "body",
+                        "schema": {
+                            "$ref": "#/definitions/oscal.generateDashboardSuggestionsRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-oscal_dashboardSuggestionPreviewResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
         "/oscal/system-security-plans/{id}/dashboard-suggestions/reject": {
             "post": {
                 "description": "Rejects pending dashboard suggestions.",
@@ -30034,6 +30103,19 @@ const docTemplate = `{
                 }
             }
         },
+        "handler.GenericDataResponse-oscal_dashboardSuggestionPreviewResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Wrapped response data",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/oscal.dashboardSuggestionPreviewResponse"
+                        }
+                    ]
+                }
+            }
+        },
         "handler.GenericDataResponse-oscal_dashboardSuggestionRunResponse": {
             "type": "object",
             "properties": {
@@ -32357,6 +32439,20 @@ const docTemplate = `{
                 },
                 "reason": {
                     "type": "string"
+                }
+            }
+        },
+        "oscal.dashboardSuggestionPreviewResponse": {
+            "type": "object",
+            "properties": {
+                "controlCount": {
+                    "type": "integer"
+                },
+                "labelSetCount": {
+                    "type": "integer"
+                },
+                "plannedCalls": {
+                    "type": "integer"
                 }
             }
         },
