@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -1127,6 +1128,10 @@ func (s *Service) EnqueueDashboardSuggestionCells(ctx context.Context, runID uui
 	if _, err := s.client.InsertMany(ctx, params); err != nil {
 		if errors.Is(err, ErrDashboardSuggestionWorkerDisabled) {
 			return err
+		}
+		if errors.Is(err, ErrDashboardSuggestionWorkerNotRegistered) ||
+			strings.Contains(strings.ToLower(err.Error()), "worker is not registered") {
+			return ErrDashboardSuggestionWorkerNotRegistered
 		}
 		return fmt.Errorf("failed to enqueue dashboard suggestion cell jobs for run %s: %w", runID, err)
 	}

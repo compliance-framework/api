@@ -14,7 +14,10 @@ const (
 	DashboardSuggestionMaxAttempts = 3
 )
 
-var ErrDashboardSuggestionWorkerDisabled = errors.New("dashboard suggestion worker is disabled")
+var (
+	ErrDashboardSuggestionWorkerDisabled      = errors.New("dashboard suggestion worker is disabled")
+	ErrDashboardSuggestionWorkerNotRegistered = errors.New("dashboard suggestion worker is not registered")
+)
 
 type DashboardSuggestionCellArgs struct {
 	RunID     uuid.UUID `json:"run_id" river:"unique"`

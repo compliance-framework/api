@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/compliance-framework/api/internal"
@@ -778,11 +779,12 @@ func (h *EvidenceHandler) VerifySignature(ctx echo.Context) error {
 //	@Description	Retrieves Evidence records associated with a specific Control ID, including related activities, inventory items, components, subjects, and labels.
 //	@Tags			Evidence
 //	@Produce		json
-//	@Param			id	path		string	true	"Control ID"
-//	@Success		200	{object}	handler.ForControl.EvidenceDataListResponse
-//	@Failure		400	{object}	api.Error
-//	@Failure		404	{object}	api.Error
-//	@Failure		500	{object}	api.Error
+//	@Param			id		path		string	true	"Control ID"
+//	@Param			sspId	query		string	false	"System Security Plan ID; limits filters to global + same-SSP"
+//	@Success		200		{object}	handler.ForControl.EvidenceDataListResponse
+//	@Failure		400		{object}	api.Error
+//	@Failure		404		{object}	api.Error
+//	@Failure		500		{object}	api.Error
 //	@Router			/evidence/for-control/{id} [get]
 func (h *EvidenceHandler) ForControl(ctx echo.Context) error {
 	type responseMetadata struct {
@@ -809,13 +811,14 @@ func (h *EvidenceHandler) ForControl(ctx echo.Context) error {
 		},
 	}
 
-	filters := []labelfilter.Filter{}
-	for _, filter := range control.Filters {
-		filters = append(filters, filter.Filter.Data())
+	filters, filterErr := visibleControlFilters(ctx, control.Filters)
+	if filterErr != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(filterErr))
 	}
 
 	if len(filters) == 0 {
-		return ctx.JSON(http.StatusOK, GenericDataListResponse[evidencesvc.StatusCount]{Data: []evidencesvc.StatusCount{}})
+		response.Data = []PublicEvidenceResponse{}
+		return ctx.JSON(http.StatusOK, response)
 	}
 
 	evidenceList, err := h.evidenceService.GetLatestForFilters(filters...)
@@ -981,9 +984,11 @@ func (h *EvidenceHandler) StatusOverTimeByUUID(ctx echo.Context) error {
 //	@Description	Retrieves the count of evidence statuses for filters associated with a specific Control ID.
 //	@Tags			Evidence
 //	@Produce		json
-//	@Param			id	path		string	true	"Control ID"
-//	@Success		200	{object}	GenericDataListResponse[evidence.StatusCount]
-//	@Failure		500	{object}	api.Error
+//	@Param			id		path		string	true	"Control ID"
+//	@Param			sspId	query		string	false	"System Security Plan ID; limits filters to global + same-SSP"
+//	@Success		200		{object}	GenericDataListResponse[evidence.StatusCount]
+//	@Failure		400		{object}	api.Error
+//	@Failure		500		{object}	api.Error
 //	@Router			/evidence/compliance-by-control/{id} [get]
 func (h *EvidenceHandler) ComplianceByControl(ctx echo.Context) error {
 	id := ctx.Param("id")
@@ -995,9 +1000,9 @@ func (h *EvidenceHandler) ComplianceByControl(ctx echo.Context) error {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
-	filters := []labelfilter.Filter{}
-	for _, filter := range control.Filters {
-		filters = append(filters, filter.Filter.Data())
+	filters, filterErr := visibleControlFilters(ctx, control.Filters)
+	if filterErr != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(filterErr))
 	}
 
 	if len(filters) == 0 {
@@ -1010,6 +1015,26 @@ func (h *EvidenceHandler) ComplianceByControl(ctx echo.Context) error {
 	}
 
 	return ctx.JSON(http.StatusOK, GenericDataListResponse[evidencesvc.StatusCount]{Data: rows})
+}
+
+func visibleControlFilters(ctx echo.Context, filterModels []relational.Filter) ([]labelfilter.Filter, error) {
+	sspIDParam := strings.TrimSpace(ctx.QueryParam("sspId"))
+	var sspID *uuid.UUID
+	if sspIDParam != "" {
+		parsed, err := uuid.Parse(sspIDParam)
+		if err != nil {
+			return nil, err
+		}
+		sspID = &parsed
+	}
+	filters := make([]labelfilter.Filter, 0, len(filterModels))
+	for _, filter := range filterModels {
+		if sspID != nil && filter.SSPID != nil && *filter.SSPID != *sspID {
+			continue
+		}
+		filters = append(filters, filter.Filter.Data())
+	}
+	return filters, nil
 }
 
 // ComplianceByFilter godoc
