@@ -1,0 +1,21 @@
+lisa-addressed:
+---
+Comment (internal/api/handler/oscal/dashboard_suggestions.go:154):
+**Requested change: expose this `plannedCalls` value via a read-only preview endpoint.**
+
+The correct planned-call count is only computed here, as a side-effect of `Generate` creating a run (superseding pending suggestions + enqueuing cell jobs). There's no way to get it ahead of time, so the UI currently estimates `controls × labelSets` (one call per cell) — e.g. 16 × 47 = 752 — when the real chunked plan for that scope is `ceil(16/40) × ceil(47/200) = 1`. `GET .../config` only returns `{ enabled }`, so the UI can't compute it either.
+
+Please add a dry-run endpoint, e.g.:
+
+```
+POST /oscal/system-security-plans/{id}/dashboard-suggestions/preview   (read-only, no persistence)
+```
+
+that:
+1. resolves the scope via `svc.ResolveScope(sspID, scopeFromRequest(req.Scope))`, and
+2. returns `{ plannedCalls, controlCount, labelSetCount }` using this same `suggestionrel.PlannedCalls(len(snapshot.ControlKeys), len(snapshot.LabelSetHashes), h.chunkConfig())`.
+
+Extract the resolve-and-plan block (lines ~144–157) into a shared helper that both `Generate` and the new preview call, so the chunking formula stays a single source of truth on the server and the UI shows the real number instead of the cartesian product.
+
+Alternative considered and not preferred: surface `maxControlsPerChunk`/`maxLabelSetsPerChunk` on the `/config` response and let the UI do the `ceil` math — this duplicates the formula client-side and the UI still can't get the resolved control/label-set counts without resolving scope anyway.
+Implementation guidance: Add a read-only dashboard suggestions preview endpoint in internal/api/handler/oscal/dashboard_suggestions.go, for example POST /oscal/system-security-plans/{id}/dashboard-suggestions/preview, using the same request scope shape as Generate but without creating runs, suggestions, cells, audit events, superseding pending suggestions, or enqueueing work. Extract the existing Generate resolve-and-plan logic after parsing the SSP ID/request scope into a shared helper on DashboardSuggestionHandler that calls svc.ResolveScope(sspID, scopeFromRequest(req.Scope)), rejects empty resolved scopes the same way Generate now does, computes plannedCalls with suggestionrel.PlannedCalls(len(snapshot.ControlKeys), len(snapshot.LabelSetHashes), h.chunkConfig()), and returns the snapshot/counts/plannedCalls to both Generate and Preview so the chunking formula has one server-side source of truth. The preview response should include plannedCalls, controlCount, and labelSetCount based on len(snapshot.ControlKeys) and len(snapshot.LabelSetHashes). Register the new route consistently with the existing AI-gated SSP dashboard suggestion routes, not with the unauthenticated config probe. Add focused HTTP integration coverage in internal/api/handler/oscal/dashboard_suggestions_integration_test.go asserting preview returns the chunked plannedCalls for a scope where the cartesian product would be misleading, and asserting it leaves no dashboard_suggestion_runs, cells, suggestion events, or enqueued jobs behind. Avoid exposing chunk sizes on /config or duplicating the ceil math client-side.
