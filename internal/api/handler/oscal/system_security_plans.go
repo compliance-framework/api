@@ -44,10 +44,19 @@ type addProfileRequest struct {
 	ProfileID string `json:"profileId"`
 }
 
+// normalizeControlID lowercases a control ID. It is used only to derive a
+// case-insensitive comparison key (dedup, map lookups, SQL IN lists). The
+// lowercased value must NOT be persisted as an ImplementedRequirement.ControlId
+// or returned for display — storage and display use the catalog-canonical
+// casing (e.g. "GD.Sec.C08"). See dedupeControlIDs for the value-preserving
+// counterpart.
 func normalizeControlID(controlID string) string {
 	return strings.ToLower(controlID)
 }
 
+// normalizeControlIDs lowercases and case-insensitively dedupes a slice of
+// control IDs. Use it to build comparison keys / SQL IN lists, never to produce
+// values that get stored or shown to users.
 func normalizeControlIDs(controlIDs []string) []string {
 	seen := make(map[string]struct{}, len(controlIDs))
 	normalized := make([]string, 0, len(controlIDs))
@@ -60,6 +69,25 @@ func normalizeControlIDs(controlIDs []string) []string {
 		normalized = append(normalized, canonicalID)
 	}
 	return normalized
+}
+
+// dedupeControlIDs removes duplicates case-insensitively while PRESERVING the
+// original (catalog-canonical) casing of the first occurrence. This is the
+// resolver-side counterpart to normalizeControlIDs: control IDs flow through
+// here so that the canonical casing reaches storage and display, while matching
+// elsewhere stays case-insensitive via normalizeControlID keys.
+func dedupeControlIDs(controlIDs []string) []string {
+	seen := make(map[string]struct{}, len(controlIDs))
+	deduped := make([]string, 0, len(controlIDs))
+	for _, controlID := range controlIDs {
+		key := normalizeControlID(controlID)
+		if _, exists := seen[key]; exists {
+			continue
+		}
+		seen[key] = struct{}{}
+		deduped = append(deduped, controlID)
+	}
+	return deduped
 }
 
 func buildProfileSummaries(profiles []relational.Profile) ([]profileSummary, error) {
@@ -123,9 +151,9 @@ func (h *SystemSecurityPlanHandler) getControlIDsForProfile(profileID uuid.UUID)
 	// 1. Check in-memory cache first
 	if val, ok := h.profileCache.Load(profileID); ok {
 		if cachedControlIDs, ok := val.([]string); ok {
-			normalizedControlIDs := normalizeControlIDs(cachedControlIDs)
-			h.profileCache.Store(profileID, normalizedControlIDs)
-			return normalizedControlIDs, nil
+			dedupedControlIDs := dedupeControlIDs(cachedControlIDs)
+			h.profileCache.Store(profileID, dedupedControlIDs)
+			return dedupedControlIDs, nil
 		}
 		h.sugar.Warnw("profileCache contains value of unexpected type", "profileId", profileID, "actualType", fmt.Sprintf("%T", val))
 		h.profileCache.Delete(profileID)
@@ -155,7 +183,7 @@ func (h *SystemSecurityPlanHandler) getControlIDsForProfile(profileID uuid.UUID)
 		}
 	}
 
-	controlIDs = normalizeControlIDs(controlIDs)
+	controlIDs = dedupeControlIDs(controlIDs)
 	h.profileCache.Store(profileID, controlIDs)
 	return controlIDs, nil
 }
@@ -184,12 +212,13 @@ func (h *SystemSecurityPlanHandler) getControlIDsForAllProfiles(profiles []relat
 	allControlIDs := make([]string, 0)
 	appendControlIDs := func(controlIDs []string) {
 		for _, cid := range controlIDs {
-			normalizedID := normalizeControlID(cid)
-			if _, exists := seenControls[normalizedID]; exists {
+			// Dedupe case-insensitively but keep the canonical casing of the value.
+			key := normalizeControlID(cid)
+			if _, exists := seenControls[key]; exists {
 				continue
 			}
-			seenControls[normalizedID] = struct{}{}
-			allControlIDs = append(allControlIDs, normalizedID)
+			seenControls[key] = struct{}{}
+			allControlIDs = append(allControlIDs, cid)
 		}
 	}
 
@@ -228,6 +257,34 @@ func (h *SystemSecurityPlanHandler) getControlIDsForAllProfiles(profiles []relat
 	}
 
 	return allControlIDs, nil
+}
+
+// canonicalizeControlID resolves controlID to its catalog-canonical casing
+// (e.g. "gd.sec.c08" -> "GD.Sec.C08") by matching it case-insensitively against
+// the controls of the profiles bound to the SSP via the profile_controls pivot.
+// If no bound profile contains the control (e.g. an ad-hoc requirement created
+// directly, or before profiles are resolved), the input is returned unchanged
+// so direct creation still works. This keeps control IDs stored on
+// ImplementedRequirements consistent with the catalog regardless of the casing
+// the client supplied.
+func (h *SystemSecurityPlanHandler) canonicalizeControlID(sspID uuid.UUID, controlID string) string {
+	if controlID == "" {
+		return controlID
+	}
+	var matches []string
+	if err := h.db.Table("profile_controls").
+		Joins("JOIN ssp_profiles ON ssp_profiles.profile_id = profile_controls.profile_id").
+		Where("ssp_profiles.system_security_plan_id = ? AND UPPER(profile_controls.control_id) = UPPER(?)", sspID, controlID).
+		Limit(1).
+		Pluck("profile_controls.control_id", &matches).Error; err != nil {
+		h.sugar.Warnw("Failed to canonicalize control ID; storing as provided",
+			"sspId", sspID, "controlId", controlID, "error", err)
+		return controlID
+	}
+	if len(matches) == 0 || matches[0] == "" {
+		return controlID
+	}
+	return matches[0]
 }
 
 // validateSSPInput validates SSP input following OSCAL requirements
@@ -1610,7 +1667,8 @@ func (h *SystemSecurityPlanHandler) GetControlImplementation(ctx echo.Context) e
 	query := h.db.Model(&ssp.ControlImplementation).
 		Preload("ImplementedRequirements", func(db *gorm.DB) *gorm.DB {
 			if len(controlIDs) > 0 {
-				return db.Where("LOWER(control_id) IN ?", controlIDs)
+				// controlIDs carry canonical casing; lower them for the IN match.
+				return db.Where("LOWER(control_id) IN ?", normalizeControlIDs(controlIDs))
 			}
 			return db
 		}).
@@ -1683,7 +1741,8 @@ func (h *SystemSecurityPlanHandler) Full(ctx echo.Context) error {
 		Preload("ControlImplementation").
 		Preload("ControlImplementation.ImplementedRequirements", func(db *gorm.DB) *gorm.DB {
 			if len(controlIDs) > 0 {
-				return db.Where("LOWER(control_id) IN ?", controlIDs)
+				// controlIDs carry canonical casing; lower them for the IN match.
+				return db.Where("LOWER(control_id) IN ?", normalizeControlIDs(controlIDs))
 			}
 			return db
 		}).
@@ -2089,13 +2148,13 @@ func (h *SystemSecurityPlanHandler) AttachProfile(ctx echo.Context) error {
 
 		var newReqs []relational.ImplementedRequirement
 		for _, controlID := range controlIDs {
-			normalizedControlID := normalizeControlID(controlID)
-			if !existingMap[normalizedControlID] {
+			// Dedupe case-insensitively, but persist the canonical casing.
+			if !existingMap[normalizeControlID(controlID)] {
 				newUUID := uuid.New()
 				newReqs = append(newReqs, relational.ImplementedRequirement{
 					UUIDModel:               relational.UUIDModel{ID: &newUUID},
 					ControlImplementationId: *ssp.ControlImplementation.ID,
-					ControlId:               normalizedControlID,
+					ControlId:               controlID,
 				})
 			}
 		}
@@ -2283,13 +2342,13 @@ func (h *SystemSecurityPlanHandler) AddProfile(ctx echo.Context) error {
 
 		var newReqs []relational.ImplementedRequirement
 		for _, controlID := range controlIDs {
-			normalizedControlID := normalizeControlID(controlID)
-			if !existingMap[normalizedControlID] {
+			// Dedupe case-insensitively, but persist the canonical casing.
+			if !existingMap[normalizeControlID(controlID)] {
 				newUUID := uuid.New()
 				newReqs = append(newReqs, relational.ImplementedRequirement{
 					UUIDModel:               relational.UUIDModel{ID: &newUUID},
 					ControlImplementationId: *ssp.ControlImplementation.ID,
-					ControlId:               normalizedControlID,
+					ControlId:               controlID,
 				})
 			}
 		}
@@ -3448,7 +3507,8 @@ func (h *SystemSecurityPlanHandler) GetImplementedRequirements(ctx echo.Context)
 	var implementedRequirements []relational.ImplementedRequirement
 	query := h.db.Where("control_implementation_id = ?", ssp.ControlImplementation.ID)
 	if len(controlIDs) > 0 {
-		query = query.Where("LOWER(control_id) IN ?", controlIDs)
+		// controlIDs carry canonical casing; lower them for the IN match.
+		query = query.Where("LOWER(control_id) IN ?", normalizeControlIDs(controlIDs))
 	}
 
 	if err := query.Find(&implementedRequirements).Error; err != nil {
@@ -3515,6 +3575,8 @@ func (h *SystemSecurityPlanHandler) CreateImplementedRequirement(ctx echo.Contex
 	relReq := &relational.ImplementedRequirement{}
 	relReq.UnmarshalOscal(oscalReq)
 	relReq.ControlImplementationId = *ssp.ControlImplementation.ID
+	// Store the catalog-canonical casing regardless of what the client supplied.
+	relReq.ControlId = h.canonicalizeControlID(id, relReq.ControlId)
 
 	if err := h.db.Create(relReq).Error; err != nil {
 		h.sugar.Errorf("Failed to create implemented requirement: %v", err)
@@ -3582,6 +3644,8 @@ func (h *SystemSecurityPlanHandler) UpdateImplementedRequirement(ctx echo.Contex
 	relReq.UnmarshalOscal(oscalReq)
 	relReq.ControlImplementationId = *ssp.ControlImplementation.ID
 	relReq.ID = &reqID
+	// Store the catalog-canonical casing regardless of what the client supplied.
+	relReq.ControlId = h.canonicalizeControlID(sspID, relReq.ControlId)
 
 	if err := h.db.Save(relReq).Error; err != nil {
 		h.sugar.Errorf("Failed to update implemented requirement: %v", err)
@@ -4522,7 +4586,7 @@ func (h *SystemSecurityPlanHandler) extractControlIDsFromProfile(profile *relati
 	for id := range idsMap {
 		controlIDs = append(controlIDs, id)
 	}
-	controlIDs = normalizeControlIDs(controlIDs)
+	controlIDs = dedupeControlIDs(controlIDs)
 
 	if profile.ID != nil {
 		h.profileCache.Store(*profile.ID, controlIDs)

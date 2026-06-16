@@ -305,3 +305,56 @@ func (suite *SSPProfilesIntegrationSuite) TestImplementedRequirements_MultiProfi
 	suite.True(controlSet["ac-2"], "union should include ac-2 (shared)")
 	suite.True(controlSet["ac-3"], "union should include ac-3 from profile B")
 }
+
+// TestImplementedRequirements_PreserveCanonicalCasing guards the casing fix:
+// when a profile's controls use canonical (mixed-case) IDs, the implemented
+// requirements auto-created on profile attach must store that exact casing —
+// not a lowercased copy — so downstream catalog/profile resolution by exact
+// string keeps matching. It also covers the direct-create hardening: a control
+// ID supplied with the "wrong" casing is canonicalized against the bound
+// profile's controls before being persisted.
+func (suite *SSPProfilesIntegrationSuite) TestImplementedRequirements_PreserveCanonicalCasing() {
+	sspID := suite.createSSP()
+	// Profile controls use the catalog-canonical casing.
+	p1 := suite.createProfile("Canonical Profile", []string{"GD.Sec.C08", "GD.Conf.C01"})
+
+	rec, req := suite.req(http.MethodPost,
+		fmt.Sprintf("/api/oscal/system-security-plans/%s/profiles", sspID),
+		addProfileRequest{ProfileID: p1.String()})
+	suite.server.E().ServeHTTP(rec, req)
+	suite.Require().Equal(http.StatusOK, rec.Code, "add profile: %s", rec.Body.String())
+
+	// The auto-created implemented requirements must keep the canonical casing.
+	rec, req = suite.req(http.MethodGet,
+		fmt.Sprintf("/api/oscal/system-security-plans/%s/control-implementation/implemented-requirements", sspID), nil)
+	suite.server.E().ServeHTTP(rec, req)
+	suite.Require().Equal(http.StatusOK, rec.Code, "get implemented-requirements: %s", rec.Body.String())
+
+	var resp handler.GenericDataListResponse[oscalTypes_1_1_3.ImplementedRequirement]
+	suite.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &resp))
+
+	controlSet := map[string]bool{}
+	for _, ir := range resp.Data {
+		controlSet[ir.ControlId] = true
+	}
+	suite.True(controlSet["GD.Sec.C08"], "auto-created IR should preserve canonical casing GD.Sec.C08, got: %v", controlSet)
+	suite.True(controlSet["GD.Conf.C01"], "auto-created IR should preserve canonical casing GD.Conf.C01, got: %v", controlSet)
+	suite.False(controlSet["gd.sec.c08"], "auto-created IR must not be lowercased")
+
+	// Direct create with mismatched casing is canonicalized against the bound
+	// profile's controls: "gd.conf.c01" must be stored as "GD.Conf.C01".
+	newReq := oscalTypes_1_1_3.ImplementedRequirement{
+		UUID:      uuid.New().String(),
+		ControlId: "gd.conf.c01",
+	}
+	rec, req = suite.req(http.MethodPost,
+		fmt.Sprintf("/api/oscal/system-security-plans/%s/control-implementation/implemented-requirements", sspID),
+		newReq)
+	suite.server.E().ServeHTTP(rec, req)
+	suite.Require().Equal(http.StatusCreated, rec.Code, "create IR: %s", rec.Body.String())
+
+	var createResp handler.GenericDataResponse[oscalTypes_1_1_3.ImplementedRequirement]
+	suite.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &createResp))
+	suite.Equal("GD.Conf.C01", createResp.Data.ControlId,
+		"directly-created IR should be canonicalized to the catalog casing")
+}
