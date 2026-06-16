@@ -180,6 +180,93 @@ func TestValidateMappingsRules(t *testing.T) {
 	require.Equal(t, "env=stage", result.Mappings[1].ProposedFilterName)
 }
 
+func TestValidateMappingsFilterLabelSubsetRules(t *testing.T) {
+	controlKey := ControlKey(uuid.New(), "AC-1")
+	labels := map[string]string{
+		"_agent":       "agent-1",
+		"_plugin":      "github_repos",
+		"_policy":      "secret_scanning_push_protection",
+		"organization": "compliance-framework",
+		"provider":     "github",
+		"repository":   "todo-app",
+		"type":         "repository",
+	}
+	hash := CanonicalLabelSetHash(labels)
+	input := CellInput{
+		Controls:  []ControlInput{{ControlKey: controlKey}},
+		LabelSets: []LabelSetInput{{Hash: hash, Labels: labels}},
+	}
+
+	result := ValidateRawMappings(input, []RawMapping{
+		{
+			ControlKey:           controlKey,
+			LabelSetHash:         hash,
+			Action:               MappingActionNewFilter,
+			Confidence:           0.9,
+			Reasoning:            "matches",
+			ProposedFilterLabels: map[string]string{"provider": "github", "type": "repository", "_agent": "agent-1"},
+		},
+		{
+			ControlKey:           controlKey,
+			LabelSetHash:         hash,
+			Action:               MappingActionNewFilter,
+			Confidence:           0.8,
+			Reasoning:            "hallucinated",
+			ProposedFilterLabels: map[string]string{"provider": "gitlab"},
+		},
+	})
+
+	require.Equal(t, 1, result.Counts["rejected_invalid_filter_labels"])
+	require.Equal(t, 1, result.Counts["dropped_identity_filter_labels"])
+	require.Equal(t, 1, result.Counts["added_policy_filter_label"])
+	require.Len(t, result.Mappings, 1)
+	require.Equal(t, map[string]string{
+		"_policy":  "secret_scanning_push_protection",
+		"provider": "github",
+		"type":     "repository",
+	}, result.Mappings[0].ProposedFilterLabelSet)
+}
+
+func TestValidateMappingsDedupesByProposedFilterSubset(t *testing.T) {
+	controlKey := ControlKey(uuid.New(), "AC-1")
+	subset := map[string]string{
+		"_policy":  "secret_scanning_push_protection",
+		"provider": "github",
+		"type":     "repository",
+	}
+	firstLabels := map[string]string{
+		"_policy":    "secret_scanning_push_protection",
+		"provider":   "github",
+		"type":       "repository",
+		"repository": "todo-app",
+	}
+	secondLabels := map[string]string{
+		"_policy":    "secret_scanning_push_protection",
+		"provider":   "github",
+		"type":       "repository",
+		"repository": "payments-api",
+	}
+	firstHash := CanonicalLabelSetHash(firstLabels)
+	secondHash := CanonicalLabelSetHash(secondLabels)
+	input := CellInput{
+		Controls: []ControlInput{{ControlKey: controlKey}},
+		LabelSets: []LabelSetInput{
+			{Hash: firstHash, Labels: firstLabels},
+			{Hash: secondHash, Labels: secondLabels},
+		},
+	}
+
+	result := ValidateRawMappings(input, []RawMapping{
+		{ControlKey: controlKey, LabelSetHash: firstHash, Action: MappingActionNewFilter, Confidence: 0.7, Reasoning: "matches", ProposedFilterLabels: subset},
+		{ControlKey: controlKey, LabelSetHash: secondHash, Action: MappingActionNewFilter, Confidence: 0.9, Reasoning: "better match", ProposedFilterLabels: subset},
+	})
+
+	require.Equal(t, 1, result.Counts["deduped_within_cell"])
+	require.Len(t, result.Mappings, 1)
+	require.Equal(t, secondHash, result.Mappings[0].LabelSetHash)
+	require.Equal(t, subset, result.Mappings[0].ProposedFilterLabelSet)
+}
+
 func TestValidateMappingsControlCap(t *testing.T) {
 	controlKey := ControlKey(uuid.New(), "AC-1")
 	input := CellInput{Controls: []ControlInput{{ControlKey: controlKey}}}

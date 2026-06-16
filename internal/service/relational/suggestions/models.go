@@ -58,21 +58,22 @@ func (DashboardSuggestionRunCell) TableName() string {
 type DashboardSuggestion struct {
 	relational.UUIDModel
 
-	RunID              uuid.UUID         `json:"runId" gorm:"type:uuid;not null;index"`
-	SSPID              uuid.UUID         `json:"sspId" gorm:"column:ssp_id;type:uuid;not null;index"`
-	ControlCatalogID   uuid.UUID         `json:"controlCatalogId" gorm:"type:uuid;not null"`
-	ControlID          string            `json:"controlId" gorm:"type:text;not null"`
-	LabelSet           datatypes.JSONMap `json:"labelSet" gorm:"type:jsonb;not null"`
-	LabelSetHash       string            `json:"labelSetHash" gorm:"type:char(64);not null;index"`
-	TargetFilterID     *uuid.UUID        `json:"targetFilterId" gorm:"type:uuid;index"`
-	ProposedFilterName string            `json:"proposedFilterName" gorm:"type:text;not null"`
-	Reasoning          string            `json:"reasoning" gorm:"type:text;not null"`
-	Confidence         float64           `json:"confidence" gorm:"type:double precision;not null"`
-	Status             string            `json:"status" gorm:"type:varchar(16);not null;index"`
-	AcceptedFilterID   *uuid.UUID        `json:"acceptedFilterId" gorm:"type:uuid;index"`
-	DecidedByUserID    *uuid.UUID        `json:"decidedByUserId" gorm:"type:uuid;index"`
-	DecidedAt          *time.Time        `json:"decidedAt"`
-	RejectReason       *string           `json:"rejectReason" gorm:"type:text"`
+	RunID                  uuid.UUID         `json:"runId" gorm:"type:uuid;not null;index"`
+	SSPID                  uuid.UUID         `json:"sspId" gorm:"column:ssp_id;type:uuid;not null;index"`
+	ControlCatalogID       uuid.UUID         `json:"controlCatalogId" gorm:"type:uuid;not null"`
+	ControlID              string            `json:"controlId" gorm:"type:text;not null"`
+	LabelSet               datatypes.JSONMap `json:"labelSet" gorm:"type:jsonb;not null"`
+	LabelSetHash           string            `json:"labelSetHash" gorm:"type:char(64);not null;index"`
+	ProposedFilterLabelSet datatypes.JSONMap `json:"proposedFilterLabelSet" gorm:"column:proposed_filter_label_set;type:jsonb"`
+	TargetFilterID         *uuid.UUID        `json:"targetFilterId" gorm:"type:uuid;index"`
+	ProposedFilterName     string            `json:"proposedFilterName" gorm:"type:text;not null"`
+	Reasoning              string            `json:"reasoning" gorm:"type:text;not null"`
+	Confidence             float64           `json:"confidence" gorm:"type:double precision;not null"`
+	Status                 string            `json:"status" gorm:"type:varchar(16);not null;index"`
+	AcceptedFilterID       *uuid.UUID        `json:"acceptedFilterId" gorm:"type:uuid;index"`
+	DecidedByUserID        *uuid.UUID        `json:"decidedByUserId" gorm:"type:uuid;index"`
+	DecidedAt              *time.Time        `json:"decidedAt"`
+	RejectReason           *string           `json:"rejectReason" gorm:"type:text"`
 
 	Run                *DashboardSuggestionRun        `json:"-" gorm:"foreignKey:RunID;references:ID;constraint:OnDelete:CASCADE"`
 	SystemSecurityPlan *relational.SystemSecurityPlan `json:"-" gorm:"foreignKey:SSPID;references:ID"`
