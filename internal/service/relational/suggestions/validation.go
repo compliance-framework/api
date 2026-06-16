@@ -52,14 +52,38 @@ type RawMappings struct {
 }
 
 type RawMapping struct {
-	ControlKey           string            `json:"control_key"`
-	LabelSetHash         string            `json:"label_set_hash"`
-	Action               string            `json:"action"`
-	TargetFilterID       string            `json:"target_filter_id,omitempty"`
-	ProposedFilterName   string            `json:"proposed_filter_name,omitempty"`
-	ProposedFilterLabels map[string]string `json:"proposed_filter_labels,omitempty"`
-	Confidence           float64           `json:"confidence"`
-	Reasoning            string            `json:"reasoning"`
+	ControlKey           string               `json:"control_key"`
+	LabelSetHash         string               `json:"label_set_hash"`
+	Action               string               `json:"action"`
+	TargetFilterID       string               `json:"target_filter_id,omitempty"`
+	ProposedFilterName   string               `json:"proposed_filter_name,omitempty"`
+	ProposedFilterLabels ProposedFilterLabels `json:"proposed_filter_labels,omitempty"`
+	Confidence           float64              `json:"confidence"`
+	Reasoning            string               `json:"reasoning"`
+}
+
+type ProposedFilterLabels map[string]string
+
+func (labels *ProposedFilterLabels) UnmarshalJSON(raw []byte) error {
+	var pairs []struct {
+		Key   string `json:"key"`
+		Value string `json:"value"`
+	}
+	if err := json.Unmarshal(raw, &pairs); err == nil {
+		decoded := make(map[string]string, len(pairs))
+		for _, pair := range pairs {
+			decoded[pair.Key] = pair.Value
+		}
+		*labels = decoded
+		return nil
+	}
+
+	var legacy map[string]string
+	if err := json.Unmarshal(raw, &legacy); err != nil {
+		return err
+	}
+	*labels = legacy
+	return nil
 }
 
 type ValidatedMapping struct {

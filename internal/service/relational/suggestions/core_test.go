@@ -1,7 +1,9 @@
 package suggestions
 
 import (
+	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -225,6 +227,103 @@ func TestValidateMappingsFilterLabelSubsetRules(t *testing.T) {
 		"provider": "github",
 		"type":     "repository",
 	}, result.Mappings[0].ProposedFilterLabelSet)
+}
+
+func TestOutputSchemaProposedFilterLabelsUsesStrictPairArray(t *testing.T) {
+	schema := OutputSchema()
+	properties := schema["properties"].(map[string]any)
+	mappings := properties["mappings"].(map[string]any)
+	mappingItem := mappings["items"].(map[string]any)
+	mappingProperties := mappingItem["properties"].(map[string]any)
+	proposedLabels := mappingProperties["proposed_filter_labels"].(map[string]any)
+
+	require.Equal(t, "array", proposedLabels["type"])
+	item := proposedLabels["items"].(map[string]any)
+	require.Equal(t, "object", item["type"])
+	require.Equal(t, false, item["additionalProperties"])
+	require.ElementsMatch(t, []any{"key", "value"}, item["required"])
+	itemProperties := item["properties"].(map[string]any)
+	require.Equal(t, map[string]any{"type": "string"}, itemProperties["key"])
+	require.Equal(t, map[string]any{"type": "string"}, itemProperties["value"])
+
+	requireEverySchemaObjectIsStrict(t, schema)
+}
+
+func requireEverySchemaObjectIsStrict(t *testing.T, node any) {
+	t.Helper()
+	switch typed := node.(type) {
+	case map[string]any:
+		if typed["type"] == "object" {
+			require.Equal(t, false, typed["additionalProperties"])
+		}
+		for _, value := range typed {
+			requireEverySchemaObjectIsStrict(t, value)
+		}
+	case []any:
+		for _, value := range typed {
+			requireEverySchemaObjectIsStrict(t, value)
+		}
+	}
+}
+
+func TestValidateMappingsDecodesProposedFilterLabelsPairArrayLikeLegacyMap(t *testing.T) {
+	controlKey := ControlKey(uuid.New(), "AC-1")
+	labels := map[string]string{
+		"_policy":  "secret_scanning_push_protection",
+		"provider": "github",
+		"type":     "repository",
+	}
+	hash := CanonicalLabelSetHash(labels)
+	input := CellInput{
+		Controls:  []ControlInput{{ControlKey: controlKey}},
+		LabelSets: []LabelSetInput{{Hash: hash, Labels: labels}},
+	}
+	rawTemplate := `{
+		"mappings": [{
+			"control_key": %q,
+			"label_set_hash": %q,
+			"action": "new_filter",
+			"confidence": 0.9,
+			"reasoning": "matches",
+			"proposed_filter_labels": %s
+		}]
+	}`
+	arrayResult, err := ValidateMappings(input, []byte(fmt.Sprintf(
+		rawTemplate,
+		controlKey,
+		hash,
+		`[{"key":"provider","value":"github"},{"key":"type","value":"repository"}]`,
+	)))
+	require.NoError(t, err)
+	legacyResult, err := ValidateMappings(input, []byte(fmt.Sprintf(
+		rawTemplate,
+		controlKey,
+		hash,
+		`{"provider":"github","type":"repository"}`,
+	)))
+	require.NoError(t, err)
+
+	require.Len(t, arrayResult.Mappings, 1)
+	require.Equal(t, legacyResult.Mappings[0].ProposedFilterLabelSet, arrayResult.Mappings[0].ProposedFilterLabelSet)
+}
+
+func TestProposedFilterLabelsPairArrayDuplicateKeyLastWins(t *testing.T) {
+	var decoded RawMappings
+	err := json.Unmarshal([]byte(`{
+		"mappings": [{
+			"control_key": "control",
+			"label_set_hash": "hash",
+			"action": "new_filter",
+			"confidence": 0.9,
+			"reasoning": "matches",
+			"proposed_filter_labels": [
+				{"key":"provider","value":"aws"},
+				{"key":"provider","value":"github"}
+			]
+		}]
+	}`), &decoded)
+	require.NoError(t, err)
+	require.Equal(t, ProposedFilterLabels{"provider": "github"}, decoded.Mappings[0].ProposedFilterLabels)
 }
 
 func TestValidateMappingsEmptyFilterLabelsUseDefaultSubset(t *testing.T) {

@@ -23,7 +23,7 @@ For each shown control that a shown label-set provides evidence for, emit a mapp
 
 Respect qualifiers in the control text. A control scoped to a provider, technology, component, environment, or other qualifier only matches evidence whose labels satisfy that qualifier.
 
-For every mapping, include proposed_filter_labels: the smallest key/value subset that the dashboard filter should use. Choose labels that capture the control's evidence intent and generalize to future components. Always include _policy when present. Do not include _agent or _plugin because they describe collection mechanics, not the evidence. Avoid instance identity labels such as repository, organization, account, host, namespace, project, or environment unless the control or system context is clearly scoped to that specific instance.
+For every mapping, include proposed_filter_labels as a list of {"key","value"} pairs: the smallest label subset that the dashboard filter should use. Choose labels that capture the control's evidence intent and generalize to future components. Always include _policy when present. Do not include _agent or _plugin because they describe collection mechanics, not the evidence. Avoid instance identity labels such as repository, organization, account, host, namespace, project, or environment unless the control or system context is clearly scoped to that specific instance.
 
 Use extend_filter with target_filter_id only when one of this plan's own dashboards has exactly the same proposed_filter_labels. Otherwise use new_filter with a short descriptive proposed_filter_name. Global dashboards are listed only to avoid duplicate names; never extend them.
 
@@ -59,8 +59,20 @@ func OutputSchema() map[string]any {
 							"type": "string",
 						},
 						"proposed_filter_labels": map[string]any{
-							"type":                 "object",
-							"additionalProperties": map[string]any{"type": "string"},
+							"type": "array",
+							"items": map[string]any{
+								"type":                 "object",
+								"additionalProperties": false,
+								"required":             []any{"key", "value"},
+								"properties": map[string]any{
+									"key": map[string]any{
+										"type": "string",
+									},
+									"value": map[string]any{
+										"type": "string",
+									},
+								},
+							},
 						},
 						"confidence": map[string]any{
 							"type": "number",
