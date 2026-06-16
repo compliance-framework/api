@@ -62,6 +62,10 @@ func (suite *DashboardSuggestionsHTTPSuite) SetupTest() {
 }
 
 func (suite *DashboardSuggestionsHTTPSuite) newServer(enabled bool, enqueuer SSPJobEnqueuer, maxCalls int) *api.Server {
+	return suite.newServerWithChunks(enabled, enqueuer, maxCalls, 1, 1)
+}
+
+func (suite *DashboardSuggestionsHTTPSuite) newServerWithChunks(enabled bool, enqueuer SSPJobEnqueuer, maxCalls int, maxControlsPerChunk int, maxLabelSetsPerChunk int) *api.Server {
 	logConf := zap.NewDevelopmentConfig()
 	logConf.Level = zap.NewAtomicLevelAt(zap.ErrorLevel)
 	logger, _ := logConf.Build()
@@ -69,8 +73,8 @@ func (suite *DashboardSuggestionsHTTPSuite) newServer(enabled bool, enqueuer SSP
 	cfg := *suite.Config
 	cfg.AI = config.DefaultAIConfig()
 	cfg.AI.Enabled = enabled
-	cfg.AI.MaxControlsPerChunk = 1
-	cfg.AI.MaxLabelSetsPerChunk = 1
+	cfg.AI.MaxControlsPerChunk = maxControlsPerChunk
+	cfg.AI.MaxLabelSetsPerChunk = maxLabelSetsPerChunk
 	cfg.AI.MaxCallsPerRun = maxCalls
 	server := api.NewServer(context.Background(), logger.Sugar(), &cfg, metrics)
 	RegisterHandlers(server, logger.Sugar(), suite.DB, &cfg, nil, enqueuer)
@@ -160,6 +164,51 @@ func (suite *DashboardSuggestionsHTTPSuite) TestGenerateCreatesRunCellsAndEnqueu
 	rec, req = suite.req(http.MethodPost, fmt.Sprintf("/api/oscal/system-security-plans/%s/dashboard-suggestions/generate", sspID), nil)
 	suite.server.E().ServeHTTP(rec, req)
 	suite.Equal(http.StatusConflict, rec.Code, rec.Body.String())
+}
+
+func (suite *DashboardSuggestionsHTTPSuite) TestPreviewReturnsChunkedPlanAndLeavesNoGenerationState() {
+	controlIDs := make([]string, 0, 16)
+	for idx := 1; idx <= 16; idx++ {
+		controlIDs = append(controlIDs, fmt.Sprintf("AC-%d", idx))
+	}
+	labelSets := make([]map[string]string, 0, 47)
+	for idx := 1; idx <= 47; idx++ {
+		labelSets = append(labelSets, map[string]string{"env": fmt.Sprintf("env-%d", idx)})
+	}
+	sspID, controlKeys, hashes := suite.seedScope(controlIDs, labelSets)
+	server := suite.newServerWithChunks(true, suite.enqueuer, 0, 40, 200)
+
+	body := generateDashboardSuggestionsRequest{
+		Scope: &dashboardSuggestionScopeRequest{
+			ControlKeys:    controlKeys,
+			LabelSetHashes: hashes,
+		},
+	}
+	rec, req := suite.req(http.MethodPost, fmt.Sprintf("/api/oscal/system-security-plans/%s/dashboard-suggestions/preview", sspID), body)
+	server.E().ServeHTTP(rec, req)
+	suite.Equal(http.StatusOK, rec.Code, rec.Body.String())
+
+	var response apihandler.GenericDataResponse[dashboardSuggestionPreviewResponse]
+	suite.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &response))
+	suite.Equal(1, response.Data.PlannedCalls)
+	suite.Equal(16, response.Data.ControlCount)
+	suite.Equal(47, response.Data.LabelSetCount)
+	suite.Equal(0, suite.enqueuer.calls)
+
+	var runCount int64
+	suite.Require().NoError(suite.DB.Model(&suggestionrel.DashboardSuggestionRun{}).Where("ssp_id = ?", sspID).Count(&runCount).Error)
+	suite.Equal(int64(0), runCount)
+
+	var cellCount int64
+	suite.Require().NoError(suite.DB.Model(&suggestionrel.DashboardSuggestionRunCell{}).
+		Joins("JOIN dashboard_suggestion_runs ON dashboard_suggestion_runs.id = dashboard_suggestion_run_cells.run_id").
+		Where("dashboard_suggestion_runs.ssp_id = ?", sspID).
+		Count(&cellCount).Error)
+	suite.Equal(int64(0), cellCount)
+
+	var eventCount int64
+	suite.Require().NoError(suite.DB.Model(&suggestionrel.DashboardSuggestionEvent{}).Count(&eventCount).Error)
+	suite.Equal(int64(0), eventCount)
 }
 
 func (suite *DashboardSuggestionsHTTPSuite) TestGenerateValidationAndWorkerDisabledPaths() {

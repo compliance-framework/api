@@ -70,6 +70,19 @@ type dashboardSuggestionConfigResponse struct {
 	Enabled bool `json:"enabled"`
 }
 
+type dashboardSuggestionPreviewResponse struct {
+	PlannedCalls  int `json:"plannedCalls"`
+	ControlCount  int `json:"controlCount"`
+	LabelSetCount int `json:"labelSetCount"`
+}
+
+type dashboardSuggestionPlan struct {
+	Snapshot      suggestionrel.Snapshot
+	PlannedCalls  int
+	ControlCount  int
+	LabelSetCount int
+}
+
 func NewDashboardSuggestionHandler(sugar *zap.SugaredLogger, db *gorm.DB, cfg *config.AIConfig, jobEnqueuer SSPJobEnqueuer) *DashboardSuggestionHandler {
 	return &DashboardSuggestionHandler{sugar: sugar, db: db, cfg: cfg, jobEnqueuer: jobEnqueuer}
 }
@@ -80,6 +93,7 @@ func (h *DashboardSuggestionHandler) RegisterConfig(apiGroup *echo.Group) {
 
 func (h *DashboardSuggestionHandler) Register(apiGroup *echo.Group, auth echo.MiddlewareFunc) {
 	apiGroup.POST("/:id/dashboard-suggestions/generate", h.Generate, auth)
+	apiGroup.POST("/:id/dashboard-suggestions/preview", h.Preview, auth)
 	apiGroup.GET("/:id/dashboard-suggestions/label-sets", h.LabelSets, auth)
 	apiGroup.GET("/:id/dashboard-suggestion-runs/latest", h.LatestRun, auth)
 	apiGroup.GET("/:id/dashboard-suggestion-runs/:runId", h.GetRun, auth)
@@ -140,18 +154,12 @@ func (h *DashboardSuggestionHandler) Generate(ctx echo.Context) error {
 	var createdRun suggestionrel.DashboardSuggestionRun
 	var cells []suggestionrel.DashboardSuggestionRunCell
 	err = h.db.WithContext(ctx.Request().Context()).Transaction(func(tx *gorm.DB) error {
-		svc := suggestionrel.NewSuggestionService(tx)
-		snapshot, resolveErr := svc.ResolveScope(sspID, scopeFromRequest(req.Scope))
+		plan, resolveErr := h.planDashboardSuggestions(tx, sspID, req.Scope)
 		if resolveErr != nil {
 			return resolveErr
 		}
-		if len(snapshot.ControlKeys) == 0 {
-			return &emptyDashboardSuggestionScopeError{message: "no controls resolved for dashboard suggestions"}
-		}
-		if len(snapshot.LabelSetHashes) == 0 {
-			return &emptyDashboardSuggestionScopeError{message: "no evidence label sets resolved for dashboard suggestions"}
-		}
-		plannedCalls := suggestionrel.PlannedCalls(len(snapshot.ControlKeys), len(snapshot.LabelSetHashes), h.chunkConfig())
+		snapshot := plan.Snapshot
+		plannedCalls := plan.PlannedCalls
 		if h.maxCallsPerRun() > 0 && plannedCalls > h.maxCallsPerRun() {
 			return &plannedCallsExceededError{Planned: plannedCalls, Limit: h.maxCallsPerRun()}
 		}
@@ -213,6 +221,47 @@ func (h *DashboardSuggestionHandler) Generate(ctx echo.Context) error {
 
 	return ctx.JSON(http.StatusAccepted, handler.GenericDataResponse[dashboardSuggestionRunResponse]{
 		Data: dashboardSuggestionRunResponse{DashboardSuggestionRun: createdRun},
+	})
+}
+
+// Preview godoc
+//
+//	@Summary		Preview dashboard suggestion generation for an SSP
+//	@Description	Resolves the requested dashboard suggestion scope and returns planned call counts without creating runs or enqueueing work.
+//	@Tags			Dashboard Suggestions
+//	@Accept			json
+//	@Produce		json
+//	@Param			id		path		string								true	"System Security Plan ID"
+//	@Param			request	body		generateDashboardSuggestionsRequest	false	"Preview request"
+//	@Success		200		{object}	handler.GenericDataResponse[oscal.dashboardSuggestionPreviewResponse]
+//	@Failure		400		{object}	api.Error
+//	@Failure		401		{object}	api.Error
+//	@Failure		422		{object}	api.Error
+//	@Failure		500		{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/oscal/system-security-plans/{id}/dashboard-suggestions/preview [post]
+func (h *DashboardSuggestionHandler) Preview(ctx echo.Context) error {
+	sspID, err := parseUUIDParam(ctx, "id")
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	var req generateDashboardSuggestionsRequest
+	if ctx.Request().Body != nil && ctx.Request().ContentLength != 0 {
+		if err := ctx.Bind(&req); err != nil {
+			return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+		}
+	}
+
+	plan, err := h.planDashboardSuggestions(h.db.WithContext(ctx.Request().Context()), sspID, req.Scope)
+	if err != nil {
+		return h.generateError(ctx, err)
+	}
+	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[dashboardSuggestionPreviewResponse]{
+		Data: dashboardSuggestionPreviewResponse{
+			PlannedCalls:  plan.PlannedCalls,
+			ControlCount:  plan.ControlCount,
+			LabelSetCount: plan.LabelSetCount,
+		},
 	})
 }
 
@@ -463,6 +512,26 @@ func (h *DashboardSuggestionHandler) modelName() string {
 		return config.DefaultAIModel
 	}
 	return h.cfg.Model
+}
+
+func (h *DashboardSuggestionHandler) planDashboardSuggestions(db *gorm.DB, sspID uuid.UUID, scope *dashboardSuggestionScopeRequest) (dashboardSuggestionPlan, error) {
+	svc := suggestionrel.NewSuggestionService(db)
+	snapshot, err := svc.ResolveScope(sspID, scopeFromRequest(scope))
+	if err != nil {
+		return dashboardSuggestionPlan{}, err
+	}
+	if len(snapshot.ControlKeys) == 0 {
+		return dashboardSuggestionPlan{}, &emptyDashboardSuggestionScopeError{message: "no controls resolved for dashboard suggestions"}
+	}
+	if len(snapshot.LabelSetHashes) == 0 {
+		return dashboardSuggestionPlan{}, &emptyDashboardSuggestionScopeError{message: "no evidence label sets resolved for dashboard suggestions"}
+	}
+	return dashboardSuggestionPlan{
+		Snapshot:      snapshot,
+		PlannedCalls:  suggestionrel.PlannedCalls(len(snapshot.ControlKeys), len(snapshot.LabelSetHashes), h.chunkConfig()),
+		ControlCount:  len(snapshot.ControlKeys),
+		LabelSetCount: len(snapshot.LabelSetHashes),
+	}, nil
 }
 
 func scopeFromRequest(scope *dashboardSuggestionScopeRequest) suggestionrel.Scope {
