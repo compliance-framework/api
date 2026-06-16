@@ -3093,6 +3093,8 @@ definitions:
         $ref: '#/definitions/datatypes.JSONMap'
       labelSetHash:
         type: string
+      proposedFilterLabelSet:
+        $ref: '#/definitions/datatypes.JSONMap'
       proposedFilterName:
         type: string
       reasoning:
@@ -8372,6 +8374,8 @@ definitions:
         $ref: '#/definitions/datatypes.JSONMap'
       labelSetHash:
         type: string
+      proposedFilterLabelSet:
+        $ref: '#/definitions/datatypes.JSONMap'
       proposedFilterName:
         type: string
       reasoning:

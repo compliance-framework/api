@@ -32495,6 +32495,9 @@ const docTemplate = `{
                 "labelSetHash": {
                     "type": "string"
                 },
+                "proposedFilterLabelSet": {
+                    "$ref": "#/definitions/datatypes.JSONMap"
+                },
                 "proposedFilterName": {
                     "type": "string"
                 },
@@ -40480,6 +40483,9 @@ const docTemplate = `{
                 },
                 "labelSetHash": {
                     "type": "string"
+                },
+                "proposedFilterLabelSet": {
+                    "$ref": "#/definitions/datatypes.JSONMap"
                 },
                 "proposedFilterName": {
                     "type": "string"

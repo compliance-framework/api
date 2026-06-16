@@ -32489,6 +32489,9 @@
                 "labelSetHash": {
                     "type": "string"
                 },
+                "proposedFilterLabelSet": {
+                    "$ref": "#/definitions/datatypes.JSONMap"
+                },
                 "proposedFilterName": {
                     "type": "string"
                 },
@@ -40474,6 +40477,9 @@
                 },
                 "labelSetHash": {
                     "type": "string"
+                },
+                "proposedFilterLabelSet": {
+                    "$ref": "#/definitions/datatypes.JSONMap"
                 },
                 "proposedFilterName": {
                     "type": "string"
