@@ -71,9 +71,11 @@ type dashboardSuggestionConfigResponse struct {
 }
 
 type dashboardSuggestionPreviewResponse struct {
-	PlannedCalls  int `json:"plannedCalls"`
-	ControlCount  int `json:"controlCount"`
-	LabelSetCount int `json:"labelSetCount"`
+	PlannedCalls   int  `json:"plannedCalls"`
+	ControlCount   int  `json:"controlCount"`
+	LabelSetCount  int  `json:"labelSetCount"`
+	MaxCallsPerRun int  `json:"maxCallsPerRun"`
+	ExceedsLimit   bool `json:"exceedsLimit"`
 }
 
 type dashboardSuggestionPlan struct {
@@ -256,11 +258,14 @@ func (h *DashboardSuggestionHandler) Preview(ctx echo.Context) error {
 	if err != nil {
 		return h.generateError(ctx, err)
 	}
+	maxCalls := h.maxCallsPerRun()
 	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[dashboardSuggestionPreviewResponse]{
 		Data: dashboardSuggestionPreviewResponse{
-			PlannedCalls:  plan.PlannedCalls,
-			ControlCount:  plan.ControlCount,
-			LabelSetCount: plan.LabelSetCount,
+			PlannedCalls:   plan.PlannedCalls,
+			ControlCount:   plan.ControlCount,
+			LabelSetCount:  plan.LabelSetCount,
+			MaxCallsPerRun: maxCalls,
+			ExceedsLimit:   maxCalls > 0 && plan.PlannedCalls > maxCalls,
 		},
 	})
 }

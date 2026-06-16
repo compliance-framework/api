@@ -32448,7 +32448,13 @@ const docTemplate = `{
                 "controlCount": {
                     "type": "integer"
                 },
+                "exceedsLimit": {
+                    "type": "boolean"
+                },
                 "labelSetCount": {
+                    "type": "integer"
+                },
+                "maxCallsPerRun": {
                     "type": "integer"
                 },
                 "plannedCalls": {

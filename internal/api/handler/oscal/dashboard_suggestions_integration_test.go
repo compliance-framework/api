@@ -193,6 +193,8 @@ func (suite *DashboardSuggestionsHTTPSuite) TestPreviewReturnsChunkedPlanAndLeav
 	suite.Equal(1, response.Data.PlannedCalls)
 	suite.Equal(16, response.Data.ControlCount)
 	suite.Equal(47, response.Data.LabelSetCount)
+	suite.Equal(0, response.Data.MaxCallsPerRun)
+	suite.False(response.Data.ExceedsLimit)
 	suite.Equal(0, suite.enqueuer.calls)
 
 	var runCount int64
@@ -209,6 +211,40 @@ func (suite *DashboardSuggestionsHTTPSuite) TestPreviewReturnsChunkedPlanAndLeav
 	var eventCount int64
 	suite.Require().NoError(suite.DB.Model(&suggestionrel.DashboardSuggestionEvent{}).Count(&eventCount).Error)
 	suite.Equal(int64(0), eventCount)
+}
+
+func (suite *DashboardSuggestionsHTTPSuite) TestPreviewReportsConfiguredMaxCallsLimit() {
+	sspID, controlKeys, hashes := suite.seedScope([]string{"AC-1", "AC-2"}, []map[string]string{{"env": "prod"}})
+	body := generateDashboardSuggestionsRequest{
+		Scope: &dashboardSuggestionScopeRequest{
+			ControlKeys:    controlKeys,
+			LabelSetHashes: hashes,
+		},
+	}
+
+	limitedServer := suite.newServerWithChunks(true, suite.enqueuer, 1, 1, 1)
+	rec, req := suite.req(http.MethodPost, fmt.Sprintf("/api/oscal/system-security-plans/%s/dashboard-suggestions/preview", sspID), body)
+	limitedServer.E().ServeHTTP(rec, req)
+	suite.Equal(http.StatusOK, rec.Code, rec.Body.String())
+
+	var response apihandler.GenericDataResponse[dashboardSuggestionPreviewResponse]
+	suite.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &response))
+	suite.Equal(2, response.Data.PlannedCalls)
+	suite.Equal(2, response.Data.ControlCount)
+	suite.Equal(1, response.Data.LabelSetCount)
+	suite.Equal(1, response.Data.MaxCallsPerRun)
+	suite.True(response.Data.ExceedsLimit)
+
+	atLimitServer := suite.newServerWithChunks(true, suite.enqueuer, 2, 1, 1)
+	rec, req = suite.req(http.MethodPost, fmt.Sprintf("/api/oscal/system-security-plans/%s/dashboard-suggestions/preview", sspID), body)
+	atLimitServer.E().ServeHTTP(rec, req)
+	suite.Equal(http.StatusOK, rec.Code, rec.Body.String())
+
+	suite.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &response))
+	suite.Equal(2, response.Data.PlannedCalls)
+	suite.Equal(2, response.Data.MaxCallsPerRun)
+	suite.False(response.Data.ExceedsLimit)
+	suite.Equal(0, suite.enqueuer.calls)
 }
 
 func (suite *DashboardSuggestionsHTTPSuite) TestGenerateValidationAndWorkerDisabledPaths() {
