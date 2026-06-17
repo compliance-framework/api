@@ -378,6 +378,121 @@ func (suite *DashboardSuggestionsHTTPSuite) TestFlagOffDoesNotRegisterScopedRout
 	suite.False(response.Data.Enabled)
 }
 
+func (suite *DashboardSuggestionsHTTPSuite) TestAiDiagnosticsSummaryTotalsAndCacheCheckTransition() {
+	sspID := suite.seedDiagnosticsSSP("Diagnostics SSP")
+	actorID := suite.dummyUserID()
+	startedAt := time.Now().UTC().Add(-30 * time.Minute)
+	completedAt := startedAt.Add(2 * time.Minute)
+	runID := suite.seedDiagnosticsRun(sspID, "completed", startedAt, &completedAt, actorID, 100, 25, 0, 40, 2)
+	suite.seedDiagnosticsCell(runID, 0, "completed", 100, 25, 0, 40, 2, 3, 1)
+	suite.seedDiagnosticsSuggestion(runID, sspID, suggestionrel.DashboardSuggestionStatusAccepted)
+	suite.seedDiagnosticsSuggestion(runID, sspID, suggestionrel.DashboardSuggestionStatusRejected)
+	suite.seedDiagnosticsSuggestion(runID, sspID, suggestionrel.DashboardSuggestionStatusPending)
+
+	rec, req := suite.req(http.MethodGet, "/api/admin/ai-diagnostics/summary", nil)
+	suite.server.E().ServeHTTP(rec, req)
+	suite.Equal(http.StatusOK, rec.Code, rec.Body.String())
+
+	var response apihandler.GenericDataResponse[AiDiagnosticsSummary]
+	suite.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &response))
+	suite.True(response.Data.Enabled)
+	suite.Equal(suggestionrel.PromptVersion, response.Data.Config.PromptVersion)
+	suite.Equal(int64(1), response.Data.Totals.Runs)
+	suite.Equal(int64(1), response.Data.Totals.RunsByStatus["completed"])
+	suite.Equal(int64(1), response.Data.Totals.CellsCompleted)
+	suite.Equal(int64(100), response.Data.Totals.InputTokens)
+	suite.Equal(int64(40), response.Data.Totals.CacheCreationInputTokens)
+	suite.Equal(int64(2), response.Data.Totals.RateLimitedTotal)
+	suite.Equal(int64(1), response.Data.Totals.SuggestionsAccepted)
+	suite.Equal("warn", diagnosticsCheckStatus(response.Data.Checks, "cache_engaging"))
+	suite.Equal("warn", diagnosticsCheckStatus(response.Data.Checks, "queue_reachable"))
+	suite.Nil(response.Data.Queue)
+
+	suite.Require().NoError(suite.DB.Model(&suggestionrel.DashboardSuggestionRun{}).
+		Where("id = ?", runID).
+		Update("cache_read_input_tokens", 20).Error)
+	rec, req = suite.req(http.MethodGet, "/api/admin/ai-diagnostics/summary", nil)
+	suite.server.E().ServeHTTP(rec, req)
+	suite.Equal(http.StatusOK, rec.Code, rec.Body.String())
+	suite.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &response))
+	suite.Equal(int64(20), response.Data.Totals.CacheReadInputTokens)
+	suite.InDelta(0.125, response.Data.Totals.CacheHitRatio, 0.0001)
+	suite.Equal("pass", diagnosticsCheckStatus(response.Data.Checks, "cache_engaging"))
+}
+
+func (suite *DashboardSuggestionsHTTPSuite) TestAiDiagnosticsRunsListFiltersCursorAndDetail() {
+	sspA := suite.seedDiagnosticsSSP("Diagnostics A")
+	sspB := suite.seedDiagnosticsSSP("Diagnostics B")
+	actorID := suite.dummyUserID()
+	base := time.Now().UTC().Add(-2 * time.Hour)
+	oldCompletedAt := base.Add(1 * time.Minute)
+	newCompletedAt := base.Add(61 * time.Minute)
+	oldRun := suite.seedDiagnosticsRun(sspA, "completed", base, &oldCompletedAt, actorID, 10, 5, 4, 6, 0)
+	newRun := suite.seedDiagnosticsRun(sspB, "failed", base.Add(time.Hour), &newCompletedAt, actorID, 20, 8, 2, 3, 1)
+	suite.seedDiagnosticsCell(oldRun, 0, "completed", 10, 5, 4, 6, 0, 1, 0)
+	suite.seedDiagnosticsCell(newRun, 0, "failed", 20, 8, 2, 3, 1, 0, 1)
+	suite.seedDiagnosticsRunEvent(newRun, actorID)
+
+	rec, req := suite.req(http.MethodGet, "/api/admin/ai-diagnostics/runs?limit=1", nil)
+	suite.server.E().ServeHTTP(rec, req)
+	suite.Equal(http.StatusOK, rec.Code, rec.Body.String())
+
+	var list struct {
+		Data []AiDiagnosticsRun    `json:"data"`
+		Meta aiDiagnosticsListMeta `json:"meta"`
+	}
+	suite.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &list))
+	suite.Require().Len(list.Data, 1)
+	suite.Equal(newRun.String(), list.Data[0].ID)
+	suite.Equal("Diagnostics B", list.Data[0].SSPName)
+	suite.Equal(1, list.Data[0].FailedCells)
+	suite.Require().NotNil(list.Data[0].TriggeredBy)
+	suite.Equal("Dummy User", list.Data[0].TriggeredBy.Name)
+	suite.NotEmpty(list.Meta.NextCursor)
+
+	rec, req = suite.req(http.MethodGet, "/api/admin/ai-diagnostics/runs?limit=1&cursor="+list.Meta.NextCursor, nil)
+	suite.server.E().ServeHTTP(rec, req)
+	suite.Equal(http.StatusOK, rec.Code, rec.Body.String())
+	suite.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &list))
+	suite.Require().Len(list.Data, 1)
+	suite.Equal(oldRun.String(), list.Data[0].ID)
+
+	rec, req = suite.req(http.MethodGet, "/api/admin/ai-diagnostics/runs?status=completed&sspId="+sspA.String(), nil)
+	suite.server.E().ServeHTTP(rec, req)
+	suite.Equal(http.StatusOK, rec.Code, rec.Body.String())
+	suite.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &list))
+	suite.Require().Len(list.Data, 1)
+	suite.Equal(oldRun.String(), list.Data[0].ID)
+
+	rec, req = suite.req(http.MethodGet, "/api/admin/ai-diagnostics/runs/"+newRun.String(), nil)
+	suite.server.E().ServeHTTP(rec, req)
+	suite.Equal(http.StatusOK, rec.Code, rec.Body.String())
+	var detail apihandler.GenericDataResponse[AiDiagnosticsRunDetail]
+	suite.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &detail))
+	suite.Equal(newRun.String(), detail.Data.ID)
+	suite.Require().Len(detail.Data.Cells, 1)
+	suite.Equal(1, detail.Data.Cells[0].RateLimitedCount)
+	suite.Require().Len(detail.Data.Events, 1)
+	suite.Require().NotNil(detail.Data.Events[0].Actor)
+	suite.Equal("Dummy User", detail.Data.Events[0].Actor.Name)
+
+	rec, req = suite.req(http.MethodGet, "/api/admin/ai-diagnostics/runs/"+uuid.New().String(), nil)
+	suite.server.E().ServeHTTP(rec, req)
+	suite.Equal(http.StatusNotFound, rec.Code)
+}
+
+func (suite *DashboardSuggestionsHTTPSuite) TestAiDiagnosticsAdminAuthAndFlagGate() {
+	disabledServer := suite.newServer(false, suite.enqueuer, 0)
+	rec, req := suite.req(http.MethodGet, "/api/admin/ai-diagnostics/summary", nil)
+	disabledServer.E().ServeHTTP(rec, req)
+	suite.Equal(http.StatusNotFound, rec.Code)
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/api/admin/ai-diagnostics/summary", nil)
+	suite.server.E().ServeHTTP(rec, req)
+	suite.Equal(http.StatusUnauthorized, rec.Code)
+}
+
 func (suite *DashboardSuggestionsHTTPSuite) TestAcceptCreatesSSPFilterAndWritesEvents() {
 	sspID, controlKeys, _ := suite.seedScope([]string{"AC-1", "AC-2"}, []map[string]string{{"env": "prod"}})
 	runID := suite.seedSuggestionRun(sspID)
@@ -588,6 +703,125 @@ func (suite *DashboardSuggestionsHTTPSuite) seedSuggestionRun(sspID uuid.UUID) u
 		Stats:         datatypes.JSONMap{},
 	}).Error)
 	return runID
+}
+
+func (suite *DashboardSuggestionsHTTPSuite) seedDiagnosticsSSP(title string) uuid.UUID {
+	sspID := uuid.New()
+	suite.Require().NoError(suite.DB.Create(&relational.SystemSecurityPlan{UUIDModel: relational.UUIDModel{ID: &sspID}}).Error)
+	parentID := sspID.String()
+	parentType := "system_security_plans"
+	suite.Require().NoError(suite.DB.Create(&relational.Metadata{
+		ParentID:   &parentID,
+		ParentType: &parentType,
+		Title:      title,
+	}).Error)
+	return sspID
+}
+
+func (suite *DashboardSuggestionsHTTPSuite) seedDiagnosticsRun(
+	sspID uuid.UUID,
+	status string,
+	startedAt time.Time,
+	completedAt *time.Time,
+	actorID uuid.UUID,
+	inputTokens int,
+	outputTokens int,
+	cacheReadInputTokens int,
+	cacheCreationInputTokens int,
+	rateLimitedCount int,
+) uuid.UUID {
+	runID := uuid.New()
+	suite.Require().NoError(suite.DB.Create(&suggestionrel.DashboardSuggestionRun{
+		UUIDModel:                relational.UUIDModel{ID: &runID},
+		SSPID:                    sspID,
+		Status:                   status,
+		Model:                    "test-model",
+		PromptVersion:            suggestionrel.PromptVersion,
+		Scope:                    datatypes.JSONMap{"controlKeys": []string{}, "labelSetHashes": []string{}},
+		PlannedCalls:             1,
+		TriggeredByUserID:        &actorID,
+		StartedAt:                &startedAt,
+		CompletedAt:              completedAt,
+		InputTokens:              inputTokens,
+		OutputTokens:             outputTokens,
+		CacheReadInputTokens:     cacheReadInputTokens,
+		CacheCreationInputTokens: cacheCreationInputTokens,
+		RateLimitedCount:         rateLimitedCount,
+		Stats:                    datatypes.JSONMap{},
+	}).Error)
+	return runID
+}
+
+func (suite *DashboardSuggestionsHTTPSuite) seedDiagnosticsCell(
+	runID uuid.UUID,
+	cellIndex int,
+	status string,
+	inputTokens int,
+	outputTokens int,
+	cacheReadInputTokens int,
+	cacheCreationInputTokens int,
+	rateLimitedCount int,
+	mappingsReturned int,
+	mappingsRejected int,
+) {
+	completedAt := time.Now().UTC()
+	suite.Require().NoError(suite.DB.Create(&suggestionrel.DashboardSuggestionRunCell{
+		RunID:                    runID,
+		CellIndex:                cellIndex,
+		ControlKeys:              datatypes.NewJSONSlice([]string{"catalog:AC-1"}),
+		LabelSetHashes:           datatypes.NewJSONSlice([]string{"hash"}),
+		Status:                   status,
+		InputTokens:              inputTokens,
+		OutputTokens:             outputTokens,
+		CacheReadInputTokens:     cacheReadInputTokens,
+		CacheCreationInputTokens: cacheCreationInputTokens,
+		RateLimitedCount:         rateLimitedCount,
+		MappingsReturned:         mappingsReturned,
+		MappingsRejected:         mappingsRejected,
+		CompletedAt:              &completedAt,
+	}).Error)
+}
+
+func (suite *DashboardSuggestionsHTTPSuite) seedDiagnosticsSuggestion(runID uuid.UUID, sspID uuid.UUID, status string) {
+	suite.Require().NoError(suite.DB.Create(&suggestionrel.DashboardSuggestion{
+		RunID:              runID,
+		SSPID:              sspID,
+		ControlCatalogID:   uuid.New(),
+		ControlID:          "AC-1",
+		LabelSet:           datatypes.JSONMap{"env": "prod"},
+		LabelSetHash:       suggestionrel.CanonicalLabelSetHash(map[string]string{"env": "prod"}),
+		ProposedFilterName: "diagnostic filter",
+		Reasoning:          "diagnostic reasoning",
+		Confidence:         0.9,
+		Status:             status,
+	}).Error)
+}
+
+func (suite *DashboardSuggestionsHTTPSuite) seedDiagnosticsRunEvent(runID uuid.UUID, actorID uuid.UUID) {
+	suite.Require().NoError(suite.DB.Create(&suggestionrel.DashboardSuggestionEvent{
+		RunID:       &runID,
+		EventType:   string(suggestionrel.DashboardSuggestionEventTypeRunCompleted),
+		ActorUserID: &actorID,
+		OccurredAt:  time.Now().UTC(),
+		Payload:     datatypes.JSONMap{},
+		Snapshot:    datatypes.JSONMap{},
+	}).Error)
+}
+
+func (suite *DashboardSuggestionsHTTPSuite) dummyUserID() uuid.UUID {
+	var user relational.User
+	suite.Require().NoError(suite.DB.Where("email = ?", "dummy@example.com").First(&user).Error)
+	suite.Require().NotNil(user.ID)
+	return *user.ID
+}
+
+func diagnosticsCheckStatus(checks []AiDiagnosticsHealthCheck, id string) string {
+	for _, check := range checks {
+		if check.ID == id {
+			return check.Status
+		}
+	}
+	return ""
 }
 
 func (suite *DashboardSuggestionsHTTPSuite) seedDashboardSuggestion(

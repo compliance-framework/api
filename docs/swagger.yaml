@@ -524,6 +524,7 @@ definitions:
             $ref: '#/definitions/oscalTypes_1_1_3.Control'
           type: array
         type: array
+      meta: {}
     type: object
   handler.GenericDataListResponse-evidence_StatusCount:
     properties:
@@ -532,6 +533,7 @@ definitions:
         items:
           $ref: '#/definitions/evidence.StatusCount'
         type: array
+      meta: {}
     type: object
   handler.GenericDataListResponse-handler_FilterWithAssociations:
     properties:
@@ -540,6 +542,7 @@ definitions:
         items:
           $ref: '#/definitions/handler.FilterWithAssociations'
         type: array
+      meta: {}
     type: object
   handler.GenericDataListResponse-handler_OverTime_HeartbeatInterval:
     properties:
@@ -548,6 +551,7 @@ definitions:
         items:
           $ref: '#/definitions/handler.OverTime.HeartbeatInterval'
         type: array
+      meta: {}
     type: object
   handler.GenericDataListResponse-handler_StatusInterval:
     properties:
@@ -556,6 +560,7 @@ definitions:
         items:
           $ref: '#/definitions/handler.StatusInterval'
         type: array
+      meta: {}
     type: object
   handler.GenericDataListResponse-handler_availableNotificationProviderResponse:
     properties:
@@ -564,6 +569,7 @@ definitions:
         items:
           $ref: '#/definitions/handler.availableNotificationProviderResponse'
         type: array
+      meta: {}
     type: object
   handler.GenericDataListResponse-handler_milestoneResponse:
     properties:
@@ -572,6 +578,7 @@ definitions:
         items:
           $ref: '#/definitions/handler.milestoneResponse'
         type: array
+      meta: {}
     type: object
   handler.GenericDataListResponse-handler_notificationProviderStatusResponse:
     properties:
@@ -580,6 +587,7 @@ definitions:
         items:
           $ref: '#/definitions/handler.notificationProviderStatusResponse'
         type: array
+      meta: {}
     type: object
   handler.GenericDataListResponse-handler_poamItemResponse:
     properties:
@@ -588,6 +596,7 @@ definitions:
         items:
           $ref: '#/definitions/handler.poamItemResponse'
         type: array
+      meta: {}
     type: object
   handler.GenericDataListResponse-handler_riskScoreTimeseriesResponse:
     properties:
@@ -596,6 +605,7 @@ definitions:
         items:
           $ref: '#/definitions/handler.riskScoreTimeseriesResponse'
         type: array
+      meta: {}
     type: object
   handler.GenericDataListResponse-handler_selectableUserResponse:
     properties:
@@ -604,6 +614,7 @@ definitions:
         items:
           $ref: '#/definitions/handler.selectableUserResponse'
         type: array
+      meta: {}
     type: object
   handler.GenericDataListResponse-handler_systemNotificationResponse:
     properties:
@@ -612,6 +623,16 @@ definitions:
         items:
           $ref: '#/definitions/handler.systemNotificationResponse'
         type: array
+      meta: {}
+    type: object
+  handler.GenericDataListResponse-oscal_AiDiagnosticsRun:
+    properties:
+      data:
+        description: Items from the list response
+        items:
+          $ref: '#/definitions/oscal.AiDiagnosticsRun'
+        type: array
+      meta: {}
     type: object
   handler.GenericDataListResponse-oscal_InventoryItemWithSource:
     properties:
@@ -620,6 +641,7 @@ definitions:
         items:
           $ref: '#/definitions/oscal.InventoryItemWithSource'
         type: array
+      meta: {}
     type: object
   handler.GenericDataListResponse-oscal_ProfileHandler:
     properties:
@@ -628,6 +650,7 @@ definitions:
         items:
           $ref: '#/definitions/oscal.ProfileHandler'
         type: array
+      meta: {}
     type: object
   handler.GenericDataListResponse-oscal_dashboardSuggestionEventResponse:
     properties:
@@ -636,6 +659,7 @@ definitions:
         items:
           $ref: '#/definitions/oscal.dashboardSuggestionEventResponse'
         type: array
+      meta: {}
     type: object
   handler.GenericDataListResponse-oscal_dashboardSuggestionResponse:
     properties:
@@ -644,6 +668,7 @@ definitions:
         items:
           $ref: '#/definitions/oscal.dashboardSuggestionResponse'
         type: array
+      meta: {}
     type: object
   handler.GenericDataListResponse-oscal_profileSummary:
     properties:
@@ -652,6 +677,7 @@ definitions:
         items:
           $ref: '#/definitions/oscal.profileSummary'
         type: array
+      meta: {}
     type: object
   handler.GenericDataListResponse-oscal_resolvedWithCatalogsResponse:
     properties:
@@ -660,6 +686,7 @@ definitions:
         items:
           $ref: '#/definitions/oscal.resolvedWithCatalogsResponse'
         type: array
+      meta: {}
     type: object
   handler.GenericDataListResponse-oscalTypes_1_1_3_AssessmentPlan:
     properties:
@@ -668,6 +695,7 @@ definitions:
         items:
           $ref: '#/definitions/oscalTypes_1_1_3.AssessmentPlan'
         type: array
+      meta: {}
     type: object
   handler.GenericDataListResponse-oscalTypes_1_1_3_AssessmentResults:
     properties:
@@ -676,6 +704,7 @@ definitions:
         items:
           $ref: '#/definitions/oscalTypes_1_1_3.AssessmentResults'
         type: array
+      meta: {}
     type: object
   handler.GenericDataListResponse-oscalTypes_1_1_3_AssociatedActivity:
     properties:
@@ -684,6 +713,7 @@ definitions:
         items:
           $ref: '#/definitions/oscalTypes_1_1_3.AssociatedActivity'
         type: array
+      meta: {}
     type: object
   handler.GenericDataListResponse-oscalTypes_1_1_3_AttestationStatements:
     properties:
@@ -692,6 +722,7 @@ definitions:
         items:
           $ref: '#/definitions/oscalTypes_1_1_3.AttestationStatements'
         type: array
+      meta: {}
     type: object
   handler.GenericDataListResponse-oscalTypes_1_1_3_Capability:
     properties:
@@ -700,6 +731,7 @@ definitions:
         items:
           $ref: '#/definitions/oscalTypes_1_1_3.Capability'
         type: array
+      meta: {}
     type: object
   handler.GenericDataListResponse-oscalTypes_1_1_3_Catalog:
     properties:
@@ -708,6 +740,7 @@ definitions:
         items:
           $ref: '#/definitions/oscalTypes_1_1_3.Catalog'
         type: array
+      meta: {}
     type: object
   handler.GenericDataListResponse-oscalTypes_1_1_3_ComponentDefinition:
     properties:
@@ -716,6 +749,7 @@ definitions:
         items:
           $ref: '#/definitions/oscalTypes_1_1_3.ComponentDefinition'
         type: array
+      meta: {}
     type: object
   handler.GenericDataListResponse-oscalTypes_1_1_3_Control:
     properties:
@@ -724,6 +758,7 @@ definitions:
         items:
           $ref: '#/definitions/oscalTypes_1_1_3.Control'
         type: array
+      meta: {}
     type: object
   handler.GenericDataListResponse-oscalTypes_1_1_3_ControlImplementationSet:
     properties:
@@ -732,6 +767,7 @@ definitions:
         items:
           $ref: '#/definitions/oscalTypes_1_1_3.ControlImplementationSet'
         type: array
+      meta: {}
     type: object
   handler.GenericDataListResponse-oscalTypes_1_1_3_ControlStatementImplementation:
     properties:
@@ -740,6 +776,7 @@ definitions:
         items:
           $ref: '#/definitions/oscalTypes_1_1_3.ControlStatementImplementation'
         type: array
+      meta: {}
     type: object
   handler.GenericDataListResponse-oscalTypes_1_1_3_DefinedComponent:
     properties:
@@ -748,6 +785,7 @@ definitions:
         items:
           $ref: '#/definitions/oscalTypes_1_1_3.DefinedComponent'
         type: array
+      meta: {}
     type: object
   handler.GenericDataListResponse-oscalTypes_1_1_3_Finding:
     properties:
@@ -756,6 +794,7 @@ definitions:
         items:
           $ref: '#/definitions/oscalTypes_1_1_3.Finding'
         type: array
+      meta: {}
     type: object
   handler.GenericDataListResponse-oscalTypes_1_1_3_Group:
     properties:
@@ -764,6 +803,7 @@ definitions:
         items:
           $ref: '#/definitions/oscalTypes_1_1_3.Group'
         type: array
+      meta: {}
     type: object
   handler.GenericDataListResponse-oscalTypes_1_1_3_ImplementedRequirement:
     properties:
@@ -772,6 +812,7 @@ definitions:
         items:
           $ref: '#/definitions/oscalTypes_1_1_3.ImplementedRequirement'
         type: array
+      meta: {}
     type: object
   handler.GenericDataListResponse-oscalTypes_1_1_3_ImplementedRequirementControlImplementation:
     properties:
@@ -780,6 +821,7 @@ definitions:
         items:
           $ref: '#/definitions/oscalTypes_1_1_3.ImplementedRequirementControlImplementation'
         type: array
+      meta: {}
     type: object
   handler.GenericDataListResponse-oscalTypes_1_1_3_Import:
     properties:
@@ -788,6 +830,7 @@ definitions:
         items:
           $ref: '#/definitions/oscalTypes_1_1_3.Import'
         type: array
+      meta: {}
     type: object
   handler.GenericDataListResponse-oscalTypes_1_1_3_ImportComponentDefinition:
     properties:
@@ -796,6 +839,7 @@ definitions:
         items:
           $ref: '#/definitions/oscalTypes_1_1_3.ImportComponentDefinition'
         type: array
+      meta: {}
     type: object
   handler.GenericDataListResponse-oscalTypes_1_1_3_IncorporatesComponent:
     properties:
@@ -804,6 +848,7 @@ definitions:
         items:
           $ref: '#/definitions/oscalTypes_1_1_3.IncorporatesComponent'
         type: array
+      meta: {}
     type: object
   handler.GenericDataListResponse-oscalTypes_1_1_3_InventoryItem:
     properties:
@@ -812,6 +857,7 @@ definitions:
         items:
           $ref: '#/definitions/oscalTypes_1_1_3.InventoryItem'
         type: array
+      meta: {}
     type: object
   handler.GenericDataListResponse-oscalTypes_1_1_3_LeveragedAuthorization:
     properties:
@@ -820,6 +866,7 @@ definitions:
         items:
           $ref: '#/definitions/oscalTypes_1_1_3.LeveragedAuthorization'
         type: array
+      meta: {}
     type: object
   handler.GenericDataListResponse-oscalTypes_1_1_3_Observation:
     properties:
@@ -828,6 +875,7 @@ definitions:
         items:
           $ref: '#/definitions/oscalTypes_1_1_3.Observation'
         type: array
+      meta: {}
     type: object
   handler.GenericDataListResponse-oscalTypes_1_1_3_Party:
     properties:
@@ -836,6 +884,7 @@ definitions:
         items:
           $ref: '#/definitions/oscalTypes_1_1_3.Party'
         type: array
+      meta: {}
     type: object
   handler.GenericDataListResponse-oscalTypes_1_1_3_PlanOfActionAndMilestones:
     properties:
@@ -844,6 +893,7 @@ definitions:
         items:
           $ref: '#/definitions/oscalTypes_1_1_3.PlanOfActionAndMilestones'
         type: array
+      meta: {}
     type: object
   handler.GenericDataListResponse-oscalTypes_1_1_3_PoamItem:
     properties:
@@ -852,6 +902,7 @@ definitions:
         items:
           $ref: '#/definitions/oscalTypes_1_1_3.PoamItem'
         type: array
+      meta: {}
     type: object
   handler.GenericDataListResponse-oscalTypes_1_1_3_Resource:
     properties:
@@ -860,6 +911,7 @@ definitions:
         items:
           $ref: '#/definitions/oscalTypes_1_1_3.Resource'
         type: array
+      meta: {}
     type: object
   handler.GenericDataListResponse-oscalTypes_1_1_3_Result:
     properties:
@@ -868,6 +920,7 @@ definitions:
         items:
           $ref: '#/definitions/oscalTypes_1_1_3.Result'
         type: array
+      meta: {}
     type: object
   handler.GenericDataListResponse-oscalTypes_1_1_3_Risk:
     properties:
@@ -876,6 +929,7 @@ definitions:
         items:
           $ref: '#/definitions/oscalTypes_1_1_3.Risk'
         type: array
+      meta: {}
     type: object
   handler.GenericDataListResponse-oscalTypes_1_1_3_Role:
     properties:
@@ -884,6 +938,7 @@ definitions:
         items:
           $ref: '#/definitions/oscalTypes_1_1_3.Role'
         type: array
+      meta: {}
     type: object
   handler.GenericDataListResponse-oscalTypes_1_1_3_SystemComponent:
     properties:
@@ -892,6 +947,7 @@ definitions:
         items:
           $ref: '#/definitions/oscalTypes_1_1_3.SystemComponent'
         type: array
+      meta: {}
     type: object
   handler.GenericDataListResponse-oscalTypes_1_1_3_SystemSecurityPlan:
     properties:
@@ -900,6 +956,7 @@ definitions:
         items:
           $ref: '#/definitions/oscalTypes_1_1_3.SystemSecurityPlan'
         type: array
+      meta: {}
     type: object
   handler.GenericDataListResponse-oscalTypes_1_1_3_SystemUser:
     properties:
@@ -908,6 +965,7 @@ definitions:
         items:
           $ref: '#/definitions/oscalTypes_1_1_3.SystemUser'
         type: array
+      meta: {}
     type: object
   handler.GenericDataListResponse-poam_PoamItemControlLink:
     properties:
@@ -916,6 +974,7 @@ definitions:
         items:
           $ref: '#/definitions/poam.PoamItemControlLink'
         type: array
+      meta: {}
     type: object
   handler.GenericDataListResponse-poam_PoamItemEvidenceLink:
     properties:
@@ -924,6 +983,7 @@ definitions:
         items:
           $ref: '#/definitions/poam.PoamItemEvidenceLink'
         type: array
+      meta: {}
     type: object
   handler.GenericDataListResponse-poam_PoamItemFindingLink:
     properties:
@@ -932,6 +992,7 @@ definitions:
         items:
           $ref: '#/definitions/poam.PoamItemFindingLink'
         type: array
+      meta: {}
     type: object
   handler.GenericDataListResponse-poam_PoamItemRiskLink:
     properties:
@@ -940,6 +1001,7 @@ definitions:
         items:
           $ref: '#/definitions/poam.PoamItemRiskLink'
         type: array
+      meta: {}
     type: object
   handler.GenericDataListResponse-relational_SystemComponentSuggestion:
     properties:
@@ -948,6 +1010,7 @@ definitions:
         items:
           $ref: '#/definitions/relational.SystemComponentSuggestion'
         type: array
+      meta: {}
     type: object
   handler.GenericDataListResponse-relational_User:
     properties:
@@ -956,6 +1019,7 @@ definitions:
         items:
           $ref: '#/definitions/relational.User'
         type: array
+      meta: {}
     type: object
   handler.GenericDataListResponse-suggestions_LabelSetInput:
     properties:
@@ -964,6 +1028,7 @@ definitions:
         items:
           $ref: '#/definitions/suggestions.LabelSetInput'
         type: array
+      meta: {}
     type: object
   handler.GenericDataResponse-array_oscalTypes_1_1_3_AssessmentAssets:
     properties:
@@ -1113,6 +1178,20 @@ definitions:
       data:
         allOf:
         - $ref: '#/definitions/notificationtroubleshooting.JobDetail'
+        description: Wrapped response data
+    type: object
+  handler.GenericDataResponse-oscal_AiDiagnosticsRunDetail:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/oscal.AiDiagnosticsRunDetail'
+        description: Wrapped response data
+    type: object
+  handler.GenericDataResponse-oscal_AiDiagnosticsSummary:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/oscal.AiDiagnosticsSummary'
         description: Wrapped response data
     type: object
   handler.GenericDataResponse-oscal_BuildByPropsResponse:
@@ -2786,6 +2865,237 @@ definitions:
           $ref: '#/definitions/notificationtroubleshooting.QueueSummary'
         type: array
     type: object
+  oscal.AiDiagnosticsConfig:
+    properties:
+      maxCallsPerRun:
+        type: integer
+      maxControlsPerChunk:
+        type: integer
+      maxLabelSetsPerChunk:
+        type: integer
+      model:
+        type: string
+      promptVersion:
+        type: string
+      queueWorkers:
+        type: integer
+    type: object
+  oscal.AiDiagnosticsHealthCheck:
+    properties:
+      id:
+        type: string
+      message:
+        type: string
+      recommendedActions:
+        items:
+          type: string
+        type: array
+      status:
+        type: string
+    type: object
+  oscal.AiDiagnosticsQueue:
+    properties:
+      available:
+        type: integer
+      completed24h:
+        type: integer
+      discarded24h:
+        type: integer
+      maxWorkers:
+        type: integer
+      name:
+        type: string
+      oldestAvailableAt:
+        type: string
+      retryable:
+        type: integer
+      running:
+        type: integer
+      scheduled:
+        type: integer
+    type: object
+  oscal.AiDiagnosticsRun:
+    properties:
+      cacheCreationInputTokens:
+        type: integer
+      cacheHitRatio:
+        type: number
+      cacheReadInputTokens:
+        type: integer
+      completedAt:
+        type: string
+      completedCells:
+        type: integer
+      durationMs:
+        type: integer
+      failedCells:
+        type: integer
+      id:
+        type: string
+      inputTokens:
+        type: integer
+      mappingsRejected:
+        type: integer
+      mappingsReturned:
+        type: integer
+      model:
+        type: string
+      outputTokens:
+        type: integer
+      plannedCalls:
+        type: integer
+      promptVersion:
+        type: string
+      rateLimitedTotal:
+        type: integer
+      sspId:
+        type: string
+      sspName:
+        type: string
+      startedAt:
+        type: string
+      status:
+        type: string
+      triggeredBy:
+        $ref: '#/definitions/oscal.suggestionEventActor'
+    type: object
+  oscal.AiDiagnosticsRunCell:
+    properties:
+      cacheCreationInputTokens:
+        type: integer
+      cacheReadInputTokens:
+        type: integer
+      cellIndex:
+        type: integer
+      completedAt:
+        type: string
+      controlKeys:
+        items:
+          type: string
+        type: array
+      error:
+        type: string
+      inputTokens:
+        type: integer
+      labelSetHashes:
+        items:
+          type: string
+        type: array
+      mappingsRejected:
+        type: integer
+      mappingsReturned:
+        type: integer
+      outputTokens:
+        type: integer
+      rateLimitedCount:
+        type: integer
+      status:
+        type: string
+    type: object
+  oscal.AiDiagnosticsRunDetail:
+    properties:
+      cacheCreationInputTokens:
+        type: integer
+      cacheHitRatio:
+        type: number
+      cacheReadInputTokens:
+        type: integer
+      cells:
+        items:
+          $ref: '#/definitions/oscal.AiDiagnosticsRunCell'
+        type: array
+      completedAt:
+        type: string
+      completedCells:
+        type: integer
+      durationMs:
+        type: integer
+      events:
+        items:
+          $ref: '#/definitions/oscal.dashboardSuggestionEventResponse'
+        type: array
+      failedCells:
+        type: integer
+      id:
+        type: string
+      inputTokens:
+        type: integer
+      mappingsRejected:
+        type: integer
+      mappingsReturned:
+        type: integer
+      model:
+        type: string
+      outputTokens:
+        type: integer
+      plannedCalls:
+        type: integer
+      promptVersion:
+        type: string
+      rateLimitedTotal:
+        type: integer
+      sspId:
+        type: string
+      sspName:
+        type: string
+      startedAt:
+        type: string
+      status:
+        type: string
+      triggeredBy:
+        $ref: '#/definitions/oscal.suggestionEventActor'
+    type: object
+  oscal.AiDiagnosticsSummary:
+    properties:
+      checks:
+        items:
+          $ref: '#/definitions/oscal.AiDiagnosticsHealthCheck'
+        type: array
+      config:
+        $ref: '#/definitions/oscal.AiDiagnosticsConfig'
+      enabled:
+        type: boolean
+      queue:
+        $ref: '#/definitions/oscal.AiDiagnosticsQueue'
+      totals:
+        $ref: '#/definitions/oscal.AiDiagnosticsTotals'
+    type: object
+  oscal.AiDiagnosticsTotals:
+    properties:
+      cacheCreationInputTokens:
+        type: integer
+      cacheHitRatio:
+        type: number
+      cacheReadInputTokens:
+        type: integer
+      cellsCompleted:
+        type: integer
+      cellsFailed:
+        type: integer
+      inputTokens:
+        type: integer
+      mappingsRejected:
+        type: integer
+      mappingsReturned:
+        type: integer
+      outputTokens:
+        type: integer
+      rateLimitedTotal:
+        type: integer
+      runs:
+        type: integer
+      runsByStatus:
+        additionalProperties:
+          format: int64
+          type: integer
+        type: object
+      suggestionsAccepted:
+        type: integer
+      suggestionsPending:
+        type: integer
+      suggestionsRejected:
+        type: integer
+    type: object
   oscal.ApplySuggestionRequest:
     properties:
       component-definition-id:
@@ -3137,6 +3447,10 @@ definitions:
     type: object
   oscal.dashboardSuggestionRunResponse:
     properties:
+      cacheCreationInputTokens:
+        type: integer
+      cacheReadInputTokens:
+        type: integer
       cells:
         items:
           $ref: '#/definitions/suggestions.DashboardSuggestionRunCell'
@@ -3161,6 +3475,8 @@ definitions:
         type: integer
       promptVersion:
         type: string
+      rateLimitedCount:
+        type: integer
       scope:
         $ref: '#/definitions/datatypes.JSONMap'
       sspId:
@@ -8423,6 +8739,10 @@ definitions:
     type: object
   suggestions.DashboardSuggestionRunCell:
     properties:
+      cacheCreationInputTokens:
+        type: integer
+      cacheReadInputTokens:
+        type: integer
       cellIndex:
         type: integer
       completedAt:
@@ -8444,6 +8764,8 @@ definitions:
       mappingsReturned:
         type: integer
       outputTokens:
+        type: integer
+      rateLimitedCount:
         type: integer
       runId:
         type: string
@@ -9880,6 +10202,119 @@ info:
   title: Continuous Compliance Framework API
   version: "1"
 paths:
+  /admin/ai-diagnostics/runs:
+    get:
+      description: Lists dashboard suggestion runs across all SSPs, newest first,
+        with optional status and SSP filters.
+      parameters:
+      - description: Run status
+        enum:
+        - pending
+        - running
+        - completed
+        - failed
+        in: query
+        name: status
+        type: string
+      - description: System Security Plan ID
+        in: query
+        name: sspId
+        type: string
+      - description: Page size, default 25, max 100
+        in: query
+        maximum: 100
+        minimum: 1
+        name: limit
+        type: integer
+      - description: Opaque pagination cursor
+        in: query
+        name: cursor
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-oscal_AiDiagnosticsRun'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: List AI diagnostic runs
+      tags:
+      - AI Diagnostics
+  /admin/ai-diagnostics/runs/{runId}:
+    get:
+      description: Returns one dashboard suggestion run with cells and events.
+      parameters:
+      - description: Dashboard suggestion run ID
+        in: path
+        name: runId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-oscal_AiDiagnosticsRunDetail'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Get AI diagnostic run detail
+      tags:
+      - AI Diagnostics
+  /admin/ai-diagnostics/summary:
+    get:
+      description: Returns cross-SSP dashboard suggestion totals, suggestion queue
+        stats, and health checks for admins.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-oscal_AiDiagnosticsSummary'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Get AI diagnostics summary
+      tags:
+      - AI Diagnostics
   /admin/digest/preview:
     get:
       description: Returns the current evidence summary that would be included in
