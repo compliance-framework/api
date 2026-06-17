@@ -16572,7 +16572,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/handler.GenericDataListResponse-suggestions_DashboardSuggestionEvent"
+                            "$ref": "#/definitions/handler.GenericDataListResponse-oscal_dashboardSuggestionEventResponse"
                         }
                     },
                     "400": {
@@ -28947,6 +28947,18 @@ const docTemplate = `{
                 }
             }
         },
+        "handler.GenericDataListResponse-oscal_dashboardSuggestionEventResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscal.dashboardSuggestionEventResponse"
+                    }
+                }
+            }
+        },
         "handler.GenericDataListResponse-oscal_dashboardSuggestionResponse": {
             "type": "object",
             "properties": {
@@ -29051,18 +29063,6 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/relational.User"
-                    }
-                }
-            }
-        },
-        "handler.GenericDataListResponse-suggestions_DashboardSuggestionEvent": {
-            "type": "object",
-            "properties": {
-                "data": {
-                    "description": "Items from the list response",
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/suggestions.DashboardSuggestionEvent"
                     }
                 }
             }
@@ -32442,6 +32442,41 @@ const docTemplate = `{
                 }
             }
         },
+        "oscal.dashboardSuggestionEventResponse": {
+            "type": "object",
+            "properties": {
+                "actor": {
+                    "$ref": "#/definitions/oscal.suggestionEventActor"
+                },
+                "actorUserId": {
+                    "type": "string"
+                },
+                "details": {
+                    "type": "string"
+                },
+                "eventType": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "occurredAt": {
+                    "type": "string"
+                },
+                "payload": {
+                    "$ref": "#/definitions/datatypes.JSONMap"
+                },
+                "runId": {
+                    "type": "string"
+                },
+                "snapshot": {
+                    "$ref": "#/definitions/datatypes.JSONMap"
+                },
+                "suggestionId": {
+                    "type": "string"
+                }
+            }
+        },
         "oscal.dashboardSuggestionPreviewResponse": {
             "type": "object",
             "properties": {
@@ -32662,6 +32697,17 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "value": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscal.suggestionEventActor": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "name": {
                     "type": "string"
                 }
             }
@@ -40506,38 +40552,6 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "targetFilterId": {
-                    "type": "string"
-                }
-            }
-        },
-        "suggestions.DashboardSuggestionEvent": {
-            "type": "object",
-            "properties": {
-                "actorUserId": {
-                    "type": "string"
-                },
-                "details": {
-                    "type": "string"
-                },
-                "eventType": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "occurredAt": {
-                    "type": "string"
-                },
-                "payload": {
-                    "$ref": "#/definitions/datatypes.JSONMap"
-                },
-                "runId": {
-                    "type": "string"
-                },
-                "snapshot": {
-                    "$ref": "#/definitions/datatypes.JSONMap"
-                },
-                "suggestionId": {
                     "type": "string"
                 }
             }

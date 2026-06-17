@@ -184,7 +184,7 @@ func (h *UserHandler) ListSelectableUsers(ctx echo.Context) error {
 
 		responses = append(responses, selectableUserResponse{
 			ID:          user.ID.String(),
-			DisplayName: userDisplayName(user),
+			DisplayName: UserDisplayName(user),
 		})
 	}
 
@@ -271,7 +271,7 @@ func (h *UserHandler) GetPublicUser(ctx echo.Context) error {
 	return ctx.JSON(200, GenericDataResponse[publicUserResponse]{
 		Data: publicUserResponse{
 			ID:   user.ID.String(),
-			Name: userDisplayName(user),
+			Name: UserDisplayName(user),
 		},
 	})
 }
@@ -299,7 +299,7 @@ func (h *UserHandler) attachAuthProvider(resp *userResponse) {
 	resp.AuthProvider = &link.Provider
 }
 
-func userDisplayName(user relational.User) string {
+func UserDisplayName(user relational.User) string {
 	if user.ID == nil {
 		return ""
 	}

@@ -460,10 +460,13 @@ func TestPromptGolden(t *testing.T) {
 		LabelKeyDocs:   []LabelKeyDocInput{{Key: "repo", Description: "Repository name"}},
 		SameSSPFilters: []VisibleFilterInput{{ID: uuid.MustParse("22222222-2222-2222-2222-222222222222"), Name: "payments-api"}},
 	}
-	gotPrompt, err := RenderPrompt(input)
+	rendered, err := RenderPrompt(input)
 	require.NoError(t, err)
-	got := SystemPrompt + "\n---USER---\n" + gotPrompt
+	got := rendered.System + "\n---CONTROLS---\n" + rendered.Controls + "\n---LABELSETS---\n" + rendered.Volatile
 	path := filepath.Join("testdata", "prompt_"+PromptVersion+".golden")
+	if os.Getenv("UPDATE_GOLDEN") != "" {
+		require.NoError(t, os.WriteFile(path, []byte(got+"\n"), 0o644))
+	}
 	expected, err := os.ReadFile(path)
 	require.NoError(t, err)
 	require.Equal(t, strings.TrimSuffix(string(expected), "\n"), got)

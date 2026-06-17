@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math/rand/v2"
 	"time"
 
 	"github.com/compliance-framework/api/internal/config"
@@ -27,6 +28,18 @@ const (
 	dashboardSuggestionCellStatusPending   = "pending"
 	dashboardSuggestionCellStatusCompleted = "completed"
 	dashboardSuggestionCellStatusFailed    = "failed"
+)
+
+const (
+	// defaultRateLimitSnooze is used when a 429 carries no Retry-After hint.
+	// The ITPM limit replenishes per minute, so a sub-minute base is reasonable.
+	defaultRateLimitSnooze = 30 * time.Second
+	// rateLimitSnoozeJitter is the upper bound of random delay added to each
+	// snooze to de-synchronise concurrently throttled workers.
+	rateLimitSnoozeJitter = 15 * time.Second
+	// maxRateLimitSnoozes caps how many times a cell may be snoozed before it is
+	// failed, so a persistently throttled run cannot snooze forever.
+	maxRateLimitSnoozes = 20
 )
 
 type DashboardSuggestionWorker struct {
@@ -80,20 +93,42 @@ func (w *DashboardSuggestionWorker) Work(ctx context.Context, job *river.Job[Das
 		missingLabelSets = 0
 	}
 
-	prompt, err := suggestionrel.RenderPrompt(gathered)
+	rendered, err := suggestionrel.RenderPrompt(gathered)
 	if err != nil {
 		return w.handleAttemptFailure(ctx, job, err)
 	}
 
-	response, err := w.completeWithOneRetry(ctx, prompt)
+	response, err := w.completeWithRetry(ctx, rendered)
 	if err != nil {
-		if isNonRetryableLLMError(err) {
+		// A rate limit skips the cell and requeues it after the provider's
+		// Retry-After (or a default) plus jitter, without consuming a regular
+		// attempt or marking the cell failed.
+		if delay, ok := rateLimitSnooze(err, job.Attempt); ok {
+			return river.JobSnooze(delay)
+		}
+		// Non-retryable errors, and rate limits that have exhausted their snooze
+		// budget, fail the cell and cancel the job.
+		if isNonRetryableLLMError(err) || errors.Is(err, llm.ErrRateLimited) {
 			if markErr := w.failCellAndMaybeFinalize(ctx, job.Args, err); markErr != nil {
 				return markErr
 			}
 			return river.JobCancel(err)
 		}
 		return w.handleAttemptFailure(ctx, job, err)
+	}
+
+	if w.logger != nil {
+		// Surface prompt-cache accounting so cache effectiveness is observable
+		// without relying on the provider dashboard. cache_read_input_tokens are
+		// the "cache hits"; cache_creation_input_tokens are first-time writes.
+		w.logger.Infow("dashboard suggestion cell llm usage",
+			"run_id", job.Args.RunID,
+			"cell_index", cell.CellIndex,
+			"input_tokens", response.InputTokens,
+			"cache_creation_input_tokens", response.CacheCreationInputTokens,
+			"cache_read_input_tokens", response.CacheReadInputTokens,
+			"output_tokens", response.OutputTokens,
+		)
 	}
 
 	rawCount, err := rawMappingCount(response.Raw)
@@ -170,14 +205,19 @@ func (w *DashboardSuggestionWorker) loadPendingCellAndStartRun(ctx context.Conte
 	return run, cell, true, nil
 }
 
-func (w *DashboardSuggestionWorker) completeWithOneRetry(ctx context.Context, prompt string) (*llm.StructuredResponse, error) {
+func (w *DashboardSuggestionWorker) completeWithRetry(ctx context.Context, rendered suggestionrel.RenderedPrompt) (*llm.StructuredResponse, error) {
 	requestTimeout := dashboardSuggestionRequestTimeout(w.aiCfg)
 
+	// Two prompt-cache breakpoints (1h TTL): the system block (run-stable) and
+	// the controls prefix (row-stable). The volatile label-sets stay uncached.
 	req := llm.StructuredRequest{
-		System:    suggestionrel.SystemPrompt,
-		Prompt:    prompt,
-		Schema:    suggestionrel.OutputSchema(),
-		MaxTokens: llm.DefaultAnthropicMaxTokens,
+		System:              rendered.System,
+		SystemCacheTTL:      llm.CacheTTL1h,
+		CachedUserPrefix:    rendered.Controls,
+		CachedUserPrefixTTL: llm.CacheTTL1h,
+		Prompt:              rendered.Volatile,
+		Schema:              suggestionrel.OutputSchema(),
+		MaxTokens:           llm.DefaultAnthropicMaxTokens,
 	}
 
 	var lastErr error
@@ -189,11 +229,36 @@ func (w *DashboardSuggestionWorker) completeWithOneRetry(ctx context.Context, pr
 			return response, nil
 		}
 		lastErr = err
-		if !isRetryableLLMError(err) {
+		if !isInlineRetryableLLMError(err) {
 			break
 		}
 	}
 	return nil, lastErr
+}
+
+// rateLimitSnooze decides whether a failed completion should be snoozed. ok is
+// false when err is not a rate limit, or when the snooze budget for this cell is
+// exhausted (so the caller can fail it instead of snoozing forever).
+func rateLimitSnooze(err error, attempt int) (time.Duration, bool) {
+	var rateLimit *llm.RateLimitError
+	if !errors.As(err, &rateLimit) {
+		return 0, false
+	}
+	if attempt >= maxRateLimitSnoozes {
+		return 0, false
+	}
+	return snoozeDelay(rateLimit.RetryAfter), true
+}
+
+// snoozeDelay returns how long to defer a rate-limited cell: the provider's
+// Retry-After when available (otherwise a default), plus random jitter so the
+// concurrent workers that all hit the limit at once do not wake in lockstep.
+func snoozeDelay(retryAfter time.Duration) time.Duration {
+	base := retryAfter
+	if base <= 0 {
+		base = defaultRateLimitSnooze
+	}
+	return base + rand.N(rateLimitSnoozeJitter)
 }
 
 func dashboardSuggestionRequestTimeout(aiCfg *config.AIConfig) time.Duration {
@@ -407,8 +472,15 @@ func rawMappingCount(raw json.RawMessage) (int, error) {
 	return len(decoded.Mappings), nil
 }
 
-func isRetryableLLMError(err error) bool {
-	return errors.Is(err, llm.ErrRateLimited) || errors.Is(err, llm.ErrOverloaded)
+// isInlineRetryableLLMError reports whether an immediate in-process retry is
+// worthwhile. Overloaded errors are transient and worth one quick retry; rate
+// limits are deliberately excluded so they bubble up to be snoozed instead of
+// burning another call into the same throttled window.
+func isInlineRetryableLLMError(err error) bool {
+	if errors.Is(err, llm.ErrRateLimited) {
+		return false
+	}
+	return errors.Is(err, llm.ErrOverloaded)
 }
 
 func isNonRetryableLLMError(err error) bool {

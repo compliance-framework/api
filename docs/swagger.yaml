@@ -629,6 +629,14 @@ definitions:
           $ref: '#/definitions/oscal.ProfileHandler'
         type: array
     type: object
+  handler.GenericDataListResponse-oscal_dashboardSuggestionEventResponse:
+    properties:
+      data:
+        description: Items from the list response
+        items:
+          $ref: '#/definitions/oscal.dashboardSuggestionEventResponse'
+        type: array
+    type: object
   handler.GenericDataListResponse-oscal_dashboardSuggestionResponse:
     properties:
       data:
@@ -947,14 +955,6 @@ definitions:
         description: Items from the list response
         items:
           $ref: '#/definitions/relational.User'
-        type: array
-    type: object
-  handler.GenericDataListResponse-suggestions_DashboardSuggestionEvent:
-    properties:
-      data:
-        description: Items from the list response
-        items:
-          $ref: '#/definitions/suggestions.DashboardSuggestionEvent'
         type: array
     type: object
   handler.GenericDataListResponse-suggestions_LabelSetInput:
@@ -3058,6 +3058,29 @@ definitions:
     required:
     - ids
     type: object
+  oscal.dashboardSuggestionEventResponse:
+    properties:
+      actor:
+        $ref: '#/definitions/oscal.suggestionEventActor'
+      actorUserId:
+        type: string
+      details:
+        type: string
+      eventType:
+        type: string
+      id:
+        type: string
+      occurredAt:
+        type: string
+      payload:
+        $ref: '#/definitions/datatypes.JSONMap'
+      runId:
+        type: string
+      snapshot:
+        $ref: '#/definitions/datatypes.JSONMap'
+      suggestionId:
+        type: string
+    type: object
   oscal.dashboardSuggestionPreviewResponse:
     properties:
       controlCount:
@@ -3203,6 +3226,13 @@ definitions:
         description: equals | contains | regex | in
         type: string
       value:
+        type: string
+    type: object
+  oscal.suggestionEventActor:
+    properties:
+      id:
+        type: string
+      name:
         type: string
     type: object
   oscalTypes_1_1_3.Action:
@@ -8389,27 +8419,6 @@ definitions:
       status:
         type: string
       targetFilterId:
-        type: string
-    type: object
-  suggestions.DashboardSuggestionEvent:
-    properties:
-      actorUserId:
-        type: string
-      details:
-        type: string
-      eventType:
-        type: string
-      id:
-        type: string
-      occurredAt:
-        type: string
-      payload:
-        $ref: '#/definitions/datatypes.JSONMap'
-      runId:
-        type: string
-      snapshot:
-        $ref: '#/definitions/datatypes.JSONMap'
-      suggestionId:
         type: string
     type: object
   suggestions.DashboardSuggestionRunCell:
@@ -20472,7 +20481,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/handler.GenericDataListResponse-suggestions_DashboardSuggestionEvent'
+            $ref: '#/definitions/handler.GenericDataListResponse-oscal_dashboardSuggestionEventResponse'
         "400":
           description: Bad Request
           schema:

@@ -87,16 +87,23 @@ func OutputSchema() map[string]any {
 	}
 }
 
-const userPromptTemplate = `Prompt version: {{.PromptVersion}}
+// The prompt is split into three segments so the request can place prompt-cache
+// breakpoints at the boundaries:
+//
+//	System   — the instructions plus run-stable context (system context,
+//	           label-key docs, dashboards). Identical for every cell of an SSP.
+//	Controls — the control chunk for this cell. Identical across the label-set
+//	           cells that share a control-row, and the token-heavy dimension.
+//	Volatile — the per-cell evidence label-sets and the closing instruction.
+//
+// Keeping the volatile content last means the System and Controls prefixes are
+// byte-stable and therefore cacheable.
+const systemBlockTemplate = `{{.SystemPrompt}}
+
+Prompt version: {{.PromptVersion}}
 
 System context:
 {{json .Input.SystemContext}}
-
-Controls:
-{{json .Input.Controls}}
-
-Evidence label-sets:
-{{json .Input.LabelSets}}
 
 Label-key documentation:
 {{json .Input.LabelKeyDocs}}
@@ -105,12 +112,26 @@ This SSP's extendable dashboards:
 {{json .Input.SameSSPFilters}}
 
 Global dashboard names:
-{{json .Input.GlobalFilterNames}}
+{{json .Input.GlobalFilterNames}}`
+
+const controlsBlockTemplate = `Controls:
+{{json .Input.Controls}}`
+
+const volatileBlockTemplate = `Evidence label-sets:
+{{json .Input.LabelSets}}
 
 Return JSON matching the provided schema.`
 
-func RenderPrompt(input GatheredInput) (string, error) {
-	tmpl, err := template.New("dashboard-suggestion-prompt").Funcs(template.FuncMap{
+// RenderedPrompt holds the cacheable system/controls prefixes and the volatile
+// tail for a single cell.
+type RenderedPrompt struct {
+	System   string
+	Controls string
+	Volatile string
+}
+
+func renderPromptTemplate(name, text string, input GatheredInput) (string, error) {
+	tmpl, err := template.New(name).Funcs(template.FuncMap{
 		"json": func(value any) (string, error) {
 			raw, err := json.MarshalIndent(value, "", "  ")
 			if err != nil {
@@ -118,12 +139,13 @@ func RenderPrompt(input GatheredInput) (string, error) {
 			}
 			return string(raw), nil
 		},
-	}).Parse(userPromptTemplate)
+	}).Parse(text)
 	if err != nil {
 		return "", err
 	}
 	var buf bytes.Buffer
 	err = tmpl.Execute(&buf, map[string]any{
+		"SystemPrompt":  SystemPrompt,
 		"PromptVersion": PromptVersion,
 		"Input":         input,
 	})
@@ -131,4 +153,20 @@ func RenderPrompt(input GatheredInput) (string, error) {
 		return "", err
 	}
 	return buf.String(), nil
+}
+
+func RenderPrompt(input GatheredInput) (RenderedPrompt, error) {
+	system, err := renderPromptTemplate("dashboard-suggestion-system", systemBlockTemplate, input)
+	if err != nil {
+		return RenderedPrompt{}, err
+	}
+	controls, err := renderPromptTemplate("dashboard-suggestion-controls", controlsBlockTemplate, input)
+	if err != nil {
+		return RenderedPrompt{}, err
+	}
+	volatile, err := renderPromptTemplate("dashboard-suggestion-volatile", volatileBlockTemplate, input)
+	if err != nil {
+		return RenderedPrompt{}, err
+	}
+	return RenderedPrompt{System: system, Controls: controls, Volatile: volatile}, nil
 }

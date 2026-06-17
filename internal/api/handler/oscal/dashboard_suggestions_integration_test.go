@@ -420,6 +420,40 @@ func (suite *DashboardSuggestionsHTTPSuite) TestAcceptCreatesSSPFilterAndWritesE
 	suite.Equal(int64(2), eventCount)
 }
 
+func (suite *DashboardSuggestionsHTTPSuite) TestEventsResolveActorDisplayDetails() {
+	sspID, controlKeys, _ := suite.seedScope([]string{"AC-1"}, []map[string]string{{"env": "prod"}})
+	runID := suite.seedSuggestionRun(sspID)
+	catalogID, _ := suite.parseControlKey(controlKeys[0])
+	labels := map[string]string{"env": "prod"}
+	hash := suggestionrel.CanonicalLabelSetHash(labels)
+	suggestion := suite.seedDashboardSuggestion(runID, sspID, catalogID, "AC-1", labels, hash, "prod evidence", 0.9)
+
+	body := dashboardSuggestionDecisionRequest{IDs: []uuid.UUID{*suggestion.ID}}
+	rec, req := suite.req(http.MethodPost, fmt.Sprintf("/api/oscal/system-security-plans/%s/dashboard-suggestions/accept", sspID), body)
+	suite.server.E().ServeHTTP(rec, req)
+	suite.Require().Equal(http.StatusOK, rec.Code, rec.Body.String())
+
+	rec, req = suite.req(http.MethodGet, fmt.Sprintf("/api/oscal/system-security-plans/%s/dashboard-suggestions/%s/events", sspID, suggestion.ID), nil)
+	suite.server.E().ServeHTTP(rec, req)
+	suite.Require().Equal(http.StatusOK, rec.Code, rec.Body.String())
+
+	var eventsResponse apihandler.GenericDataListResponse[dashboardSuggestionEventResponse]
+	suite.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &eventsResponse))
+
+	var acceptedEvent *dashboardSuggestionEventResponse
+	for i := range eventsResponse.Data {
+		if eventsResponse.Data[i].EventType == string(suggestionrel.DashboardSuggestionEventTypeAccepted) {
+			acceptedEvent = &eventsResponse.Data[i]
+			break
+		}
+	}
+	suite.Require().NotNil(acceptedEvent, "expected an accepted event")
+	suite.Require().NotNil(acceptedEvent.ActorUserID, "accepted event should record the actor")
+	suite.Require().NotNil(acceptedEvent.Actor, "accepted event should resolve actor details")
+	suite.Equal(acceptedEvent.ActorUserID.String(), acceptedEvent.Actor.ID)
+	suite.Equal("Dummy User", acceptedEvent.Actor.Name)
+}
+
 func (suite *DashboardSuggestionsHTTPSuite) TestRejectPersistsDecisionAndWritesEvents() {
 	sspID, controlKeys, _ := suite.seedScope([]string{"AC-1"}, []map[string]string{{"env": "prod"}})
 	runID := suite.seedSuggestionRun(sspID)
@@ -475,10 +509,12 @@ func (suite *DashboardSuggestionsHTTPSuite) TestListSuggestionsAndEventsScopeByS
 	rec, req = suite.req(http.MethodGet, fmt.Sprintf("/api/oscal/system-security-plans/%s/dashboard-suggestions/%s/events", sspID, suggestion.ID), nil)
 	suite.server.E().ServeHTTP(rec, req)
 	suite.Equal(http.StatusOK, rec.Code, rec.Body.String())
-	var eventsResponse apihandler.GenericDataListResponse[suggestionrel.DashboardSuggestionEvent]
+	var eventsResponse apihandler.GenericDataListResponse[dashboardSuggestionEventResponse]
 	suite.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &eventsResponse))
 	suite.Require().Len(eventsResponse.Data, 1)
 	suite.Equal(string(suggestionrel.DashboardSuggestionEventTypeSuggestionCreated), eventsResponse.Data[0].EventType)
+	// This event has no actor, so no actor details should be resolved.
+	suite.Nil(eventsResponse.Data[0].Actor)
 
 	rec, req = suite.req(http.MethodGet, fmt.Sprintf("/api/oscal/system-security-plans/%s/dashboard-suggestions/%s/events", otherSSPID, suggestion.ID), nil)
 	suite.server.E().ServeHTTP(rec, req)
