@@ -142,11 +142,16 @@ type aiDiagnosticsCursor struct {
 
 type aiDiagnosticsRunRow struct {
 	suggestionrel.DashboardSuggestionRun
-	SSPName          *string `gorm:"column:ssp_name"`
-	CompletedCells   int     `gorm:"column:completed_cells"`
-	FailedCells      int     `gorm:"column:failed_cells"`
-	MappingsReturned int     `gorm:"column:mappings_returned"`
-	MappingsRejected int     `gorm:"column:mappings_rejected"`
+	SSPName                  *string `gorm:"column:ssp_name"`
+	CompletedCells           int     `gorm:"column:completed_cells"`
+	FailedCells              int     `gorm:"column:failed_cells"`
+	InputTokens              int     `gorm:"column:cell_input_tokens"`
+	OutputTokens             int     `gorm:"column:cell_output_tokens"`
+	CacheReadInputTokens     int     `gorm:"column:cell_cache_read_input_tokens"`
+	CacheCreationInputTokens int     `gorm:"column:cell_cache_creation_input_tokens"`
+	RateLimitedCount         int     `gorm:"column:cell_rate_limited_count"`
+	MappingsReturned         int     `gorm:"column:mappings_returned"`
+	MappingsRejected         int     `gorm:"column:mappings_rejected"`
 }
 
 func NewAiDiagnosticsHandler(sugar *zap.SugaredLogger, db *gorm.DB, cfg *config.AIConfig) *AiDiagnosticsHandler {
@@ -348,24 +353,14 @@ func (h *AiDiagnosticsHandler) loadTotals(ctx context.Context) (AiDiagnosticsTot
 	}
 
 	var runRows []struct {
-		Status                   string
-		Count                    int64
-		InputTokens              int64
-		OutputTokens             int64
-		CacheReadInputTokens     int64
-		CacheCreationInputTokens int64
-		RateLimitedCount         int64
+		Status string
+		Count  int64
 	}
 	if err := h.db.WithContext(ctx).
 		Model(&suggestionrel.DashboardSuggestionRun{}).
 		Select(`
 			status,
-			count(*) AS count,
-			COALESCE(SUM(input_tokens), 0) AS input_tokens,
-			COALESCE(SUM(output_tokens), 0) AS output_tokens,
-			COALESCE(SUM(cache_read_input_tokens), 0) AS cache_read_input_tokens,
-			COALESCE(SUM(cache_creation_input_tokens), 0) AS cache_creation_input_tokens,
-			COALESCE(SUM(rate_limited_count), 0) AS rate_limited_count
+			count(*) AS count
 		`).
 		Group("status").
 		Scan(&runRows).Error; err != nil {
@@ -374,24 +369,29 @@ func (h *AiDiagnosticsHandler) loadTotals(ctx context.Context) (AiDiagnosticsTot
 	for _, row := range runRows {
 		totals.Runs += row.Count
 		totals.RunsByStatus[row.Status] = row.Count
-		totals.InputTokens += row.InputTokens
-		totals.OutputTokens += row.OutputTokens
-		totals.CacheReadInputTokens += row.CacheReadInputTokens
-		totals.CacheCreationInputTokens += row.CacheCreationInputTokens
-		totals.RateLimitedTotal += row.RateLimitedCount
 	}
 
 	var cellTotals struct {
-		CellsCompleted   int64
-		CellsFailed      int64
-		MappingsReturned int64
-		MappingsRejected int64
+		CellsCompleted           int64
+		CellsFailed              int64
+		InputTokens              int64
+		OutputTokens             int64
+		CacheReadInputTokens     int64
+		CacheCreationInputTokens int64
+		RateLimitedCount         int64
+		MappingsReturned         int64
+		MappingsRejected         int64
 	}
 	if err := h.db.WithContext(ctx).
 		Model(&suggestionrel.DashboardSuggestionRunCell{}).
 		Select(`
 			COALESCE(SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END), 0) AS cells_completed,
 			COALESCE(SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END), 0) AS cells_failed,
+			COALESCE(SUM(input_tokens), 0) AS input_tokens,
+			COALESCE(SUM(output_tokens), 0) AS output_tokens,
+			COALESCE(SUM(cache_read_input_tokens), 0) AS cache_read_input_tokens,
+			COALESCE(SUM(cache_creation_input_tokens), 0) AS cache_creation_input_tokens,
+			COALESCE(SUM(rate_limited_count), 0) AS rate_limited_count,
 			COALESCE(SUM(mappings_returned), 0) AS mappings_returned,
 			COALESCE(SUM(mappings_rejected), 0) AS mappings_rejected
 		`).
@@ -400,6 +400,11 @@ func (h *AiDiagnosticsHandler) loadTotals(ctx context.Context) (AiDiagnosticsTot
 	}
 	totals.CellsCompleted = cellTotals.CellsCompleted
 	totals.CellsFailed = cellTotals.CellsFailed
+	totals.InputTokens = cellTotals.InputTokens
+	totals.OutputTokens = cellTotals.OutputTokens
+	totals.CacheReadInputTokens = cellTotals.CacheReadInputTokens
+	totals.CacheCreationInputTokens = cellTotals.CacheCreationInputTokens
+	totals.RateLimitedTotal = cellTotals.RateLimitedCount
 	totals.MappingsReturned = cellTotals.MappingsReturned
 	totals.MappingsRejected = cellTotals.MappingsRejected
 
@@ -446,8 +451,7 @@ func (h *AiDiagnosticsHandler) loadRecentCellTotals(ctx context.Context) (recent
 			COALESCE(SUM(CASE WHEN dashboard_suggestion_run_cells.status = 'completed' THEN 1 ELSE 0 END), 0) AS completed,
 			COALESCE(SUM(CASE WHEN dashboard_suggestion_run_cells.status = 'failed' THEN 1 ELSE 0 END), 0) AS failed
 		`).
-		Joins("JOIN dashboard_suggestion_runs ON dashboard_suggestion_runs.id = dashboard_suggestion_run_cells.run_id").
-		Where("dashboard_suggestion_runs.started_at >= ?", time.Now().UTC().Add(-24*time.Hour)).
+		Where("dashboard_suggestion_run_cells.status IN ? AND dashboard_suggestion_run_cells.completed_at >= ?", []string{"completed", "failed"}, time.Now().UTC().Add(-24*time.Hour)).
 		Scan(&recent).Error
 	return recent, err
 }
@@ -520,6 +524,11 @@ func (h *AiDiagnosticsHandler) loadRuns(ctx context.Context, query aiDiagnostics
 			metadata.title AS ssp_name,
 			COALESCE(cell_progress.completed_cells, 0) AS completed_cells,
 			COALESCE(cell_progress.failed_cells, 0) AS failed_cells,
+			COALESCE(cell_progress.input_tokens, 0) AS cell_input_tokens,
+			COALESCE(cell_progress.output_tokens, 0) AS cell_output_tokens,
+			COALESCE(cell_progress.cache_read_input_tokens, 0) AS cell_cache_read_input_tokens,
+			COALESCE(cell_progress.cache_creation_input_tokens, 0) AS cell_cache_creation_input_tokens,
+			COALESCE(cell_progress.rate_limited_count, 0) AS cell_rate_limited_count,
 			COALESCE(cell_progress.mappings_returned, 0) AS mappings_returned,
 			COALESCE(cell_progress.mappings_rejected, 0) AS mappings_rejected
 		`).
@@ -529,6 +538,11 @@ func (h *AiDiagnosticsHandler) loadRuns(ctx context.Context, query aiDiagnostics
 				run_id,
 				SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) AS completed_cells,
 				SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) AS failed_cells,
+				SUM(input_tokens) AS input_tokens,
+				SUM(output_tokens) AS output_tokens,
+				SUM(cache_read_input_tokens) AS cache_read_input_tokens,
+				SUM(cache_creation_input_tokens) AS cache_creation_input_tokens,
+				SUM(rate_limited_count) AS rate_limited_count,
 				SUM(mappings_returned) AS mappings_returned,
 				SUM(mappings_rejected) AS mappings_rejected
 			FROM dashboard_suggestion_run_cells
@@ -577,7 +591,13 @@ func (h *AiDiagnosticsHandler) loadRuns(ctx context.Context, query aiDiagnostics
 	}
 	out := make([]AiDiagnosticsRun, 0, len(rows))
 	for _, row := range rows {
-		out = append(out, h.runResponse(row.DashboardSuggestionRun, row.SSPName, row.CompletedCells, row.FailedCells, row.MappingsReturned, row.MappingsRejected, actors))
+		run := row.DashboardSuggestionRun
+		run.InputTokens = row.InputTokens
+		run.OutputTokens = row.OutputTokens
+		run.CacheReadInputTokens = row.CacheReadInputTokens
+		run.CacheCreationInputTokens = row.CacheCreationInputTokens
+		run.RateLimitedCount = row.RateLimitedCount
+		out = append(out, h.runResponse(run, row.SSPName, row.CompletedCells, row.FailedCells, row.MappingsReturned, row.MappingsRejected, actors))
 	}
 	return out, nextCursor, nil
 }

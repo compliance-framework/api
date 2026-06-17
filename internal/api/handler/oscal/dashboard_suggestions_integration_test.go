@@ -408,8 +408,8 @@ func (suite *DashboardSuggestionsHTTPSuite) TestAiDiagnosticsSummaryTotalsAndCac
 	suite.Equal("warn", diagnosticsCheckStatus(response.Data.Checks, "queue_reachable"))
 	suite.Nil(response.Data.Queue)
 
-	suite.Require().NoError(suite.DB.Model(&suggestionrel.DashboardSuggestionRun{}).
-		Where("id = ?", runID).
+	suite.Require().NoError(suite.DB.Model(&suggestionrel.DashboardSuggestionRunCell{}).
+		Where("run_id = ? AND cell_index = ?", runID, 0).
 		Update("cache_read_input_tokens", 20).Error)
 	rec, req = suite.req(http.MethodGet, "/api/admin/ai-diagnostics/summary", nil)
 	suite.server.E().ServeHTTP(rec, req)
@@ -418,6 +418,70 @@ func (suite *DashboardSuggestionsHTTPSuite) TestAiDiagnosticsSummaryTotalsAndCac
 	suite.Equal(int64(20), response.Data.Totals.CacheReadInputTokens)
 	suite.InDelta(0.125, response.Data.Totals.CacheHitRatio, 0.0001)
 	suite.Equal("pass", diagnosticsCheckStatus(response.Data.Checks, "cache_engaging"))
+}
+
+func (suite *DashboardSuggestionsHTTPSuite) TestAiDiagnosticsUsesCellTotalsForRunningRun() {
+	sspID := suite.seedDiagnosticsSSP("Live Diagnostics SSP")
+	actorID := suite.dummyUserID()
+	startedAt := time.Now().UTC().Add(-10 * time.Minute)
+	runID := suite.seedDiagnosticsRun(sspID, "running", startedAt, nil, actorID, 0, 0, 0, 0, 0)
+	suite.seedDiagnosticsCell(runID, 0, "completed", 100, 25, 20, 40, 0, 3, 1)
+	suite.Require().NoError(suite.DB.Create(&suggestionrel.DashboardSuggestionRunCell{
+		RunID:            runID,
+		CellIndex:        1,
+		ControlKeys:      datatypes.NewJSONSlice([]string{"catalog:AC-2"}),
+		LabelSetHashes:   datatypes.NewJSONSlice([]string{"hash"}),
+		Status:           "pending",
+		RateLimitedCount: 5,
+	}).Error)
+
+	rec, req := suite.req(http.MethodGet, "/api/admin/ai-diagnostics/summary", nil)
+	suite.server.E().ServeHTTP(rec, req)
+	suite.Equal(http.StatusOK, rec.Code, rec.Body.String())
+
+	var summary apihandler.GenericDataResponse[AiDiagnosticsSummary]
+	suite.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &summary))
+	suite.Equal(int64(100), summary.Data.Totals.InputTokens)
+	suite.Equal(int64(25), summary.Data.Totals.OutputTokens)
+	suite.Equal(int64(20), summary.Data.Totals.CacheReadInputTokens)
+	suite.Equal(int64(40), summary.Data.Totals.CacheCreationInputTokens)
+	suite.Equal(int64(5), summary.Data.Totals.RateLimitedTotal)
+	suite.Equal("warn", diagnosticsCheckStatus(summary.Data.Checks, "rate_limit_pressure"))
+
+	rec, req = suite.req(http.MethodGet, "/api/admin/ai-diagnostics/runs?status=running", nil)
+	suite.server.E().ServeHTTP(rec, req)
+	suite.Equal(http.StatusOK, rec.Code, rec.Body.String())
+
+	var list struct {
+		Data []AiDiagnosticsRun    `json:"data"`
+		Meta aiDiagnosticsListMeta `json:"meta"`
+	}
+	suite.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &list))
+	suite.Require().Len(list.Data, 1)
+	suite.Equal(runID.String(), list.Data[0].ID)
+	suite.Equal(100, list.Data[0].InputTokens)
+	suite.Equal(25, list.Data[0].OutputTokens)
+	suite.Equal(20, list.Data[0].CacheReadInputTokens)
+	suite.Equal(40, list.Data[0].CacheCreationInputTokens)
+	suite.Equal(5, list.Data[0].RateLimitedTotal)
+	suite.InDelta(0.125, list.Data[0].CacheHitRatio, 0.0001)
+}
+
+func (suite *DashboardSuggestionsHTTPSuite) TestAiDiagnosticsRecentFailureRateUsesCellCompletedAt() {
+	sspID := suite.seedDiagnosticsSSP("Recent Failure SSP")
+	actorID := suite.dummyUserID()
+	startedAt := time.Now().UTC().Add(-25 * time.Hour)
+	completedAt := startedAt.Add(time.Minute)
+	runID := suite.seedDiagnosticsRun(sspID, "failed", startedAt, &completedAt, actorID, 0, 0, 0, 0, 0)
+	suite.seedDiagnosticsCell(runID, 0, "failed", 0, 0, 0, 0, 0, 0, 1)
+
+	rec, req := suite.req(http.MethodGet, "/api/admin/ai-diagnostics/summary", nil)
+	suite.server.E().ServeHTTP(rec, req)
+	suite.Equal(http.StatusOK, rec.Code, rec.Body.String())
+
+	var response apihandler.GenericDataResponse[AiDiagnosticsSummary]
+	suite.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &response))
+	suite.Equal("warn", diagnosticsCheckStatus(response.Data.Checks, "recent_failure_rate"))
 }
 
 func (suite *DashboardSuggestionsHTTPSuite) TestAiDiagnosticsRunsListFiltersCursorAndDetail() {
