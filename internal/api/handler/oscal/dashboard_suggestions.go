@@ -61,6 +61,19 @@ type dashboardSuggestionResponse struct {
 	TargetFilterName string `json:"targetFilterName,omitempty"`
 }
 
+// suggestionEventActor carries the resolved display details for the user that
+// triggered a dashboard suggestion event, so the UI can render who acted rather
+// than just an opaque user ID.
+type suggestionEventActor struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
+type dashboardSuggestionEventResponse struct {
+	suggestionrel.DashboardSuggestionEvent
+	Actor *suggestionEventActor `json:"actor,omitempty"`
+}
+
 type acceptDashboardSuggestionsResponse struct {
 	AcceptedFilterIDs []uuid.UUID                   `json:"acceptedFilterIds"`
 	Suggestions       []dashboardSuggestionResponse `json:"suggestions"`
@@ -464,7 +477,7 @@ func (h *DashboardSuggestionHandler) Reject(ctx echo.Context) error {
 //	@Produce		json
 //	@Param			id				path		string	true	"System Security Plan ID"
 //	@Param			suggestionId	path		string	true	"Dashboard suggestion ID"
-//	@Success		200				{object}	handler.GenericDataListResponse[suggestions.DashboardSuggestionEvent]
+//	@Success		200				{object}	handler.GenericDataListResponse[oscal.dashboardSuggestionEventResponse]
 //	@Failure		400				{object}	api.Error
 //	@Failure		401				{object}	api.Error
 //	@Failure		404				{object}	api.Error
@@ -491,7 +504,62 @@ func (h *DashboardSuggestionHandler) Events(ctx echo.Context) error {
 	if err := h.db.Where("suggestion_id = ?", suggestionID).Order("occurred_at ASC").Find(&events).Error; err != nil {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
-	return ctx.JSON(http.StatusOK, handler.GenericDataListResponse[suggestionrel.DashboardSuggestionEvent]{Data: events})
+
+	actors, err := h.resolveEventActors(events)
+	if err != nil {
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	responses := make([]dashboardSuggestionEventResponse, 0, len(events))
+	for _, event := range events {
+		resp := dashboardSuggestionEventResponse{DashboardSuggestionEvent: event}
+		if event.ActorUserID != nil {
+			if actor, ok := actors[*event.ActorUserID]; ok {
+				resp.Actor = &actor
+			}
+		}
+		responses = append(responses, resp)
+	}
+
+	return ctx.JSON(http.StatusOK, handler.GenericDataListResponse[dashboardSuggestionEventResponse]{Data: responses})
+}
+
+// resolveEventActors loads the distinct actor users referenced by the given
+// events and returns a map keyed by user ID. Users that no longer exist are
+// simply omitted from the map.
+func (h *DashboardSuggestionHandler) resolveEventActors(events []suggestionrel.DashboardSuggestionEvent) (map[uuid.UUID]suggestionEventActor, error) {
+	ids := make([]uuid.UUID, 0, len(events))
+	seen := make(map[uuid.UUID]struct{}, len(events))
+	for _, event := range events {
+		if event.ActorUserID == nil {
+			continue
+		}
+		if _, ok := seen[*event.ActorUserID]; ok {
+			continue
+		}
+		seen[*event.ActorUserID] = struct{}{}
+		ids = append(ids, *event.ActorUserID)
+	}
+
+	actors := make(map[uuid.UUID]suggestionEventActor, len(ids))
+	if len(ids) == 0 {
+		return actors, nil
+	}
+
+	var users []relational.User
+	if err := h.db.Where("id IN ?", ids).Find(&users).Error; err != nil {
+		return nil, err
+	}
+	for _, user := range users {
+		if user.ID == nil {
+			continue
+		}
+		actors[*user.ID] = suggestionEventActor{
+			ID:   user.ID.String(),
+			Name: handler.UserDisplayName(user),
+		}
+	}
+	return actors, nil
 }
 
 func (h *DashboardSuggestionHandler) aiEnabled() bool {

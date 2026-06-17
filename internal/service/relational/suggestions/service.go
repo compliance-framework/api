@@ -173,6 +173,12 @@ func (s *SuggestionService) InsertValidatedMappingsTx(tx *gorm.DB, runID uuid.UU
 			result.Capped++
 			continue
 		}
+		filterLabels, _, ok := validateProposedFilterLabels(mapping.ProposedFilterLabelSet, mapping.LabelSet)
+		if !ok {
+			result.Excluded++
+			continue
+		}
+		mapping.ProposedFilterLabelSet = filterLabels
 		excluded, err := s.mappingExcluded(tx, sspID, promptVersion, mapping)
 		if err != nil {
 			return result, err
@@ -186,17 +192,18 @@ func (s *SuggestionService) InsertValidatedMappingsTx(tx *gorm.DB, runID uuid.UU
 			return result, err
 		}
 		suggestion := DashboardSuggestion{
-			RunID:              runID,
-			SSPID:              sspID,
-			ControlCatalogID:   catalogID,
-			ControlID:          controlID,
-			LabelSet:           labelsToJSONMap(mapping.LabelSet),
-			LabelSetHash:       mapping.LabelSetHash,
-			TargetFilterID:     mapping.TargetFilterID,
-			ProposedFilterName: mapping.ProposedFilterName,
-			Reasoning:          mapping.Reasoning,
-			Confidence:         mapping.Confidence,
-			Status:             DashboardSuggestionStatusPending,
+			RunID:                  runID,
+			SSPID:                  sspID,
+			ControlCatalogID:       catalogID,
+			ControlID:              controlID,
+			LabelSet:               labelsToJSONMap(mapping.LabelSet),
+			LabelSetHash:           mapping.LabelSetHash,
+			ProposedFilterLabelSet: labelsToJSONMap(mapping.ProposedFilterLabelSet),
+			TargetFilterID:         mapping.TargetFilterID,
+			ProposedFilterName:     mapping.ProposedFilterName,
+			Reasoning:              mapping.Reasoning,
+			Confidence:             mapping.Confidence,
+			Status:                 DashboardSuggestionStatusPending,
 		}
 		create := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&suggestion)
 		if create.Error != nil {
@@ -229,12 +236,16 @@ func (s *SuggestionService) Accept(sspID uuid.UUID, suggestionIDs []uuid.UUID, a
 			return err
 		}
 		now := time.Now().UTC()
-		byHash := map[string][]DashboardSuggestion{}
+		byFilterHash := map[string][]DashboardSuggestion{}
 		for _, suggestion := range suggestions {
-			byHash[suggestion.LabelSetHash] = append(byHash[suggestion.LabelSetHash], suggestion)
+			filterLabels := suggestionFilterLabels(suggestion)
+			if len(filterLabels) == 0 {
+				return fmt.Errorf("dashboard suggestion %s has empty proposed filter labels", suggestionIDString(suggestion))
+			}
+			byFilterHash[CanonicalLabelSetHash(filterLabels)] = append(byFilterHash[CanonicalLabelSetHash(filterLabels)], suggestion)
 		}
 
-		for hash, group := range byHash {
+		for filterHash, group := range byFilterHash {
 			sort.Slice(group, func(i, j int) bool {
 				if group[i].Confidence != group[j].Confidence {
 					return group[i].Confidence > group[j].Confidence
@@ -244,8 +255,8 @@ func (s *SuggestionService) Accept(sspID uuid.UUID, suggestionIDs []uuid.UUID, a
 				}
 				return suggestionIDString(group[i]) < suggestionIDString(group[j])
 			})
-			labels := jsonMapToLabels(group[0].LabelSet)
-			filterID, created, err := s.acceptFilterForHash(tx, sspID, hash, labels, group)
+			filterLabels := suggestionFilterLabels(group[0])
+			filterID, created, err := s.acceptFilterForLabels(tx, sspID, filterHash, filterLabels, group)
 			if err != nil {
 				return err
 			}
@@ -331,8 +342,11 @@ func (s *SuggestionService) Reject(sspID uuid.UUID, suggestionIDs []uuid.UUID, r
 	})
 }
 
-func (s *SuggestionService) acceptFilterForHash(tx *gorm.DB, sspID uuid.UUID, hash string, labels map[string]string, group []DashboardSuggestion) (uuid.UUID, bool, error) {
-	if err := lockAcceptFilterHash(tx, sspID, hash); err != nil {
+func (s *SuggestionService) acceptFilterForLabels(tx *gorm.DB, sspID uuid.UUID, filterHash string, labels map[string]string, group []DashboardSuggestion) (uuid.UUID, bool, error) {
+	if len(labels) == 0 {
+		return uuid.Nil, false, errors.New("cannot accept dashboard suggestion with empty proposed filter labels")
+	}
+	if err := lockAcceptFilterHash(tx, sspID, filterHash); err != nil {
 		return uuid.Nil, false, err
 	}
 
@@ -340,7 +354,7 @@ func (s *SuggestionService) acceptFilterForHash(tx *gorm.DB, sspID uuid.UUID, ha
 		if suggestion.TargetFilterID == nil {
 			continue
 		}
-		filter, ok, err := loadSameSSPFilterWithHash(tx, sspID, *suggestion.TargetFilterID, hash)
+		filter, ok, err := loadSameSSPFilterWithHash(tx, sspID, *suggestion.TargetFilterID, filterHash)
 		if err != nil {
 			return uuid.Nil, false, err
 		}
@@ -355,7 +369,7 @@ func (s *SuggestionService) acceptFilterForHash(tx *gorm.DB, sspID uuid.UUID, ha
 	}
 	for _, filter := range filters {
 		filterLabels, ok := CanonicalizeFilter(filter.Filter.Data())
-		if ok && CanonicalLabelSetHash(filterLabels) == hash {
+		if ok && CanonicalLabelSetHash(filterLabels) == filterHash {
 			return *filter.ID, false, nil
 		}
 	}
@@ -426,6 +440,14 @@ func loadSameSSPFilterWithHash(tx *gorm.DB, sspID uuid.UUID, filterID uuid.UUID,
 	return filter, true, nil
 }
 
+func suggestionFilterLabels(suggestion DashboardSuggestion) map[string]string {
+	labels := jsonMapToLabels(suggestion.ProposedFilterLabelSet)
+	if len(labels) > 0 {
+		return labels
+	}
+	return jsonMapToLabels(suggestion.LabelSet)
+}
+
 func (s *SuggestionService) mappingExcluded(tx *gorm.DB, sspID uuid.UUID, promptVersion string, mapping ValidatedMapping) (bool, error) {
 	catalogID, controlID, err := ParseControlKey(mapping.ControlKey)
 	if err != nil {
@@ -443,6 +465,19 @@ func (s *SuggestionService) mappingExcluded(tx *gorm.DB, sspID uuid.UUID, prompt
 		return true, nil
 	}
 
+	var pending []DashboardSuggestion
+	if err := tx.
+		Where("ssp_id = ? AND control_catalog_id = ? AND control_id = ? AND status = ?", sspID, catalogID, controlID, DashboardSuggestionStatusPending).
+		Find(&pending).Error; err != nil {
+		return false, err
+	}
+	mappingFilterHash := CanonicalLabelSetHash(mapping.ProposedFilterLabelSet)
+	for _, suggestion := range pending {
+		if CanonicalLabelSetHash(suggestionFilterLabels(suggestion)) == mappingFilterHash {
+			return true, nil
+		}
+	}
+
 	var filters []relational.Filter
 	if err := tx.
 		Joins("JOIN filter_controls ON filter_controls.filter_id = filters.id").
@@ -453,7 +488,7 @@ func (s *SuggestionService) mappingExcluded(tx *gorm.DB, sspID uuid.UUID, prompt
 	}
 	for _, filter := range filters {
 		labels, ok := CanonicalizeFilter(filter.Filter.Data())
-		if ok && CanonicalLabelSetHash(labels) == mapping.LabelSetHash {
+		if ok && CanonicalLabelSetHash(labels) == mappingFilterHash {
 			return true, nil
 		}
 	}

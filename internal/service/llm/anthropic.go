@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -98,18 +99,32 @@ func (c *AnthropicClient) CompleteStructured(ctx context.Context, req Structured
 		maxTokens = DefaultAnthropicMaxTokens
 	}
 
+	// Build the user message as one or two text blocks. A non-empty cached
+	// prefix is sent first with its own cache breakpoint so the volatile tail in
+	// req.Prompt stays uncached.
+	userBlocks := make([]anthropic.ContentBlockParamUnion, 0, 2)
+	if req.CachedUserPrefix != "" {
+		prefix := anthropic.NewTextBlock(req.CachedUserPrefix)
+		prefix.OfText.CacheControl = cacheControlParam(req.CachedUserPrefixTTL)
+		userBlocks = append(userBlocks, prefix)
+	}
+	userBlocks = append(userBlocks, anthropic.NewTextBlock(req.Prompt))
+
 	params := anthropic.MessageNewParams{
 		MaxTokens: int64(maxTokens),
 		Model:     anthropic.Model(c.model),
 		Messages: []anthropic.MessageParam{
-			anthropic.NewUserMessage(anthropic.NewTextBlock(req.Prompt)),
+			anthropic.NewUserMessage(userBlocks...),
 		},
 		OutputConfig: anthropic.OutputConfigParam{
 			Format: anthropic.JSONOutputFormatParam{Schema: sanitizeAnthropicSchema(req.Schema)},
 		},
 	}
 	if req.System != "" {
-		params.System = []anthropic.TextBlockParam{{Text: req.System}}
+		params.System = []anthropic.TextBlockParam{{
+			Text:         req.System,
+			CacheControl: cacheControlParam(req.SystemCacheTTL),
+		}}
 	}
 
 	msg, err := c.client.Messages.New(callCtx, params, option.WithRequestTimeout(c.requestTimeout), option.WithMaxRetries(0))
@@ -123,11 +138,30 @@ func (c *AnthropicClient) CompleteStructured(ctx context.Context, req Structured
 	}
 
 	return &StructuredResponse{
-		Raw:          raw,
-		Model:        string(msg.Model),
-		InputTokens:  int(msg.Usage.InputTokens),
-		OutputTokens: int(msg.Usage.OutputTokens),
+		Raw:                      raw,
+		Model:                    string(msg.Model),
+		InputTokens:              int(msg.Usage.InputTokens),
+		OutputTokens:             int(msg.Usage.OutputTokens),
+		CacheReadInputTokens:     int(msg.Usage.CacheReadInputTokens),
+		CacheCreationInputTokens: int(msg.Usage.CacheCreationInputTokens),
 	}, nil
+}
+
+// cacheControlParam maps a CacheTTL to the SDK cache-control param. The empty
+// TTL returns the zero value, which the SDK omits (no cache breakpoint).
+func cacheControlParam(ttl CacheTTL) anthropic.CacheControlEphemeralParam {
+	switch ttl {
+	case CacheTTL5m:
+		cc := anthropic.NewCacheControlEphemeralParam()
+		cc.TTL = anthropic.CacheControlEphemeralTTLTTL5m
+		return cc
+	case CacheTTL1h:
+		cc := anthropic.NewCacheControlEphemeralParam()
+		cc.TTL = anthropic.CacheControlEphemeralTTLTTL1h
+		return cc
+	default:
+		return anthropic.CacheControlEphemeralParam{}
+	}
 }
 
 func structuredRawJSON(msg *anthropic.Message) (json.RawMessage, error) {
@@ -184,7 +218,7 @@ func mapAnthropicError(ctx context.Context, callCtx context.Context, err error) 
 			// sending; malformed or otherwise rejected schemas are still invalid input.
 			return fmt.Errorf("%w: %v", ErrInvalidOutput, err)
 		case http.StatusTooManyRequests:
-			return fmt.Errorf("%w: %v", ErrRateLimited, err)
+			return &RateLimitError{RetryAfter: retryAfterFromResponse(apiErr.Response), Err: err}
 		case 529:
 			return fmt.Errorf("%w: %v", ErrOverloaded, err)
 		case http.StatusRequestTimeout, http.StatusConflict:
@@ -209,4 +243,26 @@ func mapAnthropicError(ctx context.Context, callCtx context.Context, err error) 
 		return fmt.Errorf("%w: %v", ErrInvalidOutput, err)
 	}
 	return fmt.Errorf("%w: %v", ErrOverloaded, err)
+}
+
+// retryAfterFromResponse reads the Retry-After header (integer seconds or an
+// HTTP-date) from a 429 response. It returns 0 when the header is absent or
+// unparseable so callers can fall back to a default backoff.
+func retryAfterFromResponse(resp *http.Response) time.Duration {
+	if resp == nil {
+		return 0
+	}
+	value := strings.TrimSpace(resp.Header.Get("Retry-After"))
+	if value == "" {
+		return 0
+	}
+	if secs, err := strconv.Atoi(value); err == nil && secs >= 0 {
+		return time.Duration(secs) * time.Second
+	}
+	if t, err := http.ParseTime(value); err == nil {
+		if d := time.Until(t); d > 0 {
+			return d
+		}
+	}
+	return 0
 }

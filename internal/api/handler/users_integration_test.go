@@ -107,7 +107,7 @@ func (suite *UserApiIntegrationSuite) TestGetPublicUser() {
 	err = json.Unmarshal(rec.Body.Bytes(), &response)
 	suite.Require().NoError(err, "Expected valid JSON response for GetPublicUser")
 	suite.Require().Equal(existingUser.UUIDModel.ID.String(), response.Data.ID, "Expected matching user ID in response for GetPublicUser")
-	suite.Require().Equal(userDisplayName(existingUser), response.Data.Name, "Expected public user name to match the user's display name")
+	suite.Require().Equal(UserDisplayName(existingUser), response.Data.Name, "Expected public user name to match the user's display name")
 
 	blankNameUser := relational.User{
 		Email:      "blank-name-user@example.com",

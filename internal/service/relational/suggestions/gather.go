@@ -340,6 +340,7 @@ func (s *SuggestionService) gatherVisibleFilters(sspID uuid.UUID) ([]VisibleFilt
 		if labels, ok := CanonicalizeFilter(filter.Filter.Data()); ok {
 			hash := CanonicalLabelSetHash(labels)
 			input.LabelSetHash = &hash
+			input.Labels = labels
 		}
 		visible = append(visible, input)
 		if filter.SSPID != nil && *filter.SSPID == sspID {

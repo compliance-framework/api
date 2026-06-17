@@ -213,9 +213,11 @@ func TestDashboardSuggestionWorkerCompleteCellCountsMissingLabelSetsAsRejected(t
 }
 
 func TestDashboardSuggestionWorkerLLMRetryAndNonRetryableFailure(t *testing.T) {
-	t.Run("retryable error retries once in job", func(t *testing.T) {
+	rendered := suggestionrel.RenderedPrompt{System: "system", Controls: "controls", Volatile: "labels"}
+
+	t.Run("overloaded error retries once in job", func(t *testing.T) {
 		fake := &llm.FakeClient{
-			Errors: []error{llm.ErrRateLimited},
+			Errors: []error{llm.ErrOverloaded},
 			Responses: []*llm.StructuredResponse{
 				nil,
 				{Raw: json.RawMessage(`{"mappings":[]}`), Model: "fake", InputTokens: 3, OutputTokens: 5},
@@ -223,21 +225,97 @@ func TestDashboardSuggestionWorkerLLMRetryAndNonRetryableFailure(t *testing.T) {
 		}
 		worker := NewDashboardSuggestionWorker(nil, fake, config.DefaultAIConfig(), zap.NewNop().Sugar())
 
-		response, err := worker.completeWithOneRetry(context.Background(), "prompt")
+		response, err := worker.completeWithRetry(context.Background(), rendered)
 		require.NoError(t, err)
 		require.Equal(t, 3, response.InputTokens)
 		require.Equal(t, 5, response.OutputTokens)
 		require.Len(t, fake.Requests, 2)
 	})
 
+	t.Run("rate limit is not retried inline", func(t *testing.T) {
+		fake := &llm.FakeClient{Err: &llm.RateLimitError{RetryAfter: 5 * time.Second}}
+		worker := NewDashboardSuggestionWorker(nil, fake, config.DefaultAIConfig(), zap.NewNop().Sugar())
+
+		_, err := worker.completeWithRetry(context.Background(), rendered)
+		require.ErrorIs(t, err, llm.ErrRateLimited)
+		require.Len(t, fake.Requests, 1)
+	})
+
 	t.Run("non retryable error fails cell immediately", func(t *testing.T) {
 		fake := &llm.FakeClient{Err: llm.ErrAuth}
 		worker := NewDashboardSuggestionWorker(nil, fake, config.DefaultAIConfig(), zap.NewNop().Sugar())
 
-		_, err := worker.completeWithOneRetry(context.Background(), "prompt")
+		_, err := worker.completeWithRetry(context.Background(), rendered)
 		require.ErrorIs(t, err, llm.ErrAuth)
 		require.True(t, isNonRetryableLLMError(err))
 		require.Len(t, fake.Requests, 1)
+	})
+
+	t.Run("cached request carries both cache breakpoints", func(t *testing.T) {
+		fake := &llm.FakeClient{Raw: json.RawMessage(`{"mappings":[]}`)}
+		worker := NewDashboardSuggestionWorker(nil, fake, config.DefaultAIConfig(), zap.NewNop().Sugar())
+
+		_, err := worker.completeWithRetry(context.Background(), rendered)
+		require.NoError(t, err)
+		require.Len(t, fake.Requests, 1)
+		req := fake.Requests[0]
+		require.Equal(t, "system", req.System)
+		require.Equal(t, llm.CacheTTL1h, req.SystemCacheTTL)
+		require.Equal(t, "controls", req.CachedUserPrefix)
+		require.Equal(t, llm.CacheTTL1h, req.CachedUserPrefixTTL)
+		require.Equal(t, "labels", req.Prompt)
+	})
+}
+
+func TestSnoozeDelay(t *testing.T) {
+	t.Parallel()
+
+	// With a Retry-After hint, the delay is at least the hint and within the
+	// jitter band above it.
+	for range 50 {
+		d := snoozeDelay(12 * time.Second)
+		require.GreaterOrEqual(t, d, 12*time.Second)
+		require.Less(t, d, 12*time.Second+rateLimitSnoozeJitter)
+	}
+
+	// Without a hint, it falls back to the default base plus jitter.
+	for range 50 {
+		d := snoozeDelay(0)
+		require.GreaterOrEqual(t, d, defaultRateLimitSnooze)
+		require.Less(t, d, defaultRateLimitSnooze+rateLimitSnoozeJitter)
+	}
+}
+
+func TestRateLimitSnooze(t *testing.T) {
+	t.Parallel()
+
+	t.Run("rate limit within budget snoozes", func(t *testing.T) {
+		delay, ok := rateLimitSnooze(&llm.RateLimitError{RetryAfter: 7 * time.Second}, 1)
+		require.True(t, ok)
+		require.GreaterOrEqual(t, delay, 7*time.Second)
+	})
+
+	t.Run("wrapped rate limit is detected", func(t *testing.T) {
+		wrapped := river.JobCancel(&llm.RateLimitError{RetryAfter: 2 * time.Second})
+		_, ok := rateLimitSnooze(wrapped, 1)
+		require.True(t, ok)
+	})
+
+	t.Run("exhausted budget does not snooze", func(t *testing.T) {
+		_, ok := rateLimitSnooze(&llm.RateLimitError{RetryAfter: time.Second}, maxRateLimitSnoozes)
+		require.False(t, ok)
+	})
+
+	t.Run("non rate limit does not snooze", func(t *testing.T) {
+		_, ok := rateLimitSnooze(llm.ErrAuth, 1)
+		require.False(t, ok)
+	})
+
+	// The bare ErrRateLimited sentinel is not a *RateLimitError, so it is not
+	// snoozed (it carries no Retry-After) and falls through to normal handling.
+	t.Run("bare sentinel does not snooze", func(t *testing.T) {
+		_, ok := rateLimitSnooze(llm.ErrRateLimited, 1)
+		require.False(t, ok)
 	})
 }
 

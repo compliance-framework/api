@@ -40,10 +40,11 @@ type LabelSetInput struct {
 }
 
 type VisibleFilterInput struct {
-	ID           uuid.UUID  `json:"id"`
-	Name         string     `json:"name"`
-	SSPID        *uuid.UUID `json:"ssp_id,omitempty"`
-	LabelSetHash *string    `json:"label_set_hash,omitempty"`
+	ID           uuid.UUID         `json:"id"`
+	Name         string            `json:"name"`
+	SSPID        *uuid.UUID        `json:"ssp_id,omitempty"`
+	LabelSetHash *string           `json:"label_set_hash,omitempty"`
+	Labels       map[string]string `json:"labels,omitempty"`
 }
 
 type RawMappings struct {
@@ -51,24 +52,50 @@ type RawMappings struct {
 }
 
 type RawMapping struct {
-	ControlKey         string  `json:"control_key"`
-	LabelSetHash       string  `json:"label_set_hash"`
-	Action             string  `json:"action"`
-	TargetFilterID     string  `json:"target_filter_id,omitempty"`
-	ProposedFilterName string  `json:"proposed_filter_name,omitempty"`
-	Confidence         float64 `json:"confidence"`
-	Reasoning          string  `json:"reasoning"`
+	ControlKey           string               `json:"control_key"`
+	LabelSetHash         string               `json:"label_set_hash"`
+	Action               string               `json:"action"`
+	TargetFilterID       string               `json:"target_filter_id,omitempty"`
+	ProposedFilterName   string               `json:"proposed_filter_name,omitempty"`
+	ProposedFilterLabels ProposedFilterLabels `json:"proposed_filter_labels,omitempty"`
+	Confidence           float64              `json:"confidence"`
+	Reasoning            string               `json:"reasoning"`
+}
+
+type ProposedFilterLabels map[string]string
+
+func (labels *ProposedFilterLabels) UnmarshalJSON(raw []byte) error {
+	var pairs []struct {
+		Key   string `json:"key"`
+		Value string `json:"value"`
+	}
+	if err := json.Unmarshal(raw, &pairs); err == nil {
+		decoded := make(map[string]string, len(pairs))
+		for _, pair := range pairs {
+			decoded[pair.Key] = pair.Value
+		}
+		*labels = decoded
+		return nil
+	}
+
+	var legacy map[string]string
+	if err := json.Unmarshal(raw, &legacy); err != nil {
+		return err
+	}
+	*labels = legacy
+	return nil
 }
 
 type ValidatedMapping struct {
-	ControlKey         string
-	LabelSetHash       string
-	LabelSet           map[string]string
-	Action             string
-	TargetFilterID     *uuid.UUID
-	ProposedFilterName string
-	Confidence         float64
-	Reasoning          string
+	ControlKey             string
+	LabelSetHash           string
+	LabelSet               map[string]string
+	ProposedFilterLabelSet map[string]string
+	Action                 string
+	TargetFilterID         *uuid.UUID
+	ProposedFilterName     string
+	Confidence             float64
+	Reasoning              string
 }
 
 type ValidationCounts map[string]int
@@ -128,12 +155,20 @@ func ValidateRawMappings(input CellInput, rawMappings []RawMapping) ValidationRe
 			counts["reasoning_truncated"]++
 		}
 
+		filterLabels, filterLabelCounts, ok := validateProposedFilterLabels(raw.ProposedFilterLabels, labelSet.Labels)
+		mergeValidationCounts(counts, filterLabelCounts)
+		if !ok {
+			counts["rejected_invalid_filter_labels"]++
+			continue
+		}
+
 		action := raw.Action
 		var targetFilterID *uuid.UUID
 		if action == MappingActionExtendFilter {
 			parsed, err := uuid.Parse(strings.TrimSpace(raw.TargetFilterID))
 			filter, found := sameSSPFilters[parsed]
-			if err != nil || !found || filter.LabelSetHash == nil || *filter.LabelSetHash != labelSetHash {
+			filterLabelHash := CanonicalLabelSetHash(filterLabels)
+			if err != nil || !found || filter.LabelSetHash == nil || *filter.LabelSetHash != filterLabelHash {
 				action = MappingActionNewFilter
 				counts["downgraded_extend_to_new"]++
 			} else {
@@ -158,16 +193,17 @@ func ValidateRawMappings(input CellInput, rawMappings []RawMapping) ValidationRe
 		}
 
 		mapping := ValidatedMapping{
-			ControlKey:         controlKey,
-			LabelSetHash:       labelSetHash,
-			LabelSet:           labelSet.Labels,
-			Action:             action,
-			TargetFilterID:     targetFilterID,
-			ProposedFilterName: name,
-			Confidence:         raw.Confidence,
-			Reasoning:          reasoning,
+			ControlKey:             controlKey,
+			LabelSetHash:           labelSetHash,
+			LabelSet:               labelSet.Labels,
+			ProposedFilterLabelSet: filterLabels,
+			Action:                 action,
+			TargetFilterID:         targetFilterID,
+			ProposedFilterName:     name,
+			Confidence:             raw.Confidence,
+			Reasoning:              reasoning,
 		}
-		dedupeKey := controlKey + "\x00" + labelSetHash
+		dedupeKey := mappingDedupeKey(mapping)
 		if existing, found := kept[dedupeKey]; !found || mapping.Confidence > existing.Confidence {
 			if found {
 				counts["deduped_within_cell"]++
@@ -194,6 +230,110 @@ func ValidateRawMappings(input CellInput, rawMappings []RawMapping) ValidationRe
 
 	mappings = capMappingsPerControl(mappings, counts)
 	return ValidationResult{Mappings: mappings, Counts: counts}
+}
+
+func mappingDedupeKey(mapping ValidatedMapping) string {
+	return mapping.ControlKey + "\x00" + CanonicalLabelSetHash(mapping.ProposedFilterLabelSet)
+}
+
+func validateProposedFilterLabels(raw map[string]string, evidenceLabels map[string]string) (map[string]string, ValidationCounts, bool) {
+	counts := ValidationCounts{}
+	evidence, ok := NormalizeLabelSet(evidenceLabels)
+	if !ok {
+		return nil, counts, false
+	}
+
+	if len(raw) == 0 {
+		filterLabels := defaultFilterLabelSubset(evidence)
+		if len(filterLabels) > 0 {
+			counts["fallback_filter_labels"]++
+		}
+		if policy, found := evidence["_policy"]; found {
+			filterLabels["_policy"] = policy
+		}
+		if len(filterLabels) == 0 {
+			return nil, counts, false
+		}
+		return filterLabels, counts, true
+	}
+
+	normalized, ok := NormalizeLabelSet(raw)
+	if !ok {
+		return nil, counts, false
+	}
+
+	filterLabels := make(map[string]string, len(normalized)+1)
+	for key, value := range normalized {
+		if isGatheringIdentityLabel(key) {
+			counts["dropped_identity_filter_labels"]++
+			continue
+		}
+		evidenceValue, found := evidence[key]
+		if !found || evidenceValue != value {
+			return nil, counts, false
+		}
+		filterLabels[key] = value
+	}
+
+	if policy, found := evidence["_policy"]; found {
+		if existing, included := filterLabels["_policy"]; included && existing != policy {
+			return nil, counts, false
+		}
+		if _, included := filterLabels["_policy"]; !included {
+			counts["added_policy_filter_label"]++
+		}
+		filterLabels["_policy"] = policy
+	}
+
+	if len(filterLabels) == 0 {
+		filterLabels = defaultFilterLabelSubset(evidence)
+		if len(filterLabels) > 0 {
+			counts["fallback_filter_labels"]++
+		}
+	}
+	if len(filterLabels) == 0 {
+		return nil, counts, false
+	}
+	return filterLabels, counts, true
+}
+
+func defaultFilterLabelSubset(labels map[string]string) map[string]string {
+	out := map[string]string{}
+	for _, key := range []string{"_policy", "provider", "type"} {
+		if value, found := labels[key]; found && !isGatheringIdentityLabel(key) {
+			out[key] = value
+		}
+	}
+	if len(out) > 0 {
+		return out
+	}
+
+	keys := make([]string, 0, len(labels))
+	for key := range labels {
+		if !isGatheringIdentityLabel(key) {
+			keys = append(keys, key)
+		}
+	}
+	sort.Strings(keys)
+	for _, key := range keys {
+		out[key] = labels[key]
+	}
+	return out
+}
+
+func isGatheringIdentityLabel(key string) bool {
+	switch strings.ToLower(key) {
+	case "_agent", "_plugin":
+		return true
+	default:
+		return false
+	}
+}
+
+func mergeValidationCounts(dst ValidationCounts, src ValidationCounts) {
+	for key, value := range src {
+		dst[key] += value
+	}
 }
 
 func capMappingsPerControl(mappings []ValidatedMapping, counts ValidationCounts) []ValidatedMapping {

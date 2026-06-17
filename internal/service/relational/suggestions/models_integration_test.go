@@ -362,6 +362,114 @@ func (suite *DashboardSuggestionsIntegrationSuite) TestAcceptExtendsSameSSPMatch
 	suite.Equal(int64(1), linkCount)
 }
 
+func (suite *DashboardSuggestionsIntegrationSuite) TestMinimalProposedFilterDedupesAndMatchesNewRepositories() {
+	sspID := uuid.New()
+	runID := uuid.New()
+	catalogID := uuid.New()
+	actorID := uuid.New()
+	suite.seedSuggestionSSPAndRun(sspID, runID)
+
+	subset := map[string]string{
+		"_policy":  "secret_scanning_push_protection",
+		"provider": "github",
+		"type":     "repository",
+	}
+	firstLabels := map[string]string{
+		"_agent":       "agent-1",
+		"_plugin":      "github_repos",
+		"_policy":      "secret_scanning_push_protection",
+		"organization": "compliance-framework",
+		"provider":     "github",
+		"repository":   "todo-app",
+		"team":         "ccf",
+		"type":         "repository",
+	}
+	secondLabels := map[string]string{
+		"_agent":       "agent-2",
+		"_plugin":      "github_repos",
+		"_policy":      "secret_scanning_push_protection",
+		"organization": "compliance-framework",
+		"provider":     "github",
+		"repository":   "payments-api",
+		"team":         "ccf",
+		"type":         "repository",
+	}
+	firstHash := suggestionrel.CanonicalLabelSetHash(firstLabels)
+	secondHash := suggestionrel.CanonicalLabelSetHash(secondLabels)
+
+	svc := suggestionrel.NewSuggestionService(suite.DB)
+	result, err := svc.InsertValidatedMappings(runID, sspID, suggestionrel.PromptVersion, []suggestionrel.ValidatedMapping{
+		{
+			ControlKey:             suggestionrel.ControlKey(catalogID, "AC-1"),
+			LabelSetHash:           firstHash,
+			LabelSet:               firstLabels,
+			ProposedFilterLabelSet: subset,
+			Action:                 suggestionrel.MappingActionNewFilter,
+			ProposedFilterName:     "GitHub push protection",
+			Confidence:             0.8,
+			Reasoning:              "matches",
+		},
+		{
+			ControlKey:             suggestionrel.ControlKey(catalogID, "AC-1"),
+			LabelSetHash:           secondHash,
+			LabelSet:               secondLabels,
+			ProposedFilterLabelSet: subset,
+			Action:                 suggestionrel.MappingActionNewFilter,
+			ProposedFilterName:     "GitHub push protection",
+			Confidence:             0.9,
+			Reasoning:              "matches another repo",
+		},
+	}, 10)
+	suite.Require().NoError(err)
+	suite.Equal(1, result.Inserted)
+	suite.Equal(1, result.Excluded)
+
+	var suggestions []suggestionrel.DashboardSuggestion
+	suite.Require().NoError(suite.DB.Where("run_id = ?", runID).Find(&suggestions).Error)
+	suite.Require().Len(suggestions, 1)
+	suite.Equal(subset, jsonMapToStringMap(suggestions[0].ProposedFilterLabelSet))
+	suite.NotEqual(suggestions[0].LabelSetHash, suggestionrel.CanonicalLabelSetHash(subset))
+	suite.Contains(jsonMapToStringMap(suggestions[0].LabelSet), "repository")
+
+	suite.Require().NoError(svc.Accept(sspID, []uuid.UUID{*suggestions[0].ID}, actorID))
+
+	var filter relational.Filter
+	suite.Require().NoError(suite.DB.First(&filter, "ssp_id = ?", sspID).Error)
+	filterLabels, ok := suggestionrel.CanonicalizeFilter(filter.Filter.Data())
+	suite.True(ok)
+	suite.Equal(subset, filterLabels)
+
+	var linkCount int64
+	suite.Require().NoError(suite.DB.Table("filter_controls").Where("filter_id = ? AND control_id = ?", filter.ID, "AC-1").Count(&linkCount).Error)
+	suite.Equal(int64(1), linkCount)
+	var eventCount int64
+	suite.Require().NoError(suite.DB.Model(&suggestionrel.DashboardSuggestionEvent{}).
+		Where("suggestion_id = ? AND event_type = ?", suggestions[0].ID, suggestionrel.DashboardSuggestionEventTypeAccepted).
+		Count(&eventCount).Error)
+	suite.Equal(int64(1), eventCount)
+
+	now := time.Now().UTC()
+	suite.insertEvidenceLabels(uuid.New(), uuid.New(), "todo-app", now, firstLabels)
+	suite.insertEvidenceLabels(uuid.New(), uuid.New(), "payments-api", now, secondLabels)
+	thirdLabels := map[string]string{
+		"_agent":       "agent-3",
+		"_plugin":      "github_repos",
+		"_policy":      "secret_scanning_push_protection",
+		"organization": "new-org",
+		"provider":     "github",
+		"repository":   "future-repo",
+		"team":         "new-team",
+		"type":         "repository",
+	}
+	suite.insertEvidenceLabels(uuid.New(), uuid.New(), "future-repo", now, thirdLabels)
+
+	query, err := relational.GetEvidenceSearchByFilterQuery(relational.GetLatestEvidenceStreamsQuery(suite.DB), suite.DB, filter.Filter.Data())
+	suite.Require().NoError(err)
+	var matched []relational.Evidence
+	suite.Require().NoError(query.Find(&matched).Error)
+	suite.Require().Len(matched, 3)
+}
+
 func (suite *DashboardSuggestionsIntegrationSuite) TestInsertExcludesMatchingGlobalFilterAndDoesNotModifyIt() {
 	sspID := uuid.New()
 	runID := uuid.New()
@@ -616,6 +724,16 @@ func (suite *DashboardSuggestionsIntegrationSuite) insertEvidenceLabels(id uuid.
 			value,
 		).Error)
 	}
+}
+
+func jsonMapToStringMap(values datatypes.JSONMap) map[string]string {
+	out := make(map[string]string, len(values))
+	for key, value := range values {
+		if stringValue, ok := value.(string); ok {
+			out[key] = stringValue
+		}
+	}
+	return out
 }
 
 func ptrUUID(id uuid.UUID) *uuid.UUID {

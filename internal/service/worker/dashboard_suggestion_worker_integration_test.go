@@ -93,6 +93,28 @@ func (suite *DashboardSuggestionWorkerIntegrationSuite) TestTwoByTwoGridConcurre
 	suite.Equal(suggestionCount, afterRerunCount)
 }
 
+func (suite *DashboardSuggestionWorkerIntegrationSuite) TestRateLimitSnoozesCellWithoutFailing() {
+	ctx := context.Background()
+	runID, cells := suite.seedTwoByTwoSuggestionRun()
+	client := &llm.FakeClient{Err: &llm.RateLimitError{RetryAfter: 5 * time.Second}}
+	worker := NewDashboardSuggestionWorker(suite.DB, client, &config.AIConfig{RequestTimeout: 120 * time.Second, MaxSuggestionsPerRun: 10}, zap.NewNop().Sugar())
+
+	err := worker.Work(ctx, dashboardSuggestionIntegrationJob(runID, cells[0].CellIndex))
+
+	// The cell is snoozed (not failed) and the run is not finalized as failed.
+	var snooze *rivertype.JobSnoozeError
+	suite.Require().ErrorAs(err, &snooze)
+	suite.Require().GreaterOrEqual(snooze.Duration, 5*time.Second)
+
+	var cell suggestionrel.DashboardSuggestionRunCell
+	suite.Require().NoError(suite.DB.First(&cell, "run_id = ? AND cell_index = ?", runID, cells[0].CellIndex).Error)
+	suite.Require().Equal(dashboardSuggestionCellStatusPending, cell.Status)
+
+	var run suggestionrel.DashboardSuggestionRun
+	suite.Require().NoError(suite.DB.First(&run, "id = ?", runID).Error)
+	suite.Require().NotEqual(dashboardSuggestionRunStatusFailed, run.Status)
+}
+
 func (suite *DashboardSuggestionWorkerIntegrationSuite) seedTwoByTwoSuggestionRun() (uuid.UUID, []suggestionrel.GridCell) {
 	sspID := uuid.New()
 	runID := uuid.New()
@@ -189,8 +211,11 @@ func (c *promptMappingClient) CompleteStructured(ctx context.Context, req llm.St
 	c.requests++
 	c.mu.Unlock()
 
-	controlKey := firstPromptValue(req.Prompt, `"control_key": "([^"]+)"`)
-	labelSetHash := firstPromptValue(req.Prompt, `"hash": "([^"]+)"`)
+	// Controls and label-sets are split across cache segments now, so search the
+	// whole rendered request rather than just the volatile tail.
+	combined := req.System + "\n" + req.CachedUserPrefix + "\n" + req.Prompt
+	controlKey := firstPromptValue(combined, `"control_key": "([^"]+)"`)
+	labelSetHash := firstPromptValue(combined, `"hash": "([^"]+)"`)
 	raw, err := json.Marshal(suggestionrel.RawMappings{Mappings: []suggestionrel.RawMapping{
 		{
 			ControlKey:         controlKey,

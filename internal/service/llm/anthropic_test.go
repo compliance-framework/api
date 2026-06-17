@@ -203,6 +203,97 @@ func TestAnthropicClientStructuredOutputSchemaPassthrough(t *testing.T) {
 	require.Equal(t, float64(2), schema["properties"].(map[string]any)["answer"].(map[string]any)["minLength"])
 }
 
+func TestAnthropicClientRateLimitCarriesRetryAfter(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Retry-After", "12")
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusTooManyRequests)
+		_, _ = w.Write([]byte(`{"type":"error","error":{"type":"rate_limit_error","message":"slow down"}}`))
+	}))
+	t.Cleanup(server.Close)
+
+	client := NewAnthropicClient(AnthropicConfig{
+		Enabled:        true,
+		APIKey:         "test-key",
+		Model:          "claude-test",
+		BaseURL:        server.URL,
+		RequestTimeout: time.Second,
+	})
+
+	_, err := client.CompleteStructured(context.Background(), StructuredRequest{
+		Prompt:    "prompt",
+		Schema:    map[string]any{"type": "object"},
+		MaxTokens: 64,
+	})
+
+	require.ErrorIs(t, err, ErrRateLimited)
+	var rateLimit *RateLimitError
+	require.ErrorAs(t, err, &rateLimit)
+	require.Equal(t, 12*time.Second, rateLimit.RetryAfter)
+}
+
+func TestAnthropicClientAppliesCacheControl(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var payload map[string]any
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&payload))
+
+		system := payload["system"].([]any)
+		require.Len(t, system, 1)
+		systemCache := system[0].(map[string]any)["cache_control"].(map[string]any)
+		require.Equal(t, "ephemeral", systemCache["type"])
+		require.Equal(t, "1h", systemCache["ttl"])
+
+		messages := payload["messages"].([]any)
+		require.Len(t, messages, 1)
+		content := messages[0].(map[string]any)["content"].([]any)
+		require.Len(t, content, 2)
+
+		prefixCache := content[0].(map[string]any)["cache_control"].(map[string]any)
+		require.Equal(t, "1h", prefixCache["ttl"])
+		require.Equal(t, "controls", content[0].(map[string]any)["text"])
+
+		// The volatile tail must stay uncached.
+		_, volatileHasCache := content[1].(map[string]any)["cache_control"]
+		require.False(t, volatileHasCache)
+		require.Equal(t, "labels", content[1].(map[string]any)["text"])
+
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"id":"msg_test",
+			"type":"message",
+			"role":"assistant",
+			"model":"claude-test",
+			"content":[{"type":"text","text":"{}"}],
+			"stop_reason":"end_turn",
+			"stop_sequence":"",
+			"usage":{"input_tokens":1,"output_tokens":1,"cache_read_input_tokens":40,"cache_creation_input_tokens":20}
+		}`))
+	}))
+	t.Cleanup(server.Close)
+
+	client := NewAnthropicClient(AnthropicConfig{
+		Enabled:        true,
+		APIKey:         "test-key",
+		Model:          "claude-test",
+		BaseURL:        server.URL,
+		RequestTimeout: time.Second,
+	})
+
+	resp, err := client.CompleteStructured(context.Background(), StructuredRequest{
+		System:              "sys",
+		SystemCacheTTL:      CacheTTL1h,
+		CachedUserPrefix:    "controls",
+		CachedUserPrefixTTL: CacheTTL1h,
+		Prompt:              "labels",
+		Schema:              map[string]any{"type": "object"},
+		MaxTokens:           64,
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, 40, resp.CacheReadInputTokens)
+	require.Equal(t, 20, resp.CacheCreationInputTokens)
+}
+
 func TestSanitizeAnthropicSchema(t *testing.T) {
 	schema := map[string]any{
 		"type":      "object",

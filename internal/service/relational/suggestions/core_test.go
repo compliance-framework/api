@@ -1,7 +1,9 @@
 package suggestions
 
 import (
+	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -180,6 +182,222 @@ func TestValidateMappingsRules(t *testing.T) {
 	require.Equal(t, "env=stage", result.Mappings[1].ProposedFilterName)
 }
 
+func TestValidateMappingsFilterLabelSubsetRules(t *testing.T) {
+	controlKey := ControlKey(uuid.New(), "AC-1")
+	labels := map[string]string{
+		"_agent":       "agent-1",
+		"_plugin":      "github_repos",
+		"_policy":      "secret_scanning_push_protection",
+		"organization": "compliance-framework",
+		"provider":     "github",
+		"repository":   "todo-app",
+		"type":         "repository",
+	}
+	hash := CanonicalLabelSetHash(labels)
+	input := CellInput{
+		Controls:  []ControlInput{{ControlKey: controlKey}},
+		LabelSets: []LabelSetInput{{Hash: hash, Labels: labels}},
+	}
+
+	result := ValidateRawMappings(input, []RawMapping{
+		{
+			ControlKey:           controlKey,
+			LabelSetHash:         hash,
+			Action:               MappingActionNewFilter,
+			Confidence:           0.9,
+			Reasoning:            "matches",
+			ProposedFilterLabels: map[string]string{"provider": "github", "type": "repository", "_agent": "agent-1"},
+		},
+		{
+			ControlKey:           controlKey,
+			LabelSetHash:         hash,
+			Action:               MappingActionNewFilter,
+			Confidence:           0.8,
+			Reasoning:            "hallucinated",
+			ProposedFilterLabels: map[string]string{"provider": "gitlab"},
+		},
+	})
+
+	require.Equal(t, 1, result.Counts["rejected_invalid_filter_labels"])
+	require.Equal(t, 1, result.Counts["dropped_identity_filter_labels"])
+	require.Equal(t, 1, result.Counts["added_policy_filter_label"])
+	require.Len(t, result.Mappings, 1)
+	require.Equal(t, map[string]string{
+		"_policy":  "secret_scanning_push_protection",
+		"provider": "github",
+		"type":     "repository",
+	}, result.Mappings[0].ProposedFilterLabelSet)
+}
+
+func TestOutputSchemaProposedFilterLabelsUsesStrictPairArray(t *testing.T) {
+	schema := OutputSchema()
+	properties := schema["properties"].(map[string]any)
+	mappings := properties["mappings"].(map[string]any)
+	mappingItem := mappings["items"].(map[string]any)
+	mappingProperties := mappingItem["properties"].(map[string]any)
+	proposedLabels := mappingProperties["proposed_filter_labels"].(map[string]any)
+
+	require.Equal(t, "array", proposedLabels["type"])
+	item := proposedLabels["items"].(map[string]any)
+	require.Equal(t, "object", item["type"])
+	require.Equal(t, false, item["additionalProperties"])
+	require.ElementsMatch(t, []any{"key", "value"}, item["required"])
+	itemProperties := item["properties"].(map[string]any)
+	require.Equal(t, map[string]any{"type": "string"}, itemProperties["key"])
+	require.Equal(t, map[string]any{"type": "string"}, itemProperties["value"])
+
+	requireEverySchemaObjectIsStrict(t, schema)
+}
+
+func requireEverySchemaObjectIsStrict(t *testing.T, node any) {
+	t.Helper()
+	switch typed := node.(type) {
+	case map[string]any:
+		if typed["type"] == "object" {
+			require.Equal(t, false, typed["additionalProperties"])
+		}
+		for _, value := range typed {
+			requireEverySchemaObjectIsStrict(t, value)
+		}
+	case []any:
+		for _, value := range typed {
+			requireEverySchemaObjectIsStrict(t, value)
+		}
+	}
+}
+
+func TestValidateMappingsDecodesProposedFilterLabelsPairArrayLikeLegacyMap(t *testing.T) {
+	controlKey := ControlKey(uuid.New(), "AC-1")
+	labels := map[string]string{
+		"_policy":  "secret_scanning_push_protection",
+		"provider": "github",
+		"type":     "repository",
+	}
+	hash := CanonicalLabelSetHash(labels)
+	input := CellInput{
+		Controls:  []ControlInput{{ControlKey: controlKey}},
+		LabelSets: []LabelSetInput{{Hash: hash, Labels: labels}},
+	}
+	rawTemplate := `{
+		"mappings": [{
+			"control_key": %q,
+			"label_set_hash": %q,
+			"action": "new_filter",
+			"confidence": 0.9,
+			"reasoning": "matches",
+			"proposed_filter_labels": %s
+		}]
+	}`
+	arrayResult, err := ValidateMappings(input, []byte(fmt.Sprintf(
+		rawTemplate,
+		controlKey,
+		hash,
+		`[{"key":"provider","value":"github"},{"key":"type","value":"repository"}]`,
+	)))
+	require.NoError(t, err)
+	legacyResult, err := ValidateMappings(input, []byte(fmt.Sprintf(
+		rawTemplate,
+		controlKey,
+		hash,
+		`{"provider":"github","type":"repository"}`,
+	)))
+	require.NoError(t, err)
+
+	require.Len(t, arrayResult.Mappings, 1)
+	require.Equal(t, legacyResult.Mappings[0].ProposedFilterLabelSet, arrayResult.Mappings[0].ProposedFilterLabelSet)
+}
+
+func TestProposedFilterLabelsPairArrayDuplicateKeyLastWins(t *testing.T) {
+	var decoded RawMappings
+	err := json.Unmarshal([]byte(`{
+		"mappings": [{
+			"control_key": "control",
+			"label_set_hash": "hash",
+			"action": "new_filter",
+			"confidence": 0.9,
+			"reasoning": "matches",
+			"proposed_filter_labels": [
+				{"key":"provider","value":"aws"},
+				{"key":"provider","value":"github"}
+			]
+		}]
+	}`), &decoded)
+	require.NoError(t, err)
+	require.Equal(t, ProposedFilterLabels{"provider": "github"}, decoded.Mappings[0].ProposedFilterLabels)
+}
+
+func TestValidateMappingsEmptyFilterLabelsUseDefaultSubset(t *testing.T) {
+	controlKey := ControlKey(uuid.New(), "AC-1")
+	labels := map[string]string{
+		"_policy":      "secret_scanning_push_protection",
+		"organization": "compliance-framework",
+		"provider":     "github",
+		"repository":   "todo-app",
+		"type":         "repository",
+	}
+	hash := CanonicalLabelSetHash(labels)
+	input := CellInput{
+		Controls:  []ControlInput{{ControlKey: controlKey}},
+		LabelSets: []LabelSetInput{{Hash: hash, Labels: labels}},
+	}
+
+	result := ValidateRawMappings(input, []RawMapping{{
+		ControlKey:   controlKey,
+		LabelSetHash: hash,
+		Action:       MappingActionNewFilter,
+		Confidence:   0.9,
+		Reasoning:    "matches",
+	}})
+
+	require.Equal(t, 1, result.Counts["fallback_filter_labels"])
+	require.Len(t, result.Mappings, 1)
+	require.Equal(t, map[string]string{
+		"_policy":  "secret_scanning_push_protection",
+		"provider": "github",
+		"type":     "repository",
+	}, result.Mappings[0].ProposedFilterLabelSet)
+}
+
+func TestValidateMappingsDedupesByProposedFilterSubset(t *testing.T) {
+	controlKey := ControlKey(uuid.New(), "AC-1")
+	subset := map[string]string{
+		"_policy":  "secret_scanning_push_protection",
+		"provider": "github",
+		"type":     "repository",
+	}
+	firstLabels := map[string]string{
+		"_policy":    "secret_scanning_push_protection",
+		"provider":   "github",
+		"type":       "repository",
+		"repository": "todo-app",
+	}
+	secondLabels := map[string]string{
+		"_policy":    "secret_scanning_push_protection",
+		"provider":   "github",
+		"type":       "repository",
+		"repository": "payments-api",
+	}
+	firstHash := CanonicalLabelSetHash(firstLabels)
+	secondHash := CanonicalLabelSetHash(secondLabels)
+	input := CellInput{
+		Controls: []ControlInput{{ControlKey: controlKey}},
+		LabelSets: []LabelSetInput{
+			{Hash: firstHash, Labels: firstLabels},
+			{Hash: secondHash, Labels: secondLabels},
+		},
+	}
+
+	result := ValidateRawMappings(input, []RawMapping{
+		{ControlKey: controlKey, LabelSetHash: firstHash, Action: MappingActionNewFilter, Confidence: 0.7, Reasoning: "matches", ProposedFilterLabels: subset},
+		{ControlKey: controlKey, LabelSetHash: secondHash, Action: MappingActionNewFilter, Confidence: 0.9, Reasoning: "better match", ProposedFilterLabels: subset},
+	})
+
+	require.Equal(t, 1, result.Counts["deduped_within_cell"])
+	require.Len(t, result.Mappings, 1)
+	require.Equal(t, secondHash, result.Mappings[0].LabelSetHash)
+	require.Equal(t, subset, result.Mappings[0].ProposedFilterLabelSet)
+}
+
 func TestValidateMappingsControlCap(t *testing.T) {
 	controlKey := ControlKey(uuid.New(), "AC-1")
 	input := CellInput{Controls: []ControlInput{{ControlKey: controlKey}}}
@@ -242,10 +460,13 @@ func TestPromptGolden(t *testing.T) {
 		LabelKeyDocs:   []LabelKeyDocInput{{Key: "repo", Description: "Repository name"}},
 		SameSSPFilters: []VisibleFilterInput{{ID: uuid.MustParse("22222222-2222-2222-2222-222222222222"), Name: "payments-api"}},
 	}
-	gotPrompt, err := RenderPrompt(input)
+	rendered, err := RenderPrompt(input)
 	require.NoError(t, err)
-	got := SystemPrompt + "\n---USER---\n" + gotPrompt
+	got := rendered.System + "\n---CONTROLS---\n" + rendered.Controls + "\n---LABELSETS---\n" + rendered.Volatile
 	path := filepath.Join("testdata", "prompt_"+PromptVersion+".golden")
+	if os.Getenv("UPDATE_GOLDEN") != "" {
+		require.NoError(t, os.WriteFile(path, []byte(got+"\n"), 0o644))
+	}
 	expected, err := os.ReadFile(path)
 	require.NoError(t, err)
 	require.Equal(t, strings.TrimSuffix(string(expected), "\n"), got)
