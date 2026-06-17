@@ -788,8 +788,14 @@ func (h *AiDiagnosticsHandler) cacheEngagingCheck(totals AiDiagnosticsTotals) Ai
 
 func (h *AiDiagnosticsHandler) rateLimitPressureCheck(totals AiDiagnosticsTotals) AiDiagnosticsHealthCheck {
 	totalCells := totals.CellsCompleted + totals.CellsFailed
-	if totals.RateLimitedTotal == 0 || totalCells == 0 {
+	if totals.RateLimitedTotal == 0 {
 		return AiDiagnosticsHealthCheck{ID: "rate_limit_pressure", Status: "pass", Message: "No dashboard suggestion rate-limit snoozes were observed.", RecommendedActions: []string{}}
+	}
+	if totalCells == 0 {
+		if totals.RateLimitedTotal >= 5 {
+			return AiDiagnosticsHealthCheck{ID: "rate_limit_pressure", Status: "warn", Message: "Rate-limit snoozes were observed before any cells completed or failed.", RecommendedActions: []string{"Reduce CCF_AI_QUEUE_WORKERS or request higher provider throughput."}}
+		}
+		return AiDiagnosticsHealthCheck{ID: "rate_limit_pressure", Status: "pass", Message: "Rate-limit snoozes are present but below the warning threshold.", RecommendedActions: []string{}}
 	}
 	ratio := float64(totals.RateLimitedTotal) / float64(totalCells)
 	if totals.RateLimitedTotal >= 5 && ratio > 0.2 {

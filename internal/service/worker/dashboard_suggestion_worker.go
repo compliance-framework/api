@@ -103,7 +103,7 @@ func (w *DashboardSuggestionWorker) Work(ctx context.Context, job *river.Job[Das
 		// A rate limit skips the cell and requeues it after the provider's
 		// Retry-After (or a default) plus jitter, without consuming a regular
 		// attempt or marking the cell failed.
-		if delay, ok := rateLimitSnooze(err, job.Attempt); ok {
+		if delay, ok := rateLimitSnooze(err, cell.RateLimitedCount); ok {
 			w.incrementCellRateLimitedCount(ctx, job.Args)
 			return river.JobSnooze(delay)
 		}
@@ -238,14 +238,14 @@ func (w *DashboardSuggestionWorker) completeWithRetry(ctx context.Context, rende
 }
 
 // rateLimitSnooze decides whether a failed completion should be snoozed. ok is
-// false when err is not a rate limit, or when the snooze budget for this cell is
-// exhausted (so the caller can fail it instead of snoozing forever).
-func rateLimitSnooze(err error, attempt int) (time.Duration, bool) {
+// false when err is not a rate limit, or when the persisted snooze budget for
+// this cell is exhausted (so the caller can fail it instead of snoozing forever).
+func rateLimitSnooze(err error, rateLimitedCount int) (time.Duration, bool) {
 	var rateLimit *llm.RateLimitError
 	if !errors.As(err, &rateLimit) {
 		return 0, false
 	}
-	if attempt >= maxRateLimitSnoozes {
+	if rateLimitedCount >= maxRateLimitSnoozes {
 		return 0, false
 	}
 	return snoozeDelay(rateLimit.RetryAfter), true

@@ -467,6 +467,42 @@ func (suite *DashboardSuggestionsHTTPSuite) TestAiDiagnosticsUsesCellTotalsForRu
 	suite.InDelta(0.125, list.Data[0].CacheHitRatio, 0.0001)
 }
 
+func (suite *DashboardSuggestionsHTTPSuite) TestAiDiagnosticsRateLimitPressureWarnsForPendingOnlySnoozes() {
+	sspID := suite.seedDiagnosticsSSP("Pending Throttle SSP")
+	actorID := suite.dummyUserID()
+	startedAt := time.Now().UTC().Add(-10 * time.Minute)
+	runID := suite.seedDiagnosticsRun(sspID, "running", startedAt, nil, actorID, 0, 0, 0, 0, 0)
+	suite.Require().NoError(suite.DB.Create(&suggestionrel.DashboardSuggestionRunCell{
+		RunID:            runID,
+		CellIndex:        0,
+		ControlKeys:      datatypes.NewJSONSlice([]string{"catalog:AC-1"}),
+		LabelSetHashes:   datatypes.NewJSONSlice([]string{"hash"}),
+		Status:           "pending",
+		RateLimitedCount: 5,
+	}).Error)
+
+	rec, req := suite.req(http.MethodGet, "/api/admin/ai-diagnostics/summary", nil)
+	suite.server.E().ServeHTTP(rec, req)
+	suite.Equal(http.StatusOK, rec.Code, rec.Body.String())
+
+	var response apihandler.GenericDataResponse[AiDiagnosticsSummary]
+	suite.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &response))
+	suite.Equal(int64(0), response.Data.Totals.CellsCompleted)
+	suite.Equal(int64(0), response.Data.Totals.CellsFailed)
+	suite.Equal(int64(5), response.Data.Totals.RateLimitedTotal)
+
+	var rateLimitCheck *AiDiagnosticsHealthCheck
+	for i := range response.Data.Checks {
+		if response.Data.Checks[i].ID == "rate_limit_pressure" {
+			rateLimitCheck = &response.Data.Checks[i]
+			break
+		}
+	}
+	suite.Require().NotNil(rateLimitCheck)
+	suite.Equal("warn", rateLimitCheck.Status)
+	suite.NotEqual("No dashboard suggestion rate-limit snoozes were observed.", rateLimitCheck.Message)
+}
+
 func (suite *DashboardSuggestionsHTTPSuite) TestAiDiagnosticsRecentFailureRateUsesCellCompletedAt() {
 	sspID := suite.seedDiagnosticsSSP("Recent Failure SSP")
 	actorID := suite.dummyUserID()

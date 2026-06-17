@@ -310,7 +310,7 @@ func TestSnoozeDelay(t *testing.T) {
 func TestRateLimitSnooze(t *testing.T) {
 	t.Parallel()
 
-	t.Run("rate limit within budget snoozes", func(t *testing.T) {
+	t.Run("rate limit within snooze count budget snoozes", func(t *testing.T) {
 		delay, ok := rateLimitSnooze(&llm.RateLimitError{RetryAfter: 7 * time.Second}, 1)
 		require.True(t, ok)
 		require.GreaterOrEqual(t, delay, 7*time.Second)
@@ -322,7 +322,7 @@ func TestRateLimitSnooze(t *testing.T) {
 		require.True(t, ok)
 	})
 
-	t.Run("exhausted budget does not snooze", func(t *testing.T) {
+	t.Run("exhausted snooze count budget does not snooze", func(t *testing.T) {
 		_, ok := rateLimitSnooze(&llm.RateLimitError{RetryAfter: time.Second}, maxRateLimitSnoozes)
 		require.False(t, ok)
 	})

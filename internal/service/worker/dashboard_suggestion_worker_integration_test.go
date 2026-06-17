@@ -5,6 +5,7 @@ package worker
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"regexp"
 	"sync"
@@ -121,6 +122,44 @@ func (suite *DashboardSuggestionWorkerIntegrationSuite) TestRateLimitSnoozesCell
 	var run suggestionrel.DashboardSuggestionRun
 	suite.Require().NoError(suite.DB.First(&run, "id = ?", runID).Error)
 	suite.Require().NotEqual(dashboardSuggestionRunStatusFailed, run.Status)
+}
+
+func (suite *DashboardSuggestionWorkerIntegrationSuite) TestRateLimitSnoozeBudgetUsesPersistedCellCount() {
+	ctx := context.Background()
+	runID, cells := suite.seedTwoByTwoSuggestionRun()
+	cellIndex := cells[0].CellIndex
+	suite.Require().NoError(suite.DB.Where("run_id = ? AND cell_index <> ?", runID, cellIndex).Delete(&suggestionrel.DashboardSuggestionRunCell{}).Error)
+
+	client := &llm.FakeClient{Err: &llm.RateLimitError{RetryAfter: time.Second}}
+	worker := NewDashboardSuggestionWorker(suite.DB, client, &config.AIConfig{RequestTimeout: 120 * time.Second, MaxSuggestionsPerRun: 10}, zap.NewNop().Sugar())
+
+	for i := 0; i < maxRateLimitSnoozes; i++ {
+		err := worker.Work(ctx, dashboardSuggestionIntegrationJob(runID, cellIndex))
+		var snooze *rivertype.JobSnoozeError
+		suite.Require().ErrorAs(err, &snooze)
+
+		var cell suggestionrel.DashboardSuggestionRunCell
+		suite.Require().NoError(suite.DB.First(&cell, "run_id = ? AND cell_index = ?", runID, cellIndex).Error)
+		suite.Equal(dashboardSuggestionCellStatusPending, cell.Status)
+		suite.Equal(i+1, cell.RateLimitedCount)
+	}
+
+	err := worker.Work(ctx, dashboardSuggestionIntegrationJob(runID, cellIndex))
+	var cancelErr *river.JobCancelError
+	suite.Require().ErrorAs(err, &cancelErr)
+	suite.Require().True(errors.Is(err, llm.ErrRateLimited))
+
+	var cell suggestionrel.DashboardSuggestionRunCell
+	suite.Require().NoError(suite.DB.First(&cell, "run_id = ? AND cell_index = ?", runID, cellIndex).Error)
+	suite.Equal(dashboardSuggestionCellStatusFailed, cell.Status)
+	suite.Equal(maxRateLimitSnoozes, cell.RateLimitedCount)
+	suite.Require().NotNil(cell.CompletedAt)
+
+	var run suggestionrel.DashboardSuggestionRun
+	suite.Require().NoError(suite.DB.First(&run, "id = ?", runID).Error)
+	suite.Equal(dashboardSuggestionRunStatusFailed, run.Status)
+	suite.Equal(maxRateLimitSnoozes, run.RateLimitedCount)
+	suite.Require().NotNil(run.CompletedAt)
 }
 
 func (suite *DashboardSuggestionWorkerIntegrationSuite) seedTwoByTwoSuggestionRun() (uuid.UUID, []suggestionrel.GridCell) {
