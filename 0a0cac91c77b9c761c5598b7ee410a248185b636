@@ -1,0 +1,7 @@
+lisa-design:
+- Added cache/throttle persistence as additive GORM model fields with `not null;default:0`, relying on the existing AutoMigrate path that already migrates dashboard suggestion run/cell models instead of adding a bespoke migration.
+- Counted 429 pressure by best-effort incrementing the pending cell before returning `river.JobSnooze`; increment failures are logged only and do not alter snooze behavior.
+- Sourced AI diagnostics queue stats directly from `river_job` for the `suggestion` queue instead of reusing notification troubleshooting because that service has a notification-only queue allow-list and job-kind filter.
+- Returned `queue: null` plus a `queue_reachable` warning when `river_job` is unavailable or unreadable so diagnostics remain usable in test/dev databases without River tables.
+- Used keyset pagination for `/admin/ai-diagnostics/runs` with an opaque base64 JSON cursor over `startedAt` and `id`; callers should treat the cursor as opaque.
+- Kept AI diagnostics routes registered only inside the existing `config.AI.Enabled` gate and behind the admin middleware, so the endpoints are absent rather than returning disabled payloads when `CCF_AI_ENABLED=false`.
