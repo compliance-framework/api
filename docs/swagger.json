@@ -16436,6 +16436,58 @@
                 ]
             }
         },
+        "/oscal/system-security-plans/{id}/dashboard-suggestions/control-results": {
+            "get": {
+                "description": "Returns the latest dashboard-suggestion evaluation outcome per evaluated control.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Dashboard Suggestions"
+                ],
+                "summary": "List dashboard suggestion control results for an SSP",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "System Security Plan ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataListResponse-oscal_controlSuggestionResultResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
         "/oscal/system-security-plans/{id}/dashboard-suggestions/edit-group": {
             "post": {
                 "description": "Edits the title, proposed filter labels, and control membership of a pending suggestion group. User-provided labels are stored verbatim (the evidence-subset rule is bypassed) and the rows are flagged as user-edited.",
@@ -29410,6 +29462,19 @@
                 "meta": {}
             }
         },
+        "handler.GenericDataListResponse-oscal_controlSuggestionResultResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscal.controlSuggestionResultResponse"
+                    }
+                },
+                "meta": {}
+            }
+        },
         "handler.GenericDataListResponse-oscal_dashboardSuggestionEventResponse": {
             "type": "object",
             "properties": {
@@ -33303,6 +33368,29 @@
             "properties": {
                 "profileId": {
                     "type": "string"
+                }
+            }
+        },
+        "oscal.controlSuggestionResultResponse": {
+            "type": "object",
+            "properties": {
+                "controlCatalogId": {
+                    "type": "string"
+                },
+                "controlId": {
+                    "type": "string"
+                },
+                "evaluatedAt": {
+                    "type": "string"
+                },
+                "outcome": {
+                    "type": "string"
+                },
+                "runId": {
+                    "type": "string"
+                },
+                "suggestionCount": {
+                    "type": "integer"
                 }
             }
         },

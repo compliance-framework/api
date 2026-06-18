@@ -147,7 +147,7 @@ func (w *DashboardSuggestionWorker) Work(ctx context.Context, job *river.Job[Das
 				"cell_index", cell.CellIndex,
 			)
 		}
-		if err := w.completeCell(ctx, run, cell, response, suggestionrel.ValidationResult{Counts: suggestionrel.ValidationCounts{}}, 0, missingLabelSets); err != nil {
+		if err := w.completeCell(ctx, run, cell, response, suggestionrel.ValidationResult{Counts: suggestionrel.ValidationCounts{}}, gathered.Controls, 0, missingLabelSets); err != nil {
 			return w.handleAttemptFailure(ctx, job, err)
 		}
 		return nil
@@ -171,7 +171,7 @@ func (w *DashboardSuggestionWorker) Work(ctx context.Context, job *river.Job[Das
 		return river.JobCancel(err)
 	}
 
-	if err := w.completeCell(ctx, run, cell, response, validation, rawCount, missingLabelSets); err != nil {
+	if err := w.completeCell(ctx, run, cell, response, validation, gathered.Controls, rawCount, missingLabelSets); err != nil {
 		return w.handleAttemptFailure(ctx, job, err)
 	}
 	return nil
@@ -336,6 +336,7 @@ func (w *DashboardSuggestionWorker) completeCell(
 	cell suggestionrel.DashboardSuggestionRunCell,
 	response *llm.StructuredResponse,
 	validation suggestionrel.ValidationResult,
+	evaluatedControls []suggestionrel.ControlInput,
 	rawCount int,
 	missingLabelSets int,
 ) error {
@@ -386,8 +387,90 @@ func (w *DashboardSuggestionWorker) completeCell(
 		if update.RowsAffected == 0 {
 			return nil
 		}
+		if err := w.recordControlResultsTx(tx, *run.ID, run.SSPID, evaluatedControls, inserted.InsertedControlKeys, now); err != nil {
+			return err
+		}
 		return w.finalizeRunIfReady(tx, *run.ID)
 	})
+}
+
+func (w *DashboardSuggestionWorker) recordControlResultsTx(
+	tx *gorm.DB,
+	runID uuid.UUID,
+	sspID uuid.UUID,
+	evaluatedControls []suggestionrel.ControlInput,
+	insertedControlKeys map[string]int,
+	evaluatedAt time.Time,
+) error {
+	for _, control := range evaluatedControls {
+		catalogID, controlID, err := controlResultIdentity(control)
+		if err != nil {
+			return err
+		}
+		insertedCount := insertedControlKeys[control.ControlKey]
+		result := suggestionrel.DashboardSuggestionControlResult{
+			RunID:            runID,
+			SSPID:            sspID,
+			ControlCatalogID: catalogID,
+			ControlID:        controlID,
+			EvaluatedAt:      &evaluatedAt,
+		}
+		if insertedCount > 0 {
+			result.Outcome = suggestionrel.DashboardSuggestionControlOutcomeMatched
+			result.SuggestionCount = insertedCount
+			if err := tx.Clauses(clause.OnConflict{
+				Columns: []clause.Column{
+					{Name: "run_id"},
+					{Name: "control_catalog_id"},
+					{Name: "control_id"},
+				},
+				DoUpdates: clause.Assignments(map[string]any{
+					"outcome":          suggestionrel.DashboardSuggestionControlOutcomeMatched,
+					"suggestion_count": gorm.Expr("dashboard_suggestion_control_results.suggestion_count + excluded.suggestion_count"),
+					"evaluated_at":     evaluatedAt,
+				}),
+			}).Create(&result).Error; err != nil {
+				return err
+			}
+			continue
+		}
+
+		result.Outcome = suggestionrel.DashboardSuggestionControlOutcomeNoMatch
+		result.SuggestionCount = 0
+		if err := tx.Clauses(clause.OnConflict{
+			Columns: []clause.Column{
+				{Name: "run_id"},
+				{Name: "control_catalog_id"},
+				{Name: "control_id"},
+			},
+			DoNothing: true,
+		}).Create(&result).Error; err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func controlResultIdentity(control suggestionrel.ControlInput) (uuid.UUID, string, error) {
+	catalogID, err := uuid.Parse(control.CatalogID)
+	if err != nil {
+		parsedCatalogID, parsedControlID, parseErr := suggestionrel.ParseControlKey(control.ControlKey)
+		if parseErr != nil {
+			return uuid.Nil, "", err
+		}
+		catalogID = parsedCatalogID
+		if control.ControlID == "" {
+			control.ControlID = parsedControlID
+		}
+	}
+	if control.ControlID == "" {
+		_, parsedControlID, err := suggestionrel.ParseControlKey(control.ControlKey)
+		if err != nil {
+			return uuid.Nil, "", err
+		}
+		control.ControlID = parsedControlID
+	}
+	return catalogID, control.ControlID, nil
 }
 
 func (w *DashboardSuggestionWorker) handleAttemptFailure(ctx context.Context, job *river.Job[DashboardSuggestionCellArgs], err error) error {

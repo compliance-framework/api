@@ -217,7 +217,7 @@ func TestDashboardSuggestionWorkerCompleteCellCountsMissingLabelSetsAsRejected(t
 	}
 	response := &llm.StructuredResponse{InputTokens: 2, OutputTokens: 3, CacheReadInputTokens: 5, CacheCreationInputTokens: 7}
 
-	require.NoError(t, worker.completeCell(context.Background(), run, cell, response, validation, 1, 1))
+	require.NoError(t, worker.completeCell(context.Background(), run, cell, response, validation, nil, 1, 1))
 
 	var stored suggestionrel.DashboardSuggestionRunCell
 	require.NoError(t, db.First(&stored, "run_id = ? AND cell_index = ?", runID, 0).Error)
@@ -288,6 +288,125 @@ func TestDashboardSuggestionWorkerLLMRetryAndNonRetryableFailure(t *testing.T) {
 	})
 }
 
+func TestDashboardSuggestionWorkerCompleteCellWritesControlResults(t *testing.T) {
+	t.Run("empty output writes no match for every evaluated control", func(t *testing.T) {
+		db := newDashboardSuggestionWorkerTestDB(t)
+		runID, sspID := seedDashboardSuggestionRun(t, db, dashboardSuggestionRunStatusRunning, 1)
+		seedDashboardSuggestionCell(t, db, runID, 0, dashboardSuggestionCellStatusPending)
+		worker := NewDashboardSuggestionWorker(db, &llm.FakeClient{}, config.DefaultAIConfig(), zap.NewNop().Sugar())
+		run := suggestionrel.DashboardSuggestionRun{
+			UUIDModel:     relational.UUIDModel{ID: &runID},
+			SSPID:         sspID,
+			PromptVersion: suggestionrel.PromptVersion,
+			Stats:         datatypes.JSONMap{},
+		}
+		catalogID := uuid.New()
+		controls := []suggestionrel.ControlInput{
+			controlInput(catalogID, "AC-1"),
+			controlInput(catalogID, "AC-2"),
+		}
+		response := &llm.StructuredResponse{}
+
+		require.NoError(t, worker.completeCell(context.Background(), run, suggestionrel.DashboardSuggestionRunCell{RunID: runID, CellIndex: 0}, response, suggestionrel.ValidationResult{}, controls, 0, 0))
+
+		var suggestionCount int64
+		require.NoError(t, db.Model(&suggestionrel.DashboardSuggestion{}).Where("run_id = ?", runID).Count(&suggestionCount).Error)
+		require.Zero(t, suggestionCount)
+		results := loadControlResults(t, db, runID)
+		require.Len(t, results, 2)
+		for _, result := range results {
+			require.Equal(t, suggestionrel.DashboardSuggestionControlOutcomeNoMatch, result.Outcome)
+			require.Equal(t, 0, result.SuggestionCount)
+			require.NotNil(t, result.EvaluatedAt)
+			require.Equal(t, sspID, result.SSPID)
+		}
+	})
+
+	t.Run("matched controls record inserted counts and remaining controls record no match", func(t *testing.T) {
+		db := newDashboardSuggestionWorkerTestDB(t)
+		runID, sspID := seedDashboardSuggestionRun(t, db, dashboardSuggestionRunStatusRunning, 1)
+		seedDashboardSuggestionCell(t, db, runID, 0, dashboardSuggestionCellStatusPending)
+		worker := NewDashboardSuggestionWorker(db, &llm.FakeClient{}, config.DefaultAIConfig(), zap.NewNop().Sugar())
+		run := suggestionrel.DashboardSuggestionRun{
+			UUIDModel:     relational.UUIDModel{ID: &runID},
+			SSPID:         sspID,
+			PromptVersion: suggestionrel.PromptVersion,
+			Stats:         datatypes.JSONMap{},
+		}
+		catalogID := uuid.New()
+		controls := []suggestionrel.ControlInput{
+			controlInput(catalogID, "AC-1"),
+			controlInput(catalogID, "AC-2"),
+		}
+		validation := suggestionrel.ValidationResult{Mappings: []suggestionrel.ValidatedMapping{
+			validatedMapping(catalogID, "AC-1", "hash-a"),
+			validatedMapping(catalogID, "AC-1", "hash-b"),
+		}}
+		validation.Mappings[1].LabelSet = map[string]string{"env": "stage"}
+		validation.Mappings[1].ProposedFilterName = "stage evidence"
+		response := &llm.StructuredResponse{}
+
+		require.NoError(t, worker.completeCell(context.Background(), run, suggestionrel.DashboardSuggestionRunCell{RunID: runID, CellIndex: 0}, response, validation, controls, 2, 0))
+
+		results := loadControlResults(t, db, runID)
+		require.Len(t, results, 2)
+		byControl := controlResultsByID(results)
+		require.Equal(t, suggestionrel.DashboardSuggestionControlOutcomeMatched, byControl["AC-1"].Outcome)
+		require.Equal(t, 2, byControl["AC-1"].SuggestionCount)
+		require.Equal(t, suggestionrel.DashboardSuggestionControlOutcomeNoMatch, byControl["AC-2"].Outcome)
+		require.Equal(t, 0, byControl["AC-2"].SuggestionCount)
+	})
+}
+
+func TestDashboardSuggestionWorkerControlResultCrossCellAggregation(t *testing.T) {
+	for _, tt := range []struct {
+		name       string
+		firstCell  suggestionrel.ValidationResult
+		secondCell suggestionrel.ValidationResult
+	}{
+		{
+			name:       "matched then empty",
+			firstCell:  suggestionrel.ValidationResult{Mappings: []suggestionrel.ValidatedMapping{validatedMapping(uuid.Nil, "AC-1", "hash-a")}},
+			secondCell: suggestionrel.ValidationResult{},
+		},
+		{
+			name:       "empty then matched",
+			firstCell:  suggestionrel.ValidationResult{},
+			secondCell: suggestionrel.ValidationResult{Mappings: []suggestionrel.ValidatedMapping{validatedMapping(uuid.Nil, "AC-1", "hash-b")}},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			db := newDashboardSuggestionWorkerTestDB(t)
+			runID, sspID := seedDashboardSuggestionRun(t, db, dashboardSuggestionRunStatusRunning, 2)
+			seedDashboardSuggestionCell(t, db, runID, 0, dashboardSuggestionCellStatusPending)
+			seedDashboardSuggestionCell(t, db, runID, 1, dashboardSuggestionCellStatusPending)
+			worker := NewDashboardSuggestionWorker(db, &llm.FakeClient{}, config.DefaultAIConfig(), zap.NewNop().Sugar())
+			run := suggestionrel.DashboardSuggestionRun{
+				UUIDModel:     relational.UUIDModel{ID: &runID},
+				SSPID:         sspID,
+				PromptVersion: suggestionrel.PromptVersion,
+				Stats:         datatypes.JSONMap{},
+			}
+			catalogID := uuid.New()
+			controls := []suggestionrel.ControlInput{controlInput(catalogID, "AC-1")}
+			if len(tt.firstCell.Mappings) > 0 {
+				tt.firstCell.Mappings[0].ControlKey = suggestionrel.ControlKey(catalogID, "AC-1")
+			}
+			if len(tt.secondCell.Mappings) > 0 {
+				tt.secondCell.Mappings[0].ControlKey = suggestionrel.ControlKey(catalogID, "AC-1")
+			}
+
+			require.NoError(t, worker.completeCell(context.Background(), run, suggestionrel.DashboardSuggestionRunCell{RunID: runID, CellIndex: 0}, &llm.StructuredResponse{}, tt.firstCell, controls, len(tt.firstCell.Mappings), 0))
+			require.NoError(t, worker.completeCell(context.Background(), run, suggestionrel.DashboardSuggestionRunCell{RunID: runID, CellIndex: 1}, &llm.StructuredResponse{}, tt.secondCell, controls, len(tt.secondCell.Mappings), 0))
+
+			results := loadControlResults(t, db, runID)
+			require.Len(t, results, 1)
+			require.Equal(t, suggestionrel.DashboardSuggestionControlOutcomeMatched, results[0].Outcome)
+			require.Equal(t, 1, results[0].SuggestionCount)
+		})
+	}
+}
+
 func TestSnoozeDelay(t *testing.T) {
 	t.Parallel()
 
@@ -354,8 +473,13 @@ func newDashboardSuggestionWorkerTestDB(t *testing.T) *gorm.DB {
 		&suggestionrel.DashboardSuggestionRun{},
 		&suggestionrel.DashboardSuggestionRunCell{},
 		&suggestionrel.DashboardSuggestion{},
+		&suggestionrel.DashboardSuggestionControlResult{},
 		&suggestionrel.DashboardSuggestionEvent{},
 	))
+	require.NoError(t, db.Exec(`
+		CREATE UNIQUE INDEX idx_dashboard_suggestion_control_results_unique_run_control
+		ON dashboard_suggestion_control_results (run_id, control_catalog_id, control_id)
+	`).Error)
 	return db
 }
 
@@ -430,6 +554,40 @@ func assertRunEventCount(t *testing.T, db *gorm.DB, runID uuid.UUID, eventType s
 		Where("run_id = ? AND event_type = ?", runID, eventType).
 		Count(&count).Error)
 	require.Equal(t, expected, count)
+}
+
+func controlInput(catalogID uuid.UUID, controlID string) suggestionrel.ControlInput {
+	return suggestionrel.ControlInput{
+		ControlKey: suggestionrel.ControlKey(catalogID, controlID),
+		CatalogID:  catalogID.String(),
+		ControlID:  controlID,
+	}
+}
+
+func validatedMapping(catalogID uuid.UUID, controlID string, labelSetHash string) suggestionrel.ValidatedMapping {
+	return suggestionrel.ValidatedMapping{
+		ControlKey:         suggestionrel.ControlKey(catalogID, controlID),
+		LabelSetHash:       labelSetHash,
+		LabelSet:           map[string]string{"env": "prod"},
+		ProposedFilterName: "prod evidence",
+		Confidence:         0.9,
+		Reasoning:          "evidence matches",
+	}
+}
+
+func loadControlResults(t *testing.T, db *gorm.DB, runID uuid.UUID) []suggestionrel.DashboardSuggestionControlResult {
+	t.Helper()
+	var results []suggestionrel.DashboardSuggestionControlResult
+	require.NoError(t, db.Where("run_id = ?", runID).Order("control_id ASC").Find(&results).Error)
+	return results
+}
+
+func controlResultsByID(results []suggestionrel.DashboardSuggestionControlResult) map[string]suggestionrel.DashboardSuggestionControlResult {
+	byControl := make(map[string]suggestionrel.DashboardSuggestionControlResult, len(results))
+	for _, result := range results {
+		byControl[result.ControlID] = result
+	}
+	return byControl
 }
 
 func ptrString(value string) *string {

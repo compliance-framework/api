@@ -93,6 +93,15 @@ type dashboardSuggestionResponse struct {
 	TargetFilterName string `json:"targetFilterName,omitempty"`
 }
 
+type controlSuggestionResultResponse struct {
+	ControlID        string     `json:"controlId"`
+	ControlCatalogID uuid.UUID  `json:"controlCatalogId"`
+	Outcome          string     `json:"outcome"`
+	SuggestionCount  int        `json:"suggestionCount"`
+	RunID            uuid.UUID  `json:"runId"`
+	EvaluatedAt      *time.Time `json:"evaluatedAt"`
+}
+
 // suggestionEventActor carries the resolved display details for the user that
 // triggered a dashboard suggestion event, so the UI can render who acted rather
 // than just an opaque user ID.
@@ -148,6 +157,7 @@ func (h *DashboardSuggestionHandler) Register(apiGroup *echo.Group, auth echo.Mi
 	apiGroup.GET("/:id/dashboard-suggestion-runs/latest", h.LatestRun, auth)
 	apiGroup.GET("/:id/dashboard-suggestion-runs/:runId", h.GetRun, auth)
 	apiGroup.GET("/:id/dashboard-suggestions", h.ListSuggestions, auth)
+	apiGroup.GET("/:id/dashboard-suggestions/control-results", h.ControlResults, auth)
 	apiGroup.POST("/:id/dashboard-suggestions/accept", h.Accept, auth)
 	apiGroup.POST("/:id/dashboard-suggestions/reject", h.Reject, auth)
 	apiGroup.POST("/:id/dashboard-suggestions/edit-group", h.EditGroup, auth)
@@ -530,6 +540,46 @@ func (h *DashboardSuggestionHandler) ListSuggestions(ctx echo.Context) error {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 	return ctx.JSON(http.StatusOK, handler.GenericDataListResponse[dashboardSuggestionResponse]{Data: suggestions})
+}
+
+// ControlResults godoc
+//
+//	@Summary		List dashboard suggestion control results for an SSP
+//	@Description	Returns the latest dashboard-suggestion evaluation outcome per evaluated control.
+//	@Tags			Dashboard Suggestions
+//	@Produce		json
+//	@Param			id	path		string	true	"System Security Plan ID"
+//	@Success		200	{object}	handler.GenericDataListResponse[oscal.controlSuggestionResultResponse]
+//	@Failure		400	{object}	api.Error
+//	@Failure		401	{object}	api.Error
+//	@Failure		500	{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/oscal/system-security-plans/{id}/dashboard-suggestions/control-results [get]
+func (h *DashboardSuggestionHandler) ControlResults(ctx echo.Context) error {
+	sspID, err := parseUUIDParam(ctx, "id")
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	var results []controlSuggestionResultResponse
+	if err := h.db.WithContext(ctx.Request().Context()).Raw(`
+		SELECT DISTINCT ON (control_results.control_catalog_id, control_results.control_id)
+			control_results.control_id,
+			control_results.control_catalog_id,
+			control_results.outcome,
+			control_results.suggestion_count,
+			control_results.run_id,
+			control_results.evaluated_at
+		FROM dashboard_suggestion_control_results AS control_results
+		JOIN dashboard_suggestion_runs AS runs ON runs.id = control_results.run_id
+		WHERE control_results.ssp_id = ?
+		ORDER BY control_results.control_catalog_id ASC,
+			control_results.control_id ASC,
+			runs.started_at DESC NULLS LAST,
+			runs.id DESC
+	`, sspID).Scan(&results).Error; err != nil {
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+	return ctx.JSON(http.StatusOK, handler.GenericDataListResponse[controlSuggestionResultResponse]{Data: results})
 }
 
 // Accept godoc

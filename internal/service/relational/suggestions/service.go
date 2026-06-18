@@ -64,9 +64,10 @@ type LabelKeyDocInput struct {
 }
 
 type InsertMappingsResult struct {
-	Inserted int
-	Excluded int
-	Capped   int
+	Inserted            int
+	Excluded            int
+	Capped              int
+	InsertedControlKeys map[string]int
 }
 
 type ConflictError struct {
@@ -217,6 +218,10 @@ func (s *SuggestionService) InsertValidatedMappingsTx(tx *gorm.DB, runID uuid.UU
 			continue
 		}
 		result.Inserted++
+		if result.InsertedControlKeys == nil {
+			result.InsertedControlKeys = map[string]int{}
+		}
+		result.InsertedControlKeys[mapping.ControlKey]++
 		capacity--
 		if err := tx.Model(&DashboardSuggestionRun{}).
 			Where("id = ?", runID).
