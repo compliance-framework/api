@@ -1,0 +1,11 @@
+lisa-addressed:
+---
+Comment (internal/api/handler/oscal/dashboard_suggestion_diagnostics.go:459):
+`loadQueue`'s success path has no test coverage. Every diagnostics integration test runs against a DB without a `river_job` table, so they all hit the early `!HasTable("river_job")` return and assert `queue_reachable: warn` / `Queue: nil`. That means the Postgres-specific queries below this guard never execute under test:
+
+- `state::text AS state` cast and the `GROUP BY state` rollup (l.469-475)
+- the `completed24h`/`discarded24h` `SUM(CASE WHEN …)` query (l.494-502)
+- `min(CASE WHEN state IN ? AND scheduled_at <= ? THEN scheduled_at END)` with the `[]string{…}` slice expanded inside a `Select` expression (l.509-514)
+
+A typo or a GORM placeholder-binding surprise in any of these would ship silently and only surface against a real River-migrated database. Consider a Postgres-backed test that seeds a minimal `river_job` row for the `suggestion` queue and asserts the queue counts / `oldestAvailableAt` populate (and `queue_reachable: pass`).
+Implementation guidance: Add success-path coverage for AiDiagnosticsHandler.loadQueue in internal/api/handler/oscal/dashboard_suggestions_integration_test.go using the existing Postgres-backed integration test suite. Create a minimal river_job table/schema in the test database with the columns loadQueue reads: queue, state, scheduled_at, finalized_at, and any required id/type columns needed by Postgres/GORM inserts. Seed rows for queue = 'suggestion' across available/running/retryable/scheduled/completed/discarded plus at least one row for a different queue to prove filtering. Make completed/discarded finalized_at values fall within the last 24 hours for the positive assertions, and seed an available/retryable/scheduled row with scheduled_at <= now so oldestAvailableAt is populated. Call GET /api/admin/ai-diagnostics/summary and assert Queue is non-nil, queue_reachable is pass, queue counts match the seeded suggestion rows, completed24h/discarded24h are populated, and oldestAvailableAt is non-nil/near the expected seeded timestamp. Do not remove the existing no-river_job coverage; this test should complement it and specifically exercise the state::text GROUP BY, finalized 24h SUM(CASE...) query, and min(CASE WHEN state IN ? ...) placeholder binding.
