@@ -1,0 +1,9 @@
+lisa-design:
+- Control-result persistence is worker-only and is not written by generalization, accept/reject/edit, or other deterministic paths; the table represents LLM control evaluation outcomes only.
+- `dashboard_suggestion_control_results` uses one row per `(run_id, control_catalog_id, control_id)` with catalog-canonical `control_id` casing preserved from `ControlInput`, matching existing suggestion-row identity.
+- Migration follows the existing dashboard-suggestion pattern: GORM model registration plus PostgreSQL explicit FK and unique-index SQL in the migrator/test migrator, rather than a separate migration mechanism.
+- The new table is not the source of truth for UI matched state; pending `dashboard_suggestions` rows remain authoritative for matches, and control-results only distinguish evaluated/no-match from not evaluated.
+- `InsertMappingsResult.InsertedControlKeys` is allocated lazily only after a persisted insert, preserving the existing zero-value result on error/no-insert paths while exposing per-control inserted counts to the worker.
+- Control-result upserts are inside `completeCell`'s existing transaction after the pending-cell update succeeds, so retried/stale jobs do not write outcomes once a cell is already completed.
+- Cross-cell aggregation is order-independent: matched upserts upgrade/no-op-add counts, while no-match upserts use `DO NOTHING`; a later no-match cannot downgrade an earlier match.
+- The control-results endpoint returns the latest result per `(control_catalog_id, control_id)` for the SSP by `dashboard_suggestion_runs.started_at DESC, run id DESC`, so reruns supersede older outcomes for the same control without hiding controls only evaluated in older runs.
