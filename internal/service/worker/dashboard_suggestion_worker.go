@@ -350,6 +350,7 @@ func (w *DashboardSuggestionWorker) completeCell(
 	if rejected < 0 {
 		rejected = 0
 	}
+	matchedControlKeys := matchedControlKeySet(validation.Mappings)
 
 	return w.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var lockedCell suggestionrel.DashboardSuggestionRunCell
@@ -387,11 +388,19 @@ func (w *DashboardSuggestionWorker) completeCell(
 		if update.RowsAffected == 0 {
 			return nil
 		}
-		if err := w.recordControlResultsTx(tx, *run.ID, run.SSPID, evaluatedControls, inserted.InsertedControlKeys, now); err != nil {
+		if err := w.recordControlResultsTx(tx, *run.ID, run.SSPID, evaluatedControls, matchedControlKeys, inserted.InsertedControlKeys, now); err != nil {
 			return err
 		}
 		return w.finalizeRunIfReady(tx, *run.ID)
 	})
+}
+
+func matchedControlKeySet(mappings []suggestionrel.ValidatedMapping) map[string]struct{} {
+	matched := make(map[string]struct{}, len(mappings))
+	for _, mapping := range mappings {
+		matched[mapping.ControlKey] = struct{}{}
+	}
+	return matched
 }
 
 func (w *DashboardSuggestionWorker) recordControlResultsTx(
@@ -399,6 +408,7 @@ func (w *DashboardSuggestionWorker) recordControlResultsTx(
 	runID uuid.UUID,
 	sspID uuid.UUID,
 	evaluatedControls []suggestionrel.ControlInput,
+	matchedControlKeys map[string]struct{},
 	insertedControlKeys map[string]int,
 	evaluatedAt time.Time,
 ) error {
@@ -415,7 +425,7 @@ func (w *DashboardSuggestionWorker) recordControlResultsTx(
 			ControlID:        controlID,
 			EvaluatedAt:      &evaluatedAt,
 		}
-		if insertedCount > 0 {
+		if _, matched := matchedControlKeys[control.ControlKey]; matched {
 			result.Outcome = suggestionrel.DashboardSuggestionControlOutcomeMatched
 			result.SuggestionCount = insertedCount
 			if err := tx.Clauses(clause.OnConflict{

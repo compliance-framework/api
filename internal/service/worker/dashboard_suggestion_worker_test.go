@@ -356,6 +356,37 @@ func TestDashboardSuggestionWorkerCompleteCellWritesControlResults(t *testing.T)
 		require.Equal(t, suggestionrel.DashboardSuggestionControlOutcomeNoMatch, byControl["AC-2"].Outcome)
 		require.Equal(t, 0, byControl["AC-2"].SuggestionCount)
 	})
+
+	t.Run("matched controls capped before insert record matched with zero inserted count", func(t *testing.T) {
+		db := newDashboardSuggestionWorkerTestDB(t)
+		runID, sspID := seedDashboardSuggestionRun(t, db, dashboardSuggestionRunStatusRunning, 1)
+		seedDashboardSuggestionCell(t, db, runID, 0, dashboardSuggestionCellStatusPending)
+		require.NoError(t, db.Model(&suggestionrel.DashboardSuggestionRun{}).
+			Where("id = ?", runID).
+			Update("suggestion_count", 1).Error)
+		worker := NewDashboardSuggestionWorker(db, &llm.FakeClient{}, &config.AIConfig{MaxSuggestionsPerRun: 1}, zap.NewNop().Sugar())
+		run := suggestionrel.DashboardSuggestionRun{
+			UUIDModel:     relational.UUIDModel{ID: &runID},
+			SSPID:         sspID,
+			PromptVersion: suggestionrel.PromptVersion,
+			Stats:         datatypes.JSONMap{},
+		}
+		catalogID := uuid.New()
+		controls := []suggestionrel.ControlInput{controlInput(catalogID, "AC-1")}
+		validation := suggestionrel.ValidationResult{Mappings: []suggestionrel.ValidatedMapping{
+			validatedMapping(catalogID, "AC-1", "hash-a"),
+		}}
+
+		require.NoError(t, worker.completeCell(context.Background(), run, suggestionrel.DashboardSuggestionRunCell{RunID: runID, CellIndex: 0}, &llm.StructuredResponse{}, validation, controls, 1, 0))
+
+		var suggestionCount int64
+		require.NoError(t, db.Model(&suggestionrel.DashboardSuggestion{}).Where("run_id = ?", runID).Count(&suggestionCount).Error)
+		require.Zero(t, suggestionCount)
+		results := loadControlResults(t, db, runID)
+		require.Len(t, results, 1)
+		require.Equal(t, suggestionrel.DashboardSuggestionControlOutcomeMatched, results[0].Outcome)
+		require.Equal(t, 0, results[0].SuggestionCount)
+	})
 }
 
 func TestDashboardSuggestionWorkerControlResultCrossCellAggregation(t *testing.T) {

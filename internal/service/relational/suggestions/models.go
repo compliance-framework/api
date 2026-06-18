@@ -119,11 +119,11 @@ func (DashboardSuggestion) TableName() string {
 type DashboardSuggestionControlResult struct {
 	relational.UUIDModel
 
-	RunID            uuid.UUID  `json:"runId" gorm:"type:uuid;not null;index"`
+	RunID            uuid.UUID  `json:"runId" gorm:"type:uuid;not null"`
 	SSPID            uuid.UUID  `json:"sspId" gorm:"column:ssp_id;type:uuid;not null;index"`
 	ControlCatalogID uuid.UUID  `json:"controlCatalogId" gorm:"type:uuid;not null"`
 	ControlID        string     `json:"controlId" gorm:"type:text;not null"`
-	Outcome          string     `json:"outcome" gorm:"type:varchar(16);not null;index"`
+	Outcome          string     `json:"outcome" gorm:"type:varchar(16);not null"`
 	SuggestionCount  int        `json:"suggestionCount" gorm:"not null;default:0"`
 	EvaluatedAt      *time.Time `json:"evaluatedAt"`
 
