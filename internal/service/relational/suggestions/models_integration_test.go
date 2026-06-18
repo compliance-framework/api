@@ -572,7 +572,7 @@ func (suite *DashboardSuggestionsIntegrationSuite) TestGatherLabelSetsNormalizes
 	suite.Contains(snapshot.LabelSetHashes, hash)
 	suite.NotContains(snapshot.LabelSetHashes, conflictingHash)
 
-	input, err := svc.GatherCellInput(sspID, suggestionrel.GridCell{LabelSetHashes: []string{hash}}, suggestionrel.GatherOptions{})
+	input, err := svc.GatherCellInput(sspID, suggestionrel.GridCell{LabelSetHashes: []string{hash}}, suggestionrel.GatherOptions{}, nil)
 	suite.Require().NoError(err)
 	suite.Require().Len(input.LabelSets, 1)
 	suite.Equal(hash, input.LabelSets[0].Hash)
@@ -628,7 +628,7 @@ func (suite *DashboardSuggestionsIntegrationSuite) TestGatherControlsUsesMatchin
 	svc := suggestionrel.NewSuggestionService(suite.DB)
 	input, err := svc.GatherCellInput(sspID, suggestionrel.GridCell{
 		ControlKeys: []string{suggestionrel.ControlKey(catalogID, controlID)},
-	}, suggestionrel.GatherOptions{})
+	}, suggestionrel.GatherOptions{}, nil)
 	suite.Require().NoError(err)
 	suite.Require().Len(input.Controls, 1)
 	suite.Equal("implemented requirement remarks", input.Controls[0].ImplementationText)
@@ -658,6 +658,163 @@ func (suite *DashboardSuggestionsIntegrationSuite) TestAcceptSSPIsolationAndGlob
 	var globalCount int64
 	suite.Require().NoError(suite.DB.Model(&relational.Filter{}).Where("id = ? AND ssp_id IS NULL", global.ID).Count(&globalCount).Error)
 	suite.Equal(int64(1), globalCount)
+}
+
+func (suite *DashboardSuggestionsIntegrationSuite) TestEditGroupOverridesLabelsAndMembershipThenAccepts() {
+	sspID := uuid.New()
+	runID := uuid.New()
+	catalogID := uuid.New()
+	actorID := uuid.New()
+	labels := map[string]string{"env": "prod", "repo": "payments-api"}
+	hash := suggestionrel.CanonicalLabelSetHash(labels)
+	suite.seedSuggestionSSPAndRun(sspID, runID)
+
+	ac1 := suite.seedDashboardSuggestion(runID, sspID, catalogID, "AC-1", labels, hash, "AI name", 0.8, nil)
+	ac2 := suite.seedDashboardSuggestion(runID, sspID, catalogID, "AC-2", labels, hash, "AI name", 0.7, nil)
+
+	svc := suggestionrel.NewSuggestionService(suite.DB)
+	// team=payments is NOT in the evidence label set — a human override.
+	editedLabels := map[string]string{"env": "prod", "team": "payments"}
+	newName := "Prod payments"
+	addKey := suggestionrel.ControlKey(catalogID, "AC-3")
+	resultIDs, err := svc.EditGroup(sspID, suggestionrel.EditGroupInput{
+		IDs:                []uuid.UUID{*ac1.ID, *ac2.ID},
+		ProposedFilterName: &newName,
+		Labels:             &editedLabels,
+		AddControlKeys:     []string{addKey},
+		RemoveIDs:          []uuid.UUID{*ac2.ID},
+	}, actorID)
+	suite.Require().NoError(err)
+	// AC-1 (kept) + AC-3 (added) remain pending; AC-2 was removed.
+	suite.Require().Len(resultIDs, 2)
+
+	var kept suggestionrel.DashboardSuggestion
+	suite.Require().NoError(suite.DB.First(&kept, "id = ?", ac1.ID).Error)
+	suite.True(kept.IsUserEdited)
+	suite.False(kept.AddedByUser)
+	suite.Require().NotNil(kept.EditedByUserID)
+	suite.Equal(newName, kept.ProposedFilterName)
+	suite.Equal(editedLabels, jsonMapToStringMap(kept.ProposedFilterLabelSet))
+	// The AI baseline is captured for the diff.
+	suite.Equal(labels, jsonMapToStringMap(kept.OriginalProposedFilterLabelSet))
+	suite.Require().NotNil(kept.OriginalProposedFilterName)
+	suite.Equal("AI name", *kept.OriginalProposedFilterName)
+	suite.Equal([]string{"AC-2"}, []string(kept.RemovedControlIds))
+
+	var removed suggestionrel.DashboardSuggestion
+	suite.Require().NoError(suite.DB.First(&removed, "id = ?", ac2.ID).Error)
+	suite.Equal(suggestionrel.DashboardSuggestionStatusRejected, removed.Status)
+
+	var added suggestionrel.DashboardSuggestion
+	suite.Require().NoError(suite.DB.First(&added, "ssp_id = ? AND control_id = ? AND status = ?", sspID, "AC-3", suggestionrel.DashboardSuggestionStatusPending).Error)
+	suite.True(added.IsUserEdited)
+	suite.True(added.AddedByUser)
+	suite.Empty(added.OriginalProposedFilterLabelSet)
+	suite.Equal([]string{"AC-2"}, []string(added.RemovedControlIds))
+	suite.Equal(editedLabels, jsonMapToStringMap(added.ProposedFilterLabelSet))
+
+	// The human-override labels survive Accept: the created filter uses them.
+	suite.Require().NoError(svc.Accept(sspID, resultIDs, actorID))
+	var filters []relational.Filter
+	suite.Require().NoError(suite.DB.Where("ssp_id = ?", sspID).Find(&filters).Error)
+	suite.Require().Len(filters, 1)
+	suite.Equal(newName, filters[0].Name)
+	filterLabels, ok := suggestionrel.CanonicalizeFilter(filters[0].Filter.Data())
+	suite.True(ok)
+	suite.Equal(editedLabels, filterLabels)
+
+	var linkCount int64
+	suite.Require().NoError(suite.DB.Table("filter_controls").Where("filter_id = ?", filters[0].ID).Count(&linkCount).Error)
+	suite.Equal(int64(2), linkCount) // AC-1 and AC-3
+
+	var editEvents int64
+	suite.Require().NoError(suite.DB.Model(&suggestionrel.DashboardSuggestionEvent{}).
+		Where("event_type = ?", string(suggestionrel.DashboardSuggestionEventTypeEdited)).
+		Count(&editEvents).Error)
+	suite.Equal(int64(3), editEvents) // kept + removed + added
+}
+
+func (suite *DashboardSuggestionsIntegrationSuite) TestEditGroupRejectsMixedGroups() {
+	sspID := uuid.New()
+	runID := uuid.New()
+	catalogID := uuid.New()
+	actorID := uuid.New()
+	suite.seedSuggestionSSPAndRun(sspID, runID)
+
+	prodLabels := map[string]string{"env": "prod"}
+	stageLabels := map[string]string{"env": "stage"}
+	prod := suite.seedDashboardSuggestion(runID, sspID, catalogID, "AC-1", prodLabels, suggestionrel.CanonicalLabelSetHash(prodLabels), "prod", 0.8, nil)
+	stage := suite.seedDashboardSuggestion(runID, sspID, catalogID, "AC-2", stageLabels, suggestionrel.CanonicalLabelSetHash(stageLabels), "stage", 0.8, nil)
+
+	svc := suggestionrel.NewSuggestionService(suite.DB)
+	_, err := svc.EditGroup(sspID, suggestionrel.EditGroupInput{IDs: []uuid.UUID{*prod.ID, *stage.ID}}, actorID)
+	var validationErr *suggestionrel.EditValidationError
+	suite.Require().ErrorAs(err, &validationErr)
+}
+
+func (suite *DashboardSuggestionsIntegrationSuite) TestGatherLabelSetsAppliesEvidenceFilter() {
+	now := time.Now().UTC()
+	suite.insertEvidenceLabels(uuid.New(), uuid.New(), "prod-1", now, map[string]string{"env": "prod", "provider": "aws"})
+	suite.insertEvidenceLabels(uuid.New(), uuid.New(), "prod-2", now, map[string]string{"env": "prod", "provider": "gcp"})
+	suite.insertEvidenceLabels(uuid.New(), uuid.New(), "stage-1", now, map[string]string{"env": "stage", "provider": "aws"})
+
+	svc := suggestionrel.NewSuggestionService(suite.DB)
+
+	// No filter → all three label sets.
+	all, err := svc.GatherLabelSets(nil, nil)
+	suite.Require().NoError(err)
+	suite.Len(all, 3)
+
+	// env=prod → only the two prod label sets.
+	prodFilter := &labelfilter.Filter{Scope: &labelfilter.Scope{
+		Condition: &labelfilter.Condition{Label: "env", Operator: "=", Value: "prod"},
+	}}
+	prod, err := svc.GatherLabelSets(nil, prodFilter)
+	suite.Require().NoError(err)
+	suite.Len(prod, 2)
+	for _, ls := range prod {
+		suite.Equal("prod", ls.Labels["env"])
+	}
+}
+
+func (suite *DashboardSuggestionsIntegrationSuite) TestSearchLabelValuesMatchesSubstringServerSide() {
+	now := time.Now().UTC()
+	suite.insertEvidenceLabels(uuid.New(), uuid.New(), "e1", now, map[string]string{"repository": "todo-app"})
+	suite.insertEvidenceLabels(uuid.New(), uuid.New(), "e2", now, map[string]string{"repository": "payments-api"})
+	suite.insertEvidenceLabels(uuid.New(), uuid.New(), "e3", now, map[string]string{"repository": "todo-worker"})
+
+	svc := suggestionrel.NewSuggestionService(suite.DB)
+
+	// Substring search finds the value regardless of any client-side cap.
+	matches, err := svc.SearchLabelValues("repository", "todo", 50)
+	suite.Require().NoError(err)
+	suite.ElementsMatch([]string{"todo-app", "todo-worker"}, matches)
+
+	// Exact value is reachable, case-insensitively.
+	exact, err := svc.SearchLabelValues("REPOSITORY", "todo-app", 50)
+	suite.Require().NoError(err)
+	suite.Equal([]string{"todo-app"}, exact)
+
+	// Empty key returns nothing.
+	none, err := svc.SearchLabelValues("", "todo", 50)
+	suite.Require().NoError(err)
+	suite.Empty(none)
+}
+
+func (suite *DashboardSuggestionsIntegrationSuite) TestGatherLabelKeysReturnsDistinctKeysAndValues() {
+	now := time.Now().UTC()
+	suite.insertEvidenceLabels(uuid.New(), uuid.New(), "e1", now, map[string]string{"env": "prod", "provider": "aws"})
+	suite.insertEvidenceLabels(uuid.New(), uuid.New(), "e2", now, map[string]string{"env": "stage", "provider": "aws"})
+
+	keys, err := suggestionrel.NewSuggestionService(suite.DB).GatherLabelKeys(0)
+	suite.Require().NoError(err)
+
+	byKey := map[string][]string{}
+	for _, k := range keys {
+		byKey[k.Key] = k.Values
+	}
+	suite.ElementsMatch([]string{"prod", "stage"}, byKey["env"])
+	suite.ElementsMatch([]string{"aws"}, byKey["provider"])
 }
 
 func (suite *DashboardSuggestionsIntegrationSuite) seedSuggestionSSPAndRun(sspID uuid.UUID, runID uuid.UUID) {

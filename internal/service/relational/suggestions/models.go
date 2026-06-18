@@ -11,12 +11,16 @@ import (
 type DashboardSuggestionRun struct {
 	relational.UUIDModel
 
-	SSPID             uuid.UUID         `json:"sspId" gorm:"column:ssp_id;type:uuid;not null;index"`
-	Status            string            `json:"status" gorm:"type:varchar(16);not null;index"`
-	Error             *string           `json:"error" gorm:"type:text"`
-	Model             string            `json:"model" gorm:"type:text;not null"`
-	PromptVersion     string            `json:"promptVersion" gorm:"type:varchar(32);not null"`
-	Scope             datatypes.JSONMap `json:"scope" gorm:"type:jsonb;not null"`
+	SSPID         uuid.UUID         `json:"sspId" gorm:"column:ssp_id;type:uuid;not null;index"`
+	Status        string            `json:"status" gorm:"type:varchar(16);not null;index"`
+	Error         *string           `json:"error" gorm:"type:text"`
+	Model         string            `json:"model" gorm:"type:text;not null"`
+	PromptVersion string            `json:"promptVersion" gorm:"type:varchar(32);not null"`
+	Scope         datatypes.JSONMap `json:"scope" gorm:"type:jsonb;not null"`
+	Constraints   datatypes.JSONMap `json:"constraints" gorm:"type:jsonb"`
+	// LabelFilter is the evidence-scoping label filter applied to this run, so the
+	// worker can restrict its per-cell evidence scan and the UI can show it.
+	LabelFilter       datatypes.JSONMap `json:"labelFilter" gorm:"type:jsonb"`
 	PlannedCalls      int               `json:"plannedCalls" gorm:"not null"`
 	TriggeredByUserID *uuid.UUID        `json:"triggeredByUserId" gorm:"type:uuid;index"`
 	StartedAt         *time.Time        `json:"startedAt"`
@@ -74,6 +78,19 @@ type DashboardSuggestion struct {
 	DecidedByUserID        *uuid.UUID        `json:"decidedByUserId" gorm:"type:uuid;index"`
 	DecidedAt              *time.Time        `json:"decidedAt"`
 	RejectReason           *string           `json:"rejectReason" gorm:"type:text"`
+	IsUserEdited           bool              `json:"isUserEdited" gorm:"not null;default:false"`
+	EditedByUserID         *uuid.UUID        `json:"editedByUserId" gorm:"type:uuid;index"`
+	EditedAt               *time.Time        `json:"editedAt"`
+	// AI baseline captured at first user edit (set-once) so the UI can render a
+	// diff of what the user changed. Nil on AI-generated, never-edited rows and
+	// on rows the user added during an edit (AddedByUser).
+	OriginalProposedFilterLabelSet datatypes.JSONMap `json:"originalProposedFilterLabelSet" gorm:"column:original_proposed_filter_label_set;type:jsonb"`
+	OriginalProposedFilterName     *string           `json:"originalProposedFilterName" gorm:"type:text"`
+	// AddedByUser marks rows created during a group edit (no AI baseline).
+	AddedByUser bool `json:"addedByUser" gorm:"not null;default:false"`
+	// RemovedControlIds mirrors, onto every surviving group row, the control IDs
+	// removed from the group during edits, so the card can show them struck-out.
+	RemovedControlIds datatypes.JSONSlice[string] `json:"removedControlIds" gorm:"type:jsonb"`
 
 	Run                *DashboardSuggestionRun        `json:"-" gorm:"foreignKey:RunID;references:ID;constraint:OnDelete:CASCADE"`
 	SystemSecurityPlan *relational.SystemSecurityPlan `json:"-" gorm:"foreignKey:SSPID;references:ID"`

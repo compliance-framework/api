@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/compliance-framework/api/internal/converters/labelfilter"
 	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/google/uuid"
 	"gorm.io/datatypes"
@@ -40,6 +41,7 @@ type GatheredInput struct {
 	Filters           []VisibleFilterInput `json:"filters"`
 	SameSSPFilters    []VisibleFilterInput `json:"same_ssp_filters"`
 	GlobalFilterNames []string             `json:"global_filter_names"`
+	Constraints       Constraints          `json:"constraints"`
 	Stats             map[string]int       `json:"stats"`
 }
 
@@ -84,27 +86,27 @@ func (s *SuggestionService) ResolveScope(sspID uuid.UUID, scope Scope) (Snapshot
 	if err != nil {
 		return Snapshot{}, err
 	}
-	labelSets, err := s.currentLabelSetHashes()
+	labelSets, err := s.currentLabelSetHashes(scope.LabelFilter)
 	if err != nil {
 		return Snapshot{}, err
 	}
 	return ResolveSnapshot(scope, controls, labelSets)
 }
 
-func (s *SuggestionService) GatherLabelSets(hashes []string) ([]LabelSetInput, error) {
+func (s *SuggestionService) GatherLabelSets(hashes []string, filter *labelfilter.Filter) ([]LabelSetInput, error) {
 	if len(hashes) == 0 {
-		return s.gatherAllLabelSets()
+		return s.gatherAllLabelSets(filter)
 	}
-	return s.gatherLabelSets(hashes)
+	return s.gatherLabelSets(hashes, filter)
 }
 
-func (s *SuggestionService) GatherCellInput(sspID uuid.UUID, cell GridCell, opts GatherOptions) (GatheredInput, error) {
+func (s *SuggestionService) GatherCellInput(sspID uuid.UUID, cell GridCell, opts GatherOptions, filter *labelfilter.Filter) (GatheredInput, error) {
 	stats := map[string]int{}
 	controls, err := s.gatherControls(sspID, cell.ControlKeys, opts)
 	if err != nil {
 		return GatheredInput{}, err
 	}
-	labelSets, err := s.gatherLabelSets(cell.LabelSetHashes)
+	labelSets, err := s.gatherLabelSets(cell.LabelSetHashes, filter)
 	if err != nil {
 		return GatheredInput{}, err
 	}
@@ -140,6 +142,7 @@ func (g GatheredInput) CellInput() CellInput {
 		VisibleFilters:    g.Filters,
 		SameSSPFilters:    g.SameSSPFilters,
 		GlobalFilterNames: g.GlobalFilterNames,
+		Constraints:       g.Constraints,
 	}
 }
 
@@ -581,6 +584,40 @@ func stringSet(values []string) map[string]struct{} {
 		out[value] = struct{}{}
 	}
 	return out
+}
+
+// LabelFilterToJSONMap serializes an evidence-scoping label filter for storage
+// on a run. Returns nil for an empty filter so the column stays null.
+func LabelFilterToJSONMap(filter *labelfilter.Filter) datatypes.JSONMap {
+	if filter == nil || filter.Scope == nil {
+		return nil
+	}
+	raw, err := json.Marshal(filter)
+	if err != nil {
+		return nil
+	}
+	var out datatypes.JSONMap
+	if err := json.Unmarshal(raw, &out); err != nil {
+		return nil
+	}
+	return out
+}
+
+// LabelFilterFromJSONMap deserializes a label filter stored on a run. Returns
+// nil when absent or empty.
+func LabelFilterFromJSONMap(m datatypes.JSONMap) *labelfilter.Filter {
+	if len(m) == 0 {
+		return nil
+	}
+	raw, err := json.Marshal(m)
+	if err != nil {
+		return nil
+	}
+	var filter labelfilter.Filter
+	if err := json.Unmarshal(raw, &filter); err != nil || filter.Scope == nil {
+		return nil
+	}
+	return &filter
 }
 
 func labelsToJSONMap(labels map[string]string) datatypes.JSONMap {

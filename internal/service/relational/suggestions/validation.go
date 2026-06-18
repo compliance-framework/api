@@ -20,6 +20,7 @@ type CellInput struct {
 	VisibleFilters    []VisibleFilterInput
 	SameSSPFilters    []VisibleFilterInput
 	GlobalFilterNames []string
+	Constraints       Constraints
 }
 
 type ControlInput struct {
@@ -162,6 +163,14 @@ func ValidateRawMappings(input CellInput, rawMappings []RawMapping) ValidationRe
 			continue
 		}
 
+		if !input.Constraints.IsZero() {
+			evidence, _ := NormalizeLabelSet(labelSet.Labels)
+			filterLabels, ok = applyLabelConstraints(input.Constraints, evidence, filterLabels, counts)
+			if !ok {
+				continue
+			}
+		}
+
 		action := raw.Action
 		var targetFilterID *uuid.UUID
 		if action == MappingActionExtendFilter {
@@ -178,6 +187,11 @@ func ValidateRawMappings(input CellInput, rawMappings []RawMapping) ValidationRe
 		if action != MappingActionExtendFilter {
 			action = MappingActionNewFilter
 			targetFilterID = nil
+		}
+
+		if input.Constraints.OnlyAction != "" && action != input.Constraints.OnlyAction {
+			counts["rejected_action_filtered"]++
+			continue
 		}
 
 		name := strings.TrimSpace(raw.ProposedFilterName)

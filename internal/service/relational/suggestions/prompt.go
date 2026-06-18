@@ -112,7 +112,10 @@ This SSP's extendable dashboards:
 {{json .Input.SameSSPFilters}}
 
 Global dashboard names:
-{{json .Input.GlobalFilterNames}}`
+{{json .Input.GlobalFilterNames}}{{if .ConstraintsText}}
+
+Generation constraints (the user has scoped this run; honour every constraint):
+{{.ConstraintsText}}{{end}}`
 
 const controlsBlockTemplate = `Controls:
 {{json .Input.Controls}}`
@@ -145,9 +148,10 @@ func renderPromptTemplate(name, text string, input GatheredInput) (string, error
 	}
 	var buf bytes.Buffer
 	err = tmpl.Execute(&buf, map[string]any{
-		"SystemPrompt":  SystemPrompt,
-		"PromptVersion": PromptVersion,
-		"Input":         input,
+		"SystemPrompt":    SystemPrompt,
+		"PromptVersion":   PromptVersion,
+		"Input":           input,
+		"ConstraintsText": describeConstraints(input.Constraints),
 	})
 	if err != nil {
 		return "", err

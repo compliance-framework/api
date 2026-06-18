@@ -25,6 +25,9 @@ type AIConfig struct {
 	QueueWorkers         int           `mapstructure:"queue_workers" json:"queueWorkers"`
 	MaxCallsPerRun       int           `mapstructure:"max_calls_per_run" json:"maxCallsPerRun"`
 	MaxSuggestionsPerRun int           `mapstructure:"max_suggestions_per_run" json:"maxSuggestionsPerRun"`
+	// MaxOutputTokens caps the model's response length per cell. Too low a value
+	// truncates the JSON (surfacing as "truncated non-json text content").
+	MaxOutputTokens int `mapstructure:"max_output_tokens" json:"maxOutputTokens"`
 }
 
 func DefaultAIConfig() *AIConfig {
@@ -38,6 +41,7 @@ func DefaultAIConfig() *AIConfig {
 		QueueWorkers:         4,
 		MaxCallsPerRun:       0,
 		MaxSuggestionsPerRun: 500,
+		MaxOutputTokens:      8192,
 	}
 }
 
@@ -54,6 +58,7 @@ func LoadAIConfigFromViper(v *viper.Viper) (*AIConfig, error) {
 		QueueWorkers:         v.GetInt("ai_queue_workers"),
 		MaxCallsPerRun:       v.GetInt("ai_max_calls_per_run"),
 		MaxSuggestionsPerRun: v.GetInt("ai_max_suggestions_per_run"),
+		MaxOutputTokens:      v.GetInt("ai_max_output_tokens"),
 	}
 
 	def := DefaultAIConfig()
@@ -77,6 +82,9 @@ func LoadAIConfigFromViper(v *viper.Viper) (*AIConfig, error) {
 	}
 	if cfg.MaxSuggestionsPerRun == 0 {
 		cfg.MaxSuggestionsPerRun = def.MaxSuggestionsPerRun
+	}
+	if cfg.MaxOutputTokens == 0 {
+		cfg.MaxOutputTokens = def.MaxOutputTokens
 	}
 
 	if err := cfg.Validate(); err != nil {

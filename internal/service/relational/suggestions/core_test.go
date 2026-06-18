@@ -113,6 +113,15 @@ func TestResolveSnapshot(t *testing.T) {
 	require.True(t, errors.As(err, &scopeErr))
 	require.Equal(t, []string{"missing"}, scopeErr.UnknownControlKeys)
 	require.Equal(t, []string{"h3"}, scopeErr.UnknownLabelSetHashes)
+
+	// Control keys match case-insensitively and resolve to the canonical key.
+	caseControls := []string{"11111111-1111-1111-1111-111111111111:GD.Res.C09"}
+	snapshot, err = ResolveSnapshot(
+		Scope{ControlKeys: []string{"11111111-1111-1111-1111-111111111111:gd.res.c09"}},
+		caseControls, hashes,
+	)
+	require.NoError(t, err)
+	require.Equal(t, caseControls, snapshot.ControlKeys)
 }
 
 func TestBuildGridAndPlannedCalls(t *testing.T) {

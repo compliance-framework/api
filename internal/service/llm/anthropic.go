@@ -132,13 +132,14 @@ func (c *AnthropicClient) CompleteStructured(ctx context.Context, req Structured
 		return nil, mapAnthropicError(ctx, callCtx, err)
 	}
 
-	raw, err := structuredRawJSON(msg)
+	raw, empty, err := structuredRawJSON(msg)
 	if err != nil {
 		return nil, err
 	}
 
 	return &StructuredResponse{
 		Raw:                      raw,
+		EmptyOutput:              empty,
 		Model:                    string(msg.Model),
 		InputTokens:              int(msg.Usage.InputTokens),
 		OutputTokens:             int(msg.Usage.OutputTokens),
@@ -164,20 +165,90 @@ func cacheControlParam(ttl CacheTTL) anthropic.CacheControlEphemeralParam {
 	}
 }
 
-func structuredRawJSON(msg *anthropic.Message) (json.RawMessage, error) {
+// structuredRawJSON extracts the schema-shaped JSON from a provider message.
+//
+// It returns (raw, false, nil) for a normal JSON payload. When the model emits
+// plain text instead of JSON (e.g. "no mappings apply"), or returns no content
+// at all, it returns (nil, true, nil) to signal a legitimate empty result so
+// the caller can record "no output" rather than failing. A truncated response
+// (StopReason == max_tokens) is reported as ErrInvalidOutput so it can be
+// retried, since the JSON was likely cut off mid-stream.
+func structuredRawJSON(msg *anthropic.Message) (json.RawMessage, bool, error) {
 	if msg == nil {
-		return nil, fmt.Errorf("%w: empty provider response", ErrInvalidOutput)
+		return nil, false, fmt.Errorf("%w: empty provider response", ErrInvalidOutput)
 	}
+
+	truncated := msg.StopReason == anthropic.StopReasonMaxTokens
+
 	for _, block := range msg.Content {
-		if block.Type == "text" {
-			raw := json.RawMessage(block.Text)
-			if !json.Valid(raw) {
-				return nil, fmt.Errorf("%w: provider returned non-json text content", ErrInvalidOutput)
+		if block.Type != "text" {
+			continue
+		}
+		if raw, ok := extractJSONObject(block.Text); ok {
+			return raw, false, nil
+		}
+		// A text block that is not (and does not contain) valid JSON. If the
+		// model ran out of tokens the JSON was truncated and should be retried;
+		// otherwise the model declined to produce structured output, which is a
+		// valid empty result for our callers.
+		if truncated {
+			return nil, false, &OutputError{
+				Reason:       "provider returned truncated non-json text content",
+				StopReason:   string(msg.StopReason),
+				OutputTokens: int(msg.Usage.OutputTokens),
+				Text:         block.Text,
 			}
-			return raw, nil
+		}
+		return nil, true, nil
+	}
+
+	// No text content at all. Truncation before any content is an error; an
+	// otherwise empty response is treated as no structured output.
+	if truncated {
+		return nil, false, &OutputError{
+			Reason:       "provider response truncated before any content",
+			StopReason:   string(msg.StopReason),
+			OutputTokens: int(msg.Usage.OutputTokens),
 		}
 	}
-	return nil, fmt.Errorf("%w: provider response did not contain text json", ErrInvalidOutput)
+	return nil, true, nil
+}
+
+// extractJSONObject returns the JSON payload from a text block, tolerating
+// surrounding whitespace and markdown code fences (```json ... ```). It returns
+// ok=false when the text does not contain a valid JSON document.
+func extractJSONObject(text string) (json.RawMessage, bool) {
+	trimmed := strings.TrimSpace(text)
+	if trimmed == "" {
+		return nil, false
+	}
+	if fenced, ok := stripCodeFence(trimmed); ok {
+		trimmed = strings.TrimSpace(fenced)
+	}
+	if json.Valid([]byte(trimmed)) {
+		return json.RawMessage(trimmed), true
+	}
+	return nil, false
+}
+
+// stripCodeFence removes a single leading/trailing markdown code fence, with an
+// optional language tag on the opening fence (```json). It returns ok=false when
+// the text is not fenced.
+func stripCodeFence(text string) (string, bool) {
+	if !strings.HasPrefix(text, "```") {
+		return "", false
+	}
+	rest := strings.TrimPrefix(text, "```")
+	if idx := strings.IndexByte(rest, '\n'); idx >= 0 {
+		// Drop the remainder of the opening fence line (e.g. the "json" tag).
+		rest = rest[idx+1:]
+	} else {
+		rest = ""
+	}
+	if end := strings.LastIndex(rest, "```"); end >= 0 {
+		return rest[:end], true
+	}
+	return "", false
 }
 
 func sanitizeAnthropicSchema(schema map[string]any) map[string]any {
