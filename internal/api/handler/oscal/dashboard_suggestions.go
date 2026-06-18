@@ -614,8 +614,8 @@ func (h *DashboardSuggestionHandler) Reject(ctx echo.Context) error {
 //	@Tags			Dashboard Suggestions
 //	@Accept			json
 //	@Produce		json
-//	@Param			id		path		string									true	"System Security Plan ID"
-//	@Param			request	body		editDashboardSuggestionGroupRequest		true	"Group edit"
+//	@Param			id		path		string								true	"System Security Plan ID"
+//	@Param			request	body		editDashboardSuggestionGroupRequest	true	"Group edit"
 //	@Success		200		{object}	handler.GenericDataListResponse[oscal.dashboardSuggestionResponse]
 //	@Failure		400		{object}	api.Error
 //	@Failure		401		{object}	api.Error

@@ -62,19 +62,19 @@ func DefaultAIConfig() *AIConfig {
 
 func LoadAIConfigFromViper(v *viper.Viper) (*AIConfig, error) {
 	cfg := &AIConfig{
-		Enabled:              v.GetBool("ai_enabled"),
-		Provider:             strings.ToLower(strings.TrimSpace(stripQuotes(v.GetString("ai_provider")))),
-		APIKey:               stripQuotes(v.GetString("ai_api_key")),
-		Model:                stripQuotes(v.GetString("ai_model")),
-		BaseURL:              stripQuotes(v.GetString("ai_base_url")),
-		RequestTimeout:       v.GetDuration("ai_request_timeout"),
-		MaxControlsPerChunk:  v.GetInt("ai_max_controls_per_chunk"),
-		MaxLabelSetsPerChunk: v.GetInt("ai_max_label_sets_per_chunk"),
-		QueueWorkers:         v.GetInt("ai_queue_workers"),
-		MaxCallsPerRun:       v.GetInt("ai_max_calls_per_run"),
-		MaxSuggestionsPerRun: v.GetInt("ai_max_suggestions_per_run"),
-		MaxOutputTokens:      v.GetInt("ai_max_output_tokens"),
-		GeneralizableLabelKeys: v.GetStringSlice("ai_generalizable_label_keys"),
+		Enabled:                         v.GetBool("ai_enabled"),
+		Provider:                        strings.ToLower(strings.TrimSpace(stripQuotes(v.GetString("ai_provider")))),
+		APIKey:                          stripQuotes(v.GetString("ai_api_key")),
+		Model:                           stripQuotes(v.GetString("ai_model")),
+		BaseURL:                         stripQuotes(v.GetString("ai_base_url")),
+		RequestTimeout:                  v.GetDuration("ai_request_timeout"),
+		MaxControlsPerChunk:             v.GetInt("ai_max_controls_per_chunk"),
+		MaxLabelSetsPerChunk:            v.GetInt("ai_max_label_sets_per_chunk"),
+		QueueWorkers:                    v.GetInt("ai_queue_workers"),
+		MaxCallsPerRun:                  v.GetInt("ai_max_calls_per_run"),
+		MaxSuggestionsPerRun:            v.GetInt("ai_max_suggestions_per_run"),
+		MaxOutputTokens:                 v.GetInt("ai_max_output_tokens"),
+		GeneralizableLabelKeys:          v.GetStringSlice("ai_generalizable_label_keys"),
 		GeneralizationMinSharedControls: v.GetInt("ai_generalization_min_shared_controls"),
 	}
 
