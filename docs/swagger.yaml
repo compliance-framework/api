@@ -1021,6 +1021,24 @@ definitions:
         type: array
       meta: {}
     type: object
+  handler.GenericDataListResponse-string:
+    properties:
+      data:
+        description: Items from the list response
+        items:
+          type: string
+        type: array
+      meta: {}
+    type: object
+  handler.GenericDataListResponse-suggestions_LabelKeyInput:
+    properties:
+      data:
+        description: Items from the list response
+        items:
+          $ref: '#/definitions/suggestions.LabelKeyInput'
+        type: array
+      meta: {}
+    type: object
   handler.GenericDataListResponse-suggestions_LabelSetInput:
     properties:
       data:
@@ -1255,6 +1273,13 @@ definitions:
       data:
         allOf:
         - $ref: '#/definitions/oscal.dashboardSuggestionRunResponse'
+        description: Wrapped response data
+    type: object
+  handler.GenericDataResponse-oscal_generalizeDashboardSuggestionsResponse:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/oscal.generalizeDashboardSuggestionsResponse'
         description: Wrapped response data
     type: object
   handler.GenericDataResponse-oscalTypes_1_1_3_Activity:
@@ -3357,6 +3382,26 @@ definitions:
       enabled:
         type: boolean
     type: object
+  oscal.dashboardSuggestionConstraintsRequest:
+    properties:
+      excluded-labels:
+        items:
+          $ref: '#/definitions/oscal.labelSelectorRequest'
+        type: array
+      mandatory-labels:
+        items:
+          $ref: '#/definitions/oscal.labelSelectorRequest'
+        type: array
+      only-action:
+        description: OnlyAction restricts suggestions to "new_filter" or "extend_filter".
+        type: string
+      only-controls-without-filters:
+        description: |-
+          OnlyControlsWithoutFilters scopes generation to controls that currently
+          have no dashboard filter attached. Resolved into the control scope, so it
+          is not persisted as an output constraint.
+        type: boolean
+    type: object
   oscal.dashboardSuggestionDecisionRequest:
     properties:
       ids:
@@ -3408,6 +3453,9 @@ definitions:
     properties:
       acceptedFilterId:
         type: string
+      addedByUser:
+        description: AddedByUser marks rows created during a group edit (no AI baseline).
+        type: boolean
       confidence:
         type: number
       controlCatalogId:
@@ -3420,11 +3468,33 @@ definitions:
         type: string
       decidedByUserId:
         type: string
+      editedAt:
+        type: string
+      editedByUserId:
+        type: string
       id:
         type: string
+      isGeneralization:
+        description: |-
+          IsGeneralization marks rows produced by the deterministic filter-merge
+          detector (Part 2). Such a row proposes the generalized label set G that
+          merges several near-duplicate SSP filters that differ by one generalizable
+          label. Accepting it moves controls onto G and off the source filters.
+        type: boolean
+      isUserEdited:
+        type: boolean
       labelSet:
         $ref: '#/definitions/datatypes.JSONMap'
       labelSetHash:
+        type: string
+      originalProposedFilterLabelSet:
+        allOf:
+        - $ref: '#/definitions/datatypes.JSONMap'
+        description: |-
+          AI baseline captured at first user edit (set-once) so the UI can render a
+          diff of what the user changed. Nil on AI-generated, never-edited rows and
+          on rows the user added during an edit (AddedByUser).
+      originalProposedFilterName:
         type: string
       proposedFilterLabelSet:
         $ref: '#/definitions/datatypes.JSONMap'
@@ -3434,8 +3504,23 @@ definitions:
         type: string
       rejectReason:
         type: string
+      removedControlIds:
+        description: |-
+          RemovedControlIds mirrors, onto every surviving group row, the control IDs
+          removed from the group during edits, so the card can show them struck-out.
+        items:
+          type: string
+        type: array
       runId:
         type: string
+      sourceFilterIds:
+        description: |-
+          SourceFilterIDs are the SSP filters this generalization merges, recorded so
+          the UI can explain the merge and the accept path can detach controls from
+          them. Nil on ordinary (non-generalization) rows.
+        items:
+          type: string
+        type: array
       sspId:
         type: string
       status:
@@ -3459,6 +3544,8 @@ definitions:
         type: string
       completedCells:
         type: integer
+      constraints:
+        $ref: '#/definitions/datatypes.JSONMap'
       error:
         type: string
       failedCells:
@@ -3467,6 +3554,12 @@ definitions:
         type: string
       inputTokens:
         type: integer
+      labelFilter:
+        allOf:
+        - $ref: '#/definitions/datatypes.JSONMap'
+        description: |-
+          LabelFilter is the evidence-scoping label filter applied to this run, so the
+          worker can restrict its per-cell evidence scan and the UI can show it.
       model:
         type: string
       outputTokens:
@@ -3498,21 +3591,118 @@ definitions:
     type: object
   oscal.dashboardSuggestionScopeRequest:
     properties:
-      controlKeys:
+      control-keys:
         items:
           type: string
         type: array
-      labelSetHashes:
+      label-filter:
+        allOf:
+        - $ref: '#/definitions/labelfilter.Filter'
+        description: |-
+          LabelFilter scopes which evidence (and therefore which label sets) feed the
+          run, using the same label-filter expression as evidence search.
+      label-set-hashes:
         items:
           type: string
         type: array
     type: object
+  oscal.editDashboardSuggestionGroupRequest:
+    properties:
+      add-control-keys:
+        items:
+          type: string
+        type: array
+      ids:
+        items:
+          type: string
+        type: array
+      proposed-filter-label-set:
+        additionalProperties:
+          type: string
+        type: object
+      proposed-filter-name:
+        type: string
+      remove-ids:
+        items:
+          type: string
+        type: array
+    required:
+    - ids
+    type: object
+  oscal.generalizeDashboardSuggestionsResponse:
+    properties:
+      cacheCreationInputTokens:
+        type: integer
+      cacheReadInputTokens:
+        type: integer
+      candidates:
+        type: integer
+      cells:
+        items:
+          $ref: '#/definitions/suggestions.DashboardSuggestionRunCell'
+        type: array
+      completedAt:
+        type: string
+      constraints:
+        $ref: '#/definitions/datatypes.JSONMap'
+      error:
+        type: string
+      id:
+        type: string
+      inputTokens:
+        type: integer
+      inserted:
+        type: integer
+      labelFilter:
+        allOf:
+        - $ref: '#/definitions/datatypes.JSONMap'
+        description: |-
+          LabelFilter is the evidence-scoping label filter applied to this run, so the
+          worker can restrict its per-cell evidence scan and the UI can show it.
+      model:
+        type: string
+      outputTokens:
+        type: integer
+      plannedCalls:
+        type: integer
+      promptVersion:
+        type: string
+      rateLimitedCount:
+        type: integer
+      scope:
+        $ref: '#/definitions/datatypes.JSONMap'
+      sspId:
+        type: string
+      startedAt:
+        type: string
+      stats:
+        $ref: '#/definitions/datatypes.JSONMap'
+      status:
+        type: string
+      suggestionCount:
+        type: integer
+      suggestions:
+        items:
+          $ref: '#/definitions/suggestions.DashboardSuggestion'
+        type: array
+      triggeredByUserId:
+        type: string
+    type: object
   oscal.generateDashboardSuggestionsRequest:
     properties:
+      constraints:
+        $ref: '#/definitions/oscal.dashboardSuggestionConstraintsRequest'
       scope:
         $ref: '#/definitions/oscal.dashboardSuggestionScopeRequest'
-      supersedePending:
+      supersede-pending:
         type: boolean
+    type: object
+  oscal.labelSelectorRequest:
+    properties:
+      key:
+        type: string
+      value:
+        type: string
     type: object
   oscal.profileSummary:
     properties:
@@ -8704,6 +8894,9 @@ definitions:
     properties:
       acceptedFilterId:
         type: string
+      addedByUser:
+        description: AddedByUser marks rows created during a group edit (no AI baseline).
+        type: boolean
       confidence:
         type: number
       controlCatalogId:
@@ -8714,11 +8907,33 @@ definitions:
         type: string
       decidedByUserId:
         type: string
+      editedAt:
+        type: string
+      editedByUserId:
+        type: string
       id:
         type: string
+      isGeneralization:
+        description: |-
+          IsGeneralization marks rows produced by the deterministic filter-merge
+          detector (Part 2). Such a row proposes the generalized label set G that
+          merges several near-duplicate SSP filters that differ by one generalizable
+          label. Accepting it moves controls onto G and off the source filters.
+        type: boolean
+      isUserEdited:
+        type: boolean
       labelSet:
         $ref: '#/definitions/datatypes.JSONMap'
       labelSetHash:
+        type: string
+      originalProposedFilterLabelSet:
+        allOf:
+        - $ref: '#/definitions/datatypes.JSONMap'
+        description: |-
+          AI baseline captured at first user edit (set-once) so the UI can render a
+          diff of what the user changed. Nil on AI-generated, never-edited rows and
+          on rows the user added during an edit (AddedByUser).
+      originalProposedFilterName:
         type: string
       proposedFilterLabelSet:
         $ref: '#/definitions/datatypes.JSONMap'
@@ -8728,8 +8943,23 @@ definitions:
         type: string
       rejectReason:
         type: string
+      removedControlIds:
+        description: |-
+          RemovedControlIds mirrors, onto every surviving group row, the control IDs
+          removed from the group during edits, so the card can show them struck-out.
+        items:
+          type: string
+        type: array
       runId:
         type: string
+      sourceFilterIds:
+        description: |-
+          SourceFilterIDs are the SSP filters this generalization merges, recorded so
+          the UI can explain the merge and the accept path can detach controls from
+          them. Nil on ordinary (non-generalization) rows.
+        items:
+          type: string
+        type: array
       sspId:
         type: string
       status:
@@ -8771,6 +9001,15 @@ definitions:
         type: string
       status:
         type: string
+    type: object
+  suggestions.LabelKeyInput:
+    properties:
+      key:
+        type: string
+      values:
+        items:
+          type: string
+        type: array
     type: object
   suggestions.LabelSetInput:
     properties:
@@ -20984,6 +21223,88 @@ paths:
       summary: Accept dashboard suggestions
       tags:
       - Dashboard Suggestions
+  /oscal/system-security-plans/{id}/dashboard-suggestions/edit-group:
+    post:
+      consumes:
+      - application/json
+      description: Edits the title, proposed filter labels, and control membership
+        of a pending suggestion group. User-provided labels are stored verbatim (the
+        evidence-subset rule is bypassed) and the rows are flagged as user-edited.
+      parameters:
+      - description: System Security Plan ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Group edit
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/oscal.editDashboardSuggestionGroupRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-oscal_dashboardSuggestionResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Edit a group of pending dashboard suggestions
+      tags:
+      - Dashboard Suggestions
+  /oscal/system-security-plans/{id}/dashboard-suggestions/generalize:
+    post:
+      description: Runs the deterministic filter-merge detector for this SSP and creates
+        pending generalization suggestions for near-duplicate filters that differ
+        only by one generalizable label. No LLM is involved.
+      parameters:
+      - description: System Security Plan ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-oscal_generalizeDashboardSuggestionsResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Suggest filter merges for an SSP
+      tags:
+      - Dashboard Suggestions
   /oscal/system-security-plans/{id}/dashboard-suggestions/generate:
     post:
       consumes:
@@ -21037,6 +21358,40 @@ paths:
       summary: Generate dashboard suggestions for an SSP
       tags:
       - Dashboard Suggestions
+  /oscal/system-security-plans/{id}/dashboard-suggestions/label-keys:
+    get:
+      description: Returns distinct evidence label keys with their distinct values,
+        for building an evidence-scoping filter without loading every label set.
+      parameters:
+      - description: System Security Plan ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-suggestions_LabelKeyInput'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: List distinct evidence label keys and values
+      tags:
+      - Dashboard Suggestions
   /oscal/system-security-plans/{id}/dashboard-suggestions/label-sets:
     get:
       description: Returns canonical evidence label sets for dashboard suggestion
@@ -21069,6 +21424,50 @@ paths:
       security:
       - OAuth2Password: []
       summary: List dashboard suggestion label sets
+      tags:
+      - Dashboard Suggestions
+  /oscal/system-security-plans/{id}/dashboard-suggestions/label-values:
+    get:
+      description: Returns distinct evidence label values for a given label key, optionally
+        matching a substring query. Searched server-side so high-cardinality values
+        are reachable.
+      parameters:
+      - description: System Security Plan ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Label key
+        in: query
+        name: key
+        required: true
+        type: string
+      - description: Substring to match against values
+        in: query
+        name: query
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-string'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Search evidence label values for a key
       tags:
       - Dashboard Suggestions
   /oscal/system-security-plans/{id}/dashboard-suggestions/preview:

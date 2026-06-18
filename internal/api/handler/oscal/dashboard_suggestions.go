@@ -13,6 +13,7 @@ import (
 	"github.com/compliance-framework/api/internal/api/handler"
 	"github.com/compliance-framework/api/internal/authn"
 	"github.com/compliance-framework/api/internal/config"
+	"github.com/compliance-framework/api/internal/converters/labelfilter"
 	"github.com/compliance-framework/api/internal/service/relational"
 	suggestionrel "github.com/compliance-framework/api/internal/service/relational/suggestions"
 	workersvc "github.com/compliance-framework/api/internal/service/worker"
@@ -34,19 +35,50 @@ type DashboardSuggestionHandler struct {
 	jobEnqueuer SSPJobEnqueuer
 }
 
+// Request DTOs use kebab-case json tags to match the project convention: the UI
+// sends bodies through decamelize-keys (separator "-"), so multi-word fields
+// arrive as kebab-case. camelCase tags would silently fail to bind.
 type dashboardSuggestionScopeRequest struct {
-	ControlKeys    []string `json:"controlKeys"`
-	LabelSetHashes []string `json:"labelSetHashes"`
+	ControlKeys    []string `json:"control-keys"`
+	LabelSetHashes []string `json:"label-set-hashes"`
+	// LabelFilter scopes which evidence (and therefore which label sets) feed the
+	// run, using the same label-filter expression as evidence search.
+	LabelFilter *labelfilter.Filter `json:"label-filter"`
 }
 
 type generateDashboardSuggestionsRequest struct {
-	SupersedePending bool                             `json:"supersedePending"`
-	Scope            *dashboardSuggestionScopeRequest `json:"scope"`
+	SupersedePending bool                                   `json:"supersede-pending"`
+	Scope            *dashboardSuggestionScopeRequest       `json:"scope"`
+	Constraints      *dashboardSuggestionConstraintsRequest `json:"constraints"`
+}
+
+type labelSelectorRequest struct {
+	Key   string  `json:"key"`
+	Value *string `json:"value"`
+}
+
+type dashboardSuggestionConstraintsRequest struct {
+	MandatoryLabels []labelSelectorRequest `json:"mandatory-labels"`
+	ExcludedLabels  []labelSelectorRequest `json:"excluded-labels"`
+	// OnlyAction restricts suggestions to "new_filter" or "extend_filter".
+	OnlyAction string `json:"only-action"`
+	// OnlyControlsWithoutFilters scopes generation to controls that currently
+	// have no dashboard filter attached. Resolved into the control scope, so it
+	// is not persisted as an output constraint.
+	OnlyControlsWithoutFilters bool `json:"only-controls-without-filters"`
 }
 
 type dashboardSuggestionDecisionRequest struct {
 	IDs    []uuid.UUID `json:"ids" validate:"required"`
 	Reason string      `json:"reason"`
+}
+
+type editDashboardSuggestionGroupRequest struct {
+	IDs                []uuid.UUID        `json:"ids" validate:"required"`
+	ProposedFilterName *string            `json:"proposed-filter-name"`
+	ProposedFilterSet  *map[string]string `json:"proposed-filter-label-set"`
+	AddControlKeys     []string           `json:"add-control-keys"`
+	RemoveIDs          []uuid.UUID        `json:"remove-ids"`
 }
 
 type dashboardSuggestionRunResponse struct {
@@ -108,13 +140,17 @@ func (h *DashboardSuggestionHandler) RegisterConfig(apiGroup *echo.Group) {
 
 func (h *DashboardSuggestionHandler) Register(apiGroup *echo.Group, auth echo.MiddlewareFunc) {
 	apiGroup.POST("/:id/dashboard-suggestions/generate", h.Generate, auth)
+	apiGroup.POST("/:id/dashboard-suggestions/generalize", h.Generalize, auth)
 	apiGroup.POST("/:id/dashboard-suggestions/preview", h.Preview, auth)
 	apiGroup.GET("/:id/dashboard-suggestions/label-sets", h.LabelSets, auth)
+	apiGroup.GET("/:id/dashboard-suggestions/label-keys", h.LabelKeys, auth)
+	apiGroup.GET("/:id/dashboard-suggestions/label-values", h.LabelValues, auth)
 	apiGroup.GET("/:id/dashboard-suggestion-runs/latest", h.LatestRun, auth)
 	apiGroup.GET("/:id/dashboard-suggestion-runs/:runId", h.GetRun, auth)
 	apiGroup.GET("/:id/dashboard-suggestions", h.ListSuggestions, auth)
 	apiGroup.POST("/:id/dashboard-suggestions/accept", h.Accept, auth)
 	apiGroup.POST("/:id/dashboard-suggestions/reject", h.Reject, auth)
+	apiGroup.POST("/:id/dashboard-suggestions/edit-group", h.EditGroup, auth)
 	apiGroup.GET("/:id/dashboard-suggestions/:suggestionId/events", h.Events, auth)
 }
 
@@ -169,7 +205,7 @@ func (h *DashboardSuggestionHandler) Generate(ctx echo.Context) error {
 	var createdRun suggestionrel.DashboardSuggestionRun
 	var cells []suggestionrel.DashboardSuggestionRunCell
 	err = h.db.WithContext(ctx.Request().Context()).Transaction(func(tx *gorm.DB) error {
-		plan, resolveErr := h.planDashboardSuggestions(tx, sspID, req.Scope)
+		plan, resolveErr := h.planDashboardSuggestions(tx, sspID, req.Scope, req.Constraints)
 		if resolveErr != nil {
 			return resolveErr
 		}
@@ -188,6 +224,8 @@ func (h *DashboardSuggestionHandler) Generate(ctx echo.Context) error {
 			Model:             h.modelName(),
 			PromptVersion:     suggestionrel.PromptVersion,
 			Scope:             snapshotJSON(snapshot),
+			Constraints:       suggestionrel.ConstraintsToJSONMap(constraintsFromRequest(req.Constraints)),
+			LabelFilter:       suggestionrel.LabelFilterToJSONMap(labelFilterFromRequest(req.Scope)),
 			PlannedCalls:      plannedCalls,
 			TriggeredByUserID: actorID,
 			StartedAt:         &now,
@@ -239,6 +277,54 @@ func (h *DashboardSuggestionHandler) Generate(ctx echo.Context) error {
 	})
 }
 
+type generalizeDashboardSuggestionsResponse struct {
+	suggestionrel.DashboardSuggestionRun
+	Candidates int `json:"candidates"`
+	Inserted   int `json:"inserted"`
+}
+
+// Generalize godoc
+//
+//	@Summary		Suggest filter merges for an SSP
+//	@Description	Runs the deterministic filter-merge detector for this SSP and creates pending generalization suggestions for near-duplicate filters that differ only by one generalizable label. No LLM is involved.
+//	@Tags			Dashboard Suggestions
+//	@Produce		json
+//	@Param			id	path		string	true	"System Security Plan ID"
+//	@Success		200	{object}	handler.GenericDataResponse[oscal.generalizeDashboardSuggestionsResponse]
+//	@Failure		400	{object}	api.Error
+//	@Failure		401	{object}	api.Error
+//	@Failure		500	{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/oscal/system-security-plans/{id}/dashboard-suggestions/generalize [post]
+func (h *DashboardSuggestionHandler) Generalize(ctx echo.Context) error {
+	sspID, err := parseUUIDParam(ctx, "id")
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	actorID, err := h.actorUserID(ctx)
+	if err != nil {
+		return err
+	}
+	run, result, candidates, err := suggestionrel.NewSuggestionService(h.db.WithContext(ctx.Request().Context())).GenerateGeneralizations(sspID, suggestionrel.GeneralizationRunInput{
+		Model:                  h.modelName(),
+		PromptVersion:          suggestionrel.PromptVersion,
+		GeneralizableLabelKeys: h.generalizableLabelKeys(),
+		MinSharedControls:      h.generalizationMinSharedControls(),
+		MaxSuggestionsPerRun:   h.maxSuggestionsPerRun(),
+		ActorID:                actorID,
+	})
+	if err != nil {
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[generalizeDashboardSuggestionsResponse]{
+		Data: generalizeDashboardSuggestionsResponse{
+			DashboardSuggestionRun: run,
+			Candidates:             candidates,
+			Inserted:               result.Inserted,
+		},
+	})
+}
+
 // Preview godoc
 //
 //	@Summary		Preview dashboard suggestion generation for an SSP
@@ -267,7 +353,7 @@ func (h *DashboardSuggestionHandler) Preview(ctx echo.Context) error {
 		}
 	}
 
-	plan, err := h.planDashboardSuggestions(h.db.WithContext(ctx.Request().Context()), sspID, req.Scope)
+	plan, err := h.planDashboardSuggestions(h.db.WithContext(ctx.Request().Context()), sspID, req.Scope, req.Constraints)
 	if err != nil {
 		return h.generateError(ctx, err)
 	}
@@ -300,11 +386,63 @@ func (h *DashboardSuggestionHandler) LabelSets(ctx echo.Context) error {
 	if _, err := parseUUIDParam(ctx, "id"); err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
-	labelSets, err := suggestionrel.NewSuggestionService(h.db).GatherLabelSets(nil)
+	labelSets, err := suggestionrel.NewSuggestionService(h.db).GatherLabelSets(nil, nil)
 	if err != nil {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 	return ctx.JSON(http.StatusOK, handler.GenericDataListResponse[suggestionrel.LabelSetInput]{Data: labelSets})
+}
+
+// LabelKeys godoc
+//
+//	@Summary		List distinct evidence label keys and values
+//	@Description	Returns distinct evidence label keys with their distinct values, for building an evidence-scoping filter without loading every label set.
+//	@Tags			Dashboard Suggestions
+//	@Produce		json
+//	@Param			id	path		string	true	"System Security Plan ID"
+//	@Success		200	{object}	handler.GenericDataListResponse[suggestions.LabelKeyInput]
+//	@Failure		400	{object}	api.Error
+//	@Failure		401	{object}	api.Error
+//	@Failure		500	{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/oscal/system-security-plans/{id}/dashboard-suggestions/label-keys [get]
+func (h *DashboardSuggestionHandler) LabelKeys(ctx echo.Context) error {
+	if _, err := parseUUIDParam(ctx, "id"); err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	keys, err := suggestionrel.NewSuggestionService(h.db).GatherLabelKeys(0)
+	if err != nil {
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+	return ctx.JSON(http.StatusOK, handler.GenericDataListResponse[suggestionrel.LabelKeyInput]{Data: keys})
+}
+
+// LabelValues godoc
+//
+//	@Summary		Search evidence label values for a key
+//	@Description	Returns distinct evidence label values for a given label key, optionally matching a substring query. Searched server-side so high-cardinality values are reachable.
+//	@Tags			Dashboard Suggestions
+//	@Produce		json
+//	@Param			id		path		string	true	"System Security Plan ID"
+//	@Param			key		query		string	true	"Label key"
+//	@Param			query	query		string	false	"Substring to match against values"
+//	@Success		200		{object}	handler.GenericDataListResponse[string]
+//	@Failure		400		{object}	api.Error
+//	@Failure		401		{object}	api.Error
+//	@Failure		500		{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/oscal/system-security-plans/{id}/dashboard-suggestions/label-values [get]
+func (h *DashboardSuggestionHandler) LabelValues(ctx echo.Context) error {
+	if _, err := parseUUIDParam(ctx, "id"); err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	key := strings.TrimSpace(ctx.QueryParam("key"))
+	query := strings.TrimSpace(ctx.QueryParam("query"))
+	values, err := suggestionrel.NewSuggestionService(h.db).SearchLabelValues(key, query, 50)
+	if err != nil {
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+	return ctx.JSON(http.StatusOK, handler.GenericDataListResponse[string]{Data: values})
 }
 
 // LatestRun godoc
@@ -469,6 +607,60 @@ func (h *DashboardSuggestionHandler) Reject(ctx echo.Context) error {
 	return ctx.JSON(http.StatusOK, handler.GenericDataListResponse[dashboardSuggestionResponse]{Data: suggestions})
 }
 
+// EditGroup godoc
+//
+//	@Summary		Edit a group of pending dashboard suggestions
+//	@Description	Edits the title, proposed filter labels, and control membership of a pending suggestion group. User-provided labels are stored verbatim (the evidence-subset rule is bypassed) and the rows are flagged as user-edited.
+//	@Tags			Dashboard Suggestions
+//	@Accept			json
+//	@Produce		json
+//	@Param			id		path		string								true	"System Security Plan ID"
+//	@Param			request	body		editDashboardSuggestionGroupRequest	true	"Group edit"
+//	@Success		200		{object}	handler.GenericDataListResponse[oscal.dashboardSuggestionResponse]
+//	@Failure		400		{object}	api.Error
+//	@Failure		401		{object}	api.Error
+//	@Failure		409		{object}	api.Error
+//	@Failure		500		{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/oscal/system-security-plans/{id}/dashboard-suggestions/edit-group [post]
+func (h *DashboardSuggestionHandler) EditGroup(ctx echo.Context) error {
+	sspID, err := parseUUIDParam(ctx, "id")
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	var req editDashboardSuggestionGroupRequest
+	if err := ctx.Bind(&req); err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	if len(req.IDs) == 0 {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("ids is required")))
+	}
+	actorID, err := h.actorUserID(ctx)
+	if err != nil {
+		return err
+	}
+
+	resultIDs, err := suggestionrel.NewSuggestionService(h.db).EditGroup(sspID, suggestionrel.EditGroupInput{
+		IDs:                req.IDs,
+		ProposedFilterName: req.ProposedFilterName,
+		Labels:             req.ProposedFilterSet,
+		AddControlKeys:     req.AddControlKeys,
+		RemoveIDs:          req.RemoveIDs,
+	}, *actorID)
+	if err != nil {
+		return h.decisionError(ctx, err)
+	}
+
+	suggestions := []dashboardSuggestionResponse{}
+	if len(resultIDs) > 0 {
+		suggestions, err = h.loadSuggestionResponses(h.db.Where("dashboard_suggestions.id IN ?", resultIDs))
+		if err != nil {
+			return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		}
+	}
+	return ctx.JSON(http.StatusOK, handler.GenericDataListResponse[dashboardSuggestionResponse]{Data: suggestions})
+}
+
 // Events godoc
 //
 //	@Summary		List dashboard suggestion events
@@ -580,6 +772,27 @@ func (h *DashboardSuggestionHandler) maxCallsPerRun() int {
 	return h.cfg.MaxCallsPerRun
 }
 
+func (h *DashboardSuggestionHandler) maxSuggestionsPerRun() int {
+	if h.cfg == nil {
+		return 0
+	}
+	return h.cfg.MaxSuggestionsPerRun
+}
+
+func (h *DashboardSuggestionHandler) generalizableLabelKeys() []string {
+	if h.cfg == nil {
+		return nil
+	}
+	return h.cfg.GeneralizableLabelKeys
+}
+
+func (h *DashboardSuggestionHandler) generalizationMinSharedControls() int {
+	if h.cfg == nil {
+		return 0
+	}
+	return h.cfg.GeneralizationMinSharedControls
+}
+
 func (h *DashboardSuggestionHandler) modelName() string {
 	if h.cfg == nil || strings.TrimSpace(h.cfg.Model) == "" {
 		return config.DefaultAIModel
@@ -587,11 +800,18 @@ func (h *DashboardSuggestionHandler) modelName() string {
 	return h.cfg.Model
 }
 
-func (h *DashboardSuggestionHandler) planDashboardSuggestions(db *gorm.DB, sspID uuid.UUID, scope *dashboardSuggestionScopeRequest) (dashboardSuggestionPlan, error) {
+func (h *DashboardSuggestionHandler) planDashboardSuggestions(db *gorm.DB, sspID uuid.UUID, scope *dashboardSuggestionScopeRequest, constraints *dashboardSuggestionConstraintsRequest) (dashboardSuggestionPlan, error) {
 	svc := suggestionrel.NewSuggestionService(db)
 	snapshot, err := svc.ResolveScope(sspID, scopeFromRequest(scope))
 	if err != nil {
 		return dashboardSuggestionPlan{}, err
+	}
+	if constraints != nil && constraints.OnlyControlsWithoutFilters {
+		filtered, err := svc.ControlKeysWithoutFilters(sspID, snapshot.ControlKeys)
+		if err != nil {
+			return dashboardSuggestionPlan{}, err
+		}
+		snapshot.ControlKeys = filtered
 	}
 	if len(snapshot.ControlKeys) == 0 {
 		return dashboardSuggestionPlan{}, &emptyDashboardSuggestionScopeError{message: "no controls resolved for dashboard suggestions"}
@@ -611,7 +831,40 @@ func scopeFromRequest(scope *dashboardSuggestionScopeRequest) suggestionrel.Scop
 	if scope == nil {
 		return suggestionrel.Scope{}
 	}
-	return suggestionrel.Scope{ControlKeys: scope.ControlKeys, LabelSetHashes: scope.LabelSetHashes}
+	return suggestionrel.Scope{
+		ControlKeys:    scope.ControlKeys,
+		LabelSetHashes: scope.LabelSetHashes,
+		LabelFilter:    scope.LabelFilter,
+	}
+}
+
+func labelFilterFromRequest(scope *dashboardSuggestionScopeRequest) *labelfilter.Filter {
+	if scope == nil {
+		return nil
+	}
+	return scope.LabelFilter
+}
+
+func constraintsFromRequest(constraints *dashboardSuggestionConstraintsRequest) suggestionrel.Constraints {
+	if constraints == nil {
+		return suggestionrel.Constraints{}
+	}
+	return suggestionrel.Constraints{
+		MandatoryLabels: labelSelectorsFromRequest(constraints.MandatoryLabels),
+		ExcludedLabels:  labelSelectorsFromRequest(constraints.ExcludedLabels),
+		OnlyAction:      constraints.OnlyAction,
+	}.Normalize()
+}
+
+func labelSelectorsFromRequest(selectors []labelSelectorRequest) []suggestionrel.LabelSelector {
+	if len(selectors) == 0 {
+		return nil
+	}
+	out := make([]suggestionrel.LabelSelector, 0, len(selectors))
+	for _, selector := range selectors {
+		out = append(out, suggestionrel.LabelSelector{Key: selector.Key, Value: selector.Value})
+	}
+	return out
 }
 
 func snapshotJSON(snapshot suggestionrel.Snapshot) datatypes.JSONMap {
@@ -875,6 +1128,10 @@ func (h *DashboardSuggestionHandler) decisionError(ctx echo.Context, err error) 
 	var conflict *suggestionrel.ConflictError
 	if errors.As(err, &conflict) {
 		return ctx.JSON(http.StatusConflict, api.NewError(err))
+	}
+	var editErr *suggestionrel.EditValidationError
+	if errors.As(err, &editErr) {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 	return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 }

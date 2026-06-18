@@ -113,6 +113,15 @@ func TestResolveSnapshot(t *testing.T) {
 	require.True(t, errors.As(err, &scopeErr))
 	require.Equal(t, []string{"missing"}, scopeErr.UnknownControlKeys)
 	require.Equal(t, []string{"h3"}, scopeErr.UnknownLabelSetHashes)
+
+	// Control keys match case-insensitively and resolve to the canonical key.
+	caseControls := []string{"11111111-1111-1111-1111-111111111111:GD.Res.C09"}
+	snapshot, err = ResolveSnapshot(
+		Scope{ControlKeys: []string{"11111111-1111-1111-1111-111111111111:gd.res.c09"}},
+		caseControls, hashes,
+	)
+	require.NoError(t, err)
+	require.Equal(t, caseControls, snapshot.ControlKeys)
 }
 
 func TestBuildGridAndPlannedCalls(t *testing.T) {
@@ -159,26 +168,32 @@ func TestValidateMappingsRules(t *testing.T) {
 	}
 
 	result := ValidateRawMappings(input, []RawMapping{
-		{ControlKey: "missing", LabelSetHash: labelHash, Action: MappingActionNewFilter, ProposedFilterName: "bad", Confidence: 0.5, Reasoning: "x"},
-		{ControlKey: controlKey, LabelSetHash: "missing", Action: MappingActionNewFilter, ProposedFilterName: "bad", Confidence: 0.5, Reasoning: "x"},
-		{ControlKey: controlKey, LabelSetHash: labelHash, Action: MappingActionNewFilter, ProposedFilterName: "bad", Confidence: 1.5, Reasoning: "x"},
-		{ControlKey: controlKey, LabelSetHash: labelHash, Action: MappingActionNewFilter, ProposedFilterName: "bad", Confidence: 0.5, Reasoning: ""},
-		{ControlKey: controlKey, LabelSetHash: labelHash, Action: MappingActionExtendFilter, TargetFilterID: globalFilterID.String(), Confidence: 0.4, Reasoning: longReason},
-		{ControlKey: controlKey, LabelSetHash: labelHash, Action: MappingActionExtendFilter, TargetFilterID: sameSSPFilterID.String(), Confidence: 0.9, Reasoning: "better"},
-		{ControlKey: controlKey, LabelSetHash: labelHash, Action: MappingActionNewFilter, ProposedFilterName: "lower", Confidence: 0.1, Reasoning: "dedupe"},
-		{ControlKey: controlKey, LabelSetHash: otherHash, Action: MappingActionNewFilter, Confidence: 0.8, Reasoning: "fallback"},
+		{ControlKey: "missing", LabelSetHash: labelHash, Confidence: 0.5, Reasoning: "x"},
+		{ControlKey: controlKey, LabelSetHash: "missing", Confidence: 0.5, Reasoning: "x"},
+		{ControlKey: controlKey, LabelSetHash: labelHash, Confidence: 1.5, Reasoning: "x"},
+		{ControlKey: controlKey, LabelSetHash: labelHash, Confidence: 0.5, Reasoning: ""},
+		// labels resolve to {env:prod}; its hash matches the same-SSP filter → extend.
+		{ControlKey: controlKey, LabelSetHash: labelHash, Confidence: 0.4, Reasoning: longReason},
+		{ControlKey: controlKey, LabelSetHash: labelHash, Confidence: 0.9, Reasoning: "better"},
+		{ControlKey: controlKey, LabelSetHash: labelHash, Confidence: 0.1, Reasoning: "dedupe"},
+		// labels resolve to {env:stage}; no matching filter → new_filter with fallback name.
+		{ControlKey: controlKey, LabelSetHash: otherHash, Confidence: 0.8, Reasoning: "fallback"},
 	})
 
 	require.Equal(t, 1, result.Counts["rejected_unknown_control"])
 	require.Equal(t, 1, result.Counts["rejected_unknown_label_set"])
 	require.Equal(t, 1, result.Counts["rejected_confidence_out_of_range"])
 	require.Equal(t, 1, result.Counts["rejected_empty_reasoning"])
-	require.Equal(t, 1, result.Counts["downgraded_extend_to_new"])
+	// Deterministic targeting replaces the LLM extend/downgrade with resolved counts.
+	require.Equal(t, 3, result.Counts["resolved_extend"])
+	require.Equal(t, 1, result.Counts["resolved_new"])
+	require.Equal(t, 0, result.Counts["downgraded_extend_to_new"])
 	require.Equal(t, 2, result.Counts["deduped_within_cell"])
-	require.Equal(t, 2, result.Counts["fallback_name"])
+	require.Equal(t, 1, result.Counts["fallback_name"])
 	require.Len(t, result.Mappings, 2)
 	require.Equal(t, MappingActionExtendFilter, result.Mappings[0].Action)
 	require.Equal(t, sameSSPFilterID, *result.Mappings[0].TargetFilterID)
+	require.Equal(t, MappingActionNewFilter, result.Mappings[1].Action)
 	require.Equal(t, "env=stage", result.Mappings[1].ProposedFilterName)
 }
 
@@ -203,7 +218,6 @@ func TestValidateMappingsFilterLabelSubsetRules(t *testing.T) {
 		{
 			ControlKey:           controlKey,
 			LabelSetHash:         hash,
-			Action:               MappingActionNewFilter,
 			Confidence:           0.9,
 			Reasoning:            "matches",
 			ProposedFilterLabels: map[string]string{"provider": "github", "type": "repository", "_agent": "agent-1"},
@@ -211,7 +225,6 @@ func TestValidateMappingsFilterLabelSubsetRules(t *testing.T) {
 		{
 			ControlKey:           controlKey,
 			LabelSetHash:         hash,
-			Action:               MappingActionNewFilter,
 			Confidence:           0.8,
 			Reasoning:            "hallucinated",
 			ProposedFilterLabels: map[string]string{"provider": "gitlab"},
@@ -344,7 +357,6 @@ func TestValidateMappingsEmptyFilterLabelsUseDefaultSubset(t *testing.T) {
 	result := ValidateRawMappings(input, []RawMapping{{
 		ControlKey:   controlKey,
 		LabelSetHash: hash,
-		Action:       MappingActionNewFilter,
 		Confidence:   0.9,
 		Reasoning:    "matches",
 	}})
@@ -388,8 +400,8 @@ func TestValidateMappingsDedupesByProposedFilterSubset(t *testing.T) {
 	}
 
 	result := ValidateRawMappings(input, []RawMapping{
-		{ControlKey: controlKey, LabelSetHash: firstHash, Action: MappingActionNewFilter, Confidence: 0.7, Reasoning: "matches", ProposedFilterLabels: subset},
-		{ControlKey: controlKey, LabelSetHash: secondHash, Action: MappingActionNewFilter, Confidence: 0.9, Reasoning: "better match", ProposedFilterLabels: subset},
+		{ControlKey: controlKey, LabelSetHash: firstHash, Confidence: 0.7, Reasoning: "matches", ProposedFilterLabels: subset},
+		{ControlKey: controlKey, LabelSetHash: secondHash, Confidence: 0.9, Reasoning: "better match", ProposedFilterLabels: subset},
 	})
 
 	require.Equal(t, 1, result.Counts["deduped_within_cell"])
@@ -405,7 +417,7 @@ func TestValidateMappingsControlCap(t *testing.T) {
 	for i := 0; i < MaxMappingsPerControlPerCell+1; i++ {
 		hash := CanonicalLabelSetHash(map[string]string{"n": string(rune('a' + i))})
 		input.LabelSets = append(input.LabelSets, LabelSetInput{Hash: hash, Labels: map[string]string{"n": string(rune('a' + i))}})
-		raw = append(raw, RawMapping{ControlKey: controlKey, LabelSetHash: hash, Action: MappingActionNewFilter, ProposedFilterName: "x", Confidence: float64(i) / 100, Reasoning: "x"})
+		raw = append(raw, RawMapping{ControlKey: controlKey, LabelSetHash: hash, Confidence: float64(i) / 100, Reasoning: "x"})
 	}
 	result := ValidateRawMappings(input, raw)
 	require.Len(t, result.Mappings, MaxMappingsPerControlPerCell)
@@ -423,7 +435,6 @@ func TestValidateMappingsTruncatesMultibyteTextAtRuneBoundary(t *testing.T) {
 	result := ValidateRawMappings(input, []RawMapping{{
 		ControlKey:         controlKey,
 		LabelSetHash:       labelHash,
-		Action:             MappingActionNewFilter,
 		ProposedFilterName: strings.Repeat("á", 121),
 		Confidence:         0.8,
 		Reasoning:          strings.Repeat("🙂", MaxReasoningLength+1),

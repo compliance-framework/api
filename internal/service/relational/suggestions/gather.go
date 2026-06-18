@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/compliance-framework/api/internal/converters/labelfilter"
 	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -40,8 +41,136 @@ func (s *SuggestionService) resolvedControlKeys(sspID uuid.UUID) ([]string, erro
 	return keys, nil
 }
 
-func (s *SuggestionService) currentLabelSetHashes() ([]string, error) {
-	labelSets, err := s.gatherAllLabelSets()
+// ControlKeysWithoutFilters returns the subset of controlKeys that have no
+// dashboard filter attached (neither SSP-bound nor global). It powers the
+// "only controls without filters" generation preset. Matching folds control_id
+// case to honour the catalog-canonical casing invariant, and treats the text
+// catalog id in filter_controls as a plain string.
+func (s *SuggestionService) ControlKeysWithoutFilters(sspID uuid.UUID, controlKeys []string) ([]string, error) {
+	if len(controlKeys) == 0 {
+		return controlKeys, nil
+	}
+	var rows []struct {
+		CatalogID string `gorm:"column:control_catalog_id"`
+		ControlID string `gorm:"column:control_id"`
+	}
+	if err := s.db.
+		Table("filter_controls").
+		Select("DISTINCT filter_controls.control_catalog_id, filter_controls.control_id").
+		Joins("JOIN filters ON filters.id = filter_controls.filter_id").
+		Where("filters.ssp_id IS NULL OR filters.ssp_id = ?", sspID).
+		Scan(&rows).Error; err != nil {
+		return nil, err
+	}
+	withFilters := make(map[string]struct{}, len(rows))
+	for _, row := range rows {
+		withFilters[matchControlKey(row.CatalogID, row.ControlID)] = struct{}{}
+	}
+	out := make([]string, 0, len(controlKeys))
+	for _, key := range controlKeys {
+		catalogID, controlID, err := ParseControlKey(key)
+		if err != nil {
+			return nil, err
+		}
+		if _, covered := withFilters[matchControlKey(catalogID.String(), controlID)]; !covered {
+			out = append(out, key)
+		}
+	}
+	return out, nil
+}
+
+// matchControlKey builds a case-folded key for comparing controls across tables
+// where control_id casing may differ.
+func matchControlKey(catalogID, controlID string) string {
+	return strings.ToLower(strings.TrimSpace(catalogID)) + ":" + strings.ToUpper(strings.TrimSpace(controlID))
+}
+
+// LabelKeyInput is a distinct evidence label key with its distinct values,
+// used to power the evidence-scoping filter builder without loading every
+// canonical label set.
+type LabelKeyInput struct {
+	Key    string   `json:"key"`
+	Values []string `json:"values"`
+}
+
+// GatherLabelKeys returns distinct evidence label names and, for each, up to
+// maxValuesPerKey distinct values, drawn from the latest stream of each
+// evidence. It is a cheap aggregation suited to autocomplete at 100k+ evidence.
+func (s *SuggestionService) GatherLabelKeys(maxValuesPerKey int) ([]LabelKeyInput, error) {
+	if maxValuesPerKey <= 0 {
+		maxValuesPerKey = 50
+	}
+	type row struct {
+		Name  string `gorm:"column:labels_name"`
+		Value string `gorm:"column:labels_value"`
+	}
+	var rows []row
+	latest := relational.GetLatestEvidenceStreamsQuery(s.db)
+	if err := s.db.
+		Table("(?) as l", latest).
+		Select("DISTINCT el.labels_name, el.labels_value").
+		Joins("JOIN evidence_labels el ON el.evidence_id = l.id").
+		Order("el.labels_name ASC, el.labels_value ASC").
+		Scan(&rows).Error; err != nil {
+		if strings.Contains(err.Error(), "no such table") {
+			return []LabelKeyInput{}, nil
+		}
+		return nil, err
+	}
+
+	byKey := map[string]*LabelKeyInput{}
+	order := make([]string, 0)
+	for _, r := range rows {
+		key := byKey[r.Name]
+		if key == nil {
+			key = &LabelKeyInput{Key: r.Name}
+			byKey[r.Name] = key
+			order = append(order, r.Name)
+		}
+		if len(key.Values) < maxValuesPerKey {
+			key.Values = append(key.Values, r.Value)
+		}
+	}
+	out := make([]LabelKeyInput, 0, len(order))
+	for _, name := range order {
+		out = append(out, *byKey[name])
+	}
+	return out, nil
+}
+
+// SearchLabelValues returns distinct evidence label values for a given label
+// key, optionally matching a substring query, drawn from the latest stream of
+// each evidence. It is searched server-side (case-insensitive) so the filter
+// builder can reach high-cardinality values (e.g. a specific repository) that a
+// capped client-side list would miss.
+func (s *SuggestionService) SearchLabelValues(key, query string, limit int) ([]string, error) {
+	key = strings.TrimSpace(key)
+	if key == "" {
+		return []string{}, nil
+	}
+	if limit <= 0 || limit > 200 {
+		limit = 50
+	}
+	latest := relational.GetLatestEvidenceStreamsQuery(s.db)
+	q := s.db.
+		Table("(?) as l", latest).
+		Joins("JOIN evidence_labels el ON el.evidence_id = l.id").
+		Where("lower(el.labels_name) = lower(?)", key)
+	if query = strings.TrimSpace(query); query != "" {
+		q = q.Where("lower(el.labels_value) LIKE lower(?)", "%"+query+"%")
+	}
+	var values []string
+	if err := q.Distinct().Order("el.labels_value ASC").Limit(limit).Pluck("el.labels_value", &values).Error; err != nil {
+		if strings.Contains(err.Error(), "no such table") {
+			return []string{}, nil
+		}
+		return nil, err
+	}
+	return values, nil
+}
+
+func (s *SuggestionService) currentLabelSetHashes(filter *labelfilter.Filter) ([]string, error) {
+	labelSets, err := s.gatherAllLabelSets(filter)
 	if err != nil {
 		return nil, err
 	}
@@ -149,8 +278,8 @@ func (s *SuggestionService) gatherControls(sspID uuid.UUID, controlKeys []string
 	return out, nil
 }
 
-func (s *SuggestionService) gatherLabelSets(hashes []string) ([]LabelSetInput, error) {
-	all, err := s.gatherAllLabelSets()
+func (s *SuggestionService) gatherLabelSets(hashes []string, filter *labelfilter.Filter) ([]LabelSetInput, error) {
+	all, err := s.gatherAllLabelSets(filter)
 	if err != nil {
 		return nil, err
 	}
@@ -165,7 +294,11 @@ func (s *SuggestionService) gatherLabelSets(hashes []string) ([]LabelSetInput, e
 	return out, nil
 }
 
-func (s *SuggestionService) gatherAllLabelSets() ([]LabelSetInput, error) {
+// gatherAllLabelSets returns the canonical evidence label sets, optionally
+// restricted to evidence matching a label filter. It reuses the evidence-search
+// query builder so the filter is applied in SQL (against the latest stream of
+// each evidence) rather than scanning all evidence in Go.
+func (s *SuggestionService) gatherAllLabelSets(filter *labelfilter.Filter) ([]LabelSetInput, error) {
 	type row struct {
 		EvidenceID   uuid.UUID `gorm:"column:evidence_id"`
 		EvidenceUUID uuid.UUID `gorm:"column:evidence_uuid"`
@@ -173,18 +306,23 @@ func (s *SuggestionService) gatherAllLabelSets() ([]LabelSetInput, error) {
 		LabelName    string    `gorm:"column:labels_name"`
 		LabelValue   string    `gorm:"column:labels_value"`
 	}
+
+	latest := relational.GetLatestEvidenceStreamsQuery(s.db)
+	var filters []labelfilter.Filter
+	if filter != nil && filter.Scope != nil {
+		filters = append(filters, *filter)
+	}
+	query, err := relational.GetEvidenceSearchByFilterQuery(latest, s.db, filters...)
+	if err != nil {
+		return nil, err
+	}
+
 	var rows []row
-	if err := s.db.Raw(`
-		WITH latest AS (
-			SELECT DISTINCT ON (uuid) id, uuid, title, "end"
-			FROM evidences
-			ORDER BY uuid, "end" DESC
-		)
-		SELECT latest.id AS evidence_id, latest.uuid AS evidence_uuid, latest.title, el.labels_name, el.labels_value
-		FROM latest
-		JOIN evidence_labels el ON el.evidence_id = latest.id
-		ORDER BY latest.uuid ASC, el.labels_name ASC, el.labels_value ASC
-	`).Scan(&rows).Error; err != nil {
+	if err := query.
+		Select(`l.id AS evidence_id, l.uuid AS evidence_uuid, l.title, el.labels_name, el.labels_value`).
+		Joins(`JOIN evidence_labels el ON el.evidence_id = l.id`).
+		Order(`l.uuid ASC, el.labels_name ASC, el.labels_value ASC`).
+		Scan(&rows).Error; err != nil {
 		if strings.Contains(err.Error(), "no such table") {
 			return []LabelSetInput{}, nil
 		}

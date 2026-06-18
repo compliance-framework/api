@@ -84,7 +84,7 @@ func (w *DashboardSuggestionWorker) Work(ctx context.Context, job *river.Job[Das
 		CellIndex:      cell.CellIndex,
 		ControlKeys:    []string(cell.ControlKeys),
 		LabelSetHashes: []string(cell.LabelSetHashes),
-	}, suggestionrel.GatherOptions{})
+	}, suggestionrel.GatherOptions{}, suggestionrel.LabelFilterFromJSONMap(run.LabelFilter))
 	if err != nil {
 		return w.handleAttemptFailure(ctx, job, err)
 	}
@@ -92,6 +92,10 @@ func (w *DashboardSuggestionWorker) Work(ctx context.Context, job *river.Job[Das
 	if missingLabelSets < 0 {
 		missingLabelSets = 0
 	}
+
+	// Per-run output constraints (mandatory/excluded labels, action restriction)
+	// guide the prompt and are enforced when validating the response.
+	gathered.Constraints = suggestionrel.ConstraintsFromJSONMap(run.Constraints)
 
 	rendered, err := suggestionrel.RenderPrompt(gathered)
 	if err != nil {
@@ -110,6 +114,7 @@ func (w *DashboardSuggestionWorker) Work(ctx context.Context, job *river.Job[Das
 		// Non-retryable errors, and rate limits that have exhausted their snooze
 		// budget, fail the cell and cancel the job.
 		if isNonRetryableLLMError(err) || errors.Is(err, llm.ErrRateLimited) {
+			w.logLLMOutputError(job.Args, cell.CellIndex, err)
 			if markErr := w.failCellAndMaybeFinalize(ctx, job.Args, err); markErr != nil {
 				return markErr
 			}
@@ -130,6 +135,22 @@ func (w *DashboardSuggestionWorker) Work(ctx context.Context, job *river.Job[Das
 			"cache_read_input_tokens", response.CacheReadInputTokens,
 			"output_tokens", response.OutputTokens,
 		)
+	}
+
+	// A provider response with no structured output (the model declined to emit
+	// mappings, e.g. "nothing applies") is a legitimate zero-suggestion result,
+	// not a failure. Complete the cell with no mappings so it counts as done.
+	if response.EmptyOutput {
+		if w.logger != nil {
+			w.logger.Infow("dashboard suggestion cell produced no output",
+				"run_id", job.Args.RunID,
+				"cell_index", cell.CellIndex,
+			)
+		}
+		if err := w.completeCell(ctx, run, cell, response, suggestionrel.ValidationResult{Counts: suggestionrel.ValidationCounts{}}, 0, missingLabelSets); err != nil {
+			return w.handleAttemptFailure(ctx, job, err)
+		}
+		return nil
 	}
 
 	rawCount, err := rawMappingCount(response.Raw)
@@ -218,7 +239,7 @@ func (w *DashboardSuggestionWorker) completeWithRetry(ctx context.Context, rende
 		CachedUserPrefixTTL: llm.CacheTTL1h,
 		Prompt:              rendered.Volatile,
 		Schema:              suggestionrel.OutputSchema(),
-		MaxTokens:           llm.DefaultAnthropicMaxTokens,
+		MaxTokens:           dashboardSuggestionMaxOutputTokens(w.aiCfg),
 	}
 
 	var lastErr error
@@ -267,6 +288,46 @@ func dashboardSuggestionRequestTimeout(aiCfg *config.AIConfig) time.Duration {
 		return aiCfg.RequestTimeout
 	}
 	return config.DefaultAIConfig().RequestTimeout
+}
+
+// logLLMOutputError surfaces the provider's raw output (e.g. the truncated JSON)
+// when a cell fails on an invalid/truncated response, so operators can see what
+// the model actually returned and tune max_output_tokens or chunk sizes.
+func (w *DashboardSuggestionWorker) logLLMOutputError(args DashboardSuggestionCellArgs, cellIndex int, err error) {
+	if w.logger == nil {
+		return
+	}
+	var outErr *llm.OutputError
+	if errors.As(err, &outErr) {
+		w.logger.Warnw("dashboard suggestion cell invalid llm output",
+			"run_id", args.RunID,
+			"cell_index", cellIndex,
+			"stop_reason", outErr.StopReason,
+			"output_tokens", outErr.OutputTokens,
+			"raw_output", truncateForLog(outErr.Text, 4000),
+		)
+		return
+	}
+	w.logger.Warnw("dashboard suggestion cell failed",
+		"run_id", args.RunID,
+		"cell_index", cellIndex,
+		"error", err.Error(),
+	)
+}
+
+// truncateForLog bounds a string for log output, marking when it was cut.
+func truncateForLog(value string, limit int) string {
+	if limit <= 0 || len(value) <= limit {
+		return value
+	}
+	return value[:limit] + "…[truncated]"
+}
+
+func dashboardSuggestionMaxOutputTokens(aiCfg *config.AIConfig) int {
+	if aiCfg != nil && aiCfg.MaxOutputTokens > 0 {
+		return aiCfg.MaxOutputTokens
+	}
+	return config.DefaultAIConfig().MaxOutputTokens
 }
 
 func (w *DashboardSuggestionWorker) completeCell(

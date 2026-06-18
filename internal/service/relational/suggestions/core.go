@@ -32,6 +32,9 @@ type ChunkConfig struct {
 type Scope struct {
 	ControlKeys    []string
 	LabelSetHashes []string
+	// LabelFilter, when set, restricts which evidence (and therefore which
+	// canonical label sets) feed the run. Empty/nil means all evidence.
+	LabelFilter *labelfilter.Filter
 }
 
 type Snapshot struct {
@@ -69,14 +72,47 @@ func ResolveSnapshot(scope Scope, allControlKeys []string, allLabelSetHashes []s
 	labelSets := append([]string(nil), allLabelSetHashes...)
 	sort.Strings(controls)
 	sort.Strings(labelSets)
-	controlSet := stringSet(controls)
 	labelSet := stringSet(labelSets)
-	selectedControls, unknownControls := selectDimension(scope.ControlKeys, controls, controlSet)
+	// Control keys fold case (the control_id casing invariant: match via UPPER),
+	// resolving requested keys back to the canonical stored keys. Label-set
+	// hashes are exact hex and stay case-sensitive.
+	selectedControls, unknownControls := selectControlDimension(scope.ControlKeys, controls)
 	selectedLabelSets, unknownLabelSets := selectDimension(scope.LabelSetHashes, labelSets, labelSet)
 	if len(unknownControls) > 0 || len(unknownLabelSets) > 0 {
 		return Snapshot{}, &ScopeError{UnknownControlKeys: unknownControls, UnknownLabelSetHashes: unknownLabelSets}
 	}
 	return Snapshot{ControlKeys: selectedControls, LabelSetHashes: selectedLabelSets}, nil
+}
+
+// selectControlDimension resolves requested control keys against the canonical
+// keys case-insensitively, returning the canonical keys (so the snapshot stays
+// catalog-canonical). Empty request selects all.
+func selectControlDimension(requested []string, all []string) ([]string, []string) {
+	if len(requested) == 0 {
+		return append([]string(nil), all...), nil
+	}
+	canonical := make(map[string]string, len(all))
+	for _, key := range all {
+		canonical[strings.ToUpper(key)] = key
+	}
+	selectedSet := map[string]struct{}{}
+	unknown := make([]string, 0)
+	for _, value := range requested {
+		canon, ok := canonical[strings.ToUpper(strings.TrimSpace(value))]
+		if !ok {
+			unknown = append(unknown, value)
+			continue
+		}
+		selectedSet[canon] = struct{}{}
+	}
+	sort.Strings(unknown)
+	selected := make([]string, 0, len(selectedSet))
+	for _, key := range all {
+		if _, ok := selectedSet[key]; ok {
+			selected = append(selected, key)
+		}
+	}
+	return selected, unknown
 }
 
 func CanonicalLabelSetHash(labels map[string]string) string {

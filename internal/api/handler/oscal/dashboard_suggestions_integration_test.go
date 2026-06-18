@@ -695,6 +695,78 @@ func (suite *DashboardSuggestionsHTTPSuite) TestRejectPersistsDecisionAndWritesE
 	suite.Equal(int64(1), eventCount)
 }
 
+func (suite *DashboardSuggestionsHTTPSuite) TestPreviewAndGenerateApplyKebabLabelFilter() {
+	sspID, _, _ := suite.seedScope(
+		[]string{"AC-1"},
+		[]map[string]string{{"env": "prod"}, {"env": "stage"}, {"env": "prod", "provider": "aws"}},
+	)
+
+	// Preview with no filter sees all 3 label sets.
+	rec, req := suite.req(http.MethodPost, fmt.Sprintf("/api/oscal/system-security-plans/%s/dashboard-suggestions/preview", sspID), json.RawMessage(`{}`))
+	suite.server.E().ServeHTTP(rec, req)
+	suite.Equal(http.StatusOK, rec.Code, rec.Body.String())
+	var all apihandler.GenericDataResponse[dashboardSuggestionPreviewResponse]
+	suite.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &all))
+	suite.Equal(3, all.Data.LabelSetCount)
+
+	// Preview with a kebab-case label-filter (as the UI sends) narrows to env=prod.
+	body := json.RawMessage(`{"scope":{"label-filter":{"scope":{"condition":{"label":"env","operator":"=","value":"prod"}}}}}`)
+	rec, req = suite.req(http.MethodPost, fmt.Sprintf("/api/oscal/system-security-plans/%s/dashboard-suggestions/preview", sspID), body)
+	suite.server.E().ServeHTTP(rec, req)
+	suite.Equal(http.StatusOK, rec.Code, rec.Body.String())
+	var filtered apihandler.GenericDataResponse[dashboardSuggestionPreviewResponse]
+	suite.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &filtered))
+	suite.Equal(2, filtered.Data.LabelSetCount)
+
+	// Generate persists the filter on the run.
+	rec, req = suite.req(http.MethodPost, fmt.Sprintf("/api/oscal/system-security-plans/%s/dashboard-suggestions/generate", sspID), body)
+	suite.server.E().ServeHTTP(rec, req)
+	suite.Equal(http.StatusAccepted, rec.Code, rec.Body.String())
+	var run suggestionrel.DashboardSuggestionRun
+	suite.Require().NoError(suite.DB.Where("ssp_id = ?", sspID).Order("started_at DESC").First(&run).Error)
+	suite.Require().NotNil(suggestionrel.LabelFilterFromJSONMap(run.LabelFilter))
+}
+
+func (suite *DashboardSuggestionsHTTPSuite) TestEditGroupBindsKebabCaseBodyAndPersists() {
+	sspID, controlKeys, _ := suite.seedScope([]string{"AC-1", "AC-2"}, []map[string]string{{"env": "prod"}})
+	runID := suite.seedSuggestionRun(sspID)
+	catalogID, _ := suite.parseControlKey(controlKeys[0])
+	hash := suggestionrel.CanonicalLabelSetHash(map[string]string{"env": "prod"})
+	ac1 := suite.seedDashboardSuggestion(runID, sspID, catalogID, "AC-1", map[string]string{"env": "prod"}, hash, "AI name", 0.8)
+	ac2 := suite.seedDashboardSuggestion(runID, sspID, catalogID, "AC-2", map[string]string{"env": "prod"}, hash, "AI name", 0.7)
+
+	// Send the body exactly as the UI does: kebab-case keys (decamelize-keys).
+	body := json.RawMessage(fmt.Sprintf(`{
+		"ids": [%q, %q],
+		"proposed-filter-name": "Edited title",
+		"proposed-filter-label-set": {"env": "prod", "team": "payments"},
+		"add-control-keys": [%q],
+		"remove-ids": [%q]
+	}`, ac1.ID, ac2.ID, suggestionrel.ControlKey(catalogID, "AC-3"), ac2.ID))
+
+	rec, req := suite.req(http.MethodPost, fmt.Sprintf("/api/oscal/system-security-plans/%s/dashboard-suggestions/edit-group", sspID), body)
+	suite.server.E().ServeHTTP(rec, req)
+	suite.Equal(http.StatusOK, rec.Code, rec.Body.String())
+
+	// Kept row picks up the kebab-bound title + labels.
+	var kept suggestionrel.DashboardSuggestion
+	suite.Require().NoError(suite.DB.First(&kept, "id = ?", ac1.ID).Error)
+	suite.True(kept.IsUserEdited)
+	suite.Equal("Edited title", kept.ProposedFilterName)
+	suite.Equal("payments", kept.ProposedFilterLabelSet["team"])
+	suite.Equal("prod", kept.ProposedFilterLabelSet["env"])
+
+	// Removed control was rejected; added control became a new pending row.
+	var removed suggestionrel.DashboardSuggestion
+	suite.Require().NoError(suite.DB.First(&removed, "id = ?", ac2.ID).Error)
+	suite.Equal(suggestionrel.DashboardSuggestionStatusRejected, removed.Status)
+
+	var added suggestionrel.DashboardSuggestion
+	suite.Require().NoError(suite.DB.First(&added, "ssp_id = ? AND control_id = ? AND status = ?", sspID, "AC-3", suggestionrel.DashboardSuggestionStatusPending).Error)
+	suite.True(added.AddedByUser)
+	suite.Equal("payments", added.ProposedFilterLabelSet["team"])
+}
+
 func (suite *DashboardSuggestionsHTTPSuite) TestListSuggestionsAndEventsScopeBySSP() {
 	sspID, controlKeys, _ := suite.seedScope([]string{"AC-1"}, []map[string]string{{"env": "prod"}})
 	otherSSPID, _, _ := suite.seedScope([]string{"AC-9"}, []map[string]string{{"env": "stage"}})

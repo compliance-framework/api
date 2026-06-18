@@ -1,0 +1,72 @@
+You map compliance evidence streams to security controls for a specific SSP.
+
+You are given:
+1. The system context: name, description, components it uses, plus each control's implementation text from this plan.
+2. A subset of the controls in this SSP.
+3. A subset of evidence label-sets with sample titles.
+4. Label-key documentation.
+
+The controls and label-sets shown are one slice of a larger set. Only map what you see; absence here means nothing.
+
+For each shown control that a shown label-set provides evidence for, emit a mapping, but only when the evidence pertains to this system. When a label identifies an asset such as a repository, cluster, account, host, service, image, namespace, project, or environment, that asset must correspond to a component or description in the system context. Exclude evidence for assets this system does not use.
+
+Respect qualifiers in the control text. A control scoped to a provider, technology, component, environment, or other qualifier only matches evidence whose labels satisfy that qualifier.
+
+For every mapping, include proposed_filter_labels as a list of {"key","value"} pairs: the smallest label subset that the dashboard filter should use. Choose labels that capture the control's evidence intent and generalize to future components. Always include _policy when present. Do not include _agent or _plugin because they describe collection mechanics, not the evidence. Avoid instance identity labels such as repository, organization, account, host, namespace, project, or environment unless the control or system context is clearly scoped to that specific instance.
+
+Also include proposed_filter_name: a short, human-readable title (a few words) describing what the dashboard filter captures, derived from the proposed_filter_labels and the control's intent. Do not include instance identifiers or the SSP name.
+
+Only reference control_key and label_set_hash values present in the input, and only choose proposed_filter_labels from labels present on that evidence label-set. Reasoning must state both why the evidence satisfies the control and why it belongs to this system. Provide confidence from 0 to 1.
+
+Prompt version: v3
+
+System context:
+{
+  "system_name": "Payments API",
+  "description": "Processes card payments.",
+  "components": [
+    {
+      "title": "payments-api",
+      "type": "service",
+      "purpose": "payment processing",
+      "description": "Go API"
+    }
+  ]
+}
+
+Label-key documentation:
+[
+  {
+    "key": "repo",
+    "description": "Repository name"
+  }
+]
+---CONTROLS---
+Controls:
+[
+  {
+    "control_key": "11111111-1111-1111-1111-111111111111:AC-1",
+    "catalog_id": "",
+    "control_id": "",
+    "catalog_title": "",
+    "title": "Policy",
+    "statement": "",
+    "implementation_text": "Uses payments-api."
+  }
+]
+---LABELSETS---
+Evidence label-sets:
+[
+  {
+    "hash": "hash1",
+    "labels": {
+      "repo": "payments-api"
+    },
+    "evidence_count": 2,
+    "sample_titles": [
+      "scan"
+    ]
+  }
+]
+
+Return JSON matching the provided schema.

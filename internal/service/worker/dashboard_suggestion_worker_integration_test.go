@@ -162,6 +162,42 @@ func (suite *DashboardSuggestionWorkerIntegrationSuite) TestRateLimitSnoozeBudge
 	suite.Require().NotNil(run.CompletedAt)
 }
 
+func (suite *DashboardSuggestionWorkerIntegrationSuite) TestEmptyOutputCompletesCellWithoutSuggestions() {
+	ctx := context.Background()
+	runID, cells := suite.seedTwoByTwoSuggestionRun()
+	// The model declines to emit structured output for every cell.
+	client := &llm.FakeClient{Responses: []*llm.StructuredResponse{
+		{EmptyOutput: true, Model: "fake-model", InputTokens: 10, OutputTokens: 5},
+		{EmptyOutput: true, Model: "fake-model", InputTokens: 10, OutputTokens: 5},
+		{EmptyOutput: true, Model: "fake-model", InputTokens: 10, OutputTokens: 5},
+		{EmptyOutput: true, Model: "fake-model", InputTokens: 10, OutputTokens: 5},
+	}}
+	worker := NewDashboardSuggestionWorker(suite.DB, client, &config.AIConfig{RequestTimeout: 120 * time.Second, MaxSuggestionsPerRun: 10}, zap.NewNop().Sugar())
+
+	for _, cell := range cells {
+		suite.Require().NoError(worker.Work(ctx, dashboardSuggestionIntegrationJob(runID, cell.CellIndex)))
+	}
+
+	// Every cell is completed (not failed) with zero mappings returned.
+	for _, cell := range cells {
+		var stored suggestionrel.DashboardSuggestionRunCell
+		suite.Require().NoError(suite.DB.First(&stored, "run_id = ? AND cell_index = ?", runID, cell.CellIndex).Error)
+		suite.Equal(dashboardSuggestionCellStatusCompleted, stored.Status)
+		suite.Equal(0, stored.MappingsReturned)
+		suite.Nil(stored.Error)
+	}
+
+	// The run finalizes as completed with no suggestions.
+	var run suggestionrel.DashboardSuggestionRun
+	suite.Require().NoError(suite.DB.First(&run, "id = ?", runID).Error)
+	suite.Equal(dashboardSuggestionRunStatusCompleted, run.Status)
+	suite.Equal(0, run.SuggestionCount)
+
+	var suggestionCount int64
+	suite.Require().NoError(suite.DB.Model(&suggestionrel.DashboardSuggestion{}).Where("run_id = ?", runID).Count(&suggestionCount).Error)
+	suite.Equal(int64(0), suggestionCount)
+}
+
 func (suite *DashboardSuggestionWorkerIntegrationSuite) seedTwoByTwoSuggestionRun() (uuid.UUID, []suggestionrel.GridCell) {
 	sspID := uuid.New()
 	runID := uuid.New()
@@ -265,12 +301,10 @@ func (c *promptMappingClient) CompleteStructured(ctx context.Context, req llm.St
 	labelSetHash := firstPromptValue(combined, `"hash": "([^"]+)"`)
 	raw, err := json.Marshal(suggestionrel.RawMappings{Mappings: []suggestionrel.RawMapping{
 		{
-			ControlKey:         controlKey,
-			LabelSetHash:       labelSetHash,
-			Action:             suggestionrel.MappingActionNewFilter,
-			ProposedFilterName: "Dashboard " + labelSetHash[:8],
-			Confidence:         0.9,
-			Reasoning:          "Evidence satisfies the control and belongs to this system.",
+			ControlKey:   controlKey,
+			LabelSetHash: labelSetHash,
+			Confidence:   0.9,
+			Reasoning:    "Evidence satisfies the control and belongs to this system.",
 		},
 	}})
 	if err != nil {
