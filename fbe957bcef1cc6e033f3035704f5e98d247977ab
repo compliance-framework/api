@@ -1,0 +1,22 @@
+lisa-addressed:
+---
+Comment (internal/service/worker/dashboard_suggestion_worker.go:410):
+**`outcome` is derived from newly-inserted rows, not from whether the LLM matched the control.**
+
+`insertedCount := insertedControlKeys[control.ControlKey]` only counts suggestions that `InsertValidatedMappingsTx` actually inserted. A control the LLM *did* match is recorded as `no_match` whenever its mappings were:
+- **capped** (run hit `MaxSuggestionsPerRun` -> `result.Capped++`),
+- **excluded** by constraints/dedupe (`result.Excluded++`), or
+- **already pending/accepted/rejected from a prior run** (`mappingExcluded` returns true on rerun -> deduped, not inserted).
+
+Because `ControlResults` returns the latest run per control (`started_at DESC`), a control matched and *accepted* in run 1 then re-evaluated in run 2 surfaces as `outcome: no_match` in the API response, despite having a live filter.
+
+I see the design note that this table "is not the source of truth for matched state; pending rows remain authoritative." If the UI always cross-references pending suggestions this is benign, but `no_match` is easy to misread and the rerun case is first-class. Consider confirming the UI contract, or distinguishing "no new suggestions this run" from "LLM found nothing" (e.g. derive outcome from `len(validation.Mappings for this control) > 0` rather than from insert success). Happy to downgrade if the consumer merges with pending rows.
+---
+Comment (internal/service/relational/suggestions/models.go:122):
+**Redundant single-column index on `RunID`.** The explicit composite unique index `(run_id, control_catalog_id, control_id)` created in the migrator already serves any `run_id`-prefix lookup (including the `loadControlResults` `WHERE run_id = ?` and the FK), so the `;index` here just adds write overhead for no read benefit. Suggest dropping `index` from this tag.
+---
+Comment (internal/service/relational/suggestions/models.go:126):
+**`index` on `Outcome` appears unused.** Neither the `ControlResults` endpoint query nor the worker filters by `outcome` (the endpoint orders/distincts on `control_catalog_id, control_id, started_at`), so this index is currently speculative write cost. Drop it unless a planned query filters on outcome.
+Implementation guidance: In internal/service/worker/dashboard_suggestion_worker.go, stop using inserted.InsertedControlKeys as the sole signal for DashboardSuggestionControlResult.Outcome. In completeCell, before calling InsertValidatedMappingsTx or immediately after validation is available, build a map/set of LLM-matched control keys from validation.Mappings (keyed by mapping.ControlKey). Pass that matched-control map into recordControlResultsTx along with inserted.InsertedControlKeys. In recordControlResultsTx, use the matched-control map to decide outcome: if the evaluated control's ControlKey appears in validation.Mappings, write/upsert outcome=matched even when insertedCount is 0 because the mappings were capped, excluded, or deduped from a previous run; otherwise write no_match. Keep SuggestionCount based on insertedCount so it still represents newly persisted suggestions. Preserve the existing conflict behavior: matched upserts should set outcome to matched and add the inserted count, while no_match upserts should still DO NOTHING so a later empty cell cannot downgrade an earlier match. Add/update worker tests for at least one matched-but-not-inserted case, such as maxSuggestionsPerRun capacity exhausted or a duplicate/excluded mapping, asserting outcome is matched and suggestion_count is 0.
+Implementation guidance: In internal/service/relational/suggestions/models.go, remove the standalone `index` option from DashboardSuggestionControlResult.RunID's gorm tag, leaving the column type and not-null settings intact. Do not remove or alter the explicit composite unique index `(run_id, control_catalog_id, control_id)` in internal/service/migrator.go or internal/tests/migrate.go; that composite index covers run_id-prefix lookups and is still required for the upsert conflict target.
+Implementation guidance: In internal/service/relational/suggestions/models.go, remove the `index` option from DashboardSuggestionControlResult.Outcome's gorm tag, keeping `type:varchar(16);not null`. Do not add a replacement migration index: the current control-results endpoint does not filter by outcome, and the worker does not query by outcome.
