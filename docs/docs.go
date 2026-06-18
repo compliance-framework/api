@@ -16270,6 +16270,128 @@ const docTemplate = `{
                 ]
             }
         },
+        "/oscal/system-security-plans/{id}/dashboard-suggestions/edit-group": {
+            "post": {
+                "description": "Edits the title, proposed filter labels, and control membership of a pending suggestion group. User-provided labels are stored verbatim (the evidence-subset rule is bypassed) and the rows are flagged as user-edited.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Dashboard Suggestions"
+                ],
+                "summary": "Edit a group of pending dashboard suggestions",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "System Security Plan ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Group edit",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/oscal.editDashboardSuggestionGroupRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataListResponse-oscal_dashboardSuggestionResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/oscal/system-security-plans/{id}/dashboard-suggestions/generalize": {
+            "post": {
+                "description": "Runs the deterministic filter-merge detector for this SSP and creates pending generalization suggestions for near-duplicate filters that differ only by one generalizable label. No LLM is involved.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Dashboard Suggestions"
+                ],
+                "summary": "Suggest filter merges for an SSP",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "System Security Plan ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-oscal_generalizeDashboardSuggestionsResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
         "/oscal/system-security-plans/{id}/dashboard-suggestions/generate": {
             "post": {
                 "description": "Creates a dashboard suggestion run, snapshots the resolved scope, creates run cells, and enqueues cell processing.",
@@ -16351,6 +16473,58 @@ const docTemplate = `{
                 ]
             }
         },
+        "/oscal/system-security-plans/{id}/dashboard-suggestions/label-keys": {
+            "get": {
+                "description": "Returns distinct evidence label keys with their distinct values, for building an evidence-scoping filter without loading every label set.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Dashboard Suggestions"
+                ],
+                "summary": "List distinct evidence label keys and values",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "System Security Plan ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataListResponse-suggestions_LabelKeyInput"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
         "/oscal/system-security-plans/{id}/dashboard-suggestions/label-sets": {
             "get": {
                 "description": "Returns canonical evidence label sets for dashboard suggestion scope selection.",
@@ -16375,6 +16549,71 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/handler.GenericDataListResponse-suggestions_LabelSetInput"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/oscal/system-security-plans/{id}/dashboard-suggestions/label-values": {
+            "get": {
+                "description": "Returns distinct evidence label values for a given label key, optionally matching a substring query. Searched server-side so high-cardinality values are reachable.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Dashboard Suggestions"
+                ],
+                "summary": "Search evidence label values for a key",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "System Security Plan ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Label key",
+                        "name": "key",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Substring to match against values",
+                        "name": "query",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataListResponse-string"
                         }
                     },
                     "400": {
@@ -29067,6 +29306,30 @@ const docTemplate = `{
                 }
             }
         },
+        "handler.GenericDataListResponse-string": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "handler.GenericDataListResponse-suggestions_LabelKeyInput": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/suggestions.LabelKeyInput"
+                    }
+                }
+            }
+        },
         "handler.GenericDataListResponse-suggestions_LabelSetInput": {
             "type": "object",
             "properties": {
@@ -30124,6 +30387,19 @@ const docTemplate = `{
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscal.dashboardSuggestionRunResponse"
+                        }
+                    ]
+                }
+            }
+        },
+        "handler.GenericDataResponse-oscal_generalizeDashboardSuggestionsResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Wrapped response data",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/oscal.generalizeDashboardSuggestionsResponse"
                         }
                     ]
                 }
@@ -32425,6 +32701,31 @@ const docTemplate = `{
                 }
             }
         },
+        "oscal.dashboardSuggestionConstraintsRequest": {
+            "type": "object",
+            "properties": {
+                "excluded-labels": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscal.labelSelectorRequest"
+                    }
+                },
+                "mandatory-labels": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscal.labelSelectorRequest"
+                    }
+                },
+                "only-action": {
+                    "description": "OnlyAction restricts suggestions to \"new_filter\" or \"extend_filter\".",
+                    "type": "string"
+                },
+                "only-controls-without-filters": {
+                    "description": "OnlyControlsWithoutFilters scopes generation to controls that currently\nhave no dashboard filter attached. Resolved into the control scope, so it\nis not persisted as an output constraint.",
+                    "type": "boolean"
+                }
+            }
+        },
         "oscal.dashboardSuggestionDecisionRequest": {
             "type": "object",
             "required": [
@@ -32503,6 +32804,10 @@ const docTemplate = `{
                 "acceptedFilterId": {
                     "type": "string"
                 },
+                "addedByUser": {
+                    "description": "AddedByUser marks rows created during a group edit (no AI baseline).",
+                    "type": "boolean"
+                },
                 "confidence": {
                     "type": "number"
                 },
@@ -32521,13 +32826,37 @@ const docTemplate = `{
                 "decidedByUserId": {
                     "type": "string"
                 },
+                "editedAt": {
+                    "type": "string"
+                },
+                "editedByUserId": {
+                    "type": "string"
+                },
                 "id": {
                     "type": "string"
+                },
+                "isGeneralization": {
+                    "description": "IsGeneralization marks rows produced by the deterministic filter-merge\ndetector (Part 2). Such a row proposes the generalized label set G that\nmerges several near-duplicate SSP filters that differ by one generalizable\nlabel. Accepting it moves controls onto G and off the source filters.",
+                    "type": "boolean"
+                },
+                "isUserEdited": {
+                    "type": "boolean"
                 },
                 "labelSet": {
                     "$ref": "#/definitions/datatypes.JSONMap"
                 },
                 "labelSetHash": {
+                    "type": "string"
+                },
+                "originalProposedFilterLabelSet": {
+                    "description": "AI baseline captured at first user edit (set-once) so the UI can render a\ndiff of what the user changed. Nil on AI-generated, never-edited rows and\non rows the user added during an edit (AddedByUser).",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/datatypes.JSONMap"
+                        }
+                    ]
+                },
+                "originalProposedFilterName": {
                     "type": "string"
                 },
                 "proposedFilterLabelSet": {
@@ -32542,8 +32871,22 @@ const docTemplate = `{
                 "rejectReason": {
                     "type": "string"
                 },
+                "removedControlIds": {
+                    "description": "RemovedControlIds mirrors, onto every surviving group row, the control IDs\nremoved from the group during edits, so the card can show them struck-out.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
                 "runId": {
                     "type": "string"
+                },
+                "sourceFilterIds": {
+                    "description": "SourceFilterIDs are the SSP filters this generalization merges, recorded so\nthe UI can explain the merge and the accept path can detach controls from\nthem. Nil on ordinary (non-generalization) rows.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 },
                 "sspId": {
                     "type": "string"
@@ -32574,6 +32917,9 @@ const docTemplate = `{
                 "completedCells": {
                     "type": "integer"
                 },
+                "constraints": {
+                    "$ref": "#/definitions/datatypes.JSONMap"
+                },
                 "error": {
                     "type": "string"
                 },
@@ -32585,6 +32931,14 @@ const docTemplate = `{
                 },
                 "inputTokens": {
                     "type": "integer"
+                },
+                "labelFilter": {
+                    "description": "LabelFilter is the evidence-scoping label filter applied to this run, so the\nworker can restrict its per-cell evidence scan and the UI can show it.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/datatypes.JSONMap"
+                        }
+                    ]
                 },
                 "model": {
                     "type": "string"
@@ -32630,13 +32984,21 @@ const docTemplate = `{
         "oscal.dashboardSuggestionScopeRequest": {
             "type": "object",
             "properties": {
-                "controlKeys": {
+                "control-keys": {
                     "type": "array",
                     "items": {
                         "type": "string"
                     }
                 },
-                "labelSetHashes": {
+                "label-filter": {
+                    "description": "LabelFilter scopes which evidence (and therefore which label sets) feed the\nrun, using the same label-filter expression as evidence search.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/labelfilter.Filter"
+                        }
+                    ]
+                },
+                "label-set-hashes": {
                     "type": "array",
                     "items": {
                         "type": "string"
@@ -32644,14 +33006,142 @@ const docTemplate = `{
                 }
             }
         },
+        "oscal.editDashboardSuggestionGroupRequest": {
+            "type": "object",
+            "required": [
+                "ids"
+            ],
+            "properties": {
+                "add-control-keys": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "proposed-filter-label-set": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "proposed-filter-name": {
+                    "type": "string"
+                },
+                "remove-ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "oscal.generalizeDashboardSuggestionsResponse": {
+            "type": "object",
+            "properties": {
+                "candidates": {
+                    "type": "integer"
+                },
+                "cells": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/suggestions.DashboardSuggestionRunCell"
+                    }
+                },
+                "completedAt": {
+                    "type": "string"
+                },
+                "constraints": {
+                    "$ref": "#/definitions/datatypes.JSONMap"
+                },
+                "error": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "inputTokens": {
+                    "type": "integer"
+                },
+                "inserted": {
+                    "type": "integer"
+                },
+                "labelFilter": {
+                    "description": "LabelFilter is the evidence-scoping label filter applied to this run, so the\nworker can restrict its per-cell evidence scan and the UI can show it.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/datatypes.JSONMap"
+                        }
+                    ]
+                },
+                "model": {
+                    "type": "string"
+                },
+                "outputTokens": {
+                    "type": "integer"
+                },
+                "plannedCalls": {
+                    "type": "integer"
+                },
+                "promptVersion": {
+                    "type": "string"
+                },
+                "scope": {
+                    "$ref": "#/definitions/datatypes.JSONMap"
+                },
+                "sspId": {
+                    "type": "string"
+                },
+                "startedAt": {
+                    "type": "string"
+                },
+                "stats": {
+                    "$ref": "#/definitions/datatypes.JSONMap"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "suggestionCount": {
+                    "type": "integer"
+                },
+                "suggestions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/suggestions.DashboardSuggestion"
+                    }
+                },
+                "triggeredByUserId": {
+                    "type": "string"
+                }
+            }
+        },
         "oscal.generateDashboardSuggestionsRequest": {
             "type": "object",
             "properties": {
+                "constraints": {
+                    "$ref": "#/definitions/oscal.dashboardSuggestionConstraintsRequest"
+                },
                 "scope": {
                     "$ref": "#/definitions/oscal.dashboardSuggestionScopeRequest"
                 },
-                "supersedePending": {
+                "supersede-pending": {
                     "type": "boolean"
+                }
+            }
+        },
+        "oscal.labelSelectorRequest": {
+            "type": "object",
+            "properties": {
+                "key": {
+                    "type": "string"
+                },
+                "value": {
+                    "type": "string"
                 }
             }
         },
@@ -40506,6 +40996,10 @@ const docTemplate = `{
                 "acceptedFilterId": {
                     "type": "string"
                 },
+                "addedByUser": {
+                    "description": "AddedByUser marks rows created during a group edit (no AI baseline).",
+                    "type": "boolean"
+                },
                 "confidence": {
                     "type": "number"
                 },
@@ -40521,13 +41015,37 @@ const docTemplate = `{
                 "decidedByUserId": {
                     "type": "string"
                 },
+                "editedAt": {
+                    "type": "string"
+                },
+                "editedByUserId": {
+                    "type": "string"
+                },
                 "id": {
                     "type": "string"
+                },
+                "isGeneralization": {
+                    "description": "IsGeneralization marks rows produced by the deterministic filter-merge\ndetector (Part 2). Such a row proposes the generalized label set G that\nmerges several near-duplicate SSP filters that differ by one generalizable\nlabel. Accepting it moves controls onto G and off the source filters.",
+                    "type": "boolean"
+                },
+                "isUserEdited": {
+                    "type": "boolean"
                 },
                 "labelSet": {
                     "$ref": "#/definitions/datatypes.JSONMap"
                 },
                 "labelSetHash": {
+                    "type": "string"
+                },
+                "originalProposedFilterLabelSet": {
+                    "description": "AI baseline captured at first user edit (set-once) so the UI can render a\ndiff of what the user changed. Nil on AI-generated, never-edited rows and\non rows the user added during an edit (AddedByUser).",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/datatypes.JSONMap"
+                        }
+                    ]
+                },
+                "originalProposedFilterName": {
                     "type": "string"
                 },
                 "proposedFilterLabelSet": {
@@ -40542,8 +41060,22 @@ const docTemplate = `{
                 "rejectReason": {
                     "type": "string"
                 },
+                "removedControlIds": {
+                    "description": "RemovedControlIds mirrors, onto every surviving group row, the control IDs\nremoved from the group during edits, so the card can show them struck-out.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
                 "runId": {
                     "type": "string"
+                },
+                "sourceFilterIds": {
+                    "description": "SourceFilterIDs are the SSP filters this generalization merges, recorded so\nthe UI can explain the merge and the accept path can detach controls from\nthem. Nil on ordinary (non-generalization) rows.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 },
                 "sspId": {
                     "type": "string"
@@ -40597,6 +41129,20 @@ const docTemplate = `{
                 },
                 "status": {
                     "type": "string"
+                }
+            }
+        },
+        "suggestions.LabelKeyInput": {
+            "type": "object",
+            "properties": {
+                "key": {
+                    "type": "string"
+                },
+                "values": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 }
             }
         },

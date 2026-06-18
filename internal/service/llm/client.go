@@ -41,7 +41,13 @@ type StructuredRequest struct {
 }
 
 type StructuredResponse struct {
-	Raw          json.RawMessage
+	Raw json.RawMessage
+	// EmptyOutput is true when the provider returned no structured JSON output
+	// (e.g. a plain-text "nothing applies" message) rather than a schema-shaped
+	// payload. Raw is nil in that case. Callers should treat this as a valid
+	// "no result" outcome, not a failure. It is distinct from a truncated
+	// response, which surfaces as ErrInvalidOutput so it can be retried.
+	EmptyOutput  bool
 	Model        string
 	InputTokens  int
 	OutputTokens int
@@ -75,3 +81,21 @@ func (e *RateLimitError) Error() string {
 }
 
 func (e *RateLimitError) Unwrap() error { return ErrRateLimited }
+
+// OutputError carries diagnostic detail about an invalid or truncated structured
+// response so callers can log what the provider actually returned (e.g. the
+// truncated JSON) instead of just the generic schema-mismatch message. It
+// unwraps to ErrInvalidOutput so existing errors.Is checks keep working.
+type OutputError struct {
+	Reason       string
+	StopReason   string
+	OutputTokens int
+	// Text is the raw provider text content (possibly truncated JSON or prose).
+	Text string
+}
+
+func (e *OutputError) Error() string {
+	return fmt.Sprintf("%s: %s", ErrInvalidOutput.Error(), e.Reason)
+}
+
+func (e *OutputError) Unwrap() error { return ErrInvalidOutput }

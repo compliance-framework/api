@@ -20,6 +20,7 @@ const (
 	DashboardSuggestionEventTypeAccepted          DashboardSuggestionEventType = "accepted"
 	DashboardSuggestionEventTypeRejected          DashboardSuggestionEventType = "rejected"
 	DashboardSuggestionEventTypeSuperseded        DashboardSuggestionEventType = "superseded"
+	DashboardSuggestionEventTypeEdited            DashboardSuggestionEventType = "edited"
 )
 
 type DashboardSuggestionEvent struct {

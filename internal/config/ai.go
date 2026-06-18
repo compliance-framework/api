@@ -25,6 +25,19 @@ type AIConfig struct {
 	QueueWorkers         int           `mapstructure:"queue_workers" json:"queueWorkers"`
 	MaxCallsPerRun       int           `mapstructure:"max_calls_per_run" json:"maxCallsPerRun"`
 	MaxSuggestionsPerRun int           `mapstructure:"max_suggestions_per_run" json:"maxSuggestionsPerRun"`
+	// MaxOutputTokens caps the model's response length per cell. Too low a value
+	// truncates the JSON (surfacing as "truncated non-json text content").
+	MaxOutputTokens int `mapstructure:"max_output_tokens" json:"maxOutputTokens"`
+	// GeneralizableLabelKeys are the label keys whose value identifies an
+	// instance/provider rather than the evidence meaning. The deterministic
+	// filter-merge detector may drop exactly one of these to generalize several
+	// near-duplicate filters into one. Meaning-bearing keys (_policy, type) are
+	// never dropped, so they must not appear here.
+	GeneralizableLabelKeys []string `mapstructure:"generalizable_label_keys" json:"generalizableLabelKeys"`
+	// GeneralizationMinSharedControls is the minimum number of controls the
+	// candidate filters must have in common before a merge is proposed, so a
+	// merge only fires when it is the same control intent across instances.
+	GeneralizationMinSharedControls int `mapstructure:"generalization_min_shared_controls" json:"generalizationMinSharedControls"`
 }
 
 func DefaultAIConfig() *AIConfig {
@@ -38,22 +51,31 @@ func DefaultAIConfig() *AIConfig {
 		QueueWorkers:         4,
 		MaxCallsPerRun:       0,
 		MaxSuggestionsPerRun: 500,
+		MaxOutputTokens:      8192,
+		GeneralizableLabelKeys: []string{
+			"provider", "region", "account", "repository", "organization",
+			"environment", "host", "namespace", "project", "cluster",
+		},
+		GeneralizationMinSharedControls: 1,
 	}
 }
 
 func LoadAIConfigFromViper(v *viper.Viper) (*AIConfig, error) {
 	cfg := &AIConfig{
-		Enabled:              v.GetBool("ai_enabled"),
-		Provider:             strings.ToLower(strings.TrimSpace(stripQuotes(v.GetString("ai_provider")))),
-		APIKey:               stripQuotes(v.GetString("ai_api_key")),
-		Model:                stripQuotes(v.GetString("ai_model")),
-		BaseURL:              stripQuotes(v.GetString("ai_base_url")),
-		RequestTimeout:       v.GetDuration("ai_request_timeout"),
-		MaxControlsPerChunk:  v.GetInt("ai_max_controls_per_chunk"),
-		MaxLabelSetsPerChunk: v.GetInt("ai_max_label_sets_per_chunk"),
-		QueueWorkers:         v.GetInt("ai_queue_workers"),
-		MaxCallsPerRun:       v.GetInt("ai_max_calls_per_run"),
-		MaxSuggestionsPerRun: v.GetInt("ai_max_suggestions_per_run"),
+		Enabled:                         v.GetBool("ai_enabled"),
+		Provider:                        strings.ToLower(strings.TrimSpace(stripQuotes(v.GetString("ai_provider")))),
+		APIKey:                          stripQuotes(v.GetString("ai_api_key")),
+		Model:                           stripQuotes(v.GetString("ai_model")),
+		BaseURL:                         stripQuotes(v.GetString("ai_base_url")),
+		RequestTimeout:                  v.GetDuration("ai_request_timeout"),
+		MaxControlsPerChunk:             v.GetInt("ai_max_controls_per_chunk"),
+		MaxLabelSetsPerChunk:            v.GetInt("ai_max_label_sets_per_chunk"),
+		QueueWorkers:                    v.GetInt("ai_queue_workers"),
+		MaxCallsPerRun:                  v.GetInt("ai_max_calls_per_run"),
+		MaxSuggestionsPerRun:            v.GetInt("ai_max_suggestions_per_run"),
+		MaxOutputTokens:                 v.GetInt("ai_max_output_tokens"),
+		GeneralizableLabelKeys:          v.GetStringSlice("ai_generalizable_label_keys"),
+		GeneralizationMinSharedControls: v.GetInt("ai_generalization_min_shared_controls"),
 	}
 
 	def := DefaultAIConfig()
@@ -77,6 +99,15 @@ func LoadAIConfigFromViper(v *viper.Viper) (*AIConfig, error) {
 	}
 	if cfg.MaxSuggestionsPerRun == 0 {
 		cfg.MaxSuggestionsPerRun = def.MaxSuggestionsPerRun
+	}
+	if cfg.MaxOutputTokens == 0 {
+		cfg.MaxOutputTokens = def.MaxOutputTokens
+	}
+	if len(cfg.GeneralizableLabelKeys) == 0 {
+		cfg.GeneralizableLabelKeys = def.GeneralizableLabelKeys
+	}
+	if cfg.GeneralizationMinSharedControls <= 0 {
+		cfg.GeneralizationMinSharedControls = def.GeneralizationMinSharedControls
 	}
 
 	if err := cfg.Validate(); err != nil {

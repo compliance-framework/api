@@ -203,6 +203,139 @@ func TestAnthropicClientStructuredOutputSchemaPassthrough(t *testing.T) {
 	require.Equal(t, float64(2), schema["properties"].(map[string]any)["answer"].(map[string]any)["minLength"])
 }
 
+func TestAnthropicClientStructuredOutput(t *testing.T) {
+	tests := []struct {
+		name       string
+		content    string
+		stopReason string
+		wantErr    error
+		wantEmpty  bool
+		wantRaw    string
+	}{
+		{
+			name:       "plain json",
+			content:    `[{"type":"text","text":"{\"mappings\":[]}"}]`,
+			stopReason: "end_turn",
+			wantRaw:    `{"mappings":[]}`,
+		},
+		{
+			name:       "fenced json",
+			content:    `[{"type":"text","text":"` + "```json\\n{\\\"mappings\\\":[]}\\n```" + `"}]`,
+			stopReason: "end_turn",
+			wantRaw:    `{"mappings":[]}`,
+		},
+		{
+			name:       "prose is empty output",
+			content:    `[{"type":"text","text":"No mappings apply to this system."}]`,
+			stopReason: "end_turn",
+			wantEmpty:  true,
+		},
+		{
+			name:       "no content is empty output",
+			content:    `[]`,
+			stopReason: "end_turn",
+			wantEmpty:  true,
+		},
+		{
+			name:       "truncated prose is an error",
+			content:    `[{"type":"text","text":"Here are the mappings: {\"mappings\":[{\"control"}]`,
+			stopReason: "max_tokens",
+			wantErr:    ErrInvalidOutput,
+		},
+		{
+			name:       "truncated with no content is an error",
+			content:    `[]`,
+			stopReason: "max_tokens",
+			wantErr:    ErrInvalidOutput,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(`{
+					"id":"msg_test",
+					"type":"message",
+					"role":"assistant",
+					"model":"claude-test",
+					"content":` + tt.content + `,
+					"stop_reason":"` + tt.stopReason + `",
+					"stop_sequence":"",
+					"usage":{"input_tokens":5,"output_tokens":3}
+				}`))
+			}))
+			t.Cleanup(server.Close)
+
+			client := NewAnthropicClient(AnthropicConfig{
+				Enabled:        true,
+				APIKey:         "test-key",
+				Model:          "claude-test",
+				BaseURL:        server.URL,
+				RequestTimeout: time.Second,
+			})
+
+			resp, err := client.CompleteStructured(context.Background(), StructuredRequest{
+				Prompt:    "prompt",
+				Schema:    map[string]any{"type": "object"},
+				MaxTokens: 64,
+			})
+
+			if tt.wantErr != nil {
+				require.ErrorIs(t, err, tt.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tt.wantEmpty, resp.EmptyOutput)
+			if tt.wantEmpty {
+				require.Nil(t, resp.Raw)
+				// Token usage is still recorded for empty outputs.
+				require.Equal(t, 5, resp.InputTokens)
+			} else {
+				require.Equal(t, json.RawMessage(tt.wantRaw), resp.Raw)
+			}
+		})
+	}
+}
+
+func TestAnthropicClientTruncatedOutputCarriesRawText(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"id":"msg_test",
+			"type":"message",
+			"role":"assistant",
+			"model":"claude-test",
+			"content":[{"type":"text","text":"{\"mappings\":[{\"control_key\":\"cat:AC-1"}],
+			"stop_reason":"max_tokens",
+			"stop_sequence":"",
+			"usage":{"input_tokens":10,"output_tokens":4096}
+		}`))
+	}))
+	t.Cleanup(server.Close)
+
+	client := NewAnthropicClient(AnthropicConfig{
+		Enabled:        true,
+		APIKey:         "test-key",
+		Model:          "claude-test",
+		BaseURL:        server.URL,
+		RequestTimeout: time.Second,
+	})
+
+	_, err := client.CompleteStructured(context.Background(), StructuredRequest{
+		Prompt:    "prompt",
+		Schema:    map[string]any{"type": "object"},
+		MaxTokens: 64,
+	})
+
+	require.ErrorIs(t, err, ErrInvalidOutput)
+	var outErr *OutputError
+	require.ErrorAs(t, err, &outErr)
+	require.Equal(t, "max_tokens", outErr.StopReason)
+	require.Equal(t, 4096, outErr.OutputTokens)
+	require.Contains(t, outErr.Text, `"mappings"`)
+}
+
 func TestAnthropicClientRateLimitCarriesRetryAfter(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Retry-After", "12")
