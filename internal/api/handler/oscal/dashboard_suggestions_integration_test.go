@@ -420,6 +420,67 @@ func (suite *DashboardSuggestionsHTTPSuite) TestAiDiagnosticsSummaryTotalsAndCac
 	suite.Equal("pass", diagnosticsCheckStatus(response.Data.Checks, "cache_engaging"))
 }
 
+func (suite *DashboardSuggestionsHTTPSuite) TestAiDiagnosticsSummaryQueueSuccessPath() {
+	suite.Require().NoError(suite.DB.Exec(`DROP TABLE IF EXISTS river_job`).Error)
+	suite.Require().NoError(suite.DB.Exec(`
+		CREATE TABLE river_job (
+			id bigserial PRIMARY KEY,
+			kind text NOT NULL DEFAULT 'test',
+			queue text NOT NULL,
+			state text NOT NULL,
+			scheduled_at timestamptz NOT NULL,
+			finalized_at timestamptz NULL
+		)
+	`).Error)
+	defer suite.DB.Exec(`DROP TABLE IF EXISTS river_job`)
+
+	now := time.Now().UTC().Truncate(time.Second)
+	oldest := now.Add(-30 * time.Minute)
+	rows := []struct {
+		queue       string
+		state       string
+		scheduledAt time.Time
+		finalizedAt *time.Time
+	}{
+		{queue: aiDiagnosticsQueueName, state: "available", scheduledAt: oldest},
+		{queue: aiDiagnosticsQueueName, state: "available", scheduledAt: now.Add(-10 * time.Minute)},
+		{queue: aiDiagnosticsQueueName, state: "running", scheduledAt: now.Add(-9 * time.Minute)},
+		{queue: aiDiagnosticsQueueName, state: "retryable", scheduledAt: now.Add(-8 * time.Minute)},
+		{queue: aiDiagnosticsQueueName, state: "scheduled", scheduledAt: now.Add(-7 * time.Minute)},
+		{queue: aiDiagnosticsQueueName, state: "completed", scheduledAt: now.Add(-6 * time.Minute), finalizedAt: ptrTime(now.Add(-5 * time.Minute))},
+		{queue: aiDiagnosticsQueueName, state: "discarded", scheduledAt: now.Add(-4 * time.Minute), finalizedAt: ptrTime(now.Add(-3 * time.Minute))},
+		{queue: "other", state: "available", scheduledAt: now.Add(-1 * time.Hour)},
+		{queue: "other", state: "completed", scheduledAt: now.Add(-1 * time.Hour), finalizedAt: ptrTime(now.Add(-2 * time.Minute))},
+	}
+	for _, row := range rows {
+		suite.Require().NoError(suite.DB.Exec(
+			`INSERT INTO river_job (queue, state, scheduled_at, finalized_at) VALUES (?, ?, ?, ?)`,
+			row.queue,
+			row.state,
+			row.scheduledAt,
+			row.finalizedAt,
+		).Error)
+	}
+
+	rec, req := suite.req(http.MethodGet, "/api/admin/ai-diagnostics/summary", nil)
+	suite.server.E().ServeHTTP(rec, req)
+	suite.Equal(http.StatusOK, rec.Code, rec.Body.String())
+
+	var response apihandler.GenericDataResponse[AiDiagnosticsSummary]
+	suite.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &response))
+	suite.Require().NotNil(response.Data.Queue)
+	suite.Equal("pass", diagnosticsCheckStatus(response.Data.Checks, "queue_reachable"))
+	suite.Equal(aiDiagnosticsQueueName, response.Data.Queue.Name)
+	suite.Equal(int64(2), response.Data.Queue.Available)
+	suite.Equal(int64(1), response.Data.Queue.Running)
+	suite.Equal(int64(1), response.Data.Queue.Retryable)
+	suite.Equal(int64(1), response.Data.Queue.Scheduled)
+	suite.Equal(int64(1), response.Data.Queue.Completed24h)
+	suite.Equal(int64(1), response.Data.Queue.Discarded24h)
+	suite.Require().NotNil(response.Data.Queue.OldestAvailableAt)
+	suite.WithinDuration(oldest, *response.Data.Queue.OldestAvailableAt, time.Second)
+}
+
 func (suite *DashboardSuggestionsHTTPSuite) TestAiDiagnosticsUsesCellTotalsForRunningRun() {
 	sspID := suite.seedDiagnosticsSSP("Live Diagnostics SSP")
 	actorID := suite.dummyUserID()
@@ -978,6 +1039,10 @@ func (suite *DashboardSuggestionsHTTPSuite) seedDiagnosticsRunEvent(runID uuid.U
 		Payload:     datatypes.JSONMap{},
 		Snapshot:    datatypes.JSONMap{},
 	}).Error)
+}
+
+func ptrTime(v time.Time) *time.Time {
+	return &v
 }
 
 func (suite *DashboardSuggestionsHTTPSuite) dummyUserID() uuid.UUID {
