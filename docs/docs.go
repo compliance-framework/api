@@ -21,6 +21,178 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
+        "/admin/ai-diagnostics/runs": {
+            "get": {
+                "description": "Lists dashboard suggestion runs across all SSPs, newest first, with optional status and SSP filters.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "AI Diagnostics"
+                ],
+                "summary": "List AI diagnostic runs",
+                "parameters": [
+                    {
+                        "enum": [
+                            "pending",
+                            "running",
+                            "completed",
+                            "failed"
+                        ],
+                        "type": "string",
+                        "description": "Run status",
+                        "name": "status",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "System Security Plan ID",
+                        "name": "sspId",
+                        "in": "query"
+                    },
+                    {
+                        "maximum": 100,
+                        "minimum": 1,
+                        "type": "integer",
+                        "description": "Page size, default 25, max 100",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Opaque pagination cursor",
+                        "name": "cursor",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataListResponse-oscal_AiDiagnosticsRun"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/admin/ai-diagnostics/runs/{runId}": {
+            "get": {
+                "description": "Returns one dashboard suggestion run with cells and events.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "AI Diagnostics"
+                ],
+                "summary": "Get AI diagnostic run detail",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Dashboard suggestion run ID",
+                        "name": "runId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-oscal_AiDiagnosticsRunDetail"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/admin/ai-diagnostics/summary": {
+            "get": {
+                "description": "Returns cross-SSP dashboard suggestion totals, suggestion queue stats, and health checks for admins.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "AI Diagnostics"
+                ],
+                "summary": "Get AI diagnostics summary",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-oscal_AiDiagnosticsSummary"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
         "/admin/digest/preview": {
             "get": {
                 "description": "Returns the current evidence summary that would be included in a digest email",
@@ -28655,7 +28827,8 @@ const docTemplate = `{
                             "$ref": "#/definitions/oscalTypes_1_1_3.Control"
                         }
                     }
-                }
+                },
+                "meta": {}
             }
         },
         "handler.GenericDataListResponse-evidence_StatusCount": {
@@ -28667,7 +28840,8 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/evidence.StatusCount"
                     }
-                }
+                },
+                "meta": {}
             }
         },
         "handler.GenericDataListResponse-handler_FilterWithAssociations": {
@@ -28679,7 +28853,8 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/handler.FilterWithAssociations"
                     }
-                }
+                },
+                "meta": {}
             }
         },
         "handler.GenericDataListResponse-handler_OverTime_HeartbeatInterval": {
@@ -28691,7 +28866,8 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/handler.OverTime.HeartbeatInterval"
                     }
-                }
+                },
+                "meta": {}
             }
         },
         "handler.GenericDataListResponse-handler_StatusInterval": {
@@ -28703,7 +28879,8 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/handler.StatusInterval"
                     }
-                }
+                },
+                "meta": {}
             }
         },
         "handler.GenericDataListResponse-handler_availableNotificationProviderResponse": {
@@ -28715,7 +28892,8 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/handler.availableNotificationProviderResponse"
                     }
-                }
+                },
+                "meta": {}
             }
         },
         "handler.GenericDataListResponse-handler_milestoneResponse": {
@@ -28727,7 +28905,8 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/handler.milestoneResponse"
                     }
-                }
+                },
+                "meta": {}
             }
         },
         "handler.GenericDataListResponse-handler_notificationProviderStatusResponse": {
@@ -28739,7 +28918,8 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/handler.notificationProviderStatusResponse"
                     }
-                }
+                },
+                "meta": {}
             }
         },
         "handler.GenericDataListResponse-handler_poamItemResponse": {
@@ -28751,7 +28931,8 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/handler.poamItemResponse"
                     }
-                }
+                },
+                "meta": {}
             }
         },
         "handler.GenericDataListResponse-handler_riskScoreTimeseriesResponse": {
@@ -28763,7 +28944,8 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/handler.riskScoreTimeseriesResponse"
                     }
-                }
+                },
+                "meta": {}
             }
         },
         "handler.GenericDataListResponse-handler_selectableUserResponse": {
@@ -28775,7 +28957,8 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/handler.selectableUserResponse"
                     }
-                }
+                },
+                "meta": {}
             }
         },
         "handler.GenericDataListResponse-handler_systemNotificationResponse": {
@@ -28787,7 +28970,8 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/handler.systemNotificationResponse"
                     }
-                }
+                },
+                "meta": {}
             }
         },
         "handler.GenericDataListResponse-oscalTypes_1_1_3_AssessmentPlan": {
@@ -28799,7 +28983,8 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/oscalTypes_1_1_3.AssessmentPlan"
                     }
-                }
+                },
+                "meta": {}
             }
         },
         "handler.GenericDataListResponse-oscalTypes_1_1_3_AssessmentResults": {
@@ -28811,7 +28996,8 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/oscalTypes_1_1_3.AssessmentResults"
                     }
-                }
+                },
+                "meta": {}
             }
         },
         "handler.GenericDataListResponse-oscalTypes_1_1_3_AssociatedActivity": {
@@ -28823,7 +29009,8 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/oscalTypes_1_1_3.AssociatedActivity"
                     }
-                }
+                },
+                "meta": {}
             }
         },
         "handler.GenericDataListResponse-oscalTypes_1_1_3_AttestationStatements": {
@@ -28835,7 +29022,8 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/oscalTypes_1_1_3.AttestationStatements"
                     }
-                }
+                },
+                "meta": {}
             }
         },
         "handler.GenericDataListResponse-oscalTypes_1_1_3_Capability": {
@@ -28847,7 +29035,8 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/oscalTypes_1_1_3.Capability"
                     }
-                }
+                },
+                "meta": {}
             }
         },
         "handler.GenericDataListResponse-oscalTypes_1_1_3_Catalog": {
@@ -28859,7 +29048,8 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/oscalTypes_1_1_3.Catalog"
                     }
-                }
+                },
+                "meta": {}
             }
         },
         "handler.GenericDataListResponse-oscalTypes_1_1_3_ComponentDefinition": {
@@ -28871,7 +29061,8 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/oscalTypes_1_1_3.ComponentDefinition"
                     }
-                }
+                },
+                "meta": {}
             }
         },
         "handler.GenericDataListResponse-oscalTypes_1_1_3_Control": {
@@ -28883,7 +29074,8 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/oscalTypes_1_1_3.Control"
                     }
-                }
+                },
+                "meta": {}
             }
         },
         "handler.GenericDataListResponse-oscalTypes_1_1_3_ControlImplementationSet": {
@@ -28895,7 +29087,8 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/oscalTypes_1_1_3.ControlImplementationSet"
                     }
-                }
+                },
+                "meta": {}
             }
         },
         "handler.GenericDataListResponse-oscalTypes_1_1_3_ControlStatementImplementation": {
@@ -28907,7 +29100,8 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/oscalTypes_1_1_3.ControlStatementImplementation"
                     }
-                }
+                },
+                "meta": {}
             }
         },
         "handler.GenericDataListResponse-oscalTypes_1_1_3_DefinedComponent": {
@@ -28919,7 +29113,8 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/oscalTypes_1_1_3.DefinedComponent"
                     }
-                }
+                },
+                "meta": {}
             }
         },
         "handler.GenericDataListResponse-oscalTypes_1_1_3_Finding": {
@@ -28931,7 +29126,8 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/oscalTypes_1_1_3.Finding"
                     }
-                }
+                },
+                "meta": {}
             }
         },
         "handler.GenericDataListResponse-oscalTypes_1_1_3_Group": {
@@ -28943,7 +29139,8 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/oscalTypes_1_1_3.Group"
                     }
-                }
+                },
+                "meta": {}
             }
         },
         "handler.GenericDataListResponse-oscalTypes_1_1_3_ImplementedRequirement": {
@@ -28955,7 +29152,8 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/oscalTypes_1_1_3.ImplementedRequirement"
                     }
-                }
+                },
+                "meta": {}
             }
         },
         "handler.GenericDataListResponse-oscalTypes_1_1_3_ImplementedRequirementControlImplementation": {
@@ -28967,7 +29165,8 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/oscalTypes_1_1_3.ImplementedRequirementControlImplementation"
                     }
-                }
+                },
+                "meta": {}
             }
         },
         "handler.GenericDataListResponse-oscalTypes_1_1_3_Import": {
@@ -28979,7 +29178,8 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/oscalTypes_1_1_3.Import"
                     }
-                }
+                },
+                "meta": {}
             }
         },
         "handler.GenericDataListResponse-oscalTypes_1_1_3_ImportComponentDefinition": {
@@ -28991,7 +29191,8 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/oscalTypes_1_1_3.ImportComponentDefinition"
                     }
-                }
+                },
+                "meta": {}
             }
         },
         "handler.GenericDataListResponse-oscalTypes_1_1_3_IncorporatesComponent": {
@@ -29003,7 +29204,8 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/oscalTypes_1_1_3.IncorporatesComponent"
                     }
-                }
+                },
+                "meta": {}
             }
         },
         "handler.GenericDataListResponse-oscalTypes_1_1_3_InventoryItem": {
@@ -29015,7 +29217,8 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/oscalTypes_1_1_3.InventoryItem"
                     }
-                }
+                },
+                "meta": {}
             }
         },
         "handler.GenericDataListResponse-oscalTypes_1_1_3_LeveragedAuthorization": {
@@ -29027,7 +29230,8 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/oscalTypes_1_1_3.LeveragedAuthorization"
                     }
-                }
+                },
+                "meta": {}
             }
         },
         "handler.GenericDataListResponse-oscalTypes_1_1_3_Observation": {
@@ -29039,7 +29243,8 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/oscalTypes_1_1_3.Observation"
                     }
-                }
+                },
+                "meta": {}
             }
         },
         "handler.GenericDataListResponse-oscalTypes_1_1_3_Party": {
@@ -29051,7 +29256,8 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/oscalTypes_1_1_3.Party"
                     }
-                }
+                },
+                "meta": {}
             }
         },
         "handler.GenericDataListResponse-oscalTypes_1_1_3_PlanOfActionAndMilestones": {
@@ -29063,7 +29269,8 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/oscalTypes_1_1_3.PlanOfActionAndMilestones"
                     }
-                }
+                },
+                "meta": {}
             }
         },
         "handler.GenericDataListResponse-oscalTypes_1_1_3_PoamItem": {
@@ -29075,7 +29282,8 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/oscalTypes_1_1_3.PoamItem"
                     }
-                }
+                },
+                "meta": {}
             }
         },
         "handler.GenericDataListResponse-oscalTypes_1_1_3_Resource": {
@@ -29087,7 +29295,8 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/oscalTypes_1_1_3.Resource"
                     }
-                }
+                },
+                "meta": {}
             }
         },
         "handler.GenericDataListResponse-oscalTypes_1_1_3_Result": {
@@ -29099,7 +29308,8 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/oscalTypes_1_1_3.Result"
                     }
-                }
+                },
+                "meta": {}
             }
         },
         "handler.GenericDataListResponse-oscalTypes_1_1_3_Risk": {
@@ -29111,7 +29321,8 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/oscalTypes_1_1_3.Risk"
                     }
-                }
+                },
+                "meta": {}
             }
         },
         "handler.GenericDataListResponse-oscalTypes_1_1_3_Role": {
@@ -29123,7 +29334,8 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/oscalTypes_1_1_3.Role"
                     }
-                }
+                },
+                "meta": {}
             }
         },
         "handler.GenericDataListResponse-oscalTypes_1_1_3_SystemComponent": {
@@ -29135,7 +29347,8 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/oscalTypes_1_1_3.SystemComponent"
                     }
-                }
+                },
+                "meta": {}
             }
         },
         "handler.GenericDataListResponse-oscalTypes_1_1_3_SystemSecurityPlan": {
@@ -29147,7 +29360,8 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/oscalTypes_1_1_3.SystemSecurityPlan"
                     }
-                }
+                },
+                "meta": {}
             }
         },
         "handler.GenericDataListResponse-oscalTypes_1_1_3_SystemUser": {
@@ -29159,7 +29373,21 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/oscalTypes_1_1_3.SystemUser"
                     }
-                }
+                },
+                "meta": {}
+            }
+        },
+        "handler.GenericDataListResponse-oscal_AiDiagnosticsRun": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscal.AiDiagnosticsRun"
+                    }
+                },
+                "meta": {}
             }
         },
         "handler.GenericDataListResponse-oscal_InventoryItemWithSource": {
@@ -29171,7 +29399,8 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/oscal.InventoryItemWithSource"
                     }
-                }
+                },
+                "meta": {}
             }
         },
         "handler.GenericDataListResponse-oscal_ProfileHandler": {
@@ -29183,7 +29412,8 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/oscal.ProfileHandler"
                     }
-                }
+                },
+                "meta": {}
             }
         },
         "handler.GenericDataListResponse-oscal_dashboardSuggestionEventResponse": {
@@ -29195,7 +29425,8 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/oscal.dashboardSuggestionEventResponse"
                     }
-                }
+                },
+                "meta": {}
             }
         },
         "handler.GenericDataListResponse-oscal_dashboardSuggestionResponse": {
@@ -29207,7 +29438,8 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/oscal.dashboardSuggestionResponse"
                     }
-                }
+                },
+                "meta": {}
             }
         },
         "handler.GenericDataListResponse-oscal_profileSummary": {
@@ -29219,7 +29451,8 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/oscal.profileSummary"
                     }
-                }
+                },
+                "meta": {}
             }
         },
         "handler.GenericDataListResponse-oscal_resolvedWithCatalogsResponse": {
@@ -29231,7 +29464,8 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/oscal.resolvedWithCatalogsResponse"
                     }
-                }
+                },
+                "meta": {}
             }
         },
         "handler.GenericDataListResponse-poam_PoamItemControlLink": {
@@ -29243,7 +29477,8 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/poam.PoamItemControlLink"
                     }
-                }
+                },
+                "meta": {}
             }
         },
         "handler.GenericDataListResponse-poam_PoamItemEvidenceLink": {
@@ -29255,7 +29490,8 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/poam.PoamItemEvidenceLink"
                     }
-                }
+                },
+                "meta": {}
             }
         },
         "handler.GenericDataListResponse-poam_PoamItemFindingLink": {
@@ -29267,7 +29503,8 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/poam.PoamItemFindingLink"
                     }
-                }
+                },
+                "meta": {}
             }
         },
         "handler.GenericDataListResponse-poam_PoamItemRiskLink": {
@@ -29279,7 +29516,8 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/poam.PoamItemRiskLink"
                     }
-                }
+                },
+                "meta": {}
             }
         },
         "handler.GenericDataListResponse-relational_SystemComponentSuggestion": {
@@ -29291,7 +29529,8 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/relational.SystemComponentSuggestion"
                     }
-                }
+                },
+                "meta": {}
             }
         },
         "handler.GenericDataListResponse-relational_User": {
@@ -29303,7 +29542,8 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/relational.User"
                     }
-                }
+                },
+                "meta": {}
             }
         },
         "handler.GenericDataListResponse-string": {
@@ -29315,7 +29555,8 @@ const docTemplate = `{
                     "items": {
                         "type": "string"
                     }
-                }
+                },
+                "meta": {}
             }
         },
         "handler.GenericDataListResponse-suggestions_LabelKeyInput": {
@@ -29327,7 +29568,8 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/suggestions.LabelKeyInput"
                     }
-                }
+                },
+                "meta": {}
             }
         },
         "handler.GenericDataListResponse-suggestions_LabelSetInput": {
@@ -29339,7 +29581,8 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/suggestions.LabelSetInput"
                     }
-                }
+                },
+                "meta": {}
             }
         },
         "handler.GenericDataResponse-array_oscalTypes_1_1_3_AssessmentAssets": {
@@ -30270,6 +30513,32 @@ const docTemplate = `{
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.Task"
+                        }
+                    ]
+                }
+            }
+        },
+        "handler.GenericDataResponse-oscal_AiDiagnosticsRunDetail": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Wrapped response data",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/oscal.AiDiagnosticsRunDetail"
+                        }
+                    ]
+                }
+            }
+        },
+        "handler.GenericDataResponse-oscal_AiDiagnosticsSummary": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Wrapped response data",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/oscal.AiDiagnosticsSummary"
                         }
                     ]
                 }
@@ -32303,6 +32572,356 @@ const docTemplate = `{
                 }
             }
         },
+        "oscal.AiDiagnosticsConfig": {
+            "type": "object",
+            "properties": {
+                "maxCallsPerRun": {
+                    "type": "integer"
+                },
+                "maxControlsPerChunk": {
+                    "type": "integer"
+                },
+                "maxLabelSetsPerChunk": {
+                    "type": "integer"
+                },
+                "model": {
+                    "type": "string"
+                },
+                "promptVersion": {
+                    "type": "string"
+                },
+                "queueWorkers": {
+                    "type": "integer"
+                }
+            }
+        },
+        "oscal.AiDiagnosticsHealthCheck": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "recommendedActions": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscal.AiDiagnosticsQueue": {
+            "type": "object",
+            "properties": {
+                "available": {
+                    "type": "integer"
+                },
+                "completed24h": {
+                    "type": "integer"
+                },
+                "discarded24h": {
+                    "type": "integer"
+                },
+                "maxWorkers": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "oldestAvailableAt": {
+                    "type": "string"
+                },
+                "retryable": {
+                    "type": "integer"
+                },
+                "running": {
+                    "type": "integer"
+                },
+                "scheduled": {
+                    "type": "integer"
+                }
+            }
+        },
+        "oscal.AiDiagnosticsRun": {
+            "type": "object",
+            "properties": {
+                "cacheCreationInputTokens": {
+                    "type": "integer"
+                },
+                "cacheHitRatio": {
+                    "type": "number"
+                },
+                "cacheReadInputTokens": {
+                    "type": "integer"
+                },
+                "completedAt": {
+                    "type": "string"
+                },
+                "completedCells": {
+                    "type": "integer"
+                },
+                "durationMs": {
+                    "type": "integer"
+                },
+                "failedCells": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "inputTokens": {
+                    "type": "integer"
+                },
+                "mappingsRejected": {
+                    "type": "integer"
+                },
+                "mappingsReturned": {
+                    "type": "integer"
+                },
+                "model": {
+                    "type": "string"
+                },
+                "outputTokens": {
+                    "type": "integer"
+                },
+                "plannedCalls": {
+                    "type": "integer"
+                },
+                "promptVersion": {
+                    "type": "string"
+                },
+                "rateLimitedTotal": {
+                    "type": "integer"
+                },
+                "sspId": {
+                    "type": "string"
+                },
+                "sspName": {
+                    "type": "string"
+                },
+                "startedAt": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "triggeredBy": {
+                    "$ref": "#/definitions/oscal.suggestionEventActor"
+                }
+            }
+        },
+        "oscal.AiDiagnosticsRunCell": {
+            "type": "object",
+            "properties": {
+                "cacheCreationInputTokens": {
+                    "type": "integer"
+                },
+                "cacheReadInputTokens": {
+                    "type": "integer"
+                },
+                "cellIndex": {
+                    "type": "integer"
+                },
+                "completedAt": {
+                    "type": "string"
+                },
+                "controlKeys": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "error": {
+                    "type": "string"
+                },
+                "inputTokens": {
+                    "type": "integer"
+                },
+                "labelSetHashes": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "mappingsRejected": {
+                    "type": "integer"
+                },
+                "mappingsReturned": {
+                    "type": "integer"
+                },
+                "outputTokens": {
+                    "type": "integer"
+                },
+                "rateLimitedCount": {
+                    "type": "integer"
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscal.AiDiagnosticsRunDetail": {
+            "type": "object",
+            "properties": {
+                "cacheCreationInputTokens": {
+                    "type": "integer"
+                },
+                "cacheHitRatio": {
+                    "type": "number"
+                },
+                "cacheReadInputTokens": {
+                    "type": "integer"
+                },
+                "cells": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscal.AiDiagnosticsRunCell"
+                    }
+                },
+                "completedAt": {
+                    "type": "string"
+                },
+                "completedCells": {
+                    "type": "integer"
+                },
+                "durationMs": {
+                    "type": "integer"
+                },
+                "events": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscal.dashboardSuggestionEventResponse"
+                    }
+                },
+                "failedCells": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "inputTokens": {
+                    "type": "integer"
+                },
+                "mappingsRejected": {
+                    "type": "integer"
+                },
+                "mappingsReturned": {
+                    "type": "integer"
+                },
+                "model": {
+                    "type": "string"
+                },
+                "outputTokens": {
+                    "type": "integer"
+                },
+                "plannedCalls": {
+                    "type": "integer"
+                },
+                "promptVersion": {
+                    "type": "string"
+                },
+                "rateLimitedTotal": {
+                    "type": "integer"
+                },
+                "sspId": {
+                    "type": "string"
+                },
+                "sspName": {
+                    "type": "string"
+                },
+                "startedAt": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "triggeredBy": {
+                    "$ref": "#/definitions/oscal.suggestionEventActor"
+                }
+            }
+        },
+        "oscal.AiDiagnosticsSummary": {
+            "type": "object",
+            "properties": {
+                "checks": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscal.AiDiagnosticsHealthCheck"
+                    }
+                },
+                "config": {
+                    "$ref": "#/definitions/oscal.AiDiagnosticsConfig"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "queue": {
+                    "$ref": "#/definitions/oscal.AiDiagnosticsQueue"
+                },
+                "totals": {
+                    "$ref": "#/definitions/oscal.AiDiagnosticsTotals"
+                }
+            }
+        },
+        "oscal.AiDiagnosticsTotals": {
+            "type": "object",
+            "properties": {
+                "cacheCreationInputTokens": {
+                    "type": "integer"
+                },
+                "cacheHitRatio": {
+                    "type": "number"
+                },
+                "cacheReadInputTokens": {
+                    "type": "integer"
+                },
+                "cellsCompleted": {
+                    "type": "integer"
+                },
+                "cellsFailed": {
+                    "type": "integer"
+                },
+                "inputTokens": {
+                    "type": "integer"
+                },
+                "mappingsRejected": {
+                    "type": "integer"
+                },
+                "mappingsReturned": {
+                    "type": "integer"
+                },
+                "outputTokens": {
+                    "type": "integer"
+                },
+                "rateLimitedTotal": {
+                    "type": "integer"
+                },
+                "runs": {
+                    "type": "integer"
+                },
+                "runsByStatus": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "integer",
+                        "format": "int64"
+                    }
+                },
+                "suggestionsAccepted": {
+                    "type": "integer"
+                },
+                "suggestionsPending": {
+                    "type": "integer"
+                },
+                "suggestionsRejected": {
+                    "type": "integer"
+                }
+            }
+        },
         "oscal.ApplySuggestionRequest": {
             "type": "object",
             "required": [
@@ -32905,6 +33524,12 @@ const docTemplate = `{
         "oscal.dashboardSuggestionRunResponse": {
             "type": "object",
             "properties": {
+                "cacheCreationInputTokens": {
+                    "type": "integer"
+                },
+                "cacheReadInputTokens": {
+                    "type": "integer"
+                },
                 "cells": {
                     "type": "array",
                     "items": {
@@ -32951,6 +33576,9 @@ const docTemplate = `{
                 },
                 "promptVersion": {
                     "type": "string"
+                },
+                "rateLimitedCount": {
+                    "type": "integer"
                 },
                 "scope": {
                     "$ref": "#/definitions/datatypes.JSONMap"
@@ -33044,6 +33672,12 @@ const docTemplate = `{
         "oscal.generalizeDashboardSuggestionsResponse": {
             "type": "object",
             "properties": {
+                "cacheCreationInputTokens": {
+                    "type": "integer"
+                },
+                "cacheReadInputTokens": {
+                    "type": "integer"
+                },
                 "candidates": {
                     "type": "integer"
                 },
@@ -33090,6 +33724,9 @@ const docTemplate = `{
                 },
                 "promptVersion": {
                     "type": "string"
+                },
+                "rateLimitedCount": {
+                    "type": "integer"
                 },
                 "scope": {
                     "$ref": "#/definitions/datatypes.JSONMap"
@@ -41091,6 +41728,12 @@ const docTemplate = `{
         "suggestions.DashboardSuggestionRunCell": {
             "type": "object",
             "properties": {
+                "cacheCreationInputTokens": {
+                    "type": "integer"
+                },
+                "cacheReadInputTokens": {
+                    "type": "integer"
+                },
                 "cellIndex": {
                     "type": "integer"
                 },
@@ -41122,6 +41765,9 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "outputTokens": {
+                    "type": "integer"
+                },
+                "rateLimitedCount": {
                     "type": "integer"
                 },
                 "runId": {

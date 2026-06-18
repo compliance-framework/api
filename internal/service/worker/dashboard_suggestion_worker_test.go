@@ -121,6 +121,13 @@ func TestDashboardSuggestionWorkerFinalizationMatrix(t *testing.T) {
 		db := newDashboardSuggestionWorkerTestDB(t)
 		runID, _ := seedDashboardSuggestionRun(t, db, dashboardSuggestionRunStatusRunning, 2)
 		seedDashboardSuggestionCellWithStats(t, db, runID, 0, dashboardSuggestionCellStatusCompleted, 11, 7, 2, 1, nil)
+		require.NoError(t, db.Model(&suggestionrel.DashboardSuggestionRunCell{}).
+			Where("run_id = ? AND cell_index = ?", runID, 0).
+			Updates(map[string]any{
+				"cache_read_input_tokens":     13,
+				"cache_creation_input_tokens": 17,
+				"rate_limited_count":          2,
+			}).Error)
 		seedDashboardSuggestionCell(t, db, runID, 1, dashboardSuggestionCellStatusPending)
 		worker := NewDashboardSuggestionWorker(db, &llm.FakeClient{}, config.DefaultAIConfig(), zap.NewNop().Sugar())
 
@@ -131,8 +138,15 @@ func TestDashboardSuggestionWorkerFinalizationMatrix(t *testing.T) {
 		require.Equal(t, dashboardSuggestionRunStatusCompleted, run.Status)
 		require.Equal(t, 11, run.InputTokens)
 		require.Equal(t, 7, run.OutputTokens)
+		require.Equal(t, 13, run.CacheReadInputTokens)
+		require.Equal(t, 17, run.CacheCreationInputTokens)
+		require.Equal(t, 2, run.RateLimitedCount)
 		require.Equal(t, "1", fmt.Sprint(run.Stats["cells_completed"]))
 		require.Equal(t, "1", fmt.Sprint(run.Stats["cells_failed"]))
+		require.Equal(t, "13", fmt.Sprint(run.Stats["cache_read_input_tokens"]))
+		require.Equal(t, "17", fmt.Sprint(run.Stats["cache_creation_input_tokens"]))
+		require.Equal(t, "1", fmt.Sprint(run.Stats["rate_limited_cells"]))
+		require.Equal(t, "2", fmt.Sprint(run.Stats["rate_limited_total"]))
 		require.NotNil(t, run.CompletedAt)
 		assertRunEventCount(t, db, runID, suggestionrel.DashboardSuggestionEventTypeRunCompleted, 1)
 	})
@@ -201,15 +215,22 @@ func TestDashboardSuggestionWorkerCompleteCellCountsMissingLabelSetsAsRejected(t
 			Reasoning:          "evidence matches",
 		}},
 	}
-	response := &llm.StructuredResponse{InputTokens: 2, OutputTokens: 3}
+	response := &llm.StructuredResponse{InputTokens: 2, OutputTokens: 3, CacheReadInputTokens: 5, CacheCreationInputTokens: 7}
 
 	require.NoError(t, worker.completeCell(context.Background(), run, cell, response, validation, 1, 1))
 
 	var stored suggestionrel.DashboardSuggestionRunCell
 	require.NoError(t, db.First(&stored, "run_id = ? AND cell_index = ?", runID, 0).Error)
 	require.Equal(t, dashboardSuggestionCellStatusCompleted, stored.Status)
+	require.Equal(t, 5, stored.CacheReadInputTokens)
+	require.Equal(t, 7, stored.CacheCreationInputTokens)
 	require.Equal(t, 1, stored.MappingsReturned)
 	require.Equal(t, 1, stored.MappingsRejected)
+
+	var storedRun suggestionrel.DashboardSuggestionRun
+	require.NoError(t, db.First(&storedRun, "id = ?", runID).Error)
+	require.Equal(t, 5, storedRun.CacheReadInputTokens)
+	require.Equal(t, 7, storedRun.CacheCreationInputTokens)
 }
 
 func TestDashboardSuggestionWorkerLLMRetryAndNonRetryableFailure(t *testing.T) {
@@ -289,7 +310,7 @@ func TestSnoozeDelay(t *testing.T) {
 func TestRateLimitSnooze(t *testing.T) {
 	t.Parallel()
 
-	t.Run("rate limit within budget snoozes", func(t *testing.T) {
+	t.Run("rate limit within snooze count budget snoozes", func(t *testing.T) {
 		delay, ok := rateLimitSnooze(&llm.RateLimitError{RetryAfter: 7 * time.Second}, 1)
 		require.True(t, ok)
 		require.GreaterOrEqual(t, delay, 7*time.Second)
@@ -301,7 +322,7 @@ func TestRateLimitSnooze(t *testing.T) {
 		require.True(t, ok)
 	})
 
-	t.Run("exhausted budget does not snooze", func(t *testing.T) {
+	t.Run("exhausted snooze count budget does not snooze", func(t *testing.T) {
 		_, ok := rateLimitSnooze(&llm.RateLimitError{RetryAfter: time.Second}, maxRateLimitSnoozes)
 		require.False(t, ok)
 	})

@@ -27,6 +27,11 @@ func RegisterHandlers(server *api.Server, logger *zap.SugaredLogger, db *gorm.DB
 	sspHandler.Register(oscalGroup.Group("/system-security-plans"))
 	if config.AI != nil && config.AI.Enabled {
 		dashboardSuggestionHandler.Register(oscalGroup.Group("/system-security-plans"), jwtMiddleware)
+
+		diagGroup := server.API().Group("/admin/ai-diagnostics")
+		diagGroup.Use(middleware.JWTMiddleware(config.JWTPublicKey))
+		diagGroup.Use(middleware.RequireAdminGroups(db, config, logger))
+		NewAiDiagnosticsHandler(logger, db, config.AI).Register(diagGroup)
 	}
 
 	partyHandler := NewPartyHandler(logger, db)

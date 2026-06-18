@@ -107,7 +107,8 @@ func (w *DashboardSuggestionWorker) Work(ctx context.Context, job *river.Job[Das
 		// A rate limit skips the cell and requeues it after the provider's
 		// Retry-After (or a default) plus jitter, without consuming a regular
 		// attempt or marking the cell failed.
-		if delay, ok := rateLimitSnooze(err, job.Attempt); ok {
+		if delay, ok := rateLimitSnooze(err, cell.RateLimitedCount); ok {
+			w.incrementCellRateLimitedCount(ctx, job.Args)
 			return river.JobSnooze(delay)
 		}
 		// Non-retryable errors, and rate limits that have exhausted their snooze
@@ -258,14 +259,14 @@ func (w *DashboardSuggestionWorker) completeWithRetry(ctx context.Context, rende
 }
 
 // rateLimitSnooze decides whether a failed completion should be snoozed. ok is
-// false when err is not a rate limit, or when the snooze budget for this cell is
-// exhausted (so the caller can fail it instead of snoozing forever).
-func rateLimitSnooze(err error, attempt int) (time.Duration, bool) {
+// false when err is not a rate limit, or when the persisted snooze budget for
+// this cell is exhausted (so the caller can fail it instead of snoozing forever).
+func rateLimitSnooze(err error, rateLimitedCount int) (time.Duration, bool) {
 	var rateLimit *llm.RateLimitError
 	if !errors.As(err, &rateLimit) {
 		return 0, false
 	}
-	if attempt >= maxRateLimitSnoozes {
+	if rateLimitedCount >= maxRateLimitSnoozes {
 		return 0, false
 	}
 	return snoozeDelay(rateLimit.RetryAfter), true
@@ -369,13 +370,15 @@ func (w *DashboardSuggestionWorker) completeCell(
 		update := tx.Model(&suggestionrel.DashboardSuggestionRunCell{}).
 			Where("run_id = ? AND cell_index = ? AND status = ?", *run.ID, cell.CellIndex, dashboardSuggestionCellStatusPending).
 			Updates(map[string]any{
-				"status":            dashboardSuggestionCellStatusCompleted,
-				"error":             nil,
-				"input_tokens":      response.InputTokens,
-				"output_tokens":     response.OutputTokens,
-				"mappings_returned": rawCount,
-				"mappings_rejected": rejected,
-				"completed_at":      now,
+				"status":                      dashboardSuggestionCellStatusCompleted,
+				"error":                       nil,
+				"input_tokens":                response.InputTokens,
+				"output_tokens":               response.OutputTokens,
+				"cache_read_input_tokens":     response.CacheReadInputTokens,
+				"cache_creation_input_tokens": response.CacheCreationInputTokens,
+				"mappings_returned":           rawCount,
+				"mappings_rejected":           rejected,
+				"completed_at":                now,
 			})
 		if update.Error != nil {
 			return update.Error
@@ -402,6 +405,24 @@ func (w *DashboardSuggestionWorker) handleAttemptFailure(ctx context.Context, jo
 		}
 	}
 	return err
+}
+
+func (w *DashboardSuggestionWorker) incrementCellRateLimitedCount(ctx context.Context, args DashboardSuggestionCellArgs) {
+	detachedCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+	defer cancel()
+
+	err := w.db.WithContext(detachedCtx).
+		Model(&suggestionrel.DashboardSuggestionRunCell{}).
+		Where("run_id = ? AND cell_index = ? AND status = ?", args.RunID, args.CellIndex, dashboardSuggestionCellStatusPending).
+		UpdateColumn("rate_limited_count", gorm.Expr("rate_limited_count + 1")).
+		Error
+	if err != nil && w.logger != nil {
+		w.logger.Warnw("failed to increment dashboard suggestion rate limit count",
+			"run_id", args.RunID,
+			"cell_index", args.CellIndex,
+			"error", err,
+		)
+	}
 }
 
 func (w *DashboardSuggestionWorker) failCellAndMaybeFinalize(ctx context.Context, args DashboardSuggestionCellArgs, cause error) error {
@@ -448,12 +469,16 @@ func (w *DashboardSuggestionWorker) finalizeRunIfReady(tx *gorm.DB, runID uuid.U
 	}
 
 	type aggregateRow struct {
-		Completed        int
-		Failed           int
-		InputTokens      int
-		OutputTokens     int
-		MappingsReturned int
-		MappingsRejected int
+		Completed                int
+		Failed                   int
+		InputTokens              int
+		OutputTokens             int
+		CacheReadInputTokens     int
+		CacheCreationInputTokens int
+		RateLimitedCells         int
+		RateLimitedTotal         int
+		MappingsReturned         int
+		MappingsRejected         int
 	}
 	var aggregate aggregateRow
 	if err := tx.Model(&suggestionrel.DashboardSuggestionRunCell{}).
@@ -462,6 +487,10 @@ func (w *DashboardSuggestionWorker) finalizeRunIfReady(tx *gorm.DB, runID uuid.U
 			COALESCE(SUM(CASE WHEN status = ? THEN 1 ELSE 0 END), 0) AS failed,
 			COALESCE(SUM(input_tokens), 0) AS input_tokens,
 			COALESCE(SUM(output_tokens), 0) AS output_tokens,
+			COALESCE(SUM(cache_read_input_tokens), 0) AS cache_read_input_tokens,
+			COALESCE(SUM(cache_creation_input_tokens), 0) AS cache_creation_input_tokens,
+			COALESCE(SUM(CASE WHEN rate_limited_count > 0 THEN 1 ELSE 0 END), 0) AS rate_limited_cells,
+			COALESCE(SUM(rate_limited_count), 0) AS rate_limited_total,
 			COALESCE(SUM(mappings_returned), 0) AS mappings_returned,
 			COALESCE(SUM(mappings_rejected), 0) AS mappings_rejected
 		`, dashboardSuggestionCellStatusCompleted, dashboardSuggestionCellStatusFailed).
@@ -495,6 +524,10 @@ func (w *DashboardSuggestionWorker) finalizeRunIfReady(tx *gorm.DB, runID uuid.U
 	stats["failed_cells"] = failedSummary
 	stats["mappings_returned"] = aggregate.MappingsReturned
 	stats["mappings_rejected"] = aggregate.MappingsRejected
+	stats["cache_read_input_tokens"] = aggregate.CacheReadInputTokens
+	stats["cache_creation_input_tokens"] = aggregate.CacheCreationInputTokens
+	stats["rate_limited_cells"] = aggregate.RateLimitedCells
+	stats["rate_limited_total"] = aggregate.RateLimitedTotal
 
 	status := dashboardSuggestionRunStatusCompleted
 	eventType := suggestionrel.DashboardSuggestionEventTypeRunCompleted
@@ -506,11 +539,14 @@ func (w *DashboardSuggestionWorker) finalizeRunIfReady(tx *gorm.DB, runID uuid.U
 	if err := tx.Model(&suggestionrel.DashboardSuggestionRun{}).
 		Where("id = ?", runID).
 		Updates(map[string]any{
-			"status":        status,
-			"completed_at":  now,
-			"input_tokens":  aggregate.InputTokens,
-			"output_tokens": aggregate.OutputTokens,
-			"stats":         stats,
+			"status":                      status,
+			"completed_at":                now,
+			"input_tokens":                aggregate.InputTokens,
+			"output_tokens":               aggregate.OutputTokens,
+			"cache_read_input_tokens":     aggregate.CacheReadInputTokens,
+			"cache_creation_input_tokens": aggregate.CacheCreationInputTokens,
+			"rate_limited_count":          aggregate.RateLimitedTotal,
+			"stats":                       stats,
 		}).Error; err != nil {
 		return err
 	}
@@ -518,6 +554,9 @@ func (w *DashboardSuggestionWorker) finalizeRunIfReady(tx *gorm.DB, runID uuid.U
 	run.CompletedAt = &now
 	run.InputTokens = aggregate.InputTokens
 	run.OutputTokens = aggregate.OutputTokens
+	run.CacheReadInputTokens = aggregate.CacheReadInputTokens
+	run.CacheCreationInputTokens = aggregate.CacheCreationInputTokens
+	run.RateLimitedCount = aggregate.RateLimitedTotal
 	run.Stats = stats
 	return suggestionrel.CreateRunEventTx(tx, &run, eventType, datatypes.JSONMap{
 		"cells_completed": aggregate.Completed,

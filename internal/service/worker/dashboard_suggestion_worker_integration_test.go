@@ -5,6 +5,8 @@ package worker
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"regexp"
 	"sync"
 	"testing"
@@ -63,8 +65,12 @@ func (suite *DashboardSuggestionWorkerIntegrationSuite) TestTwoByTwoGridConcurre
 	suite.Equal(4, run.SuggestionCount)
 	suite.Equal(40, run.InputTokens)
 	suite.Equal(20, run.OutputTokens)
+	suite.Equal(12, run.CacheReadInputTokens)
+	suite.Equal(28, run.CacheCreationInputTokens)
 	suite.NotNil(run.StartedAt)
 	suite.NotNil(run.CompletedAt)
+	suite.Equal("12", sprintJSONStat(run.Stats["cache_read_input_tokens"]))
+	suite.Equal("28", sprintJSONStat(run.Stats["cache_creation_input_tokens"]))
 
 	for _, cell := range cells {
 		var stored suggestionrel.DashboardSuggestionRunCell
@@ -72,6 +78,8 @@ func (suite *DashboardSuggestionWorkerIntegrationSuite) TestTwoByTwoGridConcurre
 		suite.Equal(dashboardSuggestionCellStatusCompleted, stored.Status)
 		suite.Equal(10, stored.InputTokens)
 		suite.Equal(5, stored.OutputTokens)
+		suite.Equal(3, stored.CacheReadInputTokens)
+		suite.Equal(7, stored.CacheCreationInputTokens)
 		suite.Equal(1, stored.MappingsReturned)
 		suite.Equal(0, stored.MappingsRejected)
 	}
@@ -109,10 +117,49 @@ func (suite *DashboardSuggestionWorkerIntegrationSuite) TestRateLimitSnoozesCell
 	var cell suggestionrel.DashboardSuggestionRunCell
 	suite.Require().NoError(suite.DB.First(&cell, "run_id = ? AND cell_index = ?", runID, cells[0].CellIndex).Error)
 	suite.Require().Equal(dashboardSuggestionCellStatusPending, cell.Status)
+	suite.Require().Equal(1, cell.RateLimitedCount)
 
 	var run suggestionrel.DashboardSuggestionRun
 	suite.Require().NoError(suite.DB.First(&run, "id = ?", runID).Error)
 	suite.Require().NotEqual(dashboardSuggestionRunStatusFailed, run.Status)
+}
+
+func (suite *DashboardSuggestionWorkerIntegrationSuite) TestRateLimitSnoozeBudgetUsesPersistedCellCount() {
+	ctx := context.Background()
+	runID, cells := suite.seedTwoByTwoSuggestionRun()
+	cellIndex := cells[0].CellIndex
+	suite.Require().NoError(suite.DB.Where("run_id = ? AND cell_index <> ?", runID, cellIndex).Delete(&suggestionrel.DashboardSuggestionRunCell{}).Error)
+
+	client := &llm.FakeClient{Err: &llm.RateLimitError{RetryAfter: time.Second}}
+	worker := NewDashboardSuggestionWorker(suite.DB, client, &config.AIConfig{RequestTimeout: 120 * time.Second, MaxSuggestionsPerRun: 10}, zap.NewNop().Sugar())
+
+	for i := 0; i < maxRateLimitSnoozes; i++ {
+		err := worker.Work(ctx, dashboardSuggestionIntegrationJob(runID, cellIndex))
+		var snooze *rivertype.JobSnoozeError
+		suite.Require().ErrorAs(err, &snooze)
+
+		var cell suggestionrel.DashboardSuggestionRunCell
+		suite.Require().NoError(suite.DB.First(&cell, "run_id = ? AND cell_index = ?", runID, cellIndex).Error)
+		suite.Equal(dashboardSuggestionCellStatusPending, cell.Status)
+		suite.Equal(i+1, cell.RateLimitedCount)
+	}
+
+	err := worker.Work(ctx, dashboardSuggestionIntegrationJob(runID, cellIndex))
+	var cancelErr *river.JobCancelError
+	suite.Require().ErrorAs(err, &cancelErr)
+	suite.Require().True(errors.Is(err, llm.ErrRateLimited))
+
+	var cell suggestionrel.DashboardSuggestionRunCell
+	suite.Require().NoError(suite.DB.First(&cell, "run_id = ? AND cell_index = ?", runID, cellIndex).Error)
+	suite.Equal(dashboardSuggestionCellStatusFailed, cell.Status)
+	suite.Equal(maxRateLimitSnoozes, cell.RateLimitedCount)
+	suite.Require().NotNil(cell.CompletedAt)
+
+	var run suggestionrel.DashboardSuggestionRun
+	suite.Require().NoError(suite.DB.First(&run, "id = ?", runID).Error)
+	suite.Equal(dashboardSuggestionRunStatusFailed, run.Status)
+	suite.Equal(maxRateLimitSnoozes, run.RateLimitedCount)
+	suite.Require().NotNil(run.CompletedAt)
 }
 
 func (suite *DashboardSuggestionWorkerIntegrationSuite) TestEmptyOutputCompletesCellWithoutSuggestions() {
@@ -264,11 +311,17 @@ func (c *promptMappingClient) CompleteStructured(ctx context.Context, req llm.St
 		return nil, err
 	}
 	return &llm.StructuredResponse{
-		Raw:          raw,
-		Model:        "fake-model",
-		InputTokens:  10,
-		OutputTokens: 5,
+		Raw:                      raw,
+		Model:                    "fake-model",
+		InputTokens:              10,
+		OutputTokens:             5,
+		CacheReadInputTokens:     3,
+		CacheCreationInputTokens: 7,
 	}, nil
+}
+
+func sprintJSONStat(value any) string {
+	return fmt.Sprint(value)
 }
 
 func firstPromptValue(prompt string, pattern string) string {

@@ -20,19 +20,21 @@ type DashboardSuggestionRun struct {
 	Constraints   datatypes.JSONMap `json:"constraints" gorm:"type:jsonb"`
 	// LabelFilter is the evidence-scoping label filter applied to this run, so the
 	// worker can restrict its per-cell evidence scan and the UI can show it.
-	LabelFilter       datatypes.JSONMap `json:"labelFilter" gorm:"type:jsonb"`
-	PlannedCalls      int               `json:"plannedCalls" gorm:"not null"`
-	TriggeredByUserID *uuid.UUID        `json:"triggeredByUserId" gorm:"type:uuid;index"`
-	StartedAt         *time.Time        `json:"startedAt"`
-	CompletedAt       *time.Time        `json:"completedAt"`
-	SuggestionCount   int               `json:"suggestionCount" gorm:"not null"`
-	InputTokens       int               `json:"inputTokens" gorm:"not null"`
-	OutputTokens      int               `json:"outputTokens" gorm:"not null"`
-	Stats             datatypes.JSONMap `json:"stats" gorm:"type:jsonb;not null"`
-
-	SystemSecurityPlan *relational.SystemSecurityPlan `json:"-" gorm:"foreignKey:SSPID;references:ID"`
-	Cells              []DashboardSuggestionRunCell   `json:"cells,omitempty" gorm:"foreignKey:RunID;constraint:OnDelete:CASCADE"`
-	Suggestions        []DashboardSuggestion          `json:"suggestions,omitempty" gorm:"foreignKey:RunID;constraint:OnDelete:CASCADE"`
+	LabelFilter              datatypes.JSONMap              `json:"labelFilter" gorm:"type:jsonb"`
+	PlannedCalls             int                            `json:"plannedCalls" gorm:"not null"`
+	TriggeredByUserID        *uuid.UUID                     `json:"triggeredByUserId" gorm:"type:uuid;index"`
+	StartedAt                *time.Time                     `json:"startedAt"`
+	CompletedAt              *time.Time                     `json:"completedAt"`
+	SuggestionCount          int                            `json:"suggestionCount" gorm:"not null"`
+	InputTokens              int                            `json:"inputTokens" gorm:"not null"`
+	OutputTokens             int                            `json:"outputTokens" gorm:"not null"`
+	CacheReadInputTokens     int                            `json:"cacheReadInputTokens" gorm:"not null;default:0"`
+	CacheCreationInputTokens int                            `json:"cacheCreationInputTokens" gorm:"not null;default:0"`
+	RateLimitedCount         int                            `json:"rateLimitedCount" gorm:"not null;default:0"`
+	Stats                    datatypes.JSONMap              `json:"stats" gorm:"type:jsonb;not null"`
+	SystemSecurityPlan       *relational.SystemSecurityPlan `json:"-" gorm:"foreignKey:SSPID;references:ID"`
+	Cells                    []DashboardSuggestionRunCell   `json:"cells,omitempty" gorm:"foreignKey:RunID;constraint:OnDelete:CASCADE"`
+	Suggestions              []DashboardSuggestion          `json:"suggestions,omitempty" gorm:"foreignKey:RunID;constraint:OnDelete:CASCADE"`
 }
 
 func (DashboardSuggestionRun) TableName() string {
@@ -40,17 +42,20 @@ func (DashboardSuggestionRun) TableName() string {
 }
 
 type DashboardSuggestionRunCell struct {
-	RunID            uuid.UUID                   `json:"runId" gorm:"type:uuid;primaryKey"`
-	CellIndex        int                         `json:"cellIndex" gorm:"primaryKey"`
-	ControlKeys      datatypes.JSONSlice[string] `json:"controlKeys" gorm:"type:jsonb;not null"`
-	LabelSetHashes   datatypes.JSONSlice[string] `json:"labelSetHashes" gorm:"type:jsonb;not null"`
-	Status           string                      `json:"status" gorm:"type:varchar(16);not null;index"`
-	Error            *string                     `json:"error" gorm:"type:text"`
-	InputTokens      int                         `json:"inputTokens" gorm:"not null"`
-	OutputTokens     int                         `json:"outputTokens" gorm:"not null"`
-	MappingsReturned int                         `json:"mappingsReturned" gorm:"not null"`
-	MappingsRejected int                         `json:"mappingsRejected" gorm:"not null"`
-	CompletedAt      *time.Time                  `json:"completedAt"`
+	RunID                    uuid.UUID                   `json:"runId" gorm:"type:uuid;primaryKey"`
+	CellIndex                int                         `json:"cellIndex" gorm:"primaryKey"`
+	ControlKeys              datatypes.JSONSlice[string] `json:"controlKeys" gorm:"type:jsonb;not null"`
+	LabelSetHashes           datatypes.JSONSlice[string] `json:"labelSetHashes" gorm:"type:jsonb;not null"`
+	Status                   string                      `json:"status" gorm:"type:varchar(16);not null;index"`
+	Error                    *string                     `json:"error" gorm:"type:text"`
+	InputTokens              int                         `json:"inputTokens" gorm:"not null"`
+	OutputTokens             int                         `json:"outputTokens" gorm:"not null"`
+	CacheReadInputTokens     int                         `json:"cacheReadInputTokens" gorm:"not null;default:0"`
+	CacheCreationInputTokens int                         `json:"cacheCreationInputTokens" gorm:"not null;default:0"`
+	RateLimitedCount         int                         `json:"rateLimitedCount" gorm:"not null;default:0"`
+	MappingsReturned         int                         `json:"mappingsReturned" gorm:"not null"`
+	MappingsRejected         int                         `json:"mappingsRejected" gorm:"not null"`
+	CompletedAt              *time.Time                  `json:"completedAt"`
 
 	Run *DashboardSuggestionRun `json:"-" gorm:"foreignKey:RunID;references:ID;constraint:OnDelete:CASCADE"`
 }
