@@ -883,6 +883,73 @@ func (suite *DashboardSuggestionsIntegrationSuite) insertEvidenceLabels(id uuid.
 	}
 }
 
+func (suite *DashboardSuggestionsIntegrationSuite) TestGeneralizeProposesMergeAndAcceptMovesControls() {
+	sspID := uuid.New()
+	runID := uuid.New()
+	catalogID := uuid.New()
+	suite.seedSuggestionSSPAndRun(sspID, runID)
+
+	githubLabels := map[string]string{"provider": "github", "type": "repository", "_policy": "scan"}
+	gitlabLabels := map[string]string{"provider": "gitlab", "type": "repository", "_policy": "scan"}
+	github := relational.Filter{Name: "GitHub repos", SSPID: &sspID, Filter: datatypes.NewJSONType(suggestionrel.BuildLabelFilter(githubLabels))}
+	gitlab := relational.Filter{Name: "GitLab repos", SSPID: &sspID, Filter: datatypes.NewJSONType(suggestionrel.BuildLabelFilter(gitlabLabels))}
+	suite.Require().NoError(suite.DB.Create(&github).Error)
+	suite.Require().NoError(suite.DB.Create(&gitlab).Error)
+	for _, filterID := range []*uuid.UUID{github.ID, gitlab.ID} {
+		suite.Require().NoError(suite.DB.Exec(
+			`INSERT INTO filter_controls (filter_id, control_catalog_id, control_id) VALUES (?, ?, ?)`,
+			filterID, catalogID, "AC-1",
+		).Error)
+	}
+
+	svc := suggestionrel.NewSuggestionService(suite.DB)
+	run, result, candidates, err := svc.GenerateGeneralizations(sspID, suggestionrel.GeneralizationRunInput{
+		Model:                  "test-model",
+		PromptVersion:          suggestionrel.PromptVersion,
+		GeneralizableLabelKeys: []string{"provider"},
+		MinSharedControls:      1,
+	})
+	suite.Require().NoError(err)
+	suite.Equal(1, candidates)
+	suite.Equal(1, result.Inserted)
+	suite.Equal("completed", run.Status)
+
+	var suggestions []suggestionrel.DashboardSuggestion
+	suite.Require().NoError(suite.DB.Where("run_id = ? AND is_generalization = true", run.ID).Find(&suggestions).Error)
+	suite.Require().Len(suggestions, 1)
+	suite.Equal(map[string]string{"type": "repository", "_policy": "scan"}, jsonMapToStringMap(suggestions[0].ProposedFilterLabelSet))
+	suite.Len(suggestions[0].SourceFilterIDs, 2)
+
+	actorID := uuid.New()
+	suite.Require().NoError(suite.DB.Create(&relational.User{UUIDModel: relational.UUIDModel{ID: &actorID}, Email: "merge@example.com"}).Error)
+	suite.Require().NoError(svc.Accept(sspID, []uuid.UUID{*suggestions[0].ID}, actorID))
+
+	// The generalized filter G now carries the control.
+	generalizedLabels := map[string]string{"type": "repository", "_policy": "scan"}
+	generalizedHash := suggestionrel.CanonicalLabelSetHash(generalizedLabels)
+	var sspFilters []relational.Filter
+	suite.Require().NoError(suite.DB.Where("ssp_id = ?", sspID).Find(&sspFilters).Error)
+	var generalized *relational.Filter
+	for i := range sspFilters {
+		labels, ok := suggestionrel.CanonicalizeFilter(sspFilters[i].Filter.Data())
+		if ok && suggestionrel.CanonicalLabelSetHash(labels) == generalizedHash {
+			generalized = &sspFilters[i]
+		}
+	}
+	suite.Require().NotNil(generalized)
+
+	var generalizedLinks int64
+	suite.Require().NoError(suite.DB.Table("filter_controls").Where("filter_id = ?", generalized.ID).Count(&generalizedLinks).Error)
+	suite.Equal(int64(1), generalizedLinks)
+
+	// The control is moved off both source filters (not double-counted).
+	var sourceLinks int64
+	suite.Require().NoError(suite.DB.Table("filter_controls").
+		Where("filter_id IN ? AND control_id = ?", []uuid.UUID{*github.ID, *gitlab.ID}, "AC-1").
+		Count(&sourceLinks).Error)
+	suite.Equal(int64(0), sourceLinks)
+}
+
 func jsonMapToStringMap(values datatypes.JSONMap) map[string]string {
 	out := make(map[string]string, len(values))
 	for key, value := range values {

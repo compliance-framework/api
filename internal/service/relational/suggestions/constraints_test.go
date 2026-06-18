@@ -28,8 +28,8 @@ func TestValidateMappingsMandatoryLabelsInjectAndReject(t *testing.T) {
 	}
 
 	result := ValidateRawMappings(input, []RawMapping{
-		{ControlKey: controlKey, LabelSetHash: prodHash, Action: MappingActionNewFilter, Confidence: 0.9, Reasoning: "prod", ProposedFilterLabels: map[string]string{"service": "api"}},
-		{ControlKey: controlKey, LabelSetHash: stageHash, Action: MappingActionNewFilter, Confidence: 0.9, Reasoning: "stage", ProposedFilterLabels: map[string]string{"service": "api"}},
+		{ControlKey: controlKey, LabelSetHash: prodHash, Confidence: 0.9, Reasoning: "prod", ProposedFilterLabels: map[string]string{"service": "api"}},
+		{ControlKey: controlKey, LabelSetHash: stageHash, Confidence: 0.9, Reasoning: "stage", ProposedFilterLabels: map[string]string{"service": "api"}},
 	})
 
 	// The stage mapping is rejected (evidence has env=stage, not prod); the prod
@@ -53,7 +53,7 @@ func TestValidateMappingsMandatoryKeyOnlySelector(t *testing.T) {
 	}
 
 	result := ValidateRawMappings(input, []RawMapping{
-		{ControlKey: controlKey, LabelSetHash: hash, Action: MappingActionNewFilter, Confidence: 0.9, Reasoning: "x", ProposedFilterLabels: map[string]string{"service": "api"}},
+		{ControlKey: controlKey, LabelSetHash: hash, Confidence: 0.9, Reasoning: "x", ProposedFilterLabels: map[string]string{"service": "api"}},
 	})
 
 	require.Len(t, result.Mappings, 1)
@@ -74,7 +74,7 @@ func TestValidateMappingsExcludedLabelsStripped(t *testing.T) {
 	}
 
 	result := ValidateRawMappings(input, []RawMapping{
-		{ControlKey: controlKey, LabelSetHash: hash, Action: MappingActionNewFilter, Confidence: 0.9, Reasoning: "x", ProposedFilterLabels: map[string]string{"env": "prod", "service": "api"}},
+		{ControlKey: controlKey, LabelSetHash: hash, Confidence: 0.9, Reasoning: "x", ProposedFilterLabels: map[string]string{"env": "prod", "service": "api"}},
 	})
 
 	require.Equal(t, 1, result.Counts["dropped_excluded_filter_labels"])
@@ -96,7 +96,7 @@ func TestValidateMappingsExcludedEmptiesRejected(t *testing.T) {
 	}
 
 	result := ValidateRawMappings(input, []RawMapping{
-		{ControlKey: controlKey, LabelSetHash: hash, Action: MappingActionNewFilter, Confidence: 0.9, Reasoning: "x", ProposedFilterLabels: map[string]string{"service": "api"}},
+		{ControlKey: controlKey, LabelSetHash: hash, Confidence: 0.9, Reasoning: "x", ProposedFilterLabels: map[string]string{"service": "api"}},
 	})
 
 	require.Equal(t, 1, result.Counts["rejected_excluded_emptied"])
@@ -105,29 +105,38 @@ func TestValidateMappingsExcludedEmptiesRejected(t *testing.T) {
 
 func TestValidateMappingsOnlyActionFiltersNewFilters(t *testing.T) {
 	controlKey := ControlKey(uuid.New(), "AC-1")
-	labels := map[string]string{"env": "prod"}
-	hash := CanonicalLabelSetHash(labels)
+	// Filter labels include _policy so the canonical hash matches the existing
+	// SSP filter exactly (the validator always injects _policy when present).
+	extendLabels := map[string]string{"env": "prod", "_policy": "p"}
+	newLabels := map[string]string{"env": "stage", "_policy": "p"}
+	extendHash := CanonicalLabelSetHash(extendLabels)
+	newHash := CanonicalLabelSetHash(newLabels)
+	filterHash := CanonicalLabelSetHash(extendLabels)
 	filterID := uuid.New()
 
 	input := CellInput{
-		Controls:       []ControlInput{{ControlKey: controlKey}},
-		LabelSets:      []LabelSetInput{{Hash: hash, Labels: labels}},
-		SameSSPFilters: []VisibleFilterInput{{ID: filterID, Name: "prod", LabelSetHash: &hash}},
+		Controls: []ControlInput{{ControlKey: controlKey}},
+		LabelSets: []LabelSetInput{
+			{Hash: extendHash, Labels: extendLabels},
+			{Hash: newHash, Labels: newLabels},
+		},
+		SameSSPFilters: []VisibleFilterInput{{ID: filterID, Name: "prod", LabelSetHash: &filterHash}},
 		Constraints: Constraints{
 			OnlyAction: MappingActionExtendFilter,
 		}.Normalize(),
 	}
 
 	result := ValidateRawMappings(input, []RawMapping{
-		// A genuine extend against an existing same-SSP filter survives.
-		{ControlKey: controlKey, LabelSetHash: hash, Action: MappingActionExtendFilter, TargetFilterID: filterID.String(), Confidence: 0.9, Reasoning: "extend", ProposedFilterLabels: map[string]string{"env": "prod"}},
-		// A new_filter mapping is filtered out.
-		{ControlKey: controlKey, LabelSetHash: hash, Action: MappingActionNewFilter, Confidence: 0.8, Reasoning: "new", ProposedFilterLabels: map[string]string{"env": "prod"}},
+		// Labels exactly match an existing same-SSP filter → deterministic extend; survives.
+		{ControlKey: controlKey, LabelSetHash: extendHash, Confidence: 0.9, Reasoning: "extend", ProposedFilterLabels: map[string]string{"env": "prod"}},
+		// Different labels match no existing filter → deterministic new_filter; filtered out.
+		{ControlKey: controlKey, LabelSetHash: newHash, Confidence: 0.8, Reasoning: "new", ProposedFilterLabels: map[string]string{"env": "stage"}},
 	})
 
 	require.Equal(t, 1, result.Counts["rejected_action_filtered"])
 	require.Len(t, result.Mappings, 1)
 	require.Equal(t, MappingActionExtendFilter, result.Mappings[0].Action)
+	require.Equal(t, &filterID, result.Mappings[0].TargetFilterID)
 }
 
 func TestConstraintsJSONMapRoundTrip(t *testing.T) {

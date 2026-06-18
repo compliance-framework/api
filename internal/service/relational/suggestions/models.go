@@ -91,6 +91,15 @@ type DashboardSuggestion struct {
 	// RemovedControlIds mirrors, onto every surviving group row, the control IDs
 	// removed from the group during edits, so the card can show them struck-out.
 	RemovedControlIds datatypes.JSONSlice[string] `json:"removedControlIds" gorm:"type:jsonb"`
+	// IsGeneralization marks rows produced by the deterministic filter-merge
+	// detector (Part 2). Such a row proposes the generalized label set G that
+	// merges several near-duplicate SSP filters that differ by one generalizable
+	// label. Accepting it moves controls onto G and off the source filters.
+	IsGeneralization bool `json:"isGeneralization" gorm:"not null;default:false"`
+	// SourceFilterIDs are the SSP filters this generalization merges, recorded so
+	// the UI can explain the merge and the accept path can detach controls from
+	// them. Nil on ordinary (non-generalization) rows.
+	SourceFilterIDs datatypes.JSONSlice[uuid.UUID] `json:"sourceFilterIds" gorm:"type:jsonb"`
 
 	Run                *DashboardSuggestionRun        `json:"-" gorm:"foreignKey:RunID;references:ID;constraint:OnDelete:CASCADE"`
 	SystemSecurityPlan *relational.SystemSecurityPlan `json:"-" gorm:"foreignKey:SSPID;references:ID"`

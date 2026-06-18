@@ -52,11 +52,14 @@ type RawMappings struct {
 	Mappings []RawMapping `json:"mappings"`
 }
 
+// RawMapping is the per-mapping shape the LLM returns. Filter targeting
+// (action, target filter) is no longer asked of the model: the engine computes
+// it deterministically from proposed_filter_labels in ValidateRawMappings. The
+// model still proposes a human-readable proposed_filter_name, which the engine
+// uses for new filters (falling back to a label-derived name when absent).
 type RawMapping struct {
 	ControlKey           string               `json:"control_key"`
 	LabelSetHash         string               `json:"label_set_hash"`
-	Action               string               `json:"action"`
-	TargetFilterID       string               `json:"target_filter_id,omitempty"`
 	ProposedFilterName   string               `json:"proposed_filter_name,omitempty"`
 	ProposedFilterLabels ProposedFilterLabels `json:"proposed_filter_labels,omitempty"`
 	Confidence           float64              `json:"confidence"`
@@ -124,9 +127,14 @@ func ValidateRawMappings(input CellInput, rawMappings []RawMapping) ValidationRe
 	for _, labelSet := range input.LabelSets {
 		labelSets[labelSet.Hash] = labelSet
 	}
-	sameSSPFilters := map[uuid.UUID]VisibleFilterInput{}
+	// Index this plan's own filters by their canonical label-set hash so filter
+	// targeting is a deterministic exact-match lookup. Global filters are never
+	// in SameSSPFilters, so they are never extended.
+	sameSSPFilterByHash := map[string]VisibleFilterInput{}
 	for _, filter := range input.SameSSPFilters {
-		sameSSPFilters[filter.ID] = filter
+		if filter.LabelSetHash != nil {
+			sameSSPFilterByHash[*filter.LabelSetHash] = filter
+		}
 	}
 
 	kept := map[string]ValidatedMapping{}
@@ -171,22 +179,19 @@ func ValidateRawMappings(input CellInput, rawMappings []RawMapping) ValidationRe
 			}
 		}
 
-		action := raw.Action
+		// Deterministic filter targeting: a filter's identity is its canonical
+		// label set. If this plan already has a filter with exactly these labels,
+		// extend it; otherwise it is a new filter. The LLM no longer decides this.
+		filterLabelHash := CanonicalLabelSetHash(filterLabels)
+		action := MappingActionNewFilter
 		var targetFilterID *uuid.UUID
-		if action == MappingActionExtendFilter {
-			parsed, err := uuid.Parse(strings.TrimSpace(raw.TargetFilterID))
-			filter, found := sameSSPFilters[parsed]
-			filterLabelHash := CanonicalLabelSetHash(filterLabels)
-			if err != nil || !found || filter.LabelSetHash == nil || *filter.LabelSetHash != filterLabelHash {
-				action = MappingActionNewFilter
-				counts["downgraded_extend_to_new"]++
-			} else {
-				targetFilterID = &parsed
-			}
-		}
-		if action != MappingActionExtendFilter {
-			action = MappingActionNewFilter
-			targetFilterID = nil
+		if filter, found := sameSSPFilterByHash[filterLabelHash]; found {
+			action = MappingActionExtendFilter
+			id := filter.ID
+			targetFilterID = &id
+			counts["resolved_extend"]++
+		} else {
+			counts["resolved_new"]++
 		}
 
 		if input.Constraints.OnlyAction != "" && action != input.Constraints.OnlyAction {
@@ -194,10 +199,13 @@ func ValidateRawMappings(input CellInput, rawMappings []RawMapping) ValidationRe
 			continue
 		}
 
-		name := strings.TrimSpace(raw.ProposedFilterName)
+		// The model proposes the filter name; the engine only decides targeting.
+		// New filters use the proposed name (falling back to a label-derived name).
+		var name string
 		if action == MappingActionNewFilter {
+			name = strings.TrimSpace(raw.ProposedFilterName)
 			if name == "" {
-				name = fallbackFilterName(labelSet.Labels)
+				name = fallbackFilterName(filterLabels)
 				counts["fallback_name"]++
 			}
 			if truncated, ok := truncateRunes(name, 120, ""); ok {

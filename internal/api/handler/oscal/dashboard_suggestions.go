@@ -140,6 +140,7 @@ func (h *DashboardSuggestionHandler) RegisterConfig(apiGroup *echo.Group) {
 
 func (h *DashboardSuggestionHandler) Register(apiGroup *echo.Group, auth echo.MiddlewareFunc) {
 	apiGroup.POST("/:id/dashboard-suggestions/generate", h.Generate, auth)
+	apiGroup.POST("/:id/dashboard-suggestions/generalize", h.Generalize, auth)
 	apiGroup.POST("/:id/dashboard-suggestions/preview", h.Preview, auth)
 	apiGroup.GET("/:id/dashboard-suggestions/label-sets", h.LabelSets, auth)
 	apiGroup.GET("/:id/dashboard-suggestions/label-keys", h.LabelKeys, auth)
@@ -273,6 +274,54 @@ func (h *DashboardSuggestionHandler) Generate(ctx echo.Context) error {
 
 	return ctx.JSON(http.StatusAccepted, handler.GenericDataResponse[dashboardSuggestionRunResponse]{
 		Data: dashboardSuggestionRunResponse{DashboardSuggestionRun: createdRun},
+	})
+}
+
+type generalizeDashboardSuggestionsResponse struct {
+	suggestionrel.DashboardSuggestionRun
+	Candidates int `json:"candidates"`
+	Inserted   int `json:"inserted"`
+}
+
+// Generalize godoc
+//
+//	@Summary		Suggest filter merges for an SSP
+//	@Description	Runs the deterministic filter-merge detector for this SSP and creates pending generalization suggestions for near-duplicate filters that differ only by one generalizable label. No LLM is involved.
+//	@Tags			Dashboard Suggestions
+//	@Produce		json
+//	@Param			id	path		string	true	"System Security Plan ID"
+//	@Success		200	{object}	handler.GenericDataResponse[oscal.generalizeDashboardSuggestionsResponse]
+//	@Failure		400	{object}	api.Error
+//	@Failure		401	{object}	api.Error
+//	@Failure		500	{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/oscal/system-security-plans/{id}/dashboard-suggestions/generalize [post]
+func (h *DashboardSuggestionHandler) Generalize(ctx echo.Context) error {
+	sspID, err := parseUUIDParam(ctx, "id")
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	actorID, err := h.actorUserID(ctx)
+	if err != nil {
+		return err
+	}
+	run, result, candidates, err := suggestionrel.NewSuggestionService(h.db.WithContext(ctx.Request().Context())).GenerateGeneralizations(sspID, suggestionrel.GeneralizationRunInput{
+		Model:                  h.modelName(),
+		PromptVersion:          suggestionrel.PromptVersion,
+		GeneralizableLabelKeys: h.generalizableLabelKeys(),
+		MinSharedControls:      h.generalizationMinSharedControls(),
+		MaxSuggestionsPerRun:   h.maxSuggestionsPerRun(),
+		ActorID:                actorID,
+	})
+	if err != nil {
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[generalizeDashboardSuggestionsResponse]{
+		Data: generalizeDashboardSuggestionsResponse{
+			DashboardSuggestionRun: run,
+			Candidates:             candidates,
+			Inserted:               result.Inserted,
+		},
 	})
 }
 
@@ -721,6 +770,27 @@ func (h *DashboardSuggestionHandler) maxCallsPerRun() int {
 		return 0
 	}
 	return h.cfg.MaxCallsPerRun
+}
+
+func (h *DashboardSuggestionHandler) maxSuggestionsPerRun() int {
+	if h.cfg == nil {
+		return 0
+	}
+	return h.cfg.MaxSuggestionsPerRun
+}
+
+func (h *DashboardSuggestionHandler) generalizableLabelKeys() []string {
+	if h.cfg == nil {
+		return nil
+	}
+	return h.cfg.GeneralizableLabelKeys
+}
+
+func (h *DashboardSuggestionHandler) generalizationMinSharedControls() int {
+	if h.cfg == nil {
+		return 0
+	}
+	return h.cfg.GeneralizationMinSharedControls
 }
 
 func (h *DashboardSuggestionHandler) modelName() string {

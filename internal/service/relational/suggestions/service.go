@@ -271,6 +271,24 @@ func (s *SuggestionService) Accept(sspID uuid.UUID, suggestionIDs []uuid.UUID, a
 				`, filterID, suggestion.ControlCatalogID, suggestion.ControlID).Error; err != nil {
 					return err
 				}
+				// Accepting a generalization moves the control onto the generalized
+				// filter G and off the near-duplicate source filters, so the control's
+				// evidence is not double-counted across G and a now-redundant specific
+				// filter. The generalized filter itself (when G already existed and is
+				// one of the sources) is never detached.
+				if suggestion.IsGeneralization {
+					for _, sourceID := range suggestion.SourceFilterIDs {
+						if sourceID == filterID {
+							continue
+						}
+						if err := tx.Exec(`
+							DELETE FROM filter_controls
+							WHERE filter_id = ? AND control_catalog_id = ? AND UPPER(control_id) = UPPER(?)
+						`, sourceID, suggestion.ControlCatalogID, suggestion.ControlID).Error; err != nil {
+							return err
+						}
+					}
+				}
 				if err := tx.Model(&DashboardSuggestion{}).
 					Where("id = ?", suggestion.ID).
 					Updates(map[string]any{

@@ -254,12 +254,10 @@ func (c *promptMappingClient) CompleteStructured(ctx context.Context, req llm.St
 	labelSetHash := firstPromptValue(combined, `"hash": "([^"]+)"`)
 	raw, err := json.Marshal(suggestionrel.RawMappings{Mappings: []suggestionrel.RawMapping{
 		{
-			ControlKey:         controlKey,
-			LabelSetHash:       labelSetHash,
-			Action:             suggestionrel.MappingActionNewFilter,
-			ProposedFilterName: "Dashboard " + labelSetHash[:8],
-			Confidence:         0.9,
-			Reasoning:          "Evidence satisfies the control and belongs to this system.",
+			ControlKey:   controlKey,
+			LabelSetHash: labelSetHash,
+			Confidence:   0.9,
+			Reasoning:    "Evidence satisfies the control and belongs to this system.",
 		},
 	}})
 	if err != nil {
