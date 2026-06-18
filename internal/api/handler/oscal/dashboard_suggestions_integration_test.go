@@ -376,6 +376,55 @@ func (suite *DashboardSuggestionsHTTPSuite) TestFlagOffDoesNotRegisterScopedRout
 	var response apihandler.GenericDataResponse[dashboardSuggestionConfigResponse]
 	suite.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &response))
 	suite.False(response.Data.Enabled)
+
+	rec, req = suite.req(http.MethodGet, fmt.Sprintf("/api/oscal/system-security-plans/%s/dashboard-suggestions/control-results", sspID), nil)
+	disabledServer.E().ServeHTTP(rec, req)
+	suite.Equal(http.StatusNotFound, rec.Code)
+}
+
+func (suite *DashboardSuggestionsHTTPSuite) TestControlResultsAuthEmptyAndLatestPerControl() {
+	sspID, controlKeys, _ := suite.seedScope([]string{"AC-1", "AC-2"}, []map[string]string{{"env": "prod"}})
+	catalogID, _ := suite.parseControlKey(controlKeys[0])
+
+	rec, req := suite.req(http.MethodGet, fmt.Sprintf("/api/oscal/system-security-plans/%s/dashboard-suggestions/control-results", sspID), nil)
+	suite.server.E().ServeHTTP(rec, req)
+	suite.Equal(http.StatusOK, rec.Code, rec.Body.String())
+	var empty apihandler.GenericDataListResponse[controlSuggestionResultResponse]
+	suite.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &empty))
+	suite.Empty(empty.Data)
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/oscal/system-security-plans/%s/dashboard-suggestions/control-results", sspID), nil)
+	suite.server.E().ServeHTTP(rec, req)
+	suite.Equal(http.StatusUnauthorized, rec.Code)
+
+	oldStartedAt := time.Now().UTC().Add(-2 * time.Hour)
+	newStartedAt := time.Now().UTC().Add(-1 * time.Hour)
+	oldRunID := suite.seedSuggestionRunStartedAt(sspID, oldStartedAt)
+	newRunID := suite.seedSuggestionRunStartedAt(sspID, newStartedAt)
+	oldEvaluatedAt := oldStartedAt.Add(time.Minute)
+	newEvaluatedAt := newStartedAt.Add(time.Minute)
+	suite.seedControlResult(oldRunID, sspID, catalogID, "AC-1", suggestionrel.DashboardSuggestionControlOutcomeMatched, 1, oldEvaluatedAt)
+	suite.seedControlResult(oldRunID, sspID, catalogID, "AC-2", suggestionrel.DashboardSuggestionControlOutcomeNoMatch, 0, oldEvaluatedAt)
+	suite.seedControlResult(newRunID, sspID, catalogID, "AC-1", suggestionrel.DashboardSuggestionControlOutcomeNoMatch, 0, newEvaluatedAt)
+
+	rec, req = suite.req(http.MethodGet, fmt.Sprintf("/api/oscal/system-security-plans/%s/dashboard-suggestions/control-results", sspID), nil)
+	suite.server.E().ServeHTTP(rec, req)
+	suite.Equal(http.StatusOK, rec.Code, rec.Body.String())
+	var response apihandler.GenericDataListResponse[controlSuggestionResultResponse]
+	suite.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &response))
+	suite.Require().Len(response.Data, 2)
+	byControl := map[string]controlSuggestionResultResponse{}
+	for _, result := range response.Data {
+		byControl[result.ControlID] = result
+	}
+	suite.Equal(newRunID, byControl["AC-1"].RunID)
+	suite.Equal(suggestionrel.DashboardSuggestionControlOutcomeNoMatch, byControl["AC-1"].Outcome)
+	suite.Equal(0, byControl["AC-1"].SuggestionCount)
+	suite.Equal(catalogID, byControl["AC-1"].ControlCatalogID)
+	suite.NotNil(byControl["AC-1"].EvaluatedAt)
+	suite.Equal(oldRunID, byControl["AC-2"].RunID)
+	suite.Equal(suggestionrel.DashboardSuggestionControlOutcomeNoMatch, byControl["AC-2"].Outcome)
 }
 
 func (suite *DashboardSuggestionsHTTPSuite) TestAiDiagnosticsSummaryTotalsAndCacheCheckTransition() {
@@ -936,6 +985,34 @@ func (suite *DashboardSuggestionsHTTPSuite) seedSuggestionRun(sspID uuid.UUID) u
 		Stats:         datatypes.JSONMap{},
 	}).Error)
 	return runID
+}
+
+func (suite *DashboardSuggestionsHTTPSuite) seedSuggestionRunStartedAt(sspID uuid.UUID, startedAt time.Time) uuid.UUID {
+	runID := uuid.New()
+	suite.Require().NoError(suite.DB.Create(&suggestionrel.DashboardSuggestionRun{
+		UUIDModel:     relational.UUIDModel{ID: &runID},
+		SSPID:         sspID,
+		Status:        "completed",
+		Model:         "test-model",
+		PromptVersion: suggestionrel.PromptVersion,
+		Scope:         datatypes.JSONMap{"controlKeys": []string{}, "labelSetHashes": []string{}},
+		PlannedCalls:  1,
+		StartedAt:     &startedAt,
+		Stats:         datatypes.JSONMap{},
+	}).Error)
+	return runID
+}
+
+func (suite *DashboardSuggestionsHTTPSuite) seedControlResult(runID uuid.UUID, sspID uuid.UUID, catalogID uuid.UUID, controlID string, outcome string, suggestionCount int, evaluatedAt time.Time) {
+	suite.Require().NoError(suite.DB.Create(&suggestionrel.DashboardSuggestionControlResult{
+		RunID:            runID,
+		SSPID:            sspID,
+		ControlCatalogID: catalogID,
+		ControlID:        controlID,
+		Outcome:          outcome,
+		SuggestionCount:  suggestionCount,
+		EvaluatedAt:      &evaluatedAt,
+	}).Error)
 }
 
 func (suite *DashboardSuggestionsHTTPSuite) seedDiagnosticsSSP(title string) uuid.UUID {

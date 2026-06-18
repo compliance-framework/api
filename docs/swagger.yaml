@@ -652,6 +652,15 @@ definitions:
         type: array
       meta: {}
     type: object
+  handler.GenericDataListResponse-oscal_controlSuggestionResultResponse:
+    properties:
+      data:
+        description: Items from the list response
+        items:
+          $ref: '#/definitions/oscal.controlSuggestionResultResponse'
+        type: array
+      meta: {}
+    type: object
   handler.GenericDataListResponse-oscal_dashboardSuggestionEventResponse:
     properties:
       data:
@@ -3376,6 +3385,21 @@ definitions:
     properties:
       profileId:
         type: string
+    type: object
+  oscal.controlSuggestionResultResponse:
+    properties:
+      controlCatalogId:
+        type: string
+      controlId:
+        type: string
+      evaluatedAt:
+        type: string
+      outcome:
+        type: string
+      runId:
+        type: string
+      suggestionCount:
+        type: integer
     type: object
   oscal.dashboardSuggestionConfigResponse:
     properties:
@@ -21221,6 +21245,40 @@ paths:
       security:
       - OAuth2Password: []
       summary: Accept dashboard suggestions
+      tags:
+      - Dashboard Suggestions
+  /oscal/system-security-plans/{id}/dashboard-suggestions/control-results:
+    get:
+      description: Returns the latest dashboard-suggestion evaluation outcome per
+        evaluated control.
+      parameters:
+      - description: System Security Plan ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-oscal_controlSuggestionResultResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: List dashboard suggestion control results for an SSP
       tags:
       - Dashboard Suggestions
   /oscal/system-security-plans/{id}/dashboard-suggestions/edit-group:

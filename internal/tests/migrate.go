@@ -188,6 +188,7 @@ func (t *TestMigrator) Up() error {
 		&suggestionrel.DashboardSuggestionRun{},
 		&suggestionrel.DashboardSuggestionRunCell{},
 		&suggestionrel.DashboardSuggestion{},
+		&suggestionrel.DashboardSuggestionControlResult{},
 		&suggestionrel.DashboardSuggestionEvent{},
 		&relational.Step{},
 	); err != nil {
@@ -308,6 +309,35 @@ func (t *TestMigrator) Up() error {
 			      ON DELETE CASCADE;
 			  END IF;
 			END $$;
+		`).Error; err != nil {
+			return err
+		}
+
+		if err := t.db.Exec(`
+			DO $$
+			BEGIN
+			  IF EXISTS (
+			    SELECT 1 FROM information_schema.columns
+			    WHERE table_name = 'dashboard_suggestion_control_results'
+			      AND column_name = 'run_id'
+			  ) AND NOT EXISTS (
+			    SELECT 1 FROM pg_constraint
+			    WHERE conname = 'fk_dashboard_suggestion_control_results_run'
+			  ) THEN
+			    ALTER TABLE dashboard_suggestion_control_results
+			      ADD CONSTRAINT fk_dashboard_suggestion_control_results_run
+			      FOREIGN KEY (run_id)
+			      REFERENCES dashboard_suggestion_runs(id)
+			      ON DELETE CASCADE;
+			  END IF;
+			END $$;
+		`).Error; err != nil {
+			return err
+		}
+
+		if err := t.db.Exec(`
+			CREATE UNIQUE INDEX IF NOT EXISTS idx_dashboard_suggestion_control_results_unique_run_control
+			ON dashboard_suggestion_control_results (run_id, control_catalog_id, control_id)
 		`).Error; err != nil {
 			return err
 		}
@@ -521,6 +551,7 @@ func (t *TestMigrator) Down() error {
 		"evidence_subjects",
 		&relational.Labels{},
 		&suggestionrel.DashboardSuggestionEvent{},
+		&suggestionrel.DashboardSuggestionControlResult{},
 		&suggestionrel.DashboardSuggestion{},
 		&suggestionrel.DashboardSuggestionRunCell{},
 		&suggestionrel.DashboardSuggestionRun{},

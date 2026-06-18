@@ -22,6 +22,9 @@ const (
 	DashboardSuggestionStatusAccepted   = "accepted"
 	DashboardSuggestionStatusRejected   = "rejected"
 	DashboardSuggestionStatusSuperseded = "superseded"
+
+	DashboardSuggestionControlOutcomeMatched = "matched"
+	DashboardSuggestionControlOutcomeNoMatch = "no_match"
 )
 
 type ChunkConfig struct {

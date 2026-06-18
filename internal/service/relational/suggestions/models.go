@@ -115,3 +115,21 @@ type DashboardSuggestion struct {
 func (DashboardSuggestion) TableName() string {
 	return "dashboard_suggestions"
 }
+
+type DashboardSuggestionControlResult struct {
+	relational.UUIDModel
+
+	RunID            uuid.UUID  `json:"runId" gorm:"type:uuid;not null"`
+	SSPID            uuid.UUID  `json:"sspId" gorm:"column:ssp_id;type:uuid;not null;index"`
+	ControlCatalogID uuid.UUID  `json:"controlCatalogId" gorm:"type:uuid;not null"`
+	ControlID        string     `json:"controlId" gorm:"type:text;not null"`
+	Outcome          string     `json:"outcome" gorm:"type:varchar(16);not null"`
+	SuggestionCount  int        `json:"suggestionCount" gorm:"not null;default:0"`
+	EvaluatedAt      *time.Time `json:"evaluatedAt"`
+
+	Run *DashboardSuggestionRun `json:"-" gorm:"foreignKey:RunID;references:ID;constraint:OnDelete:CASCADE"`
+}
+
+func (DashboardSuggestionControlResult) TableName() string {
+	return "dashboard_suggestion_control_results"
+}
