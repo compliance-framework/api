@@ -1,0 +1,13 @@
+lisa-addressed:
+Review pass (PR #428) — addressed 3 threads from @gusfcarvalho, commit 555f147:
+- authzen.go (errcheck BLOCKER, CI lint red): both `defer resp.Body.Close()` (post + Health)
+  now `defer func() { _ = resp.Body.Close() }()`; success path drains the body
+  (io.Copy(io.Discard, resp.Body)) for keep-alive reuse. golangci-lint v2.11.4 → 0 issues.
+- builtin.go: Evaluations now memoizes the admin verdict per subject for the batch
+  (evaluateAdmin ignores action, keys on subject) so /me/permissions no longer repeats the
+  user+SSO-link lookups per admin.* action. Facts stay in builtin (not moved to PEP, per the
+  Phase-1 design note). New integration test TestBuiltinEvaluationsMemoizesAdmin asserts
+  <=2 DB queries via a gorm query callback.
+- authzen.go deriveEvaluationsURL: now parses the URL and operates on the path so a trailing
+  slash or query string still derives the /evaluations batch URL (query preserved);
+  non-conventional paths still fall back to the same URL. New cases in TestNewAuthZenValidation.
