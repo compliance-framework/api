@@ -7,6 +7,7 @@ import (
 	templatehandlers "github.com/compliance-framework/api/internal/api/handler/templates"
 	"github.com/compliance-framework/api/internal/api/handler/workflows"
 	"github.com/compliance-framework/api/internal/api/middleware"
+	"github.com/compliance-framework/api/internal/authz"
 	"github.com/compliance-framework/api/internal/config"
 	"github.com/compliance-framework/api/internal/service/digest"
 	"github.com/compliance-framework/api/internal/service/notification"
@@ -41,6 +42,21 @@ func RegisterHandlers(server *api.Server, logger *zap.SugaredLogger, db *gorm.DB
 		services.EvidenceService = evidencesvc.NewEvidenceService(db, logger, config, services.RiskEnqueuer)
 	}
 
+	// Central authorization: construct the configured PDP once and wrap it in the single
+	// PEP. Routes enforce access via pep.Authorize(resource, action) instead of ad-hoc
+	// checks. The builtin driver reproduces the prior access rules with no behavior change.
+	authzDriver := ""
+	failMode := authz.FailClosed
+	if config.Authz != nil {
+		authzDriver = config.Authz.Driver
+		failMode = authz.ParseFailMode(config.Authz.FailMode)
+	}
+	pdp, err := authz.Open(authz.Options{Driver: authzDriver}, authz.Deps{DB: db, Config: config, Logger: logger})
+	if err != nil {
+		logger.Fatalw("Failed to initialize authorization PDP", "driver", authzDriver, "error", err)
+	}
+	pep := middleware.NewPEP(pdp, failMode, logger)
+
 	healthHandler := NewHealthHandler(logger, db)
 	healthHandler.Register(server.API().Group("/health"))
 
@@ -60,6 +76,7 @@ func RegisterHandlers(server *api.Server, logger *zap.SugaredLogger, db *gorm.DB
 	evidenceHandler.RegisterCreate(
 		evidenceGroup,
 		middleware.OptionalUserOrAgentJWTMiddleware(db, config.JWTPublicKey, !config.StrictDisablePublicAgentEndpoints),
+		pep.Authorize(authz.ResourceEvidence, authz.ActionCreate),
 	)
 	evidenceHandler.RegisterReadRoutes(evidenceGroup)
 	evidenceSignatureGroup := server.API().Group("/evidence")

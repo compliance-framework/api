@@ -1,0 +1,60 @@
+# CCF authorization vocabulary — the engine-neutral set of subjects, resources, actions
+# and suggested default roles that operator policies are written against. Treated as a
+# public contract: renaming an action or removing an attribute breaks every customer
+# policy set. Phase 1 (BCH-1313) ships this vocabulary plus the builtin driver; the
+# authoritative per-resource attribute surface is designed in BCH-1319, so the attributes
+# declared here are provisional and minimal.
+schemaVersion: 1
+
+subjects:
+  user:
+    attributes:
+      email: string
+      groups: set<string>
+      auth_method: string
+  agent:
+    attributes:
+      service_account: string
+      labels: set<string>
+
+resources:
+  evidence:
+    actions: [read, create, update, delete]
+    attributes:
+      labels: set<string>
+      owner: user
+  agent:
+    actions: [read, register, ingest]
+  catalog:
+    actions: [read, write]
+  poam:
+    actions: [read, write]
+  risk:
+    actions: [read, write, promote]
+  heartbeat:
+    actions: [read, ingest]
+  dashboard:
+    actions: [read, write]
+  admin:
+    # `manage` is the Phase-1 umbrella action every admin route enforces uniformly; the
+    # granular admin.* actions are the forward-looking vocabulary for later phases.
+    actions: [manage, users.manage, sso.manage, settings.manage]
+
+# Suggested default roles. Operators may override or extend these in their PAP.
+roles:
+  viewer:
+    evidence: [read]
+    catalog: [read]
+    poam: [read]
+    risk: [read]
+    dashboard: [read]
+  auditor:
+    evidence: [read, create]
+    poam: [read, write]
+    risk: [read, write]
+  agent:
+    evidence: [create]
+    heartbeat: [ingest]
+    agent: [ingest]
+  admin:
+    "*": ["*"]
