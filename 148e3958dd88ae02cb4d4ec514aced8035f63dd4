@@ -16,3 +16,8 @@ BCH-1313 — Phase 1 central authorization (PDP interface + builtin driver + PEP
 - Manifest embedded at internal/authz/manifest.yaml (go:embed) as default; LoadManifest(path) exists for override but no config key wired yet. Phase-1 vocabulary = evidence+admin only, attributes minimal/provisional per BCH-1319. builtin does NOT gate decisions on the manifest (declarative only).
 
 - Authorize() skips OPTIONS defensively; global echo CORS already short-circuits preflight.
+
+lisa-selfreview:
+Pass 1 (strict):
+- [low/correctness] internal/authz/builtin.go evaluateAdmin: DB queries did not propagate the request context. FIXED in this pass (threaded ctx + .WithContext(ctx) on both lookups).
+Considered and intentionally NOT changed: manifest location (deliberate, see lisa-design), reqCtx["method"] extra fact (for future drivers), deny-path logging (aligned with design's audit logging direction).
