@@ -41,6 +41,8 @@ func setDefaultEnvironmentVariables() {
 	viper.SetDefault("ai_queue_workers", "4")
 	viper.SetDefault("ai_max_calls_per_run", "0")
 	viper.SetDefault("ai_max_suggestions_per_run", "500")
+	viper.SetDefault("authz_driver", "builtin")
+	viper.SetDefault("authz_fail_mode", "closed")
 }
 
 func bindEnvironmentVariables() {
@@ -82,6 +84,8 @@ func bindEnvironmentVariables() {
 	viper.MustBindEnv("ai_queue_workers")
 	viper.MustBindEnv("ai_max_calls_per_run")
 	viper.MustBindEnv("ai_max_suggestions_per_run")
+	viper.MustBindEnv("authz_driver")
+	viper.MustBindEnv("authz_fail_mode")
 }
 
 func init() {

@@ -45,6 +45,7 @@ type Config struct {
 	PprofEnabled                      bool   // Enable or disable pprof debugging server
 	PprofPort                         string // Port for pprof debugging server
 	StrictDisablePublicAgentEndpoints bool
+	Authz                             *AuthzConfig
 }
 
 func NewConfig(logger *zap.SugaredLogger) *Config {
@@ -216,6 +217,8 @@ func NewConfig(logger *zap.SugaredLogger) *Config {
 		logger.Fatalw("Invalid AI config", "error", err)
 	}
 
+	authzConfig := LoadAuthzConfig()
+
 	// Worker configuration
 	workerConfig := DefaultWorkerConfig()
 	if viper.IsSet("worker_enabled") {
@@ -270,6 +273,7 @@ func NewConfig(logger *zap.SugaredLogger) *Config {
 		PprofEnabled:                      pprofEnabled,
 		PprofPort:                         pprofPort,
 		StrictDisablePublicAgentEndpoints: strictDisablePublicAgentEndpoints,
+		Authz:                             authzConfig,
 	}
 
 }
