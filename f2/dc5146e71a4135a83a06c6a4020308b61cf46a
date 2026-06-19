@@ -1,0 +1,12 @@
+lisa-selfreview:
+Pass 1 (strict) findings:
+- [medium] cache.go: unbounded cache growth. Expired entries are evicted only on re-read of
+  the same key (lazy expiry); a never-re-accessed key lingers for the process lifetime, so a
+  busy remote PDP with high-cardinality (subject,resource) tuples grows the entries map
+  without bound. FIX: opportunistic sweep of expired entries on put when the map crosses a
+  soft cap (no background goroutine).
+- [low] authzen.go: request timeout hardcoded at 5s (defaultAuthzenTimeout), not
+  configurable. Sensible default; design specifies no timeout key. DEFER.
+- [low] authzen.go: driver sends no auth credential to the PDP. Consistent with the design's
+  sidecar deployment model (§6, localhost-trusted) and the config surface (no auth field).
+  DEFER.
