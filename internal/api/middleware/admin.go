@@ -20,6 +20,11 @@ func RequireAdminGroups(db *gorm.DB, cfg *config.Config, logger *zap.SugaredLogg
 	if cfg != nil && cfg.Authz != nil {
 		failMode = authz.ParseFailMode(cfg.Authz.FailMode)
 	}
+	// Phase 1 hard-wires admin enforcement to the builtin driver, whereas the evidence PEP
+	// in api.go uses the config-selected driver via authz.Open. These are identical while
+	// builtin is the only/default driver; they diverge once a second driver is configured
+	// (admin would stay on builtin). A middleware constructor can't return an error to honor
+	// an arbitrary driver — route admin through authz.Open when a real second driver lands.
 	pep := NewPEP(authz.NewBuiltin(db, cfg, logger), failMode, logger)
 	return pep.Authorize(authz.ResourceAdmin, authz.ActionManage)
 }

@@ -36,7 +36,9 @@ resources:
   dashboard:
     actions: [read, write]
   admin:
-    actions: [users.manage, sso.manage, settings.manage]
+    # `manage` is the Phase-1 umbrella action every admin route enforces uniformly; the
+    # granular admin.* actions are the forward-looking vocabulary for later phases.
+    actions: [manage, users.manage, sso.manage, settings.manage]
 
 # Suggested default roles. Operators may override or extend these in their PAP.
 roles:

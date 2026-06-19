@@ -45,10 +45,10 @@ func NewBuiltin(db *gorm.DB, cfg *config.Config, logger *zap.SugaredLogger) *Bui
 }
 
 // Evaluate implements PDP.
-func (b *Builtin) Evaluate(_ context.Context, s Subject, _ string, r Resource, _ map[string]any) (Decision, error) {
+func (b *Builtin) Evaluate(ctx context.Context, s Subject, _ string, r Resource, _ map[string]any) (Decision, error) {
 	switch r.Type {
 	case ResourceAdmin:
-		return b.evaluateAdmin(s)
+		return b.evaluateAdmin(ctx, s)
 	default:
 		// Phase 1: authenticated = allowed. The authn middleware already enforced
 		// authentication (and any public-endpoint policy) before the PEP runs, so any
@@ -77,13 +77,13 @@ func (b *Builtin) Evaluations(ctx context.Context, reqs []EvalRequest) ([]Decisi
 // and when SSO is disabled or no admin groups are configured, access is allowed. A
 // genuine DB failure loading the user is returned as an error (the PEP maps it to 500,
 // preserving the prior behavior); every other denial is a clean deny (mapped to 403).
-func (b *Builtin) evaluateAdmin(s Subject) (Decision, error) {
+func (b *Builtin) evaluateAdmin(ctx context.Context, s Subject) (Decision, error) {
 	if s.Type != "user" || s.ID == "" {
 		return Decision{Allow: false, Reason: "missing authentication claims"}, nil
 	}
 
 	var user relational.User
-	if err := b.db.Where("email = ?", s.ID).First(&user).Error; err != nil {
+	if err := b.db.WithContext(ctx).Where("email = ?", s.ID).First(&user).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return Decision{Allow: false, Reason: "user not found"}, nil
 		}
@@ -101,7 +101,7 @@ func (b *Builtin) evaluateAdmin(s Subject) (Decision, error) {
 	}
 
 	var link relational.SSOUserLink
-	if err := b.db.
+	if err := b.db.WithContext(ctx).
 		Where("user_id = ? AND deleted_at IS NULL", user.ID.String()).
 		Order("last_sync DESC").
 		First(&link).Error; err != nil {

@@ -51,8 +51,11 @@ type PDP interface {
 	Evaluations(ctx context.Context, reqs []EvalRequest) ([]Decision, error)
 }
 
-// Resource and action identifiers for the routes migrated in Phase 1. These mirror the
-// vocabulary declared in manifest.yaml.
+// Resource and action identifiers for the routes migrated in Phase 1, all declared in
+// manifest.yaml. ResourceEvidence with ActionCreate/ActionRead maps directly to the
+// evidence actions. ActionManage is the Phase-1 umbrella admin action: every admin route
+// enforces it uniformly, while the manifest also declares the granular admin.* actions
+// (users.manage, sso.manage, settings.manage) for later phases to enforce per-route.
 const (
 	ResourceAdmin    = "admin"
 	ResourceEvidence = "evidence"

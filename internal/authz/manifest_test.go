@@ -11,7 +11,11 @@ func TestDefaultManifestParses(t *testing.T) {
 		t.Fatalf("SchemaVersion = %d, want %d", m.SchemaVersion, supportedManifestSchemaVersion)
 	}
 
-	// The migrated routes' resources must be present in the vocabulary.
+	// The migrated routes' resources must be present in the vocabulary. The enforced
+	// umbrella admin action (ActionManage) and the granular admin.* actions both apply.
+	if !m.HasAction(ResourceAdmin, ActionManage) {
+		t.Errorf("manifest missing enforced admin action %q; resources=%v", ActionManage, m.Resources)
+	}
 	if !m.HasAction(ResourceAdmin, "users.manage") {
 		t.Errorf("manifest missing admin action users.manage; resources=%v", m.Resources)
 	}

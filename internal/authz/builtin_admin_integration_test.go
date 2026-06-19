@@ -66,6 +66,22 @@ func evalAdmin(t *testing.T, db *gorm.DB, cfg *config.Config, email string) Deci
 	return dec
 }
 
+// TestBuiltinAdminGenuineDBErrorReturnsError locks in the single branch where the builtin
+// returns a non-nil error (which the PEP maps to 500, NOT 403): a genuine DB failure
+// loading the user. Forced by querying a DB where the users table was never migrated, so
+// gorm returns "no such table" — which is not gorm.ErrRecordNotFound.
+func TestBuiltinAdminGenuineDBErrorReturnsError(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	// Intentionally do NOT migrate relational.User.
+
+	b := NewBuiltin(db, ssoEnabledConfig([]string{"ccf-admins"}), zap.NewNop().Sugar())
+	dec, evalErr := b.Evaluate(context.Background(),
+		Subject{Type: "user", ID: "sso@example.com"}, ActionManage, Resource{Type: ResourceAdmin}, nil)
+	require.Error(t, evalErr, "a non-RecordNotFound DB failure must surface as an error (→500), not a deny")
+	require.False(t, dec.Allow)
+}
+
 // TestBuiltinAdminDecisionMatrix locks in zero-behavior-change for the admin-group
 // enforcement that moved out of the old RequireAdminGroups middleware. Each case mirrors
 // a branch of the original logic.
