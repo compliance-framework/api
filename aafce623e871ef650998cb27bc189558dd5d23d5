@@ -1,0 +1,2 @@
+lisa-addressed:
+- builtin authz admin DB lookups now use WithContext(ctx) (pass 1 self-review finding).
