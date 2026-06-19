@@ -1,0 +1,6 @@
+lisa-addressed:
+Pass 1 fix: cache.go now bounds memory. Added maxCacheEntries soft cap (4096); put() sweeps
+expired entries (under the existing lock, using the put's `now`) before inserting when the
+map is at the cap. New test TestCacheEvictsExpiredAtCap. Deferred (not bugs): hardcoded 5s
+authzen request timeout and absence of a PDP auth header — both consistent with the design
+(sensible default; localhost sidecar trust model).
