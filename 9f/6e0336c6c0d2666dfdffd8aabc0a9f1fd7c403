@@ -1,0 +1,37 @@
+lisa-design:
+BCH-1315 — AuthZ Phase 3 (authzen HTTP driver + batch Evaluations + /me/permissions), builds on Phase 1 (#427).
+
+- One config key by design: `authz.endpoint` is the single Access Evaluation URL; the batch
+  (Evaluations) URL is DERIVED by AuthZen convention (`/evaluation` -> `/evaluations`),
+  falling back to the same URL for PDPs that serve both at one path. Do not add a second
+  endpoint key — the design mandates "one config key".
+- Fail-mode contract lives in the HTTP error classification: transport failure / context
+  timeout / 5xx / 429 wrap authz.ErrUnavailable (the PEP then applies authz.fail_mode);
+  any OTHER non-2xx (4xx) is a plain error the PEP maps to 500. Rationale: a compliant
+  AuthZen PDP returns its allow/deny verdict as a 200 body, so a 4xx is our bug/auth issue,
+  not a deny. Don't reclassify 4xx as unavailable.
+- Decision cache (authz.cache_ttl) is a GENERIC decorator (cache.go) applied in authz.Open
+  when CacheTTL>0, not baked into the authzen driver. It caches only successful decisions
+  (errors/unavailable never cached); key = sha256 of the FULL tuple (subject incl. props,
+  action, resource incl. props, context) so nothing that changes a decision is dropped;
+  Evaluations serves hits locally and batches only misses into ONE inner call; lazy expiry;
+  forwards Health to the inner PDP. Default 0 = disabled (builtin gains nothing).
+- /me/permissions does TYPE-LEVEL capability checks (no resource instance ID, no request
+  context) over the full manifest vocabulary in a single batch Evaluations call. It honors
+  fail_mode (closed -> empty permissions so the UI hides everything; open -> full
+  vocabulary). Every manifest resource is always present in the response (possibly empty
+  allow-list) so the UI knows the whole vocabulary. Ordering deterministic (resources
+  sorted, actions in manifest order).
+- Subject derivation is single-sourced: exported middleware.SubjectFromContext (was the
+  unexported subjectFromContext) is reused by the handler so /me/permissions and the PEP
+  build identical subjects. Don't duplicate subject logic in the handler.
+- Route is `/me/permissions` (matches the UI contract in BCH-1318), deliberately NOT
+  `/users/me/permissions` despite the existing /users/me group.
+- /health/ready gained an OPTIONAL PDP dependency check via the new authz.Healther
+  interface. builtin does NOT implement Healther (in-process, can't fail) so it's treated
+  as healthy; authzen probes {origin}/.well-known/authzen-configuration with a 2s timeout.
+- Scope held deliberately tight: did NOT rewrite existing list endpoints to filter via
+  batch Evaluations (premature before the BCH-1319 attribute surface); the concrete batch
+  consumer shipped is /me/permissions. Did NOT grow Subject/Resource attributes (BCH-1319
+  owns the authoritative surface). cedar/permit/openfga, ccf authz export/sync, and audit
+  logging are other phases.
