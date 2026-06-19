@@ -59,10 +59,32 @@ func (b *Builtin) Evaluate(ctx context.Context, s Subject, _ string, r Resource,
 	}
 }
 
-// Evaluations implements PDP by evaluating each request independently, in order.
+// Evaluations implements PDP by evaluating each request independently, in order. Admin
+// decisions are memoized per subject for the batch: evaluateAdmin ignores the action and
+// keys only on the subject, so a batch enumerating several admin.* actions (e.g.
+// /me/permissions) would otherwise repeat the same user + SSO-link DB lookups once per
+// action. The memo keeps the facts inside the builtin driver and preserves both ordering
+// and the error path.
 func (b *Builtin) Evaluations(ctx context.Context, reqs []EvalRequest) ([]Decision, error) {
+	type adminKey struct{ subjectType, subjectID string }
+	adminMemo := map[adminKey]Decision{}
+
 	out := make([]Decision, len(reqs))
 	for i, req := range reqs {
+		if req.Resource.Type == ResourceAdmin {
+			key := adminKey{req.Subject.Type, req.Subject.ID}
+			if d, ok := adminMemo[key]; ok {
+				out[i] = d
+				continue
+			}
+			d, err := b.Evaluate(ctx, req.Subject, req.Action, req.Resource, req.Context)
+			if err != nil {
+				return nil, err
+			}
+			adminMemo[key] = d
+			out[i] = d
+			continue
+		}
 		d, err := b.Evaluate(ctx, req.Subject, req.Action, req.Resource, req.Context)
 		if err != nil {
 			return nil, err

@@ -54,6 +54,16 @@ func TestNewAuthZenValidation(t *testing.T) {
 	if d2.evalsURL != "https://pdp.internal/decide" {
 		t.Errorf("evalsURL fallback = %q, want same as eval URL", d2.evalsURL)
 	}
+	// Near-miss inputs (trailing slash, query string) still derive the batch URL.
+	derive := []struct{ in, want string }{
+		{"https://pdp.internal/access/v1/evaluation/", "https://pdp.internal/access/v1/evaluations"},
+		{"https://pdp.internal/access/v1/evaluation?tenant=x", "https://pdp.internal/access/v1/evaluations?tenant=x"},
+	}
+	for _, tc := range derive {
+		if got := newDriver(t, tc.in).evalsURL; got != tc.want {
+			t.Errorf("evalsURL for %q = %q, want %q", tc.in, got, tc.want)
+		}
+	}
 }
 
 // TestEvaluateRequestShapeConformance asserts the wire request matches the AuthZen

@@ -138,3 +138,35 @@ func TestBuiltinAdminDecisionMatrix(t *testing.T) {
 		require.False(t, evalAdmin(t, db, ssoEnabledConfig([]string{"ccf-admins"}), "ghost@example.com").Allow)
 	})
 }
+
+// TestBuiltinEvaluationsMemoizesAdmin proves the per-batch admin memo: enumerating several
+// admin.* actions for one subject (as /me/permissions does) resolves the admin facts with a
+// single set of DB queries instead of one set per action.
+func TestBuiltinEvaluationsMemoizesAdmin(t *testing.T) {
+	db := setupAuthzDB(t)
+	cfg := ssoEnabledConfig([]string{"ccf-admins"})
+	user := createUser(t, db, "sso@example.com", "sso")
+	createSSOLink(t, db, user, "test", []string{"ccf-admins"})
+
+	var queries int
+	require.NoError(t, db.Callback().Query().After("gorm:query").Register("count_queries", func(*gorm.DB) {
+		queries++
+	}))
+
+	b := NewBuiltin(db, cfg, zap.NewNop().Sugar())
+	adminActions := []string{"manage", "users.manage", "sso.manage", "settings.manage"}
+	reqs := make([]EvalRequest, len(adminActions))
+	for i, a := range adminActions {
+		reqs[i] = EvalRequest{Subject: Subject{Type: "user", ID: "sso@example.com"}, Action: a, Resource: Resource{Type: ResourceAdmin}}
+	}
+
+	decs, err := b.Evaluations(context.Background(), reqs)
+	require.NoError(t, err)
+	require.Len(t, decs, len(adminActions))
+	for i, d := range decs {
+		require.Truef(t, d.Allow, "admin action %q should be allowed for an admin user", adminActions[i])
+	}
+	// One admin resolution = user row + SSO link = 2 queries. Without the memo this batch
+	// would issue 8 (2 × 4 actions); the memo keeps it at the single-resolution cost.
+	require.LessOrEqualf(t, queries, 2, "admin facts should resolve once (<=2 queries), got %d", queries)
+}

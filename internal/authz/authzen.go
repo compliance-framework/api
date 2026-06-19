@@ -65,11 +65,19 @@ func NewAuthZen(endpoint string, logger *zap.SugaredLogger) (*AuthZen, error) {
 }
 
 // deriveEvaluationsURL maps the single-evaluation URL to its batch sibling using the
-// AuthZen path convention (/access/v1/evaluation → /access/v1/evaluations). PDPs that
-// serve both at one path still work: the original URL is used unchanged.
+// AuthZen path convention (/access/v1/evaluation → /access/v1/evaluations). It operates on
+// the parsed path so a trailing slash or a query string doesn't defeat the match, and the
+// query is preserved. PDPs that serve both at one path still work: any path that isn't a
+// /evaluation suffix returns the original URL unchanged.
 func deriveEvaluationsURL(eval string) string {
-	if strings.HasSuffix(eval, "/evaluation") {
-		return strings.TrimSuffix(eval, "/evaluation") + "/evaluations"
+	u, err := url.Parse(eval)
+	if err != nil {
+		return eval
+	}
+	p := strings.TrimSuffix(u.Path, "/")
+	if strings.HasSuffix(p, "/evaluation") {
+		u.Path = strings.TrimSuffix(p, "/evaluation") + "/evaluations"
+		return u.String()
 	}
 	return eval
 }
@@ -176,7 +184,7 @@ func (a *AuthZen) Health(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("authz: authzen PDP unreachable (%v): %w", err, ErrUnavailable)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 1<<10))
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return fmt.Errorf("authz: authzen PDP health returned %s: %w", resp.Status, ErrUnavailable)
@@ -204,7 +212,7 @@ func (a *AuthZen) post(ctx context.Context, endpoint string, payload any, out an
 	if err != nil {
 		return fmt.Errorf("authz: authzen request to %s failed (%v): %w", endpoint, err, ErrUnavailable)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	switch {
 	case resp.StatusCode >= 200 && resp.StatusCode < 300:
@@ -218,6 +226,9 @@ func (a *AuthZen) post(ctx context.Context, endpoint string, payload any, out an
 	if err := json.NewDecoder(resp.Body).Decode(out); err != nil {
 		return fmt.Errorf("authz: decode authzen response from %s: %w", endpoint, err)
 	}
+	// Drain any trailing bytes (e.g. a newline after the JSON value) so net/http can return
+	// the connection to the keep-alive pool instead of re-handshaking on the next decision.
+	_, _ = io.Copy(io.Discard, resp.Body)
 	return nil
 }
 
