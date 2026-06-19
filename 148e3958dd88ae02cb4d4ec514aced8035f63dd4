@@ -1,0 +1,18 @@
+lisa-design:
+BCH-1313 — Phase 1 central authorization (PDP interface + builtin driver + PEP). Zero behavior change is the acceptance bar. Decisions a reviewer must not unknowingly revert:
+
+- builtin driver SELF-FETCHES admin facts (user row, SSOUserLink, provider config) via the DB+config it is built with, rather than the PEP exporting them into the tuple. Deliberate Phase-1 choice: the in-process builtin engine reproduces today's behavior with the exact same queries. The fact-export / per-resource attribute surface (so remote PDPs get groups in the tuple) is the critical task deferred to BCH-1319. Do NOT move these DB lookups into the generic PEP without BCH-1319's attribute design.
+
+- builtin.evaluateAdmin mirrors old middleware.RequireAdminGroups branch-for-branch (user-not-found->deny, non-sso user->allow, sso disabled->allow, missing SSO link->deny, unknown provider->deny, no required groups->allow, group check case-insensitive). Only the user-load path distinguishes RecordNotFound(deny/403) from other DB errors(error->500); SSO-link load returns deny(403) on ANY error, matching the original.
+
+- PEP error mapping: explicit Decision.Allow=false -> 403 (reason logged, never echoed). Evaluator ERROR with fail_mode=closed -> 500 (NOT 403): an evaluator error is an internal failure and this preserves the prior RequireAdminGroups 500-on-DB-error. fail_mode=open -> allow. Do not collapse error->403.
+
+- evidence_auth.go (OptionalUserOrAgentJWTMiddleware) intentionally UNCHANGED. It remains the authn layer returning 401 for missing creds (strict) and 403 for bad/expired agent keys. Authorize("evidence","create", WithPublicAccess(!strict)) was ADDED after it, preserving authn(401) vs authz(403). builtin evidence rule: authenticated subject->allow; anonymous->allow only when allow_public set. On strict deployments anonymous never reaches the PEP (authn 401s first).
+
+- middleware.RequireAdminGroups kept as a thin wrapper delegating to NewAuthorizerFromConfig(db,cfg,logger).Authorize("admin","manage"). Do NOT delete: workflows/import_integration_test.go + api.go/oscal admin routes use it. It respects config.AuthZ.Driver.
+
+- Config keys are FLAT snake_case to match internal/config: authz_driver (CCF_AUTHZ_DRIVER, default builtin), authz_fail_mode (CCF_AUTHZ_FAIL_MODE, default closed). The design doc's nested authz.driver YAML is illustrative only.
+
+- Manifest embedded at internal/authz/manifest.yaml (go:embed) as default; LoadManifest(path) exists for override but no config key wired yet. Phase-1 vocabulary = evidence+admin only, attributes minimal/provisional per BCH-1319. builtin does NOT gate decisions on the manifest (declarative only).
+
+- Authorize() skips OPTIONS defensively; global echo CORS already short-circuits preflight.
