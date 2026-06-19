@@ -1,0 +1,5 @@
+lisa-selfreview:
+Pass 1 (strict). Build/vet/unit + admin & evidence integration tests all green.
+- [medium][test] authz.Builtin.evaluateAdmin holds the relocated admin-group logic, but only its DENY path (missing required groups → 403) is exercised by the existing TestWorkflowImportRouteRequiresAdminGroup. The allow/edge paths (password=super-admin, SSO disabled, no required groups, SSO user WITH required group, user-not-found) have no direct test. Fix: add a sqlite-backed integration test of the admin decision matrix to lock in zero-behavior-change for the moved logic. -> ADDRESSING THIS PASS.
+- [info][intentional, do-not-fix] RequireAdminGroups hard-wires the builtin driver while evidence uses the config-selected driver via authz.Open. Identical in Phase 1 (builtin is the only/default driver); RequireAdminGroups can't return an error to honor an arbitrary configured driver. Documented in lisa-design.
+- [info][intentional] Deny responses are generic 403 (reason logged, not echoed) per design; only status is asserted by tests. Evidence read routes remain public (unchanged); only the create route (where evidence_auth.go's middleware lived) gains Authorize.
