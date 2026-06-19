@@ -3,6 +3,7 @@ package authz
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 )
@@ -145,6 +146,27 @@ func TestCacheBatchPartialMiss(t *testing.T) {
 	}
 	if inner.batchCalls != 1 {
 		t.Errorf("inner batch calls after warm cache = %d, want 1", inner.batchCalls)
+	}
+}
+
+// TestCacheEvictsExpiredAtCap proves the soft cap: once the map is full, putting a fresh
+// entry sweeps the expired ones instead of growing without bound.
+func TestCacheEvictsExpiredAtCap(t *testing.T) {
+	inner := &countingPDP{allow: map[string]bool{}}
+	c := newCachingPDP(inner, time.Minute, nil).(*cachingPDP)
+
+	now := time.Now()
+	// Fill to the cap with already-expired entries (expires in the past).
+	for i := 0; i < maxCacheEntries; i++ {
+		c.entries[fmt.Sprintf("stale-%d", i)] = cacheEntry{expires: now.Add(-time.Hour)}
+	}
+	if len(c.entries) != maxCacheEntries {
+		t.Fatalf("preloaded %d entries, want %d", len(c.entries), maxCacheEntries)
+	}
+	// One put at the cap should sweep the expired entries before inserting.
+	c.put("fresh", Decision{Allow: true}, now)
+	if len(c.entries) != 1 {
+		t.Errorf("entries after sweep = %d, want 1 (all stale evicted, one fresh)", len(c.entries))
 	}
 }
 

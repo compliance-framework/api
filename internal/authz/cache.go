@@ -29,6 +29,12 @@ type cacheEntry struct {
 	expires  time.Time
 }
 
+// maxCacheEntries bounds the cache so a long-running process with high-cardinality
+// (subject, resource) tuples can't grow it without limit. When the map reaches this size a
+// put first sweeps expired entries; given the short TTL this is normally enough to keep it
+// well under the cap (it's a soft cap, not a hard reservoir, so no LRU bookkeeping).
+const maxCacheEntries = 4096
+
 func newCachingPDP(inner PDP, ttl time.Duration, logger *zap.SugaredLogger) PDP {
 	if logger == nil {
 		logger = zap.NewNop().Sugar()
@@ -81,6 +87,15 @@ func (c *cachingPDP) put(key string, d Decision, now time.Time) {
 		return
 	}
 	c.mu.Lock()
+	// Opportunistic eviction: only when we're at the cap, and only entries already past
+	// their TTL — bounded, cheap, and never drops a live decision.
+	if len(c.entries) >= maxCacheEntries {
+		for k, e := range c.entries {
+			if now.After(e.expires) {
+				delete(c.entries, k)
+			}
+		}
+	}
 	c.entries[key] = cacheEntry{decision: d, expires: now.Add(c.ttl)}
 	c.mu.Unlock()
 }
