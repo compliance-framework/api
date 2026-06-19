@@ -45,20 +45,33 @@ func RegisterHandlers(server *api.Server, logger *zap.SugaredLogger, db *gorm.DB
 	// Central authorization: construct the configured PDP once and wrap it in the single
 	// PEP. Routes enforce access via pep.Authorize(resource, action) instead of ad-hoc
 	// checks. The builtin driver reproduces the prior access rules with no behavior change.
-	authzDriver := ""
+	authzOpts := authz.Options{}
 	failMode := authz.FailClosed
 	if config.Authz != nil {
-		authzDriver = config.Authz.Driver
+		authzOpts.Driver = config.Authz.Driver
+		authzOpts.Endpoint = config.Authz.Endpoint
+		authzOpts.CacheTTL = config.Authz.CacheTTL
 		failMode = authz.ParseFailMode(config.Authz.FailMode)
 	}
-	pdp, err := authz.Open(authz.Options{Driver: authzDriver}, authz.Deps{DB: db, Config: config, Logger: logger})
+	pdp, err := authz.Open(authzOpts, authz.Deps{DB: db, Config: config, Logger: logger})
 	if err != nil {
-		logger.Fatalw("Failed to initialize authorization PDP", "driver", authzDriver, "error", err)
+		logger.Fatalw("Failed to initialize authorization PDP", "driver", authzOpts.Driver, "error", err)
 	}
 	pep := middleware.NewPEP(pdp, failMode, logger)
+	authzManifest, err := authz.DefaultManifest()
+	if err != nil {
+		logger.Fatalw("Failed to load authorization manifest", "error", err)
+	}
 
-	healthHandler := NewHealthHandler(logger, db)
+	healthHandler := NewHealthHandler(logger, db).WithPDP(pdp)
 	healthHandler.Register(server.API().Group("/health"))
+
+	// /me/permissions: the authenticated subject's allowed (resource, action) pairs via a
+	// single batch PDP call, so the UI can hide actions the user can't perform (BCH-1318).
+	permissionsHandler := NewPermissionsHandler(pdp, authzManifest, failMode, logger)
+	meGroup := server.API().Group("/me")
+	meGroup.Use(middleware.JWTMiddleware(config.JWTPublicKey))
+	permissionsHandler.Register(meGroup)
 
 	filterHandler := NewFilterHandler(logger, db)
 	filterGroup := server.API().Group("/filters")
