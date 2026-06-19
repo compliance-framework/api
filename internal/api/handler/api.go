@@ -41,6 +41,11 @@ func RegisterHandlers(server *api.Server, logger *zap.SugaredLogger, db *gorm.DB
 		services.EvidenceService = evidencesvc.NewEvidenceService(db, logger, config, services.RiskEnqueuer)
 	}
 
+	// Central authorization PEP. Admin routes continue to go through
+	// middleware.RequireAdminGroups (itself now backed by this PEP); routes
+	// migrated onto Authorize() in this phase use it directly.
+	authorizer := middleware.NewAuthorizerFromConfig(db, config, logger)
+
 	healthHandler := NewHealthHandler(logger, db)
 	healthHandler.Register(server.API().Group("/health"))
 
@@ -60,6 +65,7 @@ func RegisterHandlers(server *api.Server, logger *zap.SugaredLogger, db *gorm.DB
 	evidenceHandler.RegisterCreate(
 		evidenceGroup,
 		middleware.OptionalUserOrAgentJWTMiddleware(db, config.JWTPublicKey, !config.StrictDisablePublicAgentEndpoints),
+		authorizer.Authorize("evidence", "create", middleware.WithPublicAccess(!config.StrictDisablePublicAgentEndpoints)),
 	)
 	evidenceHandler.RegisterReadRoutes(evidenceGroup)
 	evidenceSignatureGroup := server.API().Group("/evidence")

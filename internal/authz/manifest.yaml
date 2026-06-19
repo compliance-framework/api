@@ -1,0 +1,34 @@
+# CCF authorization vocabulary — engine-neutral declaration of the resources,
+# actions and default roles that operator policies are written against.
+#
+# This file is treated as a PUBLIC API surface: renaming an action or attribute
+# is a breaking change for every customer policy set (see the "CCF Pluggable
+# Authorization — Design Plan").
+#
+# Phase 1 (BCH-1313) scope: only the vocabulary for the routes migrated onto the
+# Authorize() PEP — evidence and admin. The per-resource evaluation *attribute*
+# surface is intentionally minimal/provisional here; the authoritative attribute
+# design is gated on BCH-1319. Do not grow the attribute surface ad hoc.
+schemaVersion: 1
+
+subjects:
+  user:
+    attributes:
+      email: string
+      groups: set<string>
+      auth_method: string
+  agent:
+    attributes:
+      service_account: string
+
+resources:
+  evidence:
+    actions: [create, read]
+    attributes:
+      labels: set<string>   # provisional — see BCH-1319
+  admin:
+    actions: [manage]
+
+roles:   # suggested defaults — operators may override / extend in their PAP
+  admin:
+    "*": ["*"]

@@ -45,6 +45,7 @@ type Config struct {
 	PprofEnabled                      bool   // Enable or disable pprof debugging server
 	PprofPort                         string // Port for pprof debugging server
 	StrictDisablePublicAgentEndpoints bool
+	AuthZ                             *AuthZConfig
 }
 
 func NewConfig(logger *zap.SugaredLogger) *Config {
@@ -233,6 +234,7 @@ func NewConfig(logger *zap.SugaredLogger) *Config {
 
 	pprofEnabled := viper.GetBool("pprof_enabled")
 	strictDisablePublicAgentEndpoints := viper.GetBool("strict_disable_public_agent_endpoints")
+	authzConfig := loadAuthZConfig()
 	pprofPort := viper.GetString("pprof_port")
 	if pprofPort == "" {
 		pprofPort = "6060"
@@ -270,6 +272,7 @@ func NewConfig(logger *zap.SugaredLogger) *Config {
 		PprofEnabled:                      pprofEnabled,
 		PprofPort:                         pprofPort,
 		StrictDisablePublicAgentEndpoints: strictDisablePublicAgentEndpoints,
+		AuthZ:                             authzConfig,
 	}
 
 }
