@@ -57,7 +57,7 @@ const ctxKeyAllowPublic = "allow_public"
 
 func (p *builtinPDP) Evaluate(ctx context.Context, s Subject, action string, r Resource, reqCtx map[string]any) (Decision, error) {
 	if r.Type == ResourceAdmin {
-		return p.evaluateAdmin(s)
+		return p.evaluateAdmin(ctx, s)
 	}
 
 	// Default rule: authenticated subjects are allowed.
@@ -89,7 +89,7 @@ func (p *builtinPDP) Evaluations(ctx context.Context, reqs []EvalRequest) ([]Dec
 // failure (e.g. DB read error) which the PEP surfaces as 500 — matching the
 // prior behavior where loading the user could fail with 500. Every explicit
 // deny is returned as Decision{Allow:false} (mapped to 403 by the PEP).
-func (p *builtinPDP) evaluateAdmin(s Subject) (Decision, error) {
+func (p *builtinPDP) evaluateAdmin(ctx context.Context, s Subject) (Decision, error) {
 	email := subjectEmail(s)
 	if email == "" {
 		// Unreachable in practice: admin routes run JWT authn first, which
@@ -98,7 +98,7 @@ func (p *builtinPDP) evaluateAdmin(s Subject) (Decision, error) {
 	}
 
 	var user relational.User
-	if err := p.db.Where("email = ?", email).First(&user).Error; err != nil {
+	if err := p.db.WithContext(ctx).Where("email = ?", email).First(&user).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return Decision{Allow: false, Reason: "user not found"}, nil
 		}
@@ -116,7 +116,7 @@ func (p *builtinPDP) evaluateAdmin(s Subject) (Decision, error) {
 	}
 
 	var link relational.SSOUserLink
-	if err := p.db.
+	if err := p.db.WithContext(ctx).
 		Where("user_id = ? AND deleted_at IS NULL", user.ID.String()).
 		Order("last_sync DESC").
 		First(&link).Error; err != nil {
