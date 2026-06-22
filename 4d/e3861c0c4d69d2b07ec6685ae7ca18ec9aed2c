@@ -1,0 +1,5 @@
+lisa-selfreview:
+Pass 1 (strict) — all low severity, fixing now:
+- [low] assignments.go lowerKeys: comment claims "later duplicates win, deterministic" but Go map iteration is unordered, so a case-collision winner is nondeterministic. Correct the comment to be honest (operators should not list a principal twice).
+- [low] cedar_test.go: no test that create/list routes (empty Resource.ID) authorize by entity TYPE. Add a case.
+- [low] cedar_test.go: factory CedarPolicyDir branch is untested end-to-end (only loadOperatorPolicies directly). Add a factory+policy-dir test.
