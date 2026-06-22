@@ -1,0 +1,5 @@
+lisa-selfreview:
+Pass 1 (strict) findings:
+- [medium][test] cmd/authz has no automated test ("[no test files]"). The export command (format flag, stdout vs -o file output, unknown-format error) is only manually smoke-tested. Add cmd/authz/export_test.go driving the cobra command. -> FIX
+- [low][by-design] Decision audit logging emits one Info line per authorized request (ticket requires "on every PEP call"); high-traffic log volume is inherent to the requirement, no config toggle added (out of scope). -> DISMISS (intended)
+- [low][verification] Cedar/OpenFGA exports are structurally validated by substring/uniqueness tests but not parsed by a real cedar-go/openfga library (those engines are BCH-1316/later; adding the deps now is scope creep). -> DISMISS (deferred)
