@@ -1,0 +1,2 @@
+lisa-addressed:
+Pass 1: added cmd/authz/export_test.go (drives the cobra export command: default json on stdout, --format=cedar, -o file write, unknown-format error). Dismissed (intended): per-request audit log volume is the ticket requirement; Cedar/OpenFGA not parsed by a real engine library (deferred to BCH-1316).
