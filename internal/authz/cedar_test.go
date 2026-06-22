@@ -110,6 +110,24 @@ func TestCedarRBACMatrix(t *testing.T) {
 	}
 }
 
+// Create/list routes carry no instance id; the bundled policies decide on the resource TYPE,
+// so an empty Resource.ID must authorize exactly as a non-empty one does.
+func TestCedarEmptyResourceID(t *testing.T) {
+	c := mustCedar(t, &RoleAssignments{Users: map[string]string{"c@x": "contributor"}})
+	subj := Subject{Type: "user", ID: "c@x"}
+	d, err := c.Evaluate(context.Background(), subj, "create", Resource{Type: "evidence", ID: ""}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !d.Allow {
+		t.Error("contributor create evidence with empty id: want allow")
+	}
+	d, _ = c.Evaluate(context.Background(), subj, "manage", Resource{Type: "admin", ID: ""}, nil)
+	if d.Allow {
+		t.Error("contributor manage admin with empty id: want deny")
+	}
+}
+
 // A subject with no assigned role is denied without consulting Cedar, and the reason marks it.
 func TestCedarDenyNoRole(t *testing.T) {
 	c := mustCedar(t, &RoleAssignments{})
@@ -308,6 +326,33 @@ func TestCedarFactory(t *testing.T) {
 	cfgBad := &config.Config{Authz: &config.AuthzConfig{Driver: "cedar", RoleAssignmentsPath: badFile}}
 	if _, err := cedarFactory(Options{}, Deps{Config: cfgBad, Logger: zap.NewNop().Sugar()}); err == nil {
 		t.Error("cedarFactory(unknown role) error = nil, want error")
+	}
+}
+
+// The factory honors CedarPolicyDir end-to-end: operator .cedar files are appended to the
+// bundled roles and take effect through the constructed PDP.
+func TestCedarFactoryLoadsPolicyDir(t *testing.T) {
+	dir := t.TempDir()
+	rolesFile := filepath.Join(dir, "authz-roles.yaml")
+	if err := os.WriteFile(rolesFile, []byte("users:\n  v@x: viewer\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	policyDir := filepath.Join(dir, "policies")
+	if err := os.Mkdir(policyDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(policyDir, "extra.cedar"), []byte(
+		"permit (\n  principal in CCF::Role::\"viewer\",\n  action in [CCF::Action::\"create\"],\n  resource is CCF::Evidence\n);\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg := &config.Config{Authz: &config.AuthzConfig{Driver: "cedar", RoleAssignmentsPath: rolesFile, CedarPolicyDir: policyDir}}
+	pdp, err := cedarFactory(Options{}, Deps{Config: cfg, Logger: zap.NewNop().Sugar()})
+	if err != nil {
+		t.Fatalf("cedarFactory() error = %v", err)
+	}
+	d, err := pdp.Evaluate(context.Background(), Subject{Type: "user", ID: "v@x"}, "create", Resource{Type: "evidence"}, nil)
+	if err != nil || !d.Allow {
+		t.Errorf("operator policy via factory: allow=%v err=%v, want allow", d.Allow, err)
 	}
 }
 

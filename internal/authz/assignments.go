@@ -63,8 +63,9 @@ func (ra *RoleAssignments) normalize() {
 	}
 }
 
-// lowerKeys returns a copy of m with its keys trimmed and lowercased. Later duplicates (keys
-// that collide once lowercased) win, which is deterministic for a config the operator writes.
+// lowerKeys returns a copy of m with its keys trimmed and lowercased, so user/group matching
+// is case-insensitive. An operator should not list the same principal twice under different
+// casing; if they do, which grant survives is unspecified (Go map iteration is unordered).
 func lowerKeys(m map[string]string) map[string]string {
 	if len(m) == 0 {
 		return m
