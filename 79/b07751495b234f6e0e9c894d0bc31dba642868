@@ -1,0 +1,6 @@
+lisa-design:
+BCH-1315 ticket rescoped 2026-06-22 (OSS BYO-PDP seam) + BCH-1319 (page 2584772610) finalized. Boundary confirmed with Gus:
+- C1/C2 attribute RESOLVERS / PIP = BCH-1314 (full manifest, gated by BCH-1319), NOT BCH-1315. The authzen driver only TRANSPORTS the tuple — it already maps Subject.Props->subject.properties and Resource.Props->resource.properties (+context), so it needs ZERO change when resolvers land. Do not add resolvers here.
+- List-endpoint batch filtering also = BCH-1314 (filters on resolved attrs ssp_id/owned_by/labels). The batch Evaluations CAPABILITY + /me/permissions consumer are the BCH-1315 deliverables and are done.
+- gRPC/IPC transport = Enterprise BCH-1078 (BCH-1319 §11.5); BCH-1315 is HTTP/AuthZen only and is the reusable seam (authz.Register + authz.PDP).
+- AuthZen interop conformance tests ARE BCH-1315 scope -> added authzen_conformance_test.go (commit 79b0775): wire-shape conformance (single + batch), response variants, properties push channel, interop Todo scenario via batch.
