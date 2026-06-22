@@ -1,0 +1,5 @@
+lisa-addressed:
+Pass 1 fixes applied:
+- assignments.go lowerKeys comment corrected (no false determinism claim on case-collision).
+- Added TestCedarEmptyResourceID (create/list empty Resource.ID authorizes by type).
+- Added TestCedarFactoryLoadsPolicyDir (factory CedarPolicyDir branch end-to-end).
