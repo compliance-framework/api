@@ -17,22 +17,38 @@ var embeddedManifest []byte
 // treated as a public contract — renaming an action or removing an attribute is a
 // breaking change for every customer policy set.
 type Manifest struct {
-	SchemaVersion int                            `yaml:"schemaVersion"`
-	Subjects      map[string]SubjectDef          `yaml:"subjects"`
-	Resources     map[string]ResourceDef         `yaml:"resources"`
-	Roles         map[string]map[string][]string `yaml:"roles"`
+	SchemaVersion int                            `yaml:"schemaVersion" json:"schemaVersion"`
+	Subjects      map[string]SubjectDef          `yaml:"subjects" json:"subjects,omitempty"`
+	Resources     map[string]ResourceDef         `yaml:"resources" json:"resources"`
+	Roles         map[string]map[string][]string `yaml:"roles" json:"roles,omitempty"`
 }
 
 // SubjectDef declares the attributes a subject type exports into the evaluation tuple.
 type SubjectDef struct {
-	Attributes map[string]string `yaml:"attributes"`
+	Attributes map[string]string `yaml:"attributes" json:"attributes,omitempty"`
 }
 
-// ResourceDef declares a resource's actions and the attributes it exports. The attribute
-// set is provisional in Phase 1 (BCH-1319 designs the authoritative surface).
+// ResourceDef declares a resource's actions and the attributes it exports. Attributes are
+// the C0/C1/C2 static props the PEP supplies directly (a request param or one resource-row
+// load); Context holds relationship attributes that don't fit a static prop and are
+// resolved lazily by a PIP (BCH-1319 §7.1, §8).
 type ResourceDef struct {
-	Actions    []string          `yaml:"actions"`
-	Attributes map[string]string `yaml:"attributes"`
+	Actions    []string               `yaml:"actions" json:"actions"`
+	Attributes map[string]string      `yaml:"attributes,omitempty" json:"attributes,omitempty"`
+	Context    map[string]ContextAttr `yaml:"context,omitempty" json:"context,omitempty"`
+}
+
+// ContextAttr declares a relationship attribute exposed in the evaluation tuple's context
+// rather than as a static subject or resource prop. These are (subject × resource)
+// relationship attributes (e.g. oscal_roles, assigned_to) the PEP cannot read from a single
+// row; a PIP resolves them lazily when a policy references them (BCH-1319 §7.1, §8). They
+// are declared in the public contract now but reserved — no resolver or policy consumes
+// them yet — so they are kept out of the static Attributes map until then.
+type ContextAttr struct {
+	Type         string `yaml:"type" json:"type"`
+	Relationship string `yaml:"relationship,omitempty" json:"relationship,omitempty"`
+	Status       string `yaml:"status,omitempty" json:"status,omitempty"`
+	Note         string `yaml:"note,omitempty" json:"note,omitempty"`
 }
 
 const supportedManifestSchemaVersion = 1
@@ -78,6 +94,16 @@ func (m *Manifest) validate() error {
 	}
 	if len(m.Resources) == 0 {
 		return fmt.Errorf("authz: manifest declares no resources")
+	}
+	for name, def := range m.Resources {
+		if len(def.Actions) == 0 {
+			return fmt.Errorf("authz: resource %q declares no actions", name)
+		}
+		for attr, c := range def.Context {
+			if c.Type == "" {
+				return fmt.Errorf("authz: resource %q context attribute %q has no type", name, attr)
+			}
+		}
 	}
 	return nil
 }

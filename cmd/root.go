@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/compliance-framework/api/cmd/authz"
 	"github.com/compliance-framework/api/cmd/dashboards"
 	"github.com/compliance-framework/api/cmd/oscal"
 	"github.com/compliance-framework/api/cmd/seed"
@@ -107,6 +108,7 @@ func init() {
 
 	// Subcommands
 	rootCmd.AddCommand(RunCmd)
+	rootCmd.AddCommand(authz.RootCmd)
 	rootCmd.AddCommand(oscal.RootCmd)
 	rootCmd.AddCommand(users.RootCmd)
 	rootCmd.AddCommand(seed.RootCmd)
