@@ -17,7 +17,13 @@ const (
 
 type UserClaims struct {
 	jwt.RegisteredClaims
-	TokenKind  string `json:"token_kind"`
+	TokenKind string `json:"token_kind"`
+	// UserUUID is the user's primary-key UUID (users.ID). Subject stays the email — the
+	// canonical cross-system key — while UserUUID lets owner-based policies match the
+	// ownership FKs (risk/poam owner, workflow/dashboard creator) without a per-request
+	// email→user lookup. Additive and currently consumed by no policy (BCH-1314 / BCH-1319
+	// §7); it ships ahead of the owner policies so issued ~24h tokens already carry it.
+	UserUUID   string `json:"user_uuid,omitempty"`
 	GivenName  string `json:"given_name"`
 	FamilyName string `json:"family_name"`
 }
@@ -37,6 +43,10 @@ type AgentClaims struct {
 
 func GenerateJWTToken(user *relational.User, privateKey *rsa.PrivateKey) (*string, error) {
 	now := time.Now()
+	var userUUID string
+	if user.ID != nil {
+		userUUID = user.ID.String()
+	}
 	claims := UserClaims{
 		RegisteredClaims: jwt.RegisteredClaims{
 			Issuer:    "compliance-framework",
@@ -46,6 +56,7 @@ func GenerateJWTToken(user *relational.User, privateKey *rsa.PrivateKey) (*strin
 			NotBefore: jwt.NewNumericDate(now),
 		},
 		TokenKind:  TokenKindUser,
+		UserUUID:   userUUID,
 		GivenName:  user.FirstName,
 		FamilyName: user.LastName,
 	}

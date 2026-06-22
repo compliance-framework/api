@@ -1,60 +1,298 @@
-# CCF authorization vocabulary — the engine-neutral set of subjects, resources, actions
-# and suggested default roles that operator policies are written against. Treated as a
-# public contract: renaming an action or removing an attribute breaks every customer
-# policy set. Phase 1 (BCH-1313) ships this vocabulary plus the builtin driver; the
-# authoritative per-resource attribute surface is designed in BCH-1319, so the attributes
-# declared here are provisional and minimal.
+# CCF authorization vocabulary — the engine-neutral set of subjects, resources, actions,
+# attributes and suggested default roles that operator policies are written against.
+#
+# Treated as a PUBLIC CONTRACT (parent design §3.1, §6; BCH-1314):
+#   * adding a resource / action / attribute is a MINOR (additive) change — but each
+#     exported attribute carries a per-request data-fetch cost, so additions are reviewed;
+#   * renaming or removing a resource / action / attribute is a MAJOR (breaking) change:
+#     every operator policy referencing it stops evaluating as intended.
+#
+# The attribute surface is the authoritative one designed and reviewed in BCH-1319
+# ("Per-Resource Evaluation Attribute Surface"). Resources cluster into six archetypes so
+# the contract stays small; a new resource just declares which archetype it follows:
+#   A  OSCAL document      — props (+ ssp status; + inventory ssp_id)
+#   B  SSP-scoped register — ssp_id, owned_by, status, source_type
+#   C  Telemetry / ingest  — evidence: stream_uuid, labels, props; heartbeat: none
+#   D  Workflow record     — parent_id, owned_by, status (+ instance ssp_id); assigned_to reserved
+#   E  Dashboard / config  — ssp_id
+#   F  Platform / admin    — is_active / is_locked; notification owned_by
+#
+# Attribute COST CLASSES (BCH-1319 §1.1): C0 free (URL param / JWT claim), C1 one row on
+# the resource's own table, C2 a join / second read resolved lazily by a PIP.
+#
+# TIERING (BCH-1319 §11.4): this manifest DECLARES the full surface (C0/C1/C2) for both
+# tiers — declaring is not honoring. The OSS embedded Cedar engine is DESIGNED to honor C0
+# (the global-RBAC roles below); C1/C2 attributes are honored by the Enterprise external PDP
+# or a BYO PDP. This file declares everything and ships the C0 role set, but does not wire
+# any of it into an engine. IMPORTANT: the current builtin driver does NOT consume these
+# roles yet — it allows every authenticated non-admin request and only gates `admin` via SSO
+# groups (zero behavior change). C0 RBAC enforcement against this role set arrives with the
+# embedded Cedar engine (BCH-1316); C1/C2 stay Enterprise/BYO.
 schemaVersion: 1
 
+# ── Subjects ────────────────────────────────────────────────────────────────────────────
+# The actor a decision is made about. subject.id stays the email — the canonical
+# cross-system key (SSO match, OSCAL-party crosswalk) — while user_uuid (a new JWT claim,
+# BCH-1319 §7) matches the ownership FKs in owned_by with no per-request join.
 subjects:
   user:
     attributes:
-      email: string
-      groups: set<string>
-      auth_method: string
+      email: string          # C0 — JWT Subject; stays the canonical subject.id
+      user_uuid: uuid        # C0 — new JWT claim; matches owned_by (the ownership FK)
+      groups: set<string>    # C2 — native CCF groups ∪ SSO groups (BCH-1328), cached
+      auth_method: string    # C1 — password | sso | ...
   agent:
     attributes:
-      service_account: string
-      labels: set<string>
+      service_account: string # C0
+      auth_method: string     # C0
+      labels: set<string>     # C1
 
+# ── Resources ───────────────────────────────────────────────────────────────────────────
+# One resource per /api route-group (~30 aggregate roots). Nested sub-documents (BackMatter,
+# Metadata, system-characteristics, …) are NOT resources — they inherit their aggregate
+# root and are authorized on the root id (BCH-1319 §4.8). Cross-document references are not
+# cross-checked in v1: authorize each root independently (BCH-1319 §4.8, §9).
 resources:
+
+  # ── Archetype C: telemetry / ingest ──
   evidence:
     actions: [read, create, update, delete]
     attributes:
-      labels: set<string>
-      owner: user
-  agent:
-    actions: [read, register, ingest]
-  catalog:
-    actions: [read, write]
-  poam:
-    actions: [read, write]
-  risk:
-    actions: [read, write, promote]
+      stream_uuid: uuid          # observation-stream id, stable across re-runs
+      labels: map<string,string> # C2 — first-class searchable labels (the primary ABAC case)
+      props: set<string>         # C1
   heartbeat:
-    actions: [read, ingest]
-  dashboard:
-    actions: [read, write]
-  admin:
-    # `manage` is the Phase-1 umbrella action every admin route enforces uniformly; the
-    # granular admin.* actions are the forward-looking vocabulary for later phases.
-    actions: [manage, users.manage, sso.manage, settings.manage]
+    actions: [read, ingest]      # subject-type gate only — no resource attributes
 
-# Suggested default roles. Operators may override or extend these in their PAP.
+  # ── Archetype A: OSCAL authoring documents (all carry the OSCAL props bag) ──
+  catalog:
+    actions: [read, create, update, delete]
+    attributes:
+      props: set<string>
+  profile:
+    actions: [read, create, update, delete]
+    attributes:
+      props: set<string>
+  component-definition:
+    actions: [read, create, update, delete]
+    attributes:
+      props: set<string>
+  ssp:
+    # The tenancy boundary: ssp_id is the scope key for risk, poam_item, filter,
+    # dashboard-suggestion and workflow-instance.
+    actions: [read, create, update, delete]
+    attributes:
+      props: set<string>
+      status: string
+    context:
+      oscal_roles:
+        type: set<string>
+        relationship: subject-resource
+        status: reserved
+        note: >-
+          OSCAL responsible-roles the subject holds on THIS SSP (BCH-1319 §7.1). Resource-
+          scoped, resolved per request by the OSS PIP; reserved until BCH-1329 formalizes
+          the User↔Party crosswalk. Exposed as context.oscal_roles, never a static prop.
+  assessment-plan:
+    actions: [read, create, update, delete]
+    attributes:
+      props: set<string>
+  assessment-results:
+    actions: [read, create, update, delete]
+    attributes:
+      props: set<string>
+  poam_oscal:
+    # The OSCAL POAM document (standards artifact); the relational register item is poam_item.
+    actions: [read, create, update, delete]
+    attributes:
+      props: set<string>
+  inventory:
+    actions: [read, create, update, delete]
+    attributes:
+      props: set<string>
+      ssp_id: uuid               # inventory items belong to an SSP's system-implementation
+  party:
+    actions: [read, create, update, delete]
+    attributes:
+      props: set<string>
+  role:
+    # OSCAL role uses a STRING id, not a uuid (BCH-1319 §2).
+    actions: [read, create, update, delete]
+    attributes:
+      props: set<string>
+  activity:
+    actions: [read, create, update, delete]
+    attributes:
+      props: set<string>
+
+  # ── Archetype B: SSP-scoped register items ──
+  risk:
+    actions: [read, create, update, delete, promote]
+    attributes:
+      ssp_id: uuid               # C0 on /system-security-plans/:sspId/risks, else C1
+      owned_by: set<string>      # PrimaryOwnerUserID — matches subject.user_uuid
+      status: string
+      source_type: string        # manual | evidence-auto | oscal-import | risk-promotion
+  poam_item:
+    actions: [read, create, update, delete]
+    attributes:
+      ssp_id: uuid
+      owned_by: set<string>
+      status: string
+      source_type: string
+
+  # ── Archetype E: dashboard / config (SSP-scoped) ──
+  filter:
+    actions: [read, create, update, delete]
+    attributes:
+      ssp_id: uuid
+  dashboard-suggestion:
+    actions: [read, create, update, delete]
+    attributes:
+      ssp_id: uuid
+
+  # ── Archetype D: workflow engine ──
+  # owned_by = created_by/triggered_by; assigned_to is the engine's own assignment vector,
+  # left enforced in the handlers for v1 and reserved here as a context attribute (§4.5).
+  workflow-definition:
+    actions: [read, create, update, delete]
+    attributes:
+      owned_by: set<string>
+  workflow-step-definition:
+    actions: [read, create, update, delete]
+    attributes:
+      parent_id: uuid
+  workflow-instance:
+    actions: [read, create, update, delete]
+    attributes:
+      ssp_id: uuid
+      owned_by: set<string>
+      is_active: bool
+  workflow-execution:
+    actions: [read, create, update, delete]
+    attributes:
+      parent_id: uuid
+      owned_by: set<string>
+      status: string
+  step-execution:
+    actions: [read, create, update, delete]
+    attributes:
+      parent_id: uuid
+      status: string
+    context:
+      assigned_to:
+        type: set<string>
+        relationship: subject-resource
+        status: reserved
+        note: >-
+          Workflow assignment principal(s) {type: user|group|email, id}. Enforced in the
+          handlers for v1 (BCH-1319 §4.5); reserved so a later migration into central
+          policy is additive, not breaking.
+  role-assignment:
+    actions: [read, create, update, delete]
+    attributes:
+      parent_id: uuid
+      is_active: bool
+    context:
+      assigned_to:
+        type: set<string>
+        relationship: subject-resource
+        status: reserved
+        note: Reserved — see step-execution.assigned_to (BCH-1319 §4.5).
+  control-relationship:
+    actions: [read, create, update, delete]
+    attributes:
+      parent_id: uuid
+
+  # ── Archetype F: platform / admin ──
+  # The Phase-1 `admin` umbrella is retained as the resource the admin enforcement gates on
+  # (RequireAdminGroups → Authorize(admin, manage)), so behavior is unchanged. The split
+  # resources below are the forward-looking granular vocabulary (BCH-1319 §4.6) the granular
+  # admin.* actions bind to; per-route granular enforcement migrates onto them later.
+  admin:
+    actions: [manage, users.manage, sso.manage, settings.manage]
+  user:
+    actions: [read, create, update, delete]
+    attributes:
+      owned_by: set<string>      # self == subject.user_uuid (the /users/me path)
+      is_active: bool
+      is_locked: bool
+  agent:
+    actions: [read, create, update, delete, register, ingest]
+    attributes:
+      is_active: bool
+  notification:
+    actions: [read, create, update, delete]
+    attributes:
+      owned_by: set<string>      # subscription UserID
+  risk-template:
+    actions: [read, create, update, delete]
+    attributes:
+      is_active: bool
+  subject-template:
+    actions: [read, create, update, delete]
+    attributes:
+      props: set<string>
+  digest:
+    actions: [trigger]           # action-only (admin)
+  ai-diagnostics:
+    actions: [read]              # read-only over suggestion runs (admin)
+  import:
+    actions: [execute]           # action-only bulk import (creates many docs); admin
+
+# ── Roles ───────────────────────────────────────────────────────────────────────────────
+# The OSS global-RBAC policy set: four fixed roles (admin/contributor/auditor/viewer) plus
+# the agent service role. These reference C0 only — they are resource→actions maps with no
+# attribute conditions — which is the C0 policy set the embedded Cedar engine is DESIGNED to
+# honor (BCH-1319 §11.1, §11.3; enforcement lands with BCH-1316). The current builtin driver
+# does not consume these roles yet. Operators may override or extend them in their PAP. "*"
+# means all resources / all actions.
 roles:
+  # Full access.
+  admin:
+    "*": ["*"]
+
+  # Read everything; cannot write.
   viewer:
-    evidence: [read]
-    catalog: [read]
-    poam: [read]
-    risk: [read]
-    dashboard: [read]
+    "*": [read]
+
+  # Read everything; record evidence and maintain the risk/poam register (the audit loop).
   auditor:
+    "*": [read]
     evidence: [read, create]
-    poam: [read, write]
-    risk: [read, write]
+    risk: [read, create, update, promote]
+    poam_item: [read, create, update]
+
+  # Author content (OSCAL docs, register items, workflows, dashboards, evidence); no
+  # platform/admin management.
+  contributor:
+    "*": [read]
+    evidence: [read, create, update, delete]
+    catalog: [read, create, update, delete]
+    profile: [read, create, update, delete]
+    component-definition: [read, create, update, delete]
+    ssp: [read, create, update, delete]
+    assessment-plan: [read, create, update, delete]
+    assessment-results: [read, create, update, delete]
+    poam_oscal: [read, create, update, delete]
+    inventory: [read, create, update, delete]
+    party: [read, create, update, delete]
+    role: [read, create, update, delete]
+    activity: [read, create, update, delete]
+    risk: [read, create, update, delete, promote]
+    poam_item: [read, create, update, delete]
+    filter: [read, create, update, delete]
+    dashboard-suggestion: [read, create, update, delete]
+    workflow-definition: [read, create, update, delete]
+    workflow-step-definition: [read, create, update, delete]
+    workflow-instance: [read, create, update, delete]
+    workflow-execution: [read, create, update, delete]
+    step-execution: [read, create, update, delete]
+    role-assignment: [read, create, update, delete]
+    control-relationship: [read, create, update, delete]
+
+  # Service accounts: ingest telemetry and register.
   agent:
     evidence: [create]
     heartbeat: [ingest]
-    agent: [ingest]
-  admin:
-    "*": ["*"]
+    agent: [register, ingest]

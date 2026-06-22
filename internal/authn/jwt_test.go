@@ -47,6 +47,37 @@ func TestUserAndAgentTokensAreSeparated(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestGenerateJWTToken_IncludesUserUUID(t *testing.T) {
+	privateKey, publicKey, err := config.GenerateKeyPair(2048)
+	require.NoError(t, err)
+
+	userID := uuid.New()
+	user := &relational.User{
+		UUIDModel: relational.UUIDModel{ID: &userID},
+		Email:     "owner@example.com",
+	}
+	token, err := GenerateJWTToken(user, privateKey)
+	require.NoError(t, err)
+
+	claims, err := VerifyJWTToken(*token, publicKey)
+	require.NoError(t, err)
+	require.Equal(t, user.Email, claims.Subject, "subject stays the email")
+	require.Equal(t, userID.String(), claims.UserUUID, "user_uuid claim carries users.ID")
+}
+
+func TestGenerateJWTToken_NilUserIDOmitsUUID(t *testing.T) {
+	privateKey, publicKey, err := config.GenerateKeyPair(2048)
+	require.NoError(t, err)
+
+	// A user with no ID set must not panic and must simply omit the claim.
+	token, err := GenerateJWTToken(&relational.User{Email: "noid@example.com"}, privateKey)
+	require.NoError(t, err)
+
+	claims, err := VerifyJWTToken(*token, publicKey)
+	require.NoError(t, err)
+	require.Empty(t, claims.UserUUID)
+}
+
 func TestVerifyJWTToken_RejectsEvidenceSignatureToken(t *testing.T) {
 	privateKey, publicKey, err := config.GenerateKeyPair(2048)
 	require.NoError(t, err)
