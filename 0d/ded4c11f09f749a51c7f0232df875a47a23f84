@@ -1,0 +1,42 @@
+lisa-addressed:
+---
+Comment (internal/authz/cedar.go:178):
+**[Medium] Principal/resource entity-UID collision silently drops the principal's roles.**
+
+`principal` is written into `entities` at line 175 carrying the role parents, then `resource` is written here. When both resolve to the **same** Cedar UID, this second write overwrites the principal entity and replaces its role parents with an empty set, so `principal in CCF::Role::"…"` no longer matches and the request is **denied even though the role grants it**.
+
+This happens whenever a principal acts on a resource of its own kind with `resource.ID == subject.ID`: a `user` subject on a `user` resource, or an `agent` subject on an `agent` resource (both `principalUID` and `resourceUID` produce `CCF::User`/`CCF::Agent` for those, since `cedarEntityName("agent") == "Agent"`). It is *not* reachable by the two routes wired today (`evidence:create`, `admin:manage`), but the manifest's `agent` role explicitly grants the `agent` resource (`register`, `ingest`), so it goes live the moment an agent self-route is wired with the agent id as `:id`.
+
+Confirmed empirically: agent `ingest` on the `agent` resource → **allow** with empty id, **allow** with a different id, **deny** when the id equals the agent's own subject id.
+
+The resource id is meant to be irrelevant to a C0 (type-only) decision, which is what makes this so easy to miss. Fix: don't let the resource entity clobber the principal entity — when they share a UID the principal entity already satisfies `resource is CCF::Agent` (same type) while keeping its parents:
+
+```go
+if resource != principal {
+    entities[resource] = cedar.Entity{UID: resource, Parents: cedar.NewEntityUIDSet()}
+}
+```
+
+A regression test (agent `ingest` on `Resource{Type:"agent", ID: <subject.ID>}` must allow) would lock it in.
+Replies:
+**lisa implementation guidance:** Agreed — real bug. Fix in Cedar.decide: guard the resource entity write so it never clobbers the principal entity (which carries the role parents). When principal==resource UID, the principal entity already satisfies `resource is CCF::Agent`/`CCF::User` (same type) while keeping its parents. Adding regression test: agent `ingest` on Resource{Type:"agent", ID:<subject.ID>} must allow.
+
+<!-- lisa-guidance-posted -->
+---
+Comment (internal/authz/cedar.go:147):
+**[Low] Batch role memo ignores `Subject.Props["groups"]`.**
+
+The memo key is `{Subject.Type, Subject.ID}`, but `rolesFor` also depends on the subject's `groups` prop. Two `EvalRequest`s that share a type+id but carry different `groups` would get the first request's roles reused. Harmless for the only current consumer (`/me/permissions` sends one subject repeatedly), and groups are inert until BCH-1328 — but if the batch API is ever fed heterogeneous subjects sharing an id, decisions would be silently wrong. Consider either documenting "batch assumes one logical subject per (type,id)" or folding a hash of the normalized groups into the memo key.
+Replies:
+**lisa implementation guidance:** Agreed — fold the normalized groups into the batch memo key so heterogeneous subjects sharing a (type,id) can never reuse the wrong roles (correct now rather than a doc caveat that bites when BCH-1328 makes groups live). Key becomes type\x00id\x00sorted-groups.
+
+<!-- lisa-guidance-posted -->
+---
+Comment (internal/authz/roles_cedar.go:81):
+**[Low] Mixed wildcard in an action list silently produces a dead action.**
+
+`isWildcard` only treats a *lone* `["*"]` as "any action". A manifest grant that mixed the wildcard with named actions — e.g. `["*", "read"]` — would fall through to the `else` branch and emit `action in [CCF::Action::"*", CCF::Action::"read"]`, where `CCF::Action::"*"` is a literal action entity that matches nothing. The result silently narrows the grant instead of widening it. No role does this today (admin uses a lone `*`), so this is hardening, not a live bug: either treat *any* `"*"` element as the full wildcard, or reject a mixed list when compiling the manifest so the footgun fails fast rather than silently.
+Replies:
+**lisa implementation guidance:** Agreed — fail fast. Validate role grants in CompileRolePolicies: a `*` action must stand alone; a list mixing `*` with named actions returns a startup error rather than silently emitting a dead `CCF::Action::"*"`. Matches the package's fail-fast-over-silent philosophy.
+
+<!-- lisa-guidance-posted -->
