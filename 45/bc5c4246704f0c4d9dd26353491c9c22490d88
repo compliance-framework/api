@@ -1,0 +1,20 @@
+lisa-design:
+BCH-1314 — full authz manifest + ccf authz export + decision audit logging (Phase 2). Implements BCH-1319 "Per-Resource Evaluation Attribute Surface" verbatim. Key decisions:
+
+- ZERO BEHAVIOR CHANGE / contract-only. BCH-1314 declares the vocabulary; it does NOT change enforcement. The builtin driver still does "authenticated = allowed, except admin (SSO admin-group gate)". Honoring C0 via the embedded Cedar engine is BCH-1316; C1/C2 ABAC is Enterprise (BCH-1078). So the new attributes, user_uuid, and scope-param binding are additive and consumed by NO policy yet — do not "wire them in" to the builtin engine.
+
+- KEPT the `admin` resource alongside the split granular resources (user/agent/notification/risk-template/subject-template/digest/ai-diagnostics). The admin enforcement (RequireAdminGroups -> Authorize(admin, manage)) still gates on ResourceAdmin in the builtin driver; removing `admin` would orphan that enforcement and force a route migration (BCH-1316). `admin` is the still-enforced umbrella; the granular resources are the forward-looking vocabulary the granular admin.* actions bind to. Existing manifest_test expectations (admin:manage, admin:users.manage) are intentionally preserved.
+
+- Relationship attributes oscal_roles (on ssp) and assigned_to (on step-execution, role-assignment) live in a NEW `context:` section on ResourceDef (ContextAttr{type,relationship,status,note}), NOT the static Attributes map (ticket requirement / BCH-1319 §7.1, §8). They are status: reserved — no resolver or policy consumes them. Loader validation requires a non-empty type.
+
+- Action vocabulary = CRUD (read, create, update, delete) by default, with documented exceptions: risk +promote; heartbeat [read, ingest]; agent +[register, ingest]; import [execute]; digest [trigger]; ai-diagnostics [read]. This refines the provisional Phase-1 verbs (catalog/poam/risk were read/write). A test (TestManifestRolesReferenceDeclaredVocabulary) guarantees every default role grants only declared resources/actions.
+
+- POAM is two resources (poam_item register item + poam_oscal document); dashboard split into filter + dashboard-suggestion; sub-documents are NOT resources (inherit aggregate root, §4.8); cross-references are NOT cross-checked in v1 (§4.8). No route migration here.
+
+- ccf authz export --format=cedar|openfga|json|yaml exports the VOCABULARY, not policies. user/agent are BOTH a subject and a resource: Cedar/OpenFGA reject duplicate declarations, so the exporter dedupes by entity/type name and unions subject+resource attributes into one entity (Cedar entities legitimately serve as both principal and resource). Type mapping: uuid->String, map<string,string>->Set<String> (Cedar has no native equivalents); dotted action ids (users.manage) stay quoted in Cedar but are sanitized to underscores for OpenFGA relation names; kebab names -> PascalCase (Cedar) / snake (OpenFGA). Output is sorted/deterministic for diff-friendly GitOps.
+
+- Decision audit logging is emitted on EVERY PEP decision (allow, deny, unavailable, error) at Info as "authz decision" (audit=true; subject, action, resource, decision, reason, latencyMs). It replaces the prior deny-only Info log. The PDP reason is logged but never echoed to the client.
+
+- Authorize gained a variadic AuthorizeOption tail (ScopeParam, ResourceIDParam) extending the shipped 2-arg signature — existing calls compile unchanged. ScopeParam("sspId") binds c.Param("sspId") as resource prop ssp_id (camelToSnake); absent param => no empty prop injected.
+
+- user_uuid JWT claim (UserClaims.UserUUID, json user_uuid,omitempty) set from user.ID in GenerateJWTToken; subject.id stays the email. Surfaced as subject.user_uuid in SubjectFromContext only when present (older ~24h tokens omit it). Landed ahead of owner policies so issued tokens already carry it before owned_by rules can match (BCH-1313 gap-analysis prerequisite).
