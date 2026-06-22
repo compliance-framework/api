@@ -14,11 +14,15 @@ import (
 
 func TestCamelToSnake(t *testing.T) {
 	cases := map[string]string{
-		"sspId":    "ssp_id",
-		"parentId": "parent_id",
-		"id":       "id",
-		"ssp_id":   "ssp_id",
-		"":         "",
+		"sspId":      "ssp_id",
+		"parentId":   "parent_id",
+		"id":         "id",
+		"ssp_id":     "ssp_id",
+		"":           "",
+		"userID":     "user_id",     // trailing acronym, not user_i_d
+		"oscalID":    "oscal_id",    // trailing acronym
+		"ID":         "id",          // all-caps token
+		"HTTPServer": "http_server", // acronym run then a new word
 	}
 	for in, want := range cases {
 		if got := camelToSnake(in); got != want {

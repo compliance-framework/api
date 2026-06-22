@@ -149,6 +149,16 @@ func TestManifestContextRelationshipAttrs(t *testing.T) {
 // wildcards), so a default role can never reference a typo'd or removed resource/action.
 func TestManifestRolesReferenceDeclaredVocabulary(t *testing.T) {
 	m, _ := DefaultManifest()
+
+	// Preconditions so the loop below can never pass vacuously: the four fixed OSS roles
+	// must be present, and at least one concrete (non-wildcard) grant must be checked.
+	for _, role := range []string{"admin", "contributor", "auditor", "viewer"} {
+		if _, ok := m.Roles[role]; !ok {
+			t.Fatalf("manifest missing fixed role %q", role)
+		}
+	}
+
+	checked := 0
 	for role, grants := range m.Roles {
 		for resource, actions := range grants {
 			if resource != "*" {
@@ -161,10 +171,14 @@ func TestManifestRolesReferenceDeclaredVocabulary(t *testing.T) {
 				if action == "*" || resource == "*" {
 					continue
 				}
+				checked++
 				if !m.HasAction(resource, action) {
 					t.Errorf("role %q grants %q:%q which the manifest does not declare", role, resource, action)
 				}
 			}
 		}
+	}
+	if checked == 0 {
+		t.Fatal("no concrete (non-wildcard) role grants were verified; guard is vacuous")
 	}
 }

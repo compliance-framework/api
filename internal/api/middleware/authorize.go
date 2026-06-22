@@ -141,14 +141,26 @@ func (p *PEP) audit(s authz.Subject, action string, r authz.Resource, d authz.De
 }
 
 // camelToSnake lowercases a camelCase path param into the snake_case attribute name the
-// manifest uses (sspId -> ssp_id, parentId -> parent_id). Already-snake or all-lower names
-// pass through unchanged.
+// manifest uses (sspId -> ssp_id, parentId -> parent_id). A run of capitals is treated as a
+// single token, so trailing acronyms map correctly (userID -> user_id, oscalID -> oscal_id,
+// HTTPServer -> http_server) rather than being split letter-by-letter. Already-snake or
+// all-lower names pass through unchanged.
 func camelToSnake(s string) string {
 	var b []byte
 	for i := 0; i < len(s); i++ {
 		ch := s[i]
 		if ch >= 'A' && ch <= 'Z' {
-			if i > 0 && s[i-1] != '_' {
+			var prev byte
+			if i > 0 {
+				prev = s[i-1]
+			}
+			prevLowerOrDigit := (prev >= 'a' && prev <= 'z') || (prev >= '0' && prev <= '9')
+			prevUpper := prev >= 'A' && prev <= 'Z'
+			nextLower := i+1 < len(s) && s[i+1] >= 'a' && s[i+1] <= 'z'
+			// Boundary before an uppercase letter: after a lowercase/digit, or at the start
+			// of a new word inside a run of capitals (e.g. the "S" in "HTTPServer"). A capital
+			// that merely continues an acronym (the "TTP" in "HTTP") gets no underscore.
+			if prev != '_' && (prevLowerOrDigit || (prevUpper && nextLower)) {
 				b = append(b, '_')
 			}
 			ch += 'a' - 'A'

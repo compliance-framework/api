@@ -21,10 +21,13 @@
 # the resource's own table, C2 a join / second read resolved lazily by a PIP.
 #
 # TIERING (BCH-1319 §11.4): this manifest DECLARES the full surface (C0/C1/C2) for both
-# tiers — declaring is not honoring. The OSS embedded engine honors C0 (the global-RBAC
-# roles below); C1/C2 attributes are honored by the Enterprise external PDP or a BYO PDP.
-# This file therefore declares everything and ships the C0 role set; it does not wire
-# C1/C2 into the OSS engine.
+# tiers — declaring is not honoring. The OSS embedded Cedar engine is DESIGNED to honor C0
+# (the global-RBAC roles below); C1/C2 attributes are honored by the Enterprise external PDP
+# or a BYO PDP. This file declares everything and ships the C0 role set, but does not wire
+# any of it into an engine. IMPORTANT: the current builtin driver does NOT consume these
+# roles yet — it allows every authenticated non-admin request and only gates `admin` via SSO
+# groups (zero behavior change). C0 RBAC enforcement against this role set arrives with the
+# embedded Cedar engine (BCH-1316); C1/C2 stay Enterprise/BYO.
 schemaVersion: 1
 
 # ── Subjects ────────────────────────────────────────────────────────────────────────────
@@ -240,9 +243,10 @@ resources:
 # ── Roles ───────────────────────────────────────────────────────────────────────────────
 # The OSS global-RBAC policy set: four fixed roles (admin/contributor/auditor/viewer) plus
 # the agent service role. These reference C0 only — they are resource→actions maps with no
-# attribute conditions — which is exactly what the OSS embedded engine honors (BCH-1319
-# §11.1, §11.3). Operators may override or extend them in their PAP. "*" means all
-# resources / all actions.
+# attribute conditions — which is the C0 policy set the embedded Cedar engine is DESIGNED to
+# honor (BCH-1319 §11.1, §11.3; enforcement lands with BCH-1316). The current builtin driver
+# does not consume these roles yet. Operators may override or extend them in their PAP. "*"
+# means all resources / all actions.
 roles:
   # Full access.
   admin:
