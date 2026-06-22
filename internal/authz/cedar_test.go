@@ -128,6 +128,44 @@ func TestCedarEmptyResourceID(t *testing.T) {
 	}
 }
 
+// Regression: a subject acting on a resource of its own kind keyed by its own id (agent on
+// the `agent` resource, resource.ID == subject.ID) must not have its role parents clobbered
+// by the resource entity. The agent role grants register/ingest on agent, so all three id
+// shapes (own id, different id, empty) must allow.
+func TestCedarSelfResourceNoCollision(t *testing.T) {
+	c := mustCedar(t, &RoleAssignments{}) // agents default to the agent role
+	agent := Subject{Type: "agent", ID: "agent-1"}
+	for _, id := range []string{"agent-1", "other", ""} {
+		d, err := c.Evaluate(context.Background(), agent, "ingest", Resource{Type: "agent", ID: id}, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !d.Allow {
+			t.Errorf("agent ingest on agent resource id=%q: allow=false, want true", id)
+		}
+	}
+}
+
+// Regression: the batch memo must key on groups too, so two requests sharing a (type,id) but
+// carrying different groups can't reuse each other's roles.
+func TestCedarEvaluationsHeterogeneousGroups(t *testing.T) {
+	c := mustCedar(t, &RoleAssignments{Groups: map[string]string{"admins": "admin"}})
+	reqs := []EvalRequest{
+		{Subject: Subject{Type: "user", ID: "u@x", Props: map[string]any{"groups": []string{"admins"}}}, Action: "manage", Resource: Resource{Type: "admin"}},
+		{Subject: Subject{Type: "user", ID: "u@x"}, Action: "manage", Resource: Resource{Type: "admin"}},
+	}
+	out, err := c.Evaluations(context.Background(), reqs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !out[0].Allow {
+		t.Error("in-group subject should be allowed (admin via group)")
+	}
+	if out[1].Allow {
+		t.Error("same id without groups must not reuse the in-group roles")
+	}
+}
+
 // A subject with no assigned role is denied without consulting Cedar, and the reason marks it.
 func TestCedarDenyNoRole(t *testing.T) {
 	c := mustCedar(t, &RoleAssignments{})

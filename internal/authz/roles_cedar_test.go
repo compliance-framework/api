@@ -26,6 +26,29 @@ func TestCompileRolePoliciesParses(t *testing.T) {
 	}
 }
 
+// A "*" action mixed with named actions is an authoring footgun (it would emit a dead
+// CCF::Action::"*"); compilation must reject it at startup rather than silently narrow.
+func TestCompileRolePoliciesRejectsMixedWildcard(t *testing.T) {
+	m := &Manifest{
+		SchemaVersion: 1,
+		Resources:     map[string]ResourceDef{"evidence": {Actions: []string{"read", "create"}}},
+		Roles:         map[string]map[string][]string{"broken": {"evidence": {"*", "read"}}},
+	}
+	if _, err := CompileRolePolicies(m); err == nil {
+		t.Error("CompileRolePolicies(mixed wildcard) error = nil, want error")
+	}
+
+	// A lone "*" is valid (the admin pattern).
+	ok := &Manifest{
+		SchemaVersion: 1,
+		Resources:     map[string]ResourceDef{"evidence": {Actions: []string{"read"}}},
+		Roles:         map[string]map[string][]string{"super": {"*": {"*"}}},
+	}
+	if _, err := CompileRolePolicies(ok); err != nil {
+		t.Errorf("CompileRolePolicies(lone wildcard) error = %v, want nil", err)
+	}
+}
+
 // Output must be deterministic so it is stable for review and golden comparison.
 func TestRenderRolePoliciesDeterministic(t *testing.T) {
 	m, err := DefaultManifest()

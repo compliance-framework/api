@@ -28,6 +28,9 @@ const cedarRoleEntityType = cedarNamespace + "::Role"
 // because Cedar is deny-by-default with forbid overriding permit, an operator file can both
 // add grants and carve exceptions out of the bundled roles without editing CCF.
 func CompileRolePolicies(m *Manifest) (*cedar.PolicySet, error) {
+	if err := validateRoleGrants(m); err != nil {
+		return nil, err
+	}
 	src := renderRolePolicies(m)
 	ps, err := cedar.NewPolicySetFromBytes("ccf-roles.cedar", src)
 	if err != nil {
@@ -36,6 +39,29 @@ func CompileRolePolicies(m *Manifest) (*cedar.PolicySet, error) {
 		return nil, fmt.Errorf("authz: compile bundled role policies: %w\n--- generated ---\n%s", err, src)
 	}
 	return ps, nil
+}
+
+// validateRoleGrants rejects authoring footguns in the manifest roles: block before they are
+// compiled, so a mistake fails fast at startup rather than silently weakening access. A "*"
+// action means "all actions" and must stand alone: a list mixing "*" with named actions (e.g.
+// ["*", "read"]) would otherwise emit a literal CCF::Action::"*" entity that matches nothing,
+// silently narrowing the grant instead of widening it.
+func validateRoleGrants(m *Manifest) error {
+	for _, role := range sortedKeys(m.Roles) {
+		grants := m.Roles[role]
+		for _, resourceKey := range sortedKeys(grants) {
+			actions := grants[resourceKey]
+			if len(actions) > 1 {
+				for _, a := range actions {
+					if a == "*" {
+						return fmt.Errorf("authz: role %q grant on %q mixes the %q wildcard with named actions %v; %q must stand alone",
+							role, resourceKey, "*", actions, "*")
+					}
+				}
+			}
+		}
+	}
+	return nil
 }
 
 // renderRolePolicies emits the bundled role policies as Cedar source text. Output is

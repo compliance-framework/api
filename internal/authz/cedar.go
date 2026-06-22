@@ -139,12 +139,17 @@ func (c *Cedar) Evaluate(_ context.Context, s Subject, action string, r Resource
 // per subject for the batch (e.g. /me/permissions enumerates ~all actions for one subject),
 // so the group parsing and map lookups happen once rather than per action.
 func (c *Cedar) Evaluations(_ context.Context, reqs []EvalRequest) ([]Decision, error) {
-	type subjectKey struct{ typ, id string }
-	roleMemo := make(map[subjectKey][]string)
+	roleMemo := make(map[string][]string)
 
 	out := make([]Decision, len(reqs))
 	for i, req := range reqs {
-		key := subjectKey{req.Subject.Type, req.Subject.ID}
+		// Key on everything rolesFor depends on — type, id AND the (sorted) groups — so two
+		// requests that share a type+id but carry different groups never reuse each other's
+		// roles. Groups are inert until BCH-1328, but keying on them now keeps the batch path
+		// correct for heterogeneous subjects once they go live.
+		groups := subjectGroups(req.Subject)
+		sort.Strings(groups)
+		key := req.Subject.Type + "\x00" + req.Subject.ID + "\x00" + strings.Join(groups, ",")
 		roles, ok := roleMemo[key]
 		if !ok {
 			roles = c.assignments.rolesFor(req.Subject)
@@ -175,7 +180,15 @@ func (c *Cedar) decide(s Subject, action string, r Resource, roles []string) Dec
 	entities[principal] = cedar.Entity{UID: principal, Parents: cedar.NewEntityUIDSet(roleUIDs...)}
 
 	resource := resourceUID(r)
-	entities[resource] = cedar.Entity{UID: resource, Parents: cedar.NewEntityUIDSet()}
+	// Don't let the resource entity clobber the principal. When a subject acts on a resource
+	// of its own kind keyed by its own id (e.g. an agent on the `agent` resource with
+	// resource.ID == subject.ID), principal and resource share a UID; overwriting here would
+	// replace the principal's role parents with an empty set and deny a granted request. The
+	// shared entity already satisfies `resource is CCF::Agent`/`CCF::User` (same type) with its
+	// parents intact, so only add a distinct resource entity.
+	if resource != principal {
+		entities[resource] = cedar.Entity{UID: resource, Parents: cedar.NewEntityUIDSet()}
+	}
 
 	req := cedar.Request{
 		Principal: principal,
