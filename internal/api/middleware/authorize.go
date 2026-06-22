@@ -37,7 +37,7 @@ func NewPEP(pdp authz.PDP, failMode authz.FailMode, logger *zap.SugaredLogger) *
 func (p *PEP) Authorize(resource, action string) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
-			subject := subjectFromContext(c)
+			subject := SubjectFromContext(c)
 			res := authz.Resource{Type: resource, ID: c.Param("id")}
 			reqCtx := map[string]any{
 				"method": c.Request().Method,
@@ -71,11 +71,12 @@ func (p *PEP) Authorize(resource, action string) echo.MiddlewareFunc {
 	}
 }
 
-// subjectFromContext derives the authz Subject from the principal the authn middleware
+// SubjectFromContext derives the authz Subject from the principal the authn middleware
 // placed in the context: an authenticated user, an authenticated agent, or an anonymous
-// subject on public-allowed routes. Attributes are intentionally minimal in Phase 1; the
-// authoritative attribute surface is designed in BCH-1319.
-func subjectFromContext(c echo.Context) authz.Subject {
+// subject on public-allowed routes. It is the single source of subject derivation, shared
+// by the PEP and the /me/permissions handler. Attributes are intentionally minimal in
+// Phase 1; the authoritative attribute surface is designed in BCH-1319.
+func SubjectFromContext(c echo.Context) authz.Subject {
 	if claims, ok := c.Get("user").(*authn.UserClaims); ok && claims != nil {
 		return authz.Subject{
 			Type: "user",

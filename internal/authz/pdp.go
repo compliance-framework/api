@@ -51,6 +51,13 @@ type PDP interface {
 	Evaluations(ctx context.Context, reqs []EvalRequest) ([]Decision, error)
 }
 
+// Healther is an optional capability a PDP may implement to report whether its decision
+// engine is reachable. The readiness check surfaces it; in-process drivers that cannot
+// fail (builtin) simply don't implement it and are treated as healthy.
+type Healther interface {
+	Health(ctx context.Context) error
+}
+
 // Resource and action identifiers for the routes migrated in Phase 1, all declared in
 // manifest.yaml. ResourceEvidence with ActionCreate/ActionRead maps directly to the
 // evidence actions. ActionManage is the Phase-1 umbrella admin action: every admin route

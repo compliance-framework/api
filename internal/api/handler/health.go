@@ -1,16 +1,23 @@
 package handler
 
 import (
+	"context"
 	"database/sql"
 	"net/http"
+	"time"
 
+	"github.com/compliance-framework/api/internal/authz"
 	"github.com/labstack/echo/v4"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
+// pdpHealthTimeout bounds the PDP readiness probe so a hung PDP can't stall /health/ready.
+const pdpHealthTimeout = 2 * time.Second
+
 type HealthHandler struct {
 	db    *gorm.DB
+	pdp   authz.PDP
 	sugar *zap.SugaredLogger
 }
 
@@ -23,6 +30,15 @@ func NewHealthHandler(sugar *zap.SugaredLogger, db *gorm.DB) *HealthHandler {
 		sugar: sugar,
 		db:    db,
 	}
+}
+
+// WithPDP attaches the authorization PDP so readiness reflects the decision engine's
+// availability (a remote AuthZen PDP being down makes the API not-ready). Returns the
+// handler for chaining. The in-process builtin driver doesn't implement Healther, so it
+// is treated as always healthy.
+func (h *HealthHandler) WithPDP(pdp authz.PDP) *HealthHandler {
+	h.pdp = pdp
+	return h
 }
 
 func (h *HealthHandler) Register(api *echo.Group) {
@@ -44,6 +60,15 @@ func (h *HealthHandler) Ready(ctx echo.Context) error {
 	if err := sqlDB.PingContext(ctx.Request().Context()); err != nil {
 		h.sugar.Errorw("database ping failed", "err", err)
 		return ctx.JSON(http.StatusServiceUnavailable, healthResponse{Status: "unavailable"})
+	}
+
+	if checker, ok := h.pdp.(authz.Healther); ok {
+		hctx, cancel := context.WithTimeout(ctx.Request().Context(), pdpHealthTimeout)
+		defer cancel()
+		if err := checker.Health(hctx); err != nil {
+			h.sugar.Errorw("authz PDP health check failed", "err", err)
+			return ctx.JSON(http.StatusServiceUnavailable, healthResponse{Status: "unavailable"})
+		}
 	}
 
 	return ctx.JSON(http.StatusOK, healthResponse{Status: "ok"})

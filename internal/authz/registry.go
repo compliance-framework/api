@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sort"
 	"sync"
+	"time"
 
 	"github.com/compliance-framework/api/internal/config"
 	"go.uber.org/zap"
@@ -21,10 +22,13 @@ type Deps struct {
 	Logger *zap.SugaredLogger
 }
 
-// Options selects and configures the driver to open. Driver-specific settings (endpoint,
-// cache TTL, ...) are added here as later-phase drivers land.
+// Options selects and configures the driver to open. Endpoint is the remote PDP URL used
+// by HTTP drivers (authzen); CacheTTL, when > 0, wraps the constructed PDP in a short-TTL
+// decision cache to absorb the network hop. Both are ignored by the in-process builtin.
 type Options struct {
-	Driver string
+	Driver   string
+	Endpoint string
+	CacheTTL time.Duration
 }
 
 // Factory constructs a PDP for a registered driver.
@@ -79,5 +83,14 @@ func Open(opts Options, deps Deps) (PDP, error) {
 	if _, err := DefaultManifest(); err != nil {
 		return nil, fmt.Errorf("authz: load manifest: %w", err)
 	}
-	return factory(opts, deps)
+	pdp, err := factory(opts, deps)
+	if err != nil {
+		return nil, err
+	}
+	// Optional short-TTL decision cache. Off by default; the in-process builtin gains
+	// nothing from it, but operators may enable it for remote PDPs to absorb the hop.
+	if opts.CacheTTL > 0 {
+		pdp = newCachingPDP(pdp, opts.CacheTTL, deps.Logger)
+	}
+	return pdp, nil
 }
