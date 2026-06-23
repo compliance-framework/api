@@ -353,9 +353,14 @@ func (h *GroupsHandler) AddMember(ctx echo.Context) error {
 	}
 
 	membership := &relational.UserGroupMembership{UserID: userUUID.String(), GroupID: group.ID.String()}
-	// Idempotent: a repeated add is a no-op rather than a duplicate-key error.
+	// Idempotent: a repeated add is a no-op rather than a duplicate-key error. FirstOrCreate
+	// is SELECT-then-INSERT, so a concurrent duplicate can still lose the race and surface the
+	// unique-index violation — which is also "already a member", so treat it as success.
 	if err := h.db.Where("user_id = ? AND group_id = ?", membership.UserID, membership.GroupID).
 		FirstOrCreate(membership).Error; err != nil {
+		if isUniqueViolation(err) {
+			return ctx.NoContent(204)
+		}
 		h.sugar.Errorw("Failed to add group member", "error", err)
 		return ctx.JSON(500, api.NewError(err))
 	}
