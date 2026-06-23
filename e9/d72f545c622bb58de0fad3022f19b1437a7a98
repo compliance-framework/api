@@ -1,0 +1,43 @@
+lisa-addressed:
+---
+Comment (internal/api/handler/groups.go:571):
+**Low — member count can disagree with the member list once a user is soft-deleted.**
+
+`memberCounts`/`memberCount` count `ccf_user_groups` rows directly, but `ListMembers` (line 286) and `attachGroups` load the users via `Find(&users)`, which applies the `User.DeletedAt` soft-delete scope. So after a member is soft-deleted, their membership row still counts here while `ListMembers` excludes them — `MemberCount` can read `1` while the members list comes back empty.
+
+Relatedly, membership rows are only cleaned up when the *group* is deleted (`DeleteGroup` transaction), not when a *user* is deleted, so the orphan rows persist. No security impact — a deleted user's uuid never reattaches to a live user, and `GroupNamesForUser` keys on the live user's uuid — but the count is misleading to an operator.
+
+Consider scoping the count to live users (a join / `IN` against non-deleted `ccf_users`) or removing memberships on user deletion so the two views agree.
+Replies:
+**lisa implementation guidance:** Agreed. Fixing the root cause: hard-delete the user's UserGroupMembership rows in DeleteUser (users.go), alongside the existing Unscoped SSOUserLink/SlackUserLink cleanup — so a deleted user leaves no orphan membership rows and memberCount stays consistent with ListMembers.
+
+<!-- lisa-guidance-posted -->
+---
+Comment (internal/authz/registry.go:100):
+**Low — the decision cache can serve a stale builtin admin decision after a native-group change.**
+
+Skipping `resolvingPDP` for builtin is right, and the design note explains the resolver sits *outside* the cache so a membership change yields a fresh cache key. But that argument only holds for non-builtin drivers: the cache wrapper above (`if opts.CacheTTL > 0`) wraps **every** driver including builtin, and builtin's admin tuple (subject email + `admin` resource) does **not** change when native group membership changes — builtin resolves native groups internally, so they never enter the cache key.
+
+Net effect: with `cache_ttl > 0` + builtin, adding a user to a native admin group (now an admin-granting path per BCH-1328) can be shadowed by a cached `deny` for up to the TTL. Default `cache_ttl` is 0 (cache off, builtin "gains nothing"), so this only bites a non-default config — but since native groups now feed the builtin admin decision, it's worth either a doc note or an explicit guard against enabling the decision cache with builtin.
+Replies:
+**lisa implementation guidance:** Agreed. Skipping the decision cache for the builtin driver in authz.Open (builtin gains nothing from it and caching shadows its internal native-group admin resolution). Guard the cache wrap with name != DriverBuiltin, mirroring the resolvingPDP guard, and update the comment.
+
+<!-- lisa-guidance-posted -->
+---
+Comment (internal/api/handler/groups_integration_test.go:108):
+**Low (test coverage) — `DeleteGroup`'s cascade is never exercised with a populated group.**
+
+This delete runs against a group with no members or SSO mappings, so the transaction in the handler (groups.go:237-245) that hard-deletes `UserGroupMembership` + `SSOGroupMapping` rows before soft-deleting the group is never actually verified — a regression that dropped either cascade delete would still pass here.
+
+Suggest a case that adds a member and an SSO mapping, deletes the group, then asserts both join rows are gone (and, nice-to-have, that the freed name can be re-created — confirming the `WHERE deleted_at IS NULL` partial unique index).
+Replies:
+**lisa implementation guidance:** Agreed. Adding a groups integration case: create a group, add a member + an SSO mapping, DELETE the group, then assert both join rows (UserGroupMembership, SSOGroupMapping) are gone and the freed name can be re-created (confirms the WHERE deleted_at IS NULL partial unique index).
+
+<!-- lisa-guidance-posted -->
+---
+Comment (internal/api/handler/groups.go:235):
+**Nit (consistency) —** `group.ID.String()` here lacks the `group.ID != nil` guard the sibling handlers use (`GetGroup` groups.go:108, `ListGroups` :80). It's unreachable in practice — a row loaded by `loadGroup` always has its uuid PK set — so this is purely about matching the defensive style elsewhere. Add the guard or leave as-is; no behavior impact.
+Replies:
+**lisa implementation guidance:** Agreed (consistency). Adding a group.ID != nil guard in DeleteGroup before using group.ID.String(), matching GetGroup/ListGroups.
+
+<!-- lisa-guidance-posted -->
