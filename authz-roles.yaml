@@ -39,6 +39,7 @@ users:
 # the LDAP posix groups ccf-admins / ccf-users.
 groups:
   ccf-admins: admin
+  ccf-authorized-users: contributor
   ccf-users: contributor
 
 # ── Agent default ────────────────────────────────────────────────────────────────

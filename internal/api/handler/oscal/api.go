@@ -14,17 +14,13 @@ import (
 // Enforcement Point (cmd/run.go builds it once); it is variadic so existing test callers that
 // omit it still compile — in that case a builtin-backed PEP is used, reproducing the prior
 // access rules with no behavior change.
-func RegisterHandlers(server *api.Server, logger *zap.SugaredLogger, db *gorm.DB, config *config.Config, evidenceSvc *evidencesvc.EvidenceService, jobEnqueuer SSPJobEnqueuer, pep ...*middleware.PEP) {
-	var p *middleware.PEP
-	if len(pep) > 0 {
-		p = pep[0]
-	}
-	if p == nil {
+func RegisterHandlers(server *api.Server, logger *zap.SugaredLogger, db *gorm.DB, config *config.Config, evidenceSvc *evidencesvc.EvidenceService, jobEnqueuer SSPJobEnqueuer, pep *middleware.PEP) {
+	if pep == nil {
 		failMode := authz.FailClosed
 		if config.Authz != nil {
 			failMode = authz.ParseFailMode(config.Authz.FailMode)
 		}
-		p = middleware.NewPEP(authz.NewBuiltin(db, config, logger), failMode, logger)
+		pep = middleware.NewPEP(authz.NewBuiltin(db, config, logger), failMode, logger)
 	}
 
 	oscalGroup := server.API().Group("/oscal")
@@ -32,7 +28,7 @@ func RegisterHandlers(server *api.Server, logger *zap.SugaredLogger, db *gorm.DB
 	jwtMiddleware := middleware.JWTMiddleware(config.JWTPublicKey)
 
 	dashboardSuggestionHandler := NewDashboardSuggestionHandler(logger, db, config.AI, jobEnqueuer)
-	dashboardGuard := p.For(authz.ResourceDashboardSuggestion)
+	dashboardGuard := pep.For(authz.ResourceDashboardSuggestion)
 	// /dashboard-suggestions/config carries no group auth (intentionally public); attach
 	// optional auth so a token, when present, identifies the subject for cedar.
 	dashboardSuggestionHandler.RegisterConfig(
@@ -42,46 +38,46 @@ func RegisterHandlers(server *api.Server, logger *zap.SugaredLogger, db *gorm.DB
 	)
 
 	catalogHandler := NewCatalogHandler(logger, db)
-	catalogHandler.Register(oscalGroup.Group("/catalogs"), p.For(authz.ResourceCatalog))
+	catalogHandler.Register(oscalGroup.Group("/catalogs"), pep.For(authz.ResourceCatalog))
 
 	profileHandler := NewProfileHandler(logger, db)
-	profileHandler.Register(oscalGroup.Group("/profiles"), p.For(authz.ResourceProfile))
+	profileHandler.Register(oscalGroup.Group("/profiles"), pep.For(authz.ResourceProfile))
 
 	sspHandler := NewSystemSecurityPlanHandler(logger, db, evidenceSvc, jobEnqueuer)
-	sspHandler.Register(oscalGroup.Group("/system-security-plans"), p.For(authz.ResourceSSP))
+	sspHandler.Register(oscalGroup.Group("/system-security-plans"), pep.For(authz.ResourceSSP))
 	if config.AI != nil && config.AI.Enabled {
 		dashboardSuggestionHandler.Register(oscalGroup.Group("/system-security-plans"), jwtMiddleware, dashboardGuard)
 
 		diagGroup := server.API().Group("/admin/ai-diagnostics")
 		diagGroup.Use(middleware.JWTMiddleware(config.JWTPublicKey))
-		diagGroup.Use(p.Authorize(authz.ResourceAdmin, authz.ActionManage))
+		diagGroup.Use(pep.Authorize(authz.ResourceAdmin, authz.ActionManage))
 		NewAiDiagnosticsHandler(logger, db, config.AI).Register(diagGroup)
 	}
 
 	partyHandler := NewPartyHandler(logger, db)
-	partyHandler.Register(oscalGroup.Group("/parties"), p.For(authz.ResourceParty))
+	partyHandler.Register(oscalGroup.Group("/parties"), pep.For(authz.ResourceParty))
 
 	roleHandler := NewRoleHandler(logger, db)
-	roleHandler.Register(oscalGroup.Group("/roles"), p.For(authz.ResourceRole))
+	roleHandler.Register(oscalGroup.Group("/roles"), pep.For(authz.ResourceRole))
 
 	componentDefinitionHandler := NewComponentDefinitionHandler(logger, db)
-	componentDefinitionHandler.Register(oscalGroup.Group("/component-definitions"), p.For(authz.ResourceComponentDefinition))
+	componentDefinitionHandler.Register(oscalGroup.Group("/component-definitions"), pep.For(authz.ResourceComponentDefinition))
 
 	poamHandler := NewPlanOfActionAndMilestonesHandler(logger, db)
-	poamHandler.Register(oscalGroup.Group("/plan-of-action-and-milestones"), p.For(authz.ResourcePoamOSCAL))
+	poamHandler.Register(oscalGroup.Group("/plan-of-action-and-milestones"), pep.For(authz.ResourcePoamOSCAL))
 
 	assessmentPlanHandler := NewAssessmentPlanHandler(logger, db)
-	assessmentPlanHandler.Register(oscalGroup.Group("/assessment-plans"), p.For(authz.ResourceAssessmentPlan))
+	assessmentPlanHandler.Register(oscalGroup.Group("/assessment-plans"), pep.For(authz.ResourceAssessmentPlan))
 
 	activityHandler := NewActivityHandler(logger, db)
-	activityHandler.Register(oscalGroup.Group("/activities"), p.For(authz.ResourceActivity))
+	activityHandler.Register(oscalGroup.Group("/activities"), pep.For(authz.ResourceActivity))
 
 	assessmentResultsHandler := NewAssessmentResultsHandler(logger, db)
-	assessmentResultsHandler.Register(oscalGroup.Group("/assessment-results"), p.For(authz.ResourceAssessmentResults))
+	assessmentResultsHandler.Register(oscalGroup.Group("/assessment-results"), pep.For(authz.ResourceAssessmentResults))
 
 	inventoryHandler := NewInventoryHandler(logger, db)
-	inventoryHandler.Register(oscalGroup.Group("/inventory"), p.For(authz.ResourceInventory))
+	inventoryHandler.Register(oscalGroup.Group("/inventory"), pep.For(authz.ResourceInventory))
 
 	importHandler := NewImportHandler(logger, db)
-	importHandler.Register(oscalGroup.Group("/import"), p.For(authz.ResourceImport))
+	importHandler.Register(oscalGroup.Group("/import"), pep.For(authz.ResourceImport))
 }
