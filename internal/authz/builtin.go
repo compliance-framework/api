@@ -144,23 +144,57 @@ func (b *Builtin) evaluateAdmin(ctx context.Context, s Subject) (Decision, error
 
 	groupSet := make(map[string]struct{})
 	for _, g := range sso.DeserializeStringArray(link.Groups) {
-		normalized := strings.TrimSpace(strings.ToLower(g))
-		if normalized != "" {
+		if normalized := normalizeGroup(g); normalized != "" {
 			groupSet[normalized] = struct{}{}
 		}
 	}
 
-	for _, required := range providerConfig.RequiredAdminGroups {
-		normalized := strings.TrimSpace(strings.ToLower(required))
-		if _, ok := groupSet[normalized]; !ok {
-			b.logger.Warnw("User missing required admin group",
-				"userID", user.ID.String(),
-				"requiredGroup", required,
-				"provider", link.Provider,
-			)
-			return Decision{Allow: false, Reason: "missing required admin groups"}, nil
+	// Happy path: the SSO link groups alone satisfy the requirement. Resolved without the
+	// native-group query so the common admin allow keeps its prior two-query cost.
+	if missingRequiredGroup(providerConfig.RequiredAdminGroups, groupSet) == "" {
+		return Decision{Allow: true}, nil
+	}
+
+	// Fallback: a native CCF group can also satisfy an admin requirement, so group-based
+	// admin works for users whose IdP groups don't include it (BCH-1328). Queried only when
+	// the SSO groups are insufficient; a failure degrades to "no native groups" (a clean
+	// deny) rather than a 500, since the supplementary lookup must not break the admin check.
+	native, err := relational.GroupNamesForUser(b.db.WithContext(ctx), user.ID.String())
+	if err != nil {
+		b.logger.Warnw("Failed to load native groups for admin enforcement",
+			"userID", user.ID.String(), "error", err)
+	}
+	for _, g := range native {
+		if normalized := normalizeGroup(g); normalized != "" {
+			groupSet[normalized] = struct{}{}
 		}
 	}
 
+	if missing := missingRequiredGroup(providerConfig.RequiredAdminGroups, groupSet); missing != "" {
+		b.logger.Warnw("User missing required admin group",
+			"userID", user.ID.String(),
+			"requiredGroup", missing,
+			"provider", link.Provider,
+		)
+		return Decision{Allow: false, Reason: "missing required admin groups"}, nil
+	}
+
 	return Decision{Allow: true}, nil
+}
+
+// normalizeGroup folds a group name to the trimmed, lower-cased form used for membership
+// comparison, so IdP, native and required-group spellings match case-insensitively.
+func normalizeGroup(g string) string {
+	return strings.TrimSpace(strings.ToLower(g))
+}
+
+// missingRequiredGroup returns the first required group (original spelling) absent from have,
+// or "" when every required group is present.
+func missingRequiredGroup(required []string, have map[string]struct{}) string {
+	for _, r := range required {
+		if _, ok := have[normalizeGroup(r)]; !ok {
+			return r
+		}
+	}
+	return ""
 }

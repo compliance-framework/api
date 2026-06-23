@@ -87,10 +87,21 @@ func Open(opts Options, deps Deps) (PDP, error) {
 	if err != nil {
 		return nil, err
 	}
-	// Optional short-TTL decision cache. Off by default; the in-process builtin gains
-	// nothing from it, but operators may enable it for remote PDPs to absorb the hop.
-	if opts.CacheTTL > 0 {
+	// Optional short-TTL decision cache, for remote PDPs to absorb the network hop. Skipped
+	// for the builtin driver: it gains nothing (in-process) AND caching it would be unsafe —
+	// builtin resolves native groups internally (not via the manifest attribute surface), so
+	// a native-group change (now an admin-granting path, BCH-1328) does not alter the cache
+	// key and a cached admin deny could be served stale for up to the TTL.
+	if opts.CacheTTL > 0 && name != DriverBuiltin {
 		pdp = newCachingPDP(pdp, opts.CacheTTL, deps.Logger)
+	}
+	// Populate subject.groups uniformly for engines that consume it (Cedar/AuthZen, which
+	// expect it pre-resolved — BCH-1328). The PIP sits OUTSIDE the cache so a membership
+	// change invalidates cached decisions. The builtin driver is skipped: it resolves groups
+	// itself, lazily, only on the admin path, so it never pays a per-request membership read
+	// on hot non-admin routes (e.g. evidence ingest). Needs DB locality, so a nil DB skips it.
+	if deps.DB != nil && name != DriverBuiltin {
+		pdp = newResolvingPDP(pdp, NewDBGroupResolver(deps.DB, deps.Logger), deps.Logger)
 	}
 	return pdp, nil
 }
