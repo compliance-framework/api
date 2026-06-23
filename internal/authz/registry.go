@@ -92,5 +92,13 @@ func Open(opts Options, deps Deps) (PDP, error) {
 	if opts.CacheTTL > 0 {
 		pdp = newCachingPDP(pdp, opts.CacheTTL, deps.Logger)
 	}
+	// Populate subject.groups uniformly for engines that consume it (Cedar/AuthZen, which
+	// expect it pre-resolved — BCH-1328). The PIP sits OUTSIDE the cache so a membership
+	// change invalidates cached decisions. The builtin driver is skipped: it resolves groups
+	// itself, lazily, only on the admin path, so it never pays a per-request membership read
+	// on hot non-admin routes (e.g. evidence ingest). Needs DB locality, so a nil DB skips it.
+	if deps.DB != nil && name != DriverBuiltin {
+		pdp = newResolvingPDP(pdp, NewDBGroupResolver(deps.DB, deps.Logger), deps.Logger)
+	}
 	return pdp, nil
 }

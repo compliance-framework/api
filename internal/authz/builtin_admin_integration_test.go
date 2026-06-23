@@ -22,8 +22,25 @@ func setupAuthzDB(t *testing.T) *gorm.DB {
 	t.Helper()
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
-	require.NoError(t, db.AutoMigrate(&relational.User{}, &relational.SSOUserLink{}))
+	require.NoError(t, db.AutoMigrate(
+		&relational.User{},
+		&relational.SSOUserLink{},
+		&relational.UserGroup{},
+		&relational.UserGroupMembership{},
+		&relational.SSOGroupMapping{},
+	))
 	return db
+}
+
+// addNativeGroup creates a native CCF group (if absent) and adds the user to it.
+func addNativeGroup(t *testing.T, db *gorm.DB, user relational.User, name string) {
+	t.Helper()
+	group := relational.UserGroup{Name: name}
+	require.NoError(t, db.Where("name = ?", name).FirstOrCreate(&group).Error)
+	require.NoError(t, db.Create(&relational.UserGroupMembership{
+		UserID:  user.ID.String(),
+		GroupID: group.ID.String(),
+	}).Error)
 }
 
 func ssoEnabledConfig(requiredAdminGroups []string) *config.Config {
@@ -117,6 +134,24 @@ func TestBuiltinAdminDecisionMatrix(t *testing.T) {
 		db := setupAuthzDB(t)
 		user := createUser(t, db, "sso@example.com", "sso")
 		createSSOLink(t, db, user, "test", []string{"auditors"})
+		require.False(t, evalAdmin(t, db, ssoEnabledConfig([]string{"ccf-admins"}), "sso@example.com").Allow)
+	})
+
+	// BCH-1328: a native CCF group satisfies the admin requirement even when the user's IdP
+	// groups don't include it, so group-based admin is consistent across auth methods.
+	t.Run("sso user in native admin group (not in sso admin group) -> allow", func(t *testing.T) {
+		db := setupAuthzDB(t)
+		user := createUser(t, db, "sso@example.com", "sso")
+		createSSOLink(t, db, user, "test", []string{"auditors"})
+		addNativeGroup(t, db, user, "ccf-admins")
+		require.True(t, evalAdmin(t, db, ssoEnabledConfig([]string{"ccf-admins"}), "sso@example.com").Allow)
+	})
+
+	t.Run("sso user missing required group, native groups don't cover it -> deny", func(t *testing.T) {
+		db := setupAuthzDB(t)
+		user := createUser(t, db, "sso@example.com", "sso")
+		createSSOLink(t, db, user, "test", []string{"auditors"})
+		addNativeGroup(t, db, user, "engineers")
 		require.False(t, evalAdmin(t, db, ssoEnabledConfig([]string{"ccf-admins"}), "sso@example.com").Allow)
 	})
 

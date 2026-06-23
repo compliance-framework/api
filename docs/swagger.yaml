@@ -571,6 +571,24 @@ definitions:
         type: array
       meta: {}
     type: object
+  handler.GenericDataListResponse-handler_groupMemberResponse:
+    properties:
+      data:
+        description: Items from the list response
+        items:
+          $ref: '#/definitions/handler.groupMemberResponse'
+        type: array
+      meta: {}
+    type: object
+  handler.GenericDataListResponse-handler_groupResponse:
+    properties:
+      data:
+        description: Items from the list response
+        items:
+          $ref: '#/definitions/handler.groupResponse'
+        type: array
+      meta: {}
+    type: object
   handler.GenericDataListResponse-handler_milestoneResponse:
     properties:
       data:
@@ -1012,6 +1030,15 @@ definitions:
         type: array
       meta: {}
     type: object
+  handler.GenericDataListResponse-relational_SSOGroupMapping:
+    properties:
+      data:
+        description: Items from the list response
+        items:
+          $ref: '#/definitions/relational.SSOGroupMapping'
+        type: array
+      meta: {}
+    type: object
   handler.GenericDataListResponse-relational_SystemComponentSuggestion:
     properties:
       data:
@@ -1135,6 +1162,13 @@ definitions:
       data:
         allOf:
         - $ref: '#/definitions/handler.configuredSystemDestinationResponse'
+        description: Wrapped response data
+    type: object
+  handler.GenericDataResponse-handler_groupResponse:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/handler.groupResponse'
         description: Wrapped response data
     type: object
   handler.GenericDataResponse-handler_milestoneResponse:
@@ -1683,11 +1717,25 @@ definitions:
         - $ref: '#/definitions/relational.Filter'
         description: Wrapped response data
     type: object
+  handler.GenericDataResponse-relational_SSOGroupMapping:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/relational.SSOGroupMapping'
+        description: Wrapped response data
+    type: object
   handler.GenericDataResponse-relational_User:
     properties:
       data:
         allOf:
         - $ref: '#/definitions/relational.User'
+        description: Wrapped response data
+    type: object
+  handler.GenericDataResponse-relational_UserGroup:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/relational.UserGroup'
         description: Wrapped response data
     type: object
   handler.GenericDataResponse-risks_RiskComponentLink:
@@ -1723,6 +1771,8 @@ definitions:
       data:
         description: Wrapped response data
         type: string
+    type: object
+  handler.GroupsHandler:
     type: object
   handler.HeartbeatCreateRequest:
     properties:
@@ -2063,6 +2113,33 @@ definitions:
       finding-id:
         type: string
       poam-item-id:
+        type: string
+    type: object
+  handler.groupMemberResponse:
+    properties:
+      displayName:
+        type: string
+      userId:
+        type: string
+    type: object
+  handler.groupResponse:
+    properties:
+      createdAt:
+        type: string
+      deletedAt:
+        $ref: '#/definitions/gorm.DeletedAt'
+      description:
+        type: string
+      id:
+        type: string
+      memberCount:
+        type: integer
+      name:
+        description: |-
+          Name is the group's policy-facing identifier — the token that appears in
+          subject.groups and that role-assignment config matches on. Unique among live groups.
+        type: string
+      updatedAt:
         type: string
     type: object
   handler.milestoneResponse:
@@ -8238,6 +8315,23 @@ definitions:
       title:
         type: string
     type: object
+  relational.SSOGroupMapping:
+    properties:
+      createdAt:
+        type: string
+      externalGroup:
+        type: string
+      group:
+        $ref: '#/definitions/relational.UserGroup'
+      groupId:
+        type: string
+      id:
+        type: string
+      provider:
+        type: string
+      updatedAt:
+        type: string
+    type: object
   relational.SatisfiedControlImplementationResponsibility:
     properties:
       by-component-id:
@@ -8638,6 +8732,24 @@ definitions:
       updatedAt:
         type: string
       userAttributes:
+        type: string
+    type: object
+  relational.UserGroup:
+    properties:
+      createdAt:
+        type: string
+      deletedAt:
+        $ref: '#/definitions/gorm.DeletedAt'
+      description:
+        type: string
+      id:
+        type: string
+      name:
+        description: |-
+          Name is the group's policy-facing identifier — the token that appears in
+          subject.groups and that role-assignment config matches on. Unique among live groups.
+        type: string
+      updatedAt:
         type: string
     type: object
   risks.RiskComponentLink:
@@ -10629,6 +10741,387 @@ paths:
       summary: Trigger evidence digest
       tags:
       - Digest
+  /admin/groups:
+    get:
+      description: Lists all native CCF user groups with their member counts
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-handler_groupResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: List user groups
+      tags:
+      - Groups
+    post:
+      consumes:
+      - application/json
+      description: Creates a native CCF user group
+      parameters:
+      - description: Group details
+        in: body
+        name: group
+        required: true
+        schema:
+          $ref: '#/definitions/handler.GroupsHandler'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-relational_UserGroup'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Create a user group
+      tags:
+      - Groups
+  /admin/groups/{id}:
+    delete:
+      description: Soft-deletes a native CCF user group and removes its memberships
+        and SSO mappings
+      parameters:
+      - description: Group ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Delete a user group
+      tags:
+      - Groups
+    get:
+      description: Get a native CCF user group by ID
+      parameters:
+      - description: Group ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-handler_groupResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Get a user group
+      tags:
+      - Groups
+    put:
+      consumes:
+      - application/json
+      description: Updates a native CCF user group's name or description
+      parameters:
+      - description: Group ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Group details
+        in: body
+        name: group
+        required: true
+        schema:
+          $ref: '#/definitions/handler.GroupsHandler'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-relational_UserGroup'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Update a user group
+      tags:
+      - Groups
+  /admin/groups/{id}/members:
+    get:
+      description: Lists the users that belong to a native CCF user group
+      parameters:
+      - description: Group ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-handler_groupMemberResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: List group members
+      tags:
+      - Groups
+    post:
+      consumes:
+      - application/json
+      description: Adds a user to a native CCF user group (idempotent)
+      parameters:
+      - description: Group ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Member to add
+        in: body
+        name: member
+        required: true
+        schema:
+          $ref: '#/definitions/handler.GroupsHandler'
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Add a group member
+      tags:
+      - Groups
+  /admin/groups/{id}/members/{userId}:
+    delete:
+      description: Removes a user from a native CCF user group
+      parameters:
+      - description: Group ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: User ID
+        in: path
+        name: userId
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Remove a group member
+      tags:
+      - Groups
+  /admin/groups/{id}/sso-mappings:
+    get:
+      description: Lists the external IdP groups mapped to a native CCF user group
+      parameters:
+      - description: Group ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-relational_SSOGroupMapping'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: List SSO group mappings
+      tags:
+      - Groups
+    post:
+      consumes:
+      - application/json
+      description: Maps an external IdP group (provider + group name) onto a native
+        CCF user group
+      parameters:
+      - description: Group ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: SSO mapping
+        in: body
+        name: mapping
+        required: true
+        schema:
+          $ref: '#/definitions/handler.GroupsHandler'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-relational_SSOGroupMapping'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Map an SSO group to a user group
+      tags:
+      - Groups
+  /admin/groups/{id}/sso-mappings/{mappingId}:
+    delete:
+      description: Removes an external IdP group mapping from a native CCF user group
+      parameters:
+      - description: Group ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Mapping ID
+        in: path
+        name: mappingId
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Remove an SSO group mapping
+      tags:
+      - Groups
   /admin/notifications:
     get:
       description: Returns system notification destination configurations for admin

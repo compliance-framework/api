@@ -26,7 +26,15 @@ type UserHandler struct {
 
 type userResponse struct {
 	relational.User
-	AuthProvider *string `json:"authProvider,omitempty"`
+	AuthProvider *string            `json:"authProvider,omitempty"`
+	Groups       []userGroupSummary `json:"groups"`
+}
+
+// userGroupSummary is the native CCF group membership surfaced on the admin user views
+// (BCH-1328) so an operator can see a user's groups alongside their other attributes.
+type userGroupSummary struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
 }
 
 type selectableUserResponse struct {
@@ -111,6 +119,7 @@ func (h *UserHandler) ListUsers(ctx echo.Context) error {
 	for i, user := range users {
 		responses[i] = userResponse{User: user}
 		h.attachAuthProvider(&responses[i])
+		h.attachGroups(&responses[i])
 	}
 
 	return ctx.JSON(200, GenericDataListResponse[userResponse]{
@@ -230,6 +239,7 @@ func (h *UserHandler) GetUser(ctx echo.Context) error {
 	}
 
 	h.attachAuthProvider(&response)
+	h.attachGroups(&response)
 
 	return ctx.JSON(200, GenericDataResponse[userResponse]{
 		Data: response,
@@ -274,6 +284,43 @@ func (h *UserHandler) GetPublicUser(ctx echo.Context) error {
 			Name: UserDisplayName(user),
 		},
 	})
+}
+
+// attachGroups populates the user's native CCF group memberships on the response. Resolved
+// in two steps (membership ids, then the groups) to avoid a column-to-column uuid = text
+// join, which Postgres rejects (see GroupNamesForUser). A failure is logged and the response
+// is left with an empty groups list rather than failing the whole request.
+func (h *UserHandler) attachGroups(resp *userResponse) {
+	if resp == nil || resp.ID == nil {
+		return
+	}
+	resp.Groups = []userGroupSummary{}
+
+	var groupIDs []string
+	if err := h.db.Model(&relational.UserGroupMembership{}).
+		Where("user_id = ?", resp.User.ID.String()).
+		Pluck("group_id", &groupIDs).Error; err != nil {
+		h.sugar.Warnw("Failed to load group ids for user", "userID", resp.ID.String(), "error", err)
+		return
+	}
+	if len(groupIDs) == 0 {
+		return
+	}
+
+	var groups []relational.UserGroup
+	if err := h.db.
+		Where("id IN ?", groupIDs).
+		Order("name ASC").
+		Find(&groups).Error; err != nil {
+		h.sugar.Warnw("Failed to load groups for user", "userID", resp.ID.String(), "error", err)
+		return
+	}
+	for _, g := range groups {
+		if g.ID == nil {
+			continue
+		}
+		resp.Groups = append(resp.Groups, userGroupSummary{ID: g.ID.String(), Name: g.Name})
+	}
 }
 
 func (h *UserHandler) attachAuthProvider(resp *userResponse) {
@@ -341,6 +388,7 @@ func (h *UserHandler) GetMe(ctx echo.Context) error {
 	}
 
 	h.attachAuthProvider(&response)
+	h.attachGroups(&response)
 
 	return ctx.JSON(200, GenericDataResponse[userResponse]{
 		Data: response,
