@@ -24,10 +24,11 @@
 # tiers — declaring is not honoring. The OSS embedded Cedar engine is DESIGNED to honor C0
 # (the global-RBAC roles below); C1/C2 attributes are honored by the Enterprise external PDP
 # or a BYO PDP. This file declares everything and ships the C0 role set, but does not wire
-# any of it into an engine. IMPORTANT: the current builtin driver does NOT consume these
-# roles yet — it allows every authenticated non-admin request and only gates `admin` via SSO
-# groups (zero behavior change). C0 RBAC enforcement against this role set arrives with the
-# embedded Cedar engine (BCH-1316); C1/C2 stay Enterprise/BYO.
+# any of it into an engine on its own. The default `builtin` driver does NOT consume these
+# roles — it allows every authenticated non-admin request and only gates `admin` via SSO
+# groups (zero behavior change). The embedded Cedar engine (BCH-1316) DOES honor this C0 role
+# set; select it with `authz.driver: cedar` (see docs/authz-oss-cedar.md). C1/C2 stay
+# Enterprise/BYO.
 schemaVersion: 1
 
 # ── Subjects ────────────────────────────────────────────────────────────────────────────
@@ -244,9 +245,10 @@ resources:
 # The OSS global-RBAC policy set: four fixed roles (admin/contributor/auditor/viewer) plus
 # the agent service role. These reference C0 only — they are resource→actions maps with no
 # attribute conditions — which is the C0 policy set the embedded Cedar engine is DESIGNED to
-# honor (BCH-1319 §11.1, §11.3; enforcement lands with BCH-1316). The current builtin driver
-# does not consume these roles yet. Operators may override or extend them in their PAP. "*"
-# means all resources / all actions.
+# honor (BCH-1319 §11.1, §11.3) — and which the embedded Cedar engine (BCH-1316) compiles into
+# its bundled policy set. The default builtin driver does not consume these roles; the cedar
+# driver does. Operators may override or extend them in their PAP. "*" means all resources /
+# all actions.
 roles:
   # Full access.
   admin:

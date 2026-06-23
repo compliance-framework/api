@@ -1,0 +1,34 @@
+# CCF authorization — static role assignments (OSS embedded Cedar engine).
+#
+# This file maps principals to one of the four bundled global roles. It is read ONLY when the
+# Cedar engine is selected (CCF_AUTHZ_DRIVER=cedar); with the default `builtin` driver it is
+# ignored. Path: CCF_AUTHZ_ROLE_ASSIGNMENTS (default: authz-roles.yaml).
+#
+# Bundled roles (defined in internal/authz/manifest.yaml, roles: block — C0 global RBAC):
+#   admin        full access to every resource and action
+#   contributor  author content (OSCAL docs, risk/poam register, workflows, dashboards,
+#                evidence); read everything; no platform/admin management
+#   auditor      read everything; record evidence; maintain the risk/poam register
+#   viewer       read everything; no writes
+#   agent        service accounts: ingest evidence/heartbeats and register
+#
+# Cedar is deny-by-default: a user with no role here is denied every request. Assign at least
+# one admin so the instance is manageable. To express more than these four fixed roles, add
+# your own .cedar policy files (CCF_AUTHZ_CEDAR_POLICY_DIR) — see docs/authz-oss-cedar.md.
+
+# By user — keyed by the user's email (subject.id), matched case-insensitively. Works for
+# every user, SSO or local.
+users:
+  # admin@example.com: admin
+  # auditor@example.com: auditor
+
+# By group — keyed by group name. Live only once subjects carry a `groups` attribute
+# (native CCF groups ∪ SSO groups), which is delivered by BCH-1328; until then this section
+# is inert and direct user assignment above covers everyone.
+groups:
+  # sec-team: admin
+  # auditors: auditor
+
+# The role granted to every authenticated agent (service account). Defaults to "agent" when
+# omitted, so agents can ingest with zero configuration.
+agents: agent
