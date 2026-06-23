@@ -3,3 +3,6 @@ Pass 1 (strict) findings:
 - [FIX] AddMember (groups.go) idempotency race: FirstOrCreate is SELECT-then-INSERT, so a concurrent duplicate add can return 500 on the unique-index violation instead of 204. Treat isUniqueViolation as success (the row exists = desired state).
 - [DEFER/low] ListUsers calls attachAuthProvider + attachGroups per user (N+1). Matches the pre-existing attachAuthProvider N+1 pattern; batching both is out of scope for this PR.
 - [DEFER/low] No direct test that authz.Open wraps a non-builtin driver in resolvingPDP; the decorator behavior itself is covered by TestResolvingPDPPopulatesSubjectGroups and the one-line wiring is low-risk.
+
+lisa-addressed:
+- AddMember now treats a unique-index violation from FirstOrCreate as success (204), making the endpoint truly idempotent under a concurrent duplicate add (pass-1 self-review fix).
