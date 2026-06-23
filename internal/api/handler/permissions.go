@@ -34,9 +34,10 @@ func NewPermissionsHandler(pdp authz.PDP, manifest *authz.Manifest, failMode aut
 	return &PermissionsHandler{pdp: pdp, manifest: manifest, failMode: failMode, logger: logger}
 }
 
-// Register mounts the route on a group that already enforces authentication.
-func (h *PermissionsHandler) Register(g *echo.Group) {
-	g.GET("/permissions", h.GetPermissions)
+// Register mounts the route on a group that already enforces authentication. Reading one's
+// own permissions is a read of the user resource.
+func (h *PermissionsHandler) Register(g *echo.Group, guard middleware.ResourceGuard) {
+	g.GET("/permissions", h.GetPermissions, guard.Read())
 }
 
 type permissionsSubject struct {

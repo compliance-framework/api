@@ -18,6 +18,7 @@ import (
 
 	"github.com/compliance-framework/api/internal/api"
 	"github.com/compliance-framework/api/internal/api/handler"
+	"github.com/compliance-framework/api/internal/api/middleware"
 	"github.com/compliance-framework/api/internal/service/relational"
 	oscalTypes_1_1_3 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
 )
@@ -54,47 +55,47 @@ func (h *PlanOfActionAndMilestonesHandler) verifyPoamExists(ctx echo.Context, po
 }
 
 // Register registers POA&M endpoints to the API group.
-func (h *PlanOfActionAndMilestonesHandler) Register(api *echo.Group) {
-	api.GET("", h.List)          // GET /oscal/plan-of-action-and-milestones
-	api.POST("", h.Create)       // POST /oscal/plan-of-action-and-milestones
-	api.GET("/:id", h.Get)       // GET /oscal/plan-of-action-and-milestones/:id
-	api.PUT("/:id", h.Update)    // PUT /oscal/plan-of-action-and-milestones/:id
-	api.DELETE("/:id", h.Delete) // DELETE /oscal/plan-of-action-and-milestones/:id
-	api.GET("/:id/full", h.Full) // GET /oscal/plan-of-action-and-milestones/:id/full
-	api.GET("/:id/metadata", h.GetMetadata)
-	api.PUT("/:id/metadata", h.UpdateMetadata)
-	api.GET("/:id/import-ssp", h.GetImportSsp)
-	api.POST("/:id/import-ssp", h.CreateImportSsp)
-	api.PUT("/:id/import-ssp", h.UpdateImportSsp)
-	api.GET("/:id/system-id", h.GetSystemId)
-	api.POST("/:id/system-id", h.CreateSystemId)
-	api.PUT("/:id/system-id", h.UpdateSystemId)
-	api.GET("/:id/local-definitions", h.GetLocalDefinitions)
-	api.PUT("/:id/local-definitions", h.UpdateLocalDefinitions)
-	api.GET("/:id/back-matter", h.GetBackMatter)
-	api.POST("/:id/back-matter", h.CreateBackMatter)
-	api.PUT("/:id/back-matter", h.UpdateBackMatter)
-	api.DELETE("/:id/back-matter", h.DeleteBackMatter)
-	api.GET("/:id/back-matter/resources", h.GetBackMatterResources)
-	api.POST("/:id/back-matter/resources", h.CreateBackMatterResource)
-	api.PUT("/:id/back-matter/resources/:resourceId", h.UpdateBackMatterResource)
-	api.DELETE("/:id/back-matter/resources/:resourceId", h.DeleteBackMatterResource)
-	api.GET("/:id/observations", h.GetObservations)
-	api.POST("/:id/observations", h.CreateObservation)
-	api.PUT("/:id/observations/:obsId", h.UpdateObservation)
-	api.DELETE("/:id/observations/:obsId", h.DeleteObservation)
-	api.GET("/:id/risks", h.GetRisks)
-	api.POST("/:id/risks", h.CreateRisk)
-	api.PUT("/:id/risks/:riskId", h.UpdateRisk)
-	api.DELETE("/:id/risks/:riskId", h.DeleteRisk)
-	api.GET("/:id/findings", h.GetFindings)
-	api.POST("/:id/findings", h.CreateFinding)
-	api.PUT("/:id/findings/:findingId", h.UpdateFinding)
-	api.DELETE("/:id/findings/:findingId", h.DeleteFinding)
-	api.GET("/:id/poam-items", h.GetPoamItems)
-	api.POST("/:id/poam-items", h.CreatePoamItem)
-	api.PUT("/:id/poam-items/:itemId", h.UpdatePoamItem)
-	api.DELETE("/:id/poam-items/:itemId", h.DeletePoamItem)
+func (h *PlanOfActionAndMilestonesHandler) Register(api *echo.Group, guard middleware.ResourceGuard) {
+	api.GET("", h.List, guard.Read())            // GET /oscal/plan-of-action-and-milestones
+	api.POST("", h.Create, guard.Create())       // POST /oscal/plan-of-action-and-milestones
+	api.GET("/:id", h.Get, guard.Read())         // GET /oscal/plan-of-action-and-milestones/:id
+	api.PUT("/:id", h.Update, guard.Update())    // PUT /oscal/plan-of-action-and-milestones/:id
+	api.DELETE("/:id", h.Delete, guard.Delete()) // DELETE /oscal/plan-of-action-and-milestones/:id
+	api.GET("/:id/full", h.Full, guard.Read())   // GET /oscal/plan-of-action-and-milestones/:id/full
+	api.GET("/:id/metadata", h.GetMetadata, guard.Read())
+	api.PUT("/:id/metadata", h.UpdateMetadata, guard.Update())
+	api.GET("/:id/import-ssp", h.GetImportSsp, guard.Read())
+	api.POST("/:id/import-ssp", h.CreateImportSsp, guard.Create())
+	api.PUT("/:id/import-ssp", h.UpdateImportSsp, guard.Update())
+	api.GET("/:id/system-id", h.GetSystemId, guard.Read())
+	api.POST("/:id/system-id", h.CreateSystemId, guard.Create())
+	api.PUT("/:id/system-id", h.UpdateSystemId, guard.Update())
+	api.GET("/:id/local-definitions", h.GetLocalDefinitions, guard.Read())
+	api.PUT("/:id/local-definitions", h.UpdateLocalDefinitions, guard.Update())
+	api.GET("/:id/back-matter", h.GetBackMatter, guard.Read())
+	api.POST("/:id/back-matter", h.CreateBackMatter, guard.Create())
+	api.PUT("/:id/back-matter", h.UpdateBackMatter, guard.Update())
+	api.DELETE("/:id/back-matter", h.DeleteBackMatter, guard.Delete())
+	api.GET("/:id/back-matter/resources", h.GetBackMatterResources, guard.Read())
+	api.POST("/:id/back-matter/resources", h.CreateBackMatterResource, guard.Create())
+	api.PUT("/:id/back-matter/resources/:resourceId", h.UpdateBackMatterResource, guard.Update())
+	api.DELETE("/:id/back-matter/resources/:resourceId", h.DeleteBackMatterResource, guard.Delete())
+	api.GET("/:id/observations", h.GetObservations, guard.Read())
+	api.POST("/:id/observations", h.CreateObservation, guard.Create())
+	api.PUT("/:id/observations/:obsId", h.UpdateObservation, guard.Update())
+	api.DELETE("/:id/observations/:obsId", h.DeleteObservation, guard.Delete())
+	api.GET("/:id/risks", h.GetRisks, guard.Read())
+	api.POST("/:id/risks", h.CreateRisk, guard.Create())
+	api.PUT("/:id/risks/:riskId", h.UpdateRisk, guard.Update())
+	api.DELETE("/:id/risks/:riskId", h.DeleteRisk, guard.Delete())
+	api.GET("/:id/findings", h.GetFindings, guard.Read())
+	api.POST("/:id/findings", h.CreateFinding, guard.Create())
+	api.PUT("/:id/findings/:findingId", h.UpdateFinding, guard.Update())
+	api.DELETE("/:id/findings/:findingId", h.DeleteFinding, guard.Delete())
+	api.GET("/:id/poam-items", h.GetPoamItems, guard.Read())
+	api.POST("/:id/poam-items", h.CreatePoamItem, guard.Create())
+	api.PUT("/:id/poam-items/:itemId", h.UpdatePoamItem, guard.Update())
+	api.DELETE("/:id/poam-items/:itemId", h.DeletePoamItem, guard.Delete())
 }
 
 // validatePoamInput validates POAM input following OSCAL requirements

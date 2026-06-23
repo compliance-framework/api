@@ -15,6 +15,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/compliance-framework/api/internal/api/handler"
+	"github.com/compliance-framework/api/internal/api/middleware"
 	"github.com/compliance-framework/api/internal/service/relational"
 )
 
@@ -30,31 +31,31 @@ func NewCatalogHandler(l *zap.SugaredLogger, db *gorm.DB) *CatalogHandler {
 	}
 }
 
-func (h *CatalogHandler) Register(api *echo.Group) {
-	api.GET("", h.List)
-	api.POST("", h.Create)
-	api.GET("/:id", h.Get)
-	api.PUT("/:id", h.Update)
-	api.DELETE("/:id", h.Delete)
-	api.GET("/:id/full", h.Full)
-	api.GET("/:id/back-matter", h.GetBackMatter)
-	api.GET("/:id/groups", h.GetGroups)
-	api.POST("/:id/groups", h.CreateGroup)
-	api.GET("/:id/groups/:group", h.GetGroup)
-	api.PUT("/:id/groups/:group", h.UpdateGroup)
-	api.DELETE("/:id/groups/:group", h.DeleteGroup)
-	api.GET("/:id/groups/:group/groups", h.GetGroupSubGroups)
-	api.POST("/:id/groups/:group/groups", h.CreateGroupSubGroup)
-	api.GET("/:id/groups/:group/controls", h.GetGroupControls)
-	api.POST("/:id/groups/:group/controls", h.CreateGroupControl)
-	api.GET("/:id/controls", h.GetControls)
-	api.GET("/:id/all-controls", h.GetAllControls)
-	api.POST("/:id/controls", h.CreateControl)
-	api.GET("/:id/controls/:control", h.GetControl)
-	api.PUT("/:id/controls/:control", h.UpdateControl)
-	api.DELETE("/:id/controls/:control", h.DeleteControl)
-	api.GET("/:id/controls/:control/controls", h.GetControlSubControls)
-	api.POST("/:id/controls/:control/controls", h.CreateControlSubControl)
+func (h *CatalogHandler) Register(api *echo.Group, guard middleware.ResourceGuard) {
+	api.GET("", h.List, guard.Read())
+	api.POST("", h.Create, guard.Create())
+	api.GET("/:id", h.Get, guard.Read())
+	api.PUT("/:id", h.Update, guard.Update())
+	api.DELETE("/:id", h.Delete, guard.Delete())
+	api.GET("/:id/full", h.Full, guard.Read())
+	api.GET("/:id/back-matter", h.GetBackMatter, guard.Read())
+	api.GET("/:id/groups", h.GetGroups, guard.Read())
+	api.POST("/:id/groups", h.CreateGroup, guard.Create())
+	api.GET("/:id/groups/:group", h.GetGroup, guard.Read())
+	api.PUT("/:id/groups/:group", h.UpdateGroup, guard.Update())
+	api.DELETE("/:id/groups/:group", h.DeleteGroup, guard.Delete())
+	api.GET("/:id/groups/:group/groups", h.GetGroupSubGroups, guard.Read())
+	api.POST("/:id/groups/:group/groups", h.CreateGroupSubGroup, guard.Create())
+	api.GET("/:id/groups/:group/controls", h.GetGroupControls, guard.Read())
+	api.POST("/:id/groups/:group/controls", h.CreateGroupControl, guard.Create())
+	api.GET("/:id/controls", h.GetControls, guard.Read())
+	api.GET("/:id/all-controls", h.GetAllControls, guard.Read())
+	api.POST("/:id/controls", h.CreateControl, guard.Create())
+	api.GET("/:id/controls/:control", h.GetControl, guard.Read())
+	api.PUT("/:id/controls/:control", h.UpdateControl, guard.Update())
+	api.DELETE("/:id/controls/:control", h.DeleteControl, guard.Delete())
+	api.GET("/:id/controls/:control/controls", h.GetControlSubControls, guard.Read())
+	api.POST("/:id/controls/:control/controls", h.CreateControlSubControl, guard.Create())
 }
 
 // List godoc

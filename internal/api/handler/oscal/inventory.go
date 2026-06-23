@@ -6,6 +6,7 @@ import (
 
 	"github.com/compliance-framework/api/internal/api"
 	"github.com/compliance-framework/api/internal/api/handler"
+	"github.com/compliance-framework/api/internal/api/middleware"
 	"github.com/compliance-framework/api/internal/service/relational"
 	oscalTypes_1_1_3 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
 	"github.com/google/uuid"
@@ -49,10 +50,10 @@ func NewInventoryHandler(sugar *zap.SugaredLogger, db *gorm.DB) *InventoryHandle
 }
 
 // Register registers inventory routes
-func (h *InventoryHandler) Register(api *echo.Group) {
-	api.GET("", h.GetAllInventoryItems)
-	api.GET("/:id", h.GetInventoryItem)
-	api.POST("", h.CreateInventoryItem)
+func (h *InventoryHandler) Register(api *echo.Group, guard middleware.ResourceGuard) {
+	api.GET("", h.GetAllInventoryItems, guard.Read())
+	api.GET("/:id", h.GetInventoryItem, guard.Read())
+	api.POST("", h.CreateInventoryItem, guard.Create())
 }
 
 // InventoryItemWithSource represents an inventory item with its source information

@@ -26,7 +26,7 @@ func init() {
 // and any public-endpoint policy before the PEP runs.
 //
 // In Phase 1 the builtin driver resolves SSO facts itself (it holds db + config), acting
-// as its own PIP, so behavior matches the previous RequireAdminGroups middleware exactly.
+// as its own PIP, so behavior matches the prior admin-group middleware exactly.
 // The "PEP supplies all facts" model the design describes is for the remote drivers and
 // the manifest attribute surface designed in BCH-1319. Because it runs in-process it
 // never returns ErrUnavailable, so the configured fail mode never changes its behavior.
@@ -94,7 +94,7 @@ func (b *Builtin) Evaluations(ctx context.Context, reqs []EvalRequest) ([]Decisi
 	return out, nil
 }
 
-// evaluateAdmin reproduces the previous RequireAdminGroups logic. SSO users must belong
+// evaluateAdmin reproduces the prior admin-group enforcement. SSO users must belong
 // to the provider's configured admin groups; password (non-SSO) users are super admins;
 // and when SSO is disabled or no admin groups are configured, access is allowed. A
 // genuine DB failure loading the user is returned as an error (the PEP maps it to 500,

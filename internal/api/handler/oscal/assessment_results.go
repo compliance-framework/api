@@ -15,6 +15,7 @@ import (
 
 	"github.com/compliance-framework/api/internal/api"
 	"github.com/compliance-framework/api/internal/api/handler"
+	"github.com/compliance-framework/api/internal/api/middleware"
 	"github.com/compliance-framework/api/internal/service/relational"
 	oscalTypes_1_1_3 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
 )
@@ -51,69 +52,69 @@ func (h *AssessmentResultsHandler) verifyAssessmentResultsExists(ctx echo.Contex
 }
 
 // Register registers Assessment Results endpoints to the API group.
-func (h *AssessmentResultsHandler) Register(api *echo.Group) {
-	api.GET("", h.List)          // GET /oscal/assessment-results
-	api.POST("", h.Create)       // POST /oscal/assessment-results
-	api.GET("/:id", h.Get)       // GET /oscal/assessment-results/:id
-	api.PUT("/:id", h.Update)    // PUT /oscal/assessment-results/:id
-	api.DELETE("/:id", h.Delete) // DELETE /oscal/assessment-results/:id
-	api.GET("/:id/full", h.Full) // GET /oscal/assessment-results/:id/full
-	api.GET("/:id/metadata", h.GetMetadata)
-	api.PUT("/:id/metadata", h.UpdateMetadata)
-	api.GET("/:id/import-ap", h.GetImportAp)
-	api.PUT("/:id/import-ap", h.UpdateImportAp)
-	api.GET("/:id/local-definitions", h.GetLocalDefinitions)
-	api.PUT("/:id/local-definitions", h.UpdateLocalDefinitions)
-	api.GET("/:id/results", h.GetResults)
-	api.POST("/:id/results", h.CreateResult)
-	api.GET("/:id/results/:resultId", h.GetResult)
-	api.PUT("/:id/results/:resultId", h.UpdateResult)
-	api.DELETE("/:id/results/:resultId", h.DeleteResult)
-	api.GET("/:id/results/:resultId/observations", h.GetResultObservations)
-	api.POST("/:id/results/:resultId/observations", h.CreateResultObservation)
-	api.PUT("/:id/results/:resultId/observations/:obsId", h.UpdateResultObservation)
-	api.DELETE("/:id/results/:resultId/observations/:obsId", h.DeleteResultObservation)
-	api.GET("/:id/results/:resultId/risks", h.GetResultRisks)
-	api.POST("/:id/results/:resultId/risks", h.CreateResultRisk)
-	api.PUT("/:id/results/:resultId/risks/:riskId", h.UpdateResultRisk)
-	api.DELETE("/:id/results/:resultId/risks/:riskId", h.DeleteResultRisk)
-	api.GET("/:id/results/:resultId/findings", h.GetResultFindings)
-	api.POST("/:id/results/:resultId/findings", h.CreateResultFinding)
-	api.PUT("/:id/results/:resultId/findings/:findingId", h.UpdateResultFinding)
-	api.DELETE("/:id/results/:resultId/findings/:findingId", h.DeleteResultFinding)
-	api.GET("/:id/results/:resultId/attestations", h.GetResultAttestations)
-	api.POST("/:id/results/:resultId/attestations", h.CreateResultAttestation)
-	api.PUT("/:id/results/:resultId/attestations/:attestationId", h.UpdateResultAttestation)
-	api.DELETE("/:id/results/:resultId/attestations/:attestationId", h.DeleteResultAttestation)
+func (h *AssessmentResultsHandler) Register(api *echo.Group, guard middleware.ResourceGuard) {
+	api.GET("", h.List, guard.Read())            // GET /oscal/assessment-results
+	api.POST("", h.Create, guard.Create())       // POST /oscal/assessment-results
+	api.GET("/:id", h.Get, guard.Read())         // GET /oscal/assessment-results/:id
+	api.PUT("/:id", h.Update, guard.Update())    // PUT /oscal/assessment-results/:id
+	api.DELETE("/:id", h.Delete, guard.Delete()) // DELETE /oscal/assessment-results/:id
+	api.GET("/:id/full", h.Full, guard.Read())   // GET /oscal/assessment-results/:id/full
+	api.GET("/:id/metadata", h.GetMetadata, guard.Read())
+	api.PUT("/:id/metadata", h.UpdateMetadata, guard.Update())
+	api.GET("/:id/import-ap", h.GetImportAp, guard.Read())
+	api.PUT("/:id/import-ap", h.UpdateImportAp, guard.Update())
+	api.GET("/:id/local-definitions", h.GetLocalDefinitions, guard.Read())
+	api.PUT("/:id/local-definitions", h.UpdateLocalDefinitions, guard.Update())
+	api.GET("/:id/results", h.GetResults, guard.Read())
+	api.POST("/:id/results", h.CreateResult, guard.Create())
+	api.GET("/:id/results/:resultId", h.GetResult, guard.Read())
+	api.PUT("/:id/results/:resultId", h.UpdateResult, guard.Update())
+	api.DELETE("/:id/results/:resultId", h.DeleteResult, guard.Delete())
+	api.GET("/:id/results/:resultId/observations", h.GetResultObservations, guard.Read())
+	api.POST("/:id/results/:resultId/observations", h.CreateResultObservation, guard.Create())
+	api.PUT("/:id/results/:resultId/observations/:obsId", h.UpdateResultObservation, guard.Update())
+	api.DELETE("/:id/results/:resultId/observations/:obsId", h.DeleteResultObservation, guard.Delete())
+	api.GET("/:id/results/:resultId/risks", h.GetResultRisks, guard.Read())
+	api.POST("/:id/results/:resultId/risks", h.CreateResultRisk, guard.Create())
+	api.PUT("/:id/results/:resultId/risks/:riskId", h.UpdateResultRisk, guard.Update())
+	api.DELETE("/:id/results/:resultId/risks/:riskId", h.DeleteResultRisk, guard.Delete())
+	api.GET("/:id/results/:resultId/findings", h.GetResultFindings, guard.Read())
+	api.POST("/:id/results/:resultId/findings", h.CreateResultFinding, guard.Create())
+	api.PUT("/:id/results/:resultId/findings/:findingId", h.UpdateResultFinding, guard.Update())
+	api.DELETE("/:id/results/:resultId/findings/:findingId", h.DeleteResultFinding, guard.Delete())
+	api.GET("/:id/results/:resultId/attestations", h.GetResultAttestations, guard.Read())
+	api.POST("/:id/results/:resultId/attestations", h.CreateResultAttestation, guard.Create())
+	api.PUT("/:id/results/:resultId/attestations/:attestationId", h.UpdateResultAttestation, guard.Update())
+	api.DELETE("/:id/results/:resultId/attestations/:attestationId", h.DeleteResultAttestation, guard.Delete())
 
 	// Endpoints to list all observations, risks, and findings across all results
-	api.GET("/:id/observations", h.GetAllObservations)
-	api.GET("/:id/risks", h.GetAllRisks)
-	api.GET("/:id/findings", h.GetAllFindings)
+	api.GET("/:id/observations", h.GetAllObservations, guard.Read())
+	api.GET("/:id/risks", h.GetAllRisks, guard.Read())
+	api.GET("/:id/findings", h.GetAllFindings, guard.Read())
 
 	// Control endpoints for findings
-	api.GET("/:id/available-controls", h.GetAvailableControls)
-	api.GET("/:id/control/:controlId", h.GetControlDetails)
+	api.GET("/:id/available-controls", h.GetAvailableControls, guard.Read())
+	api.GET("/:id/control/:controlId", h.GetControlDetails, guard.Read())
 
 	// Association endpoints for existing observations, risks, and findings
-	api.GET("/:id/results/:resultId/associated-observations", h.GetResultAssociatedObservations)
-	api.POST("/:id/results/:resultId/associated-observations/:observationId", h.AssociateResultObservation)
-	api.DELETE("/:id/results/:resultId/associated-observations/:observationId", h.DisassociateResultObservation)
-	api.GET("/:id/results/:resultId/associated-risks", h.GetResultAssociatedRisks)
-	api.POST("/:id/results/:resultId/associated-risks/:riskId", h.AssociateResultRisk)
-	api.DELETE("/:id/results/:resultId/associated-risks/:riskId", h.DisassociateResultRisk)
-	api.GET("/:id/results/:resultId/associated-findings", h.GetResultAssociatedFindings)
-	api.POST("/:id/results/:resultId/associated-findings/:findingId", h.AssociateResultFinding)
-	api.DELETE("/:id/results/:resultId/associated-findings/:findingId", h.DisassociateResultFinding)
+	api.GET("/:id/results/:resultId/associated-observations", h.GetResultAssociatedObservations, guard.Read())
+	api.POST("/:id/results/:resultId/associated-observations/:observationId", h.AssociateResultObservation, guard.Create())
+	api.DELETE("/:id/results/:resultId/associated-observations/:observationId", h.DisassociateResultObservation, guard.Delete())
+	api.GET("/:id/results/:resultId/associated-risks", h.GetResultAssociatedRisks, guard.Read())
+	api.POST("/:id/results/:resultId/associated-risks/:riskId", h.AssociateResultRisk, guard.Create())
+	api.DELETE("/:id/results/:resultId/associated-risks/:riskId", h.DisassociateResultRisk, guard.Delete())
+	api.GET("/:id/results/:resultId/associated-findings", h.GetResultAssociatedFindings, guard.Read())
+	api.POST("/:id/results/:resultId/associated-findings/:findingId", h.AssociateResultFinding, guard.Create())
+	api.DELETE("/:id/results/:resultId/associated-findings/:findingId", h.DisassociateResultFinding, guard.Delete())
 
-	api.GET("/:id/back-matter", h.GetBackMatter)
-	api.POST("/:id/back-matter", h.CreateBackMatter)
-	api.PUT("/:id/back-matter", h.UpdateBackMatter)
-	api.DELETE("/:id/back-matter", h.DeleteBackMatter)
-	api.GET("/:id/back-matter/resources", h.GetBackMatterResources)
-	api.POST("/:id/back-matter/resources", h.CreateBackMatterResource)
-	api.PUT("/:id/back-matter/resources/:resourceId", h.UpdateBackMatterResource)
-	api.DELETE("/:id/back-matter/resources/:resourceId", h.DeleteBackMatterResource)
+	api.GET("/:id/back-matter", h.GetBackMatter, guard.Read())
+	api.POST("/:id/back-matter", h.CreateBackMatter, guard.Create())
+	api.PUT("/:id/back-matter", h.UpdateBackMatter, guard.Update())
+	api.DELETE("/:id/back-matter", h.DeleteBackMatter, guard.Delete())
+	api.GET("/:id/back-matter/resources", h.GetBackMatterResources, guard.Read())
+	api.POST("/:id/back-matter/resources", h.CreateBackMatterResource, guard.Create())
+	api.PUT("/:id/back-matter/resources/:resourceId", h.UpdateBackMatterResource, guard.Update())
+	api.DELETE("/:id/back-matter/resources/:resourceId", h.DeleteBackMatterResource, guard.Delete())
 }
 
 // validateAssessmentResultsInput validates Assessment Results input following OSCAL requirements

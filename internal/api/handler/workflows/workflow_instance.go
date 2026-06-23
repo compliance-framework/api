@@ -1,6 +1,7 @@
 package workflows
 
 import (
+	"github.com/compliance-framework/api/internal/api/middleware"
 	"github.com/compliance-framework/api/internal/service/relational/workflows"
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
@@ -22,14 +23,14 @@ func NewWorkflowInstanceHandler(sugar *zap.SugaredLogger, db *gorm.DB) *Workflow
 	}
 }
 
-func (h *WorkflowInstanceHandler) Register(api *echo.Group) {
-	api.POST("", h.Create)
-	api.GET("", h.List)
-	api.GET("/:id", h.Get)
-	api.PUT("/:id", h.Update)
-	api.DELETE("/:id", h.Delete)
-	api.PUT("/:id/activate", h.Activate)
-	api.PUT("/:id/deactivate", h.Deactivate)
+func (h *WorkflowInstanceHandler) Register(api *echo.Group, guard middleware.ResourceGuard) {
+	api.POST("", h.Create, guard.Create())
+	api.GET("", h.List, guard.Read())
+	api.GET("/:id", h.Get, guard.Read())
+	api.PUT("/:id", h.Update, guard.Update())
+	api.DELETE("/:id", h.Delete, guard.Delete())
+	api.PUT("/:id/activate", h.Activate, guard.Update())
+	api.PUT("/:id/deactivate", h.Deactivate, guard.Update())
 }
 
 type CreateWorkflowInstanceRequest struct {

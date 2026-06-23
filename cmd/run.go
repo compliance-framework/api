@@ -10,6 +10,8 @@ import (
 	"github.com/compliance-framework/api/internal/api/handler"
 	"github.com/compliance-framework/api/internal/api/handler/auth"
 	"github.com/compliance-framework/api/internal/api/handler/oscal"
+	"github.com/compliance-framework/api/internal/api/middleware"
+	"github.com/compliance-framework/api/internal/authz"
 	"github.com/compliance-framework/api/internal/config"
 	"github.com/compliance-framework/api/internal/logging"
 	"github.com/compliance-framework/api/internal/service"
@@ -162,6 +164,25 @@ func RunServer(cmd *cobra.Command, args []string) {
 	evidenceService := evidencesvc.NewEvidenceService(db, sugar, cfg, workerService,
 		evidencesvc.WithComponentDefinitionResolver(subjectTemplateService))
 
+	// Central authorization: construct the configured PDP once and wrap it in the single PEP,
+	// then share that PEP across every route group (handler + oscal registration). The driver
+	// is config-selected (builtin default, or cedar/authzen); building it once means a single
+	// cedar policy compile / assignment load and one consistent decision engine for admin,
+	// evidence, oscal and workflow routes alike.
+	authzOpts := authz.Options{}
+	authzFailMode := authz.FailClosed
+	if cfg.Authz != nil {
+		authzOpts.Driver = cfg.Authz.Driver
+		authzOpts.Endpoint = cfg.Authz.Endpoint
+		authzOpts.CacheTTL = cfg.Authz.CacheTTL
+		authzFailMode = authz.ParseFailMode(cfg.Authz.FailMode)
+	}
+	authzPDP, err := authz.Open(authzOpts, authz.Deps{DB: db, Config: cfg, Logger: sugar})
+	if err != nil {
+		sugar.Fatalw("Failed to initialize authorization PDP", "driver", authzOpts.Driver, "error", err)
+	}
+	authzPEP := middleware.NewPEP(authzPDP, authzFailMode, sugar)
+
 	// Create services struct for API handlers
 	services := &handler.APIServices{
 		EvidenceService:            evidenceService,
@@ -171,10 +192,11 @@ func RunServer(cmd *cobra.Command, args []string) {
 		NotificationEnqueuer:       workerService,
 		NotificationWorkerEnqueuer: workerService,
 		DAGExecutor:                workerService.GetDAGExecutor(),
+		PEP:                        authzPEP,
 	}
 
 	handler.RegisterHandlers(server, sugar, db, cfg, services)
-	oscal.RegisterHandlers(server, sugar, db, cfg, evidenceService, workerService)
+	oscal.RegisterHandlers(server, sugar, db, cfg, evidenceService, workerService, authzPEP)
 	auth.RegisterHandlers(server, sugar, db, cfg, metrics, emailService, workerService)
 
 	sugar.Infow("Allowed Origins", "origins", cfg.APIAllowedOrigins)

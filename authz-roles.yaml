@@ -1,34 +1,53 @@
-# CCF authorization — static role assignments (OSS embedded Cedar engine).
+# CCF AuthZ — static role assignments for the embedded Cedar engine (local-dev).
 #
-# This file maps principals to one of the four bundled global roles. It is read ONLY when the
-# Cedar engine is selected (CCF_AUTHZ_DRIVER=cedar); with the default `builtin` driver it is
-# ignored. Path: CCF_AUTHZ_ROLE_ASSIGNMENTS (default: authz-roles.yaml).
+# Consumed ONLY when the authz engine is "cedar" (CCF_AUTHZ_DRIVER=cedar in ../.env).
+# The default "builtin" engine ignores this file entirely, so it is safe to leave
+# mounted at all times and just flip the driver to switch behaviour.
 #
-# Bundled roles (defined in internal/authz/manifest.yaml, roles: block — C0 global RBAC):
-#   admin        full access to every resource and action
-#   contributor  author content (OSCAL docs, risk/poam register, workflows, dashboards,
-#                evidence); read everything; no platform/admin management
-#   auditor      read everything; record evidence; maintain the risk/poam register
-#   viewer       read everything; no writes
-#   agent        service accounts: ingest evidence/heartbeats and register
+# Cedar is DENY-BY-DEFAULT: a subject with no assignment here (directly or via a
+# group) is denied every request. Roles must be one of the bundled roles declared in
+# the manifest (internal/authz/manifest.yaml):
 #
-# Cedar is deny-by-default: a user with no role here is denied every request. Assign at least
-# one admin so the instance is manageable. To express more than these four fixed roles, add
-# your own .cedar policy files (CCF_AUTHZ_CEDAR_POLICY_DIR) — see docs/authz-oss-cedar.md.
+#   admin        full access ("*": ["*"])
+#   contributor  author OSCAL/registers/workflows/dashboards/evidence; no admin
+#   auditor      read everything + record evidence and maintain the risk/poam register
+#   viewer       read-only
+#   agent        service accounts: ingest evidence/heartbeats, register
+#
+# Matching is case-insensitive. `users` keys are the login email (the subject id) and
+# work for every user today. `groups` keys are resolved group names (native CCF groups
+# unioned with SSO/IdP groups) and take effect once the subject carries groups.
 
-# By user — keyed by the user's email (subject.id), matched case-insensitively. Works for
-# every user, SSO or local.
+# ── Per-user grants (email → role) ───────────────────────────────────────────────
 users:
-  # admin@example.com: admin
-  # auditor@example.com: auditor
+  # Primary local-dev account, seeded by `make`/scripts/create-user.sh
+  # (admin@example.com / password). KEEP THIS AS admin — without it you lock yourself
+  # out of local-dev the moment you switch to the cedar engine.
+  admin@example.com: admin
 
-# By group — keyed by group name. Live only once subjects carry a `groups` attribute
-# (native CCF groups ∪ SSO groups), which is delivered by BCH-1328; until then this section
-# is inert and direct user assignment above covers everyone.
+  # Dex/LDAP demo users (compose/dex/ldap/bootstrap.ldif). Pick contrasting roles so
+  # the engine is easy to validate from the UI / GET /api/me/permissions.
+  alice@example.com: admin        # Alice Admin — member of ccf-admins
+  bob@example.com: viewer    # Bob User   — member of ccf-users
+  # eve@example.com is intentionally left unassigned → denied. (Dex also blocks her
+  # login via required_login_groups, but any unlisted user is denied regardless: this
+  # is what deny-by-default looks like.)
+
+# ── Per-group grants (group name → role) ─────────────────────────────────────────
+# Granting by group is the recommended GitOps pattern. These become effective once the
+# subject's groups are resolved (native CCF groups ∪ SSO groups). The dex demo surfaces
+# the LDAP posix groups ccf-admins / ccf-users.
 groups:
-  # sec-team: admin
-  # auditors: auditor
+  ccf-admins: admin
+  ccf-users: contributor
 
-# The role granted to every authenticated agent (service account). Defaults to "agent" when
-# omitted, so agents can ingest with zero configuration.
+# ── Agent default ────────────────────────────────────────────────────────────────
+# Role granted to every authenticated agent. `agent` (the default) lets agents ingest
+# evidence/heartbeats and register with zero further config.
 agents: agent
+
+# ── Anonymous (unauthenticated) grant ────────────────────────────────────────────
+# Role granted to unauthenticated requests. OMIT or leave blank to keep the
+# deny-by-default behaviour (recommended). Set to `viewer` only when you want read
+# routes to be open without a login — e.g. a public-read demo deployment.
+#   anonymous: viewer

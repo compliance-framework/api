@@ -12,6 +12,7 @@ import (
 
 	"github.com/compliance-framework/api/internal/api"
 	"github.com/compliance-framework/api/internal/api/handler"
+	"github.com/compliance-framework/api/internal/api/middleware"
 	"github.com/compliance-framework/api/internal/service/relational"
 	oscalTypes_1_1_3 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
 )
@@ -28,12 +29,12 @@ func NewActivityHandler(sugar *zap.SugaredLogger, db *gorm.DB) *ActivityHandler 
 	}
 }
 
-func (h *ActivityHandler) Register(api *echo.Group) {
+func (h *ActivityHandler) Register(api *echo.Group, guard middleware.ResourceGuard) {
 	// Activities sub-resource management
-	api.POST("", h.CreateActivity)
-	api.GET("/:id", h.GetActivity)
-	api.PUT("/:id", h.UpdateActivity)
-	api.DELETE("/:id", h.DeleteActivity)
+	api.POST("", h.CreateActivity, guard.Create())
+	api.GET("/:id", h.GetActivity, guard.Read())
+	api.PUT("/:id", h.UpdateActivity, guard.Update())
+	api.DELETE("/:id", h.DeleteActivity, guard.Delete())
 }
 
 // validateActivityInput validates activity input
