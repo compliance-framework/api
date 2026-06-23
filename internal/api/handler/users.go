@@ -553,6 +553,13 @@ func (h *UserHandler) DeleteUser(ctx echo.Context) error {
 		Delete(&relational.SSOUserLink{}).Error; err != nil {
 		h.sugar.Warnw("Failed to remove SSO bindings for deleted user", "userID", userUUID.String(), "error", err)
 	}
+	// Remove the user's native group memberships so no orphan rows linger after deletion —
+	// keeping memberCount consistent with the (soft-delete-scoped) member list (BCH-1328).
+	if err := h.db.Unscoped().
+		Where("user_id = ?", userUUID.String()).
+		Delete(&relational.UserGroupMembership{}).Error; err != nil {
+		h.sugar.Warnw("Failed to remove group memberships for deleted user", "userID", userUUID.String(), "error", err)
+	}
 	if err := h.db.Unscoped().
 		Where("user_id = ?", userUUID.String()).
 		Delete(&relational.SlackUserLink{}).Error; err != nil {

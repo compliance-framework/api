@@ -232,6 +232,9 @@ func (h *GroupsHandler) DeleteGroup(ctx echo.Context) error {
 	if err != nil {
 		return h.groupError(ctx, err)
 	}
+	if group.ID == nil {
+		return ctx.JSON(500, api.NewError(errors.New("group is missing its id")))
+	}
 	groupID := group.ID.String()
 
 	err = h.db.Transaction(func(tx *gorm.DB) error {

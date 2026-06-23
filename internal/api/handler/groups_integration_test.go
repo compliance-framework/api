@@ -159,6 +159,35 @@ func (suite *GroupsApiIntegrationSuite) TestAddMemberUnknownUser() {
 	suite.Equal(404, rec.Code, rec.Body.String())
 }
 
+func (suite *GroupsApiIntegrationSuite) TestDeleteGroupCascadesMembersAndMappings() {
+	groupID := suite.createGroup("doomed")
+	userID := suite.dummyUserID()
+
+	add := suite.do("POST", "/api/admin/groups/"+groupID+"/members", map[string]string{"userId": userID})
+	suite.Require().Equal(204, add.Code, add.Body.String())
+	mapAdd := suite.do("POST", "/api/admin/groups/"+groupID+"/sso-mappings",
+		map[string]string{"provider": "okta", "externalGroup": "doomed-idp"})
+	suite.Require().Equal(201, mapAdd.Code, mapAdd.Body.String())
+
+	del := suite.do("DELETE", "/api/admin/groups/"+groupID, nil)
+	suite.Require().Equal(204, del.Code)
+
+	// Both join rows are hard-deleted by the DeleteGroup transaction.
+	var memberRows int64
+	suite.Require().NoError(suite.DB.Model(&relational.UserGroupMembership{}).
+		Where("group_id = ?", groupID).Count(&memberRows).Error)
+	suite.Equal(int64(0), memberRows, "memberships should be removed when the group is deleted")
+
+	var mappingRows int64
+	suite.Require().NoError(suite.DB.Model(&relational.SSOGroupMapping{}).
+		Where("group_id = ?", groupID).Count(&mappingRows).Error)
+	suite.Equal(int64(0), mappingRows, "sso mappings should be removed when the group is deleted")
+
+	// The freed name can be re-created: the partial unique index only covers live rows.
+	recreate := suite.do("POST", "/api/admin/groups", map[string]string{"name": "doomed"})
+	suite.Equal(201, recreate.Code, recreate.Body.String())
+}
+
 func (suite *GroupsApiIntegrationSuite) TestSSOMappingLifecycle() {
 	groupID := suite.createGroup("idp-linked")
 
