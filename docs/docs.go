@@ -2403,6 +2403,64 @@ const docTemplate = `{
                 ]
             }
         },
+        "/admin/users/{id}/groups": {
+            "get": {
+                "description": "Returns the native CCF groups a user belongs to, flagging memberships inherited from an SSO IdP (read-only) vs assigned natively.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Users"
+                ],
+                "summary": "List a user's native group memberships",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "User ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataListResponse-handler_userGroupMembershipResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
         "/admin/users/{id}/roles": {
             "get": {
                 "description": "Returns a user's effective roles: direct grants plus roles inherited from the user's native groups (each inherited entry names the granting group). Matches what the PDP enforces.",
@@ -29932,6 +29990,19 @@ const docTemplate = `{
                 "meta": {}
             }
         },
+        "handler.GenericDataListResponse-handler_userGroupMembershipResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handler.userGroupMembershipResponse"
+                    }
+                },
+                "meta": {}
+            }
+        },
         "handler.GenericDataListResponse-oscalTypes_1_1_3_AssessmentPlan": {
             "type": "object",
             "properties": {
@@ -33193,6 +33264,20 @@ const docTemplate = `{
                 },
                 "title": {
                     "type": "string"
+                }
+            }
+        },
+        "handler.userGroupMembershipResponse": {
+            "type": "object",
+            "properties": {
+                "groupId": {
+                    "type": "string"
+                },
+                "groupName": {
+                    "type": "string"
+                },
+                "inherited": {
+                    "type": "boolean"
                 }
             }
         },

@@ -48,6 +48,7 @@ func (p *GitHubOAuthProvider) GetUserInfo(ctx context.Context, token *oauth2.Tok
 	} else {
 		for _, org := range orgs {
 			orgKey := fmt.Sprintf("github-organization:%s", org)
+			userInfo.RawGroups = append(userInfo.RawGroups, orgKey)
 			if groups, ok := p.config.GroupMapping[orgKey]; ok {
 				userInfo.Groups = append(userInfo.Groups, groups...)
 			}
@@ -61,6 +62,7 @@ func (p *GitHubOAuthProvider) GetUserInfo(ctx context.Context, token *oauth2.Tok
 	} else {
 		for _, team := range teams {
 			teamKey := fmt.Sprintf("github-team:%s", team)
+			userInfo.RawGroups = append(userInfo.RawGroups, teamKey)
 			if groups, ok := p.config.GroupMapping[teamKey]; ok {
 				userInfo.Groups = append(userInfo.Groups, groups...)
 			}

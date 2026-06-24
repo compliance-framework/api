@@ -652,6 +652,15 @@ definitions:
         type: array
       meta: {}
     type: object
+  handler.GenericDataListResponse-handler_userGroupMembershipResponse:
+    properties:
+      data:
+        description: Items from the list response
+        items:
+          $ref: '#/definitions/handler.userGroupMembershipResponse'
+        type: array
+      meta: {}
+    type: object
   handler.GenericDataListResponse-oscal_AiDiagnosticsRun:
     properties:
       data:
@@ -2692,6 +2701,15 @@ definitions:
         type: array
       title:
         type: string
+    type: object
+  handler.userGroupMembershipResponse:
+    properties:
+      groupId:
+        type: string
+      groupName:
+        type: string
+      inherited:
+        type: boolean
     type: object
   labelfilter.Condition:
     properties:
@@ -12206,6 +12224,44 @@ paths:
       security:
       - OAuth2Password: []
       summary: Update user details
+      tags:
+      - Users
+  /admin/users/{id}/groups:
+    get:
+      description: Returns the native CCF groups a user belongs to, flagging memberships
+        inherited from an SSO IdP (read-only) vs assigned natively.
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-handler_userGroupMembershipResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: List a user's native group memberships
       tags:
       - Users
   /admin/users/{id}/roles:

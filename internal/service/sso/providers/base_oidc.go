@@ -200,6 +200,9 @@ func (p *BaseOIDCProvider) GetUserInfo(ctx context.Context, token *oauth2.Token)
 
 	// Extract groups from claims based on group mapping
 	userInfo.Groups = p.extractGroups(claims)
+	// Carry the raw claim-group identifiers so the login sync can translate them through the DB
+	// SSOGroupMapping rows (BCH-1331), independent of the config group_mapping above.
+	userInfo.RawGroups = claimGroupKeys(claims)
 
 	return userInfo, nil
 }

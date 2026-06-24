@@ -220,16 +220,17 @@ func TestSSOHandlerCallback_MaterializesNativeMemberships(t *testing.T) {
 	mockSvc.state = "state123"
 	mockSvc.token = &oauth2.Token{AccessToken: "token"}
 	mockSvc.userInfo = &types.UserInfo{
-		Subject: "google-777",
-		Email:   "member@example.com",
-		Groups:  []string{"eng-security", "unmapped"},
+		Subject:   "google-777",
+		Email:     "member@example.com",
+		Groups:    []string{"security-team"},
+		RawGroups: []string{"eng-security", "unmapped"},
 	}
 	mockSvc.canCreate = true
 	mockSvc.providerConfigs["google"] = &config.SSOProviderConfig{}
 
-	// Map the IdP group "eng-security" onto the native group "security-team".
+	// Map the raw IdP claim group "eng-security" onto the native group "security-team".
 	require.NoError(t, relational.ProvisionSSOGroupMappings(db, "google",
-		map[string][]string{"security-team": {"eng-security"}}))
+		map[string][]string{"eng-security": {"security-team"}}))
 
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodGet, "/api/auth/sso/callback/google", nil)

@@ -87,6 +87,61 @@ func (suite *UserApiIntegrationSuite) TestGetUser() {
 	suite.Require().Equal(existingUser.UUIDModel.ID, response.Data.UUIDModel.ID, "Expected matching user ID in response for GetUser")
 }
 
+func (suite *UserApiIntegrationSuite) TestGetUserGroups() {
+	var existingUser relational.User
+	err := suite.DB.First(&existingUser).Error
+	suite.Require().NoError(err, "Failed to retrieve existing user for GetUserGroups test")
+	userID := existingUser.UUIDModel.ID.String()
+
+	// Two native groups; names chosen so alphabetical ordering puts the SSO one first.
+	ssoGroup := relational.UserGroup{Name: "aaa-sso-group"}
+	suite.Require().NoError(suite.DB.Create(&ssoGroup).Error)
+	manualGroup := relational.UserGroup{Name: "zzz-manual-group"}
+	suite.Require().NoError(suite.DB.Create(&manualGroup).Error)
+
+	// One membership inherited from SSO (source=sso), one assigned natively (source=manual).
+	suite.Require().NoError(suite.DB.Create(&relational.UserGroupMembership{
+		UserID: userID, GroupID: ssoGroup.ID.String(), Source: relational.MembershipSourceSSO,
+	}).Error)
+	suite.Require().NoError(suite.DB.Create(&relational.UserGroupMembership{
+		UserID: userID, GroupID: manualGroup.ID.String(), Source: relational.MembershipSourceManual,
+	}).Error)
+
+	token, err := suite.GetAuthToken()
+	suite.Require().NoError(err)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/api/admin/users/"+userID+"/groups", nil)
+	req.Header.Set("Authorization", "Bearer "+*token)
+
+	suite.server.E().ServeHTTP(rec, req)
+	suite.Equal(200, rec.Code, "Expected OK response for GetUserGroups")
+
+	var response GenericDataListResponse[userGroupMembershipResponse]
+	err = json.Unmarshal(rec.Body.Bytes(), &response)
+	suite.Require().NoError(err, "Expected valid JSON response for GetUserGroups")
+
+	suite.Require().Len(response.Data, 2, "Expected both memberships returned")
+	// Ordered by group name: aaa-sso-group first, then zzz-manual-group.
+	suite.Equal("aaa-sso-group", response.Data[0].GroupName)
+	suite.True(response.Data[0].Inherited, "SSO membership must be flagged inherited")
+	suite.Equal(ssoGroup.ID.String(), response.Data[0].GroupID)
+	suite.Equal("zzz-manual-group", response.Data[1].GroupName)
+	suite.False(response.Data[1].Inherited, "manual membership must not be flagged inherited")
+}
+
+func (suite *UserApiIntegrationSuite) TestGetUserGroupsNotFound() {
+	token, err := suite.GetAuthToken()
+	suite.Require().NoError(err)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/api/admin/users/"+uuid.NewString()+"/groups", nil)
+	req.Header.Set("Authorization", "Bearer "+*token)
+
+	suite.server.E().ServeHTTP(rec, req)
+	suite.Equal(404, rec.Code, "Expected 404 for unknown user")
+}
+
 func (suite *UserApiIntegrationSuite) TestGetPublicUser() {
 	var existingUser relational.User
 	err := suite.DB.First(&existingUser).Error
