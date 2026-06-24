@@ -130,6 +130,31 @@ func TestReconcileSSOGroupMembershipsLeavesManualUntouched(t *testing.T) {
 	require.Equal(t, int64(1), manualCount)
 }
 
+// TestReconcileSSOGroupMembershipsIsProviderScoped proves that reconciling one provider's groups
+// does not de-provision a different provider's sso memberships for the same user (a user linked to
+// two IdPs by email). Only the groups the logging-in provider governs are reconciled.
+func TestReconcileSSOGroupMembershipsIsProviderScoped(t *testing.T) {
+	db := setupGroupsDB(t)
+	userID := createGroupsUser(t, db)
+	require.NoError(t, ProvisionSSOGroupMappings(db, "okta", map[string][]string{"security": {"eng-security"}}))
+	require.NoError(t, ProvisionSSOGroupMappings(db, "google", map[string][]string{"data": {"data-eng"}}))
+	secID := groupIDByName(t, db, "security")
+	dataID := groupIDByName(t, db, "data")
+
+	// Login via okta grants "security"; login via google grants "data".
+	require.NoError(t, ReconcileSSOGroupMemberships(db, userID, "okta", []string{"eng-security"}))
+	require.NoError(t, ReconcileSSOGroupMemberships(db, userID, "google", []string{"data-eng"}))
+	require.Equal(t, sortedPair(secID, dataID), ssoMembershipGroupIDs(t, db, userID))
+
+	// A subsequent okta login (still has eng-security) must NOT wipe the google-granted "data".
+	require.NoError(t, ReconcileSSOGroupMemberships(db, userID, "okta", []string{"eng-security"}))
+	require.Equal(t, sortedPair(secID, dataID), ssoMembershipGroupIDs(t, db, userID))
+
+	// Losing eng-security at okta de-provisions only "security"; "data" survives.
+	require.NoError(t, ReconcileSSOGroupMemberships(db, userID, "okta", nil))
+	require.Equal(t, []string{dataID}, ssoMembershipGroupIDs(t, db, userID))
+}
+
 func groupIDByName(t *testing.T, db *gorm.DB, name string) string {
 	t.Helper()
 	var g UserGroup

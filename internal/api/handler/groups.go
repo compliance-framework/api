@@ -238,27 +238,29 @@ func (h *GroupsHandler) DeleteGroup(ctx echo.Context) error {
 	}
 	groupID := group.ID.String()
 
-	// Refuse to delete a group that still has members. Cascade-deleting memberships here would
-	// silently revoke access (including IdP-owned sso memberships); the operator must empty the
-	// group first so the removal is deliberate and visible (BCH-1331).
-	memberCount, err := h.memberCount(groupID)
-	if err != nil {
-		h.sugar.Errorw("Failed to count group members before delete", "error", err)
-		return ctx.JSON(500, api.NewError(err))
-	}
-	if memberCount > 0 {
-		return ctx.JSON(409, api.NewError(errors.New("group still has members; remove all members before deleting")))
-	}
-
+	// Refuse to delete a group that still has members — the operator must empty it first so the
+	// removal is deliberate and visible (BCH-1331). The count and the delete run in one
+	// transaction (and DeleteGroup never cascade-deletes memberships), so a membership added
+	// concurrently is never silently revoked: it either makes the count non-zero (→ 409) or, if it
+	// lands after the snapshot, is simply left in place rather than deleted.
 	err = h.db.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Where("group_id = ?", groupID).Delete(&relational.UserGroupMembership{}).Error; err != nil {
+		var memberCount int64
+		if err := tx.Model(&relational.UserGroupMembership{}).
+			Where("group_id = ?", groupID).
+			Count(&memberCount).Error; err != nil {
 			return err
+		}
+		if memberCount > 0 {
+			return errGroupNotEmpty
 		}
 		if err := tx.Where("group_id = ?", groupID).Delete(&relational.SSOGroupMapping{}).Error; err != nil {
 			return err
 		}
 		return tx.Delete(&relational.UserGroup{}, "id = ?", groupID).Error
 	})
+	if errors.Is(err, errGroupNotEmpty) {
+		return ctx.JSON(409, api.NewError(errors.New("group still has members; remove all members before deleting")))
+	}
 	if err != nil {
 		h.sugar.Errorw("Failed to delete group", "error", err)
 		return ctx.JSON(500, api.NewError(err))
@@ -576,6 +578,10 @@ func (h *GroupsHandler) loadGroup(idParam string) (*relational.UserGroup, error)
 }
 
 var errInvalidGroupID = errors.New("invalid group id")
+
+// errGroupNotEmpty is the sentinel DeleteGroup returns from its transaction so a non-empty group
+// maps to 409 rather than 500.
+var errGroupNotEmpty = errors.New("group still has members")
 
 // groupError maps a loadGroup error to the right status: 400 for a malformed id, 404 for a
 // missing group, 500 otherwise.

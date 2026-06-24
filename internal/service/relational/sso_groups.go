@@ -62,13 +62,23 @@ func ProvisionSSOGroupMappings(db *gorm.DB, provider string, mapping map[string]
 	})
 }
 
-// ReconcileSSOGroupMemberships makes a user's source=sso native memberships exactly match the
-// native groups implied by idpGroups for the given provider (BCH-1331). It translates each IdP
-// group through the provider's SSOGroupMapping rows, upserts a source=sso membership for every
-// mapped group the user currently has, and removes the source=sso memberships for mapped groups
-// the user has lost at the IdP (login-time de-provisioning). Unmapped IdP groups are ignored.
-// source=manual memberships are never read or written here, so an admin's hand-assignment is
-// untouched even when it names the same group.
+// ReconcileSSOGroupMemberships makes a user's source=sso native memberships for THIS provider
+// exactly match the native groups implied by idpGroups (BCH-1331). It translates each IdP group
+// through the provider's SSOGroupMapping rows, upserts a source=sso membership for every mapped
+// group the user currently has, and removes the source=sso memberships for groups THIS provider
+// governs that the user has lost at the IdP (login-time de-provisioning). Unmapped IdP groups are
+// ignored. source=manual memberships are never read or written here, so an admin's hand-assignment
+// survives even when it names the same group.
+//
+// De-provisioning is scoped to the set of native groups this provider maps to: a user linked to
+// two IdPs (resolved to one CCF user by email) keeps the other provider's sso memberships when
+// logging in here, instead of having them wiped until the next login via that provider. Residual
+// ambiguity only arises if two providers map to the *same* native group, which self-heals on the
+// next login via the other provider. (UserGroupMembership carries no provider attribution, so this
+// group-scoped approach is the complete fix short of adding one.)
+//
+// All reads and writes run inside a single transaction so concurrent logins for the same user
+// reconcile atomically.
 func ReconcileSSOGroupMemberships(db *gorm.DB, userID, provider string, idpGroups []string) error {
 	userID = strings.TrimSpace(userID)
 	provider = strings.TrimSpace(provider)
@@ -76,47 +86,55 @@ func ReconcileSSOGroupMemberships(db *gorm.DB, userID, provider string, idpGroup
 		return nil
 	}
 
-	// external(lower) -> native group id, for this provider.
-	var mappings []SSOGroupMapping
-	if err := db.Where("provider = ?", provider).Find(&mappings).Error; err != nil {
-		return err
-	}
-	mapByExternal := make(map[string]string, len(mappings))
-	for _, m := range mappings {
-		key := strings.ToLower(strings.TrimSpace(m.ExternalGroup))
-		if key != "" && strings.TrimSpace(m.GroupID) != "" {
-			mapByExternal[key] = m.GroupID
-		}
-	}
-
-	// desired = the set of native group ids the user's current IdP groups map to.
-	desired := make(map[string]struct{}, len(idpGroups))
-	for _, g := range idpGroups {
-		key := strings.ToLower(strings.TrimSpace(g))
-		if key == "" {
-			continue
-		}
-		if groupID, ok := mapByExternal[key]; ok {
-			desired[groupID] = struct{}{}
-		}
-	}
-
-	// existing = the user's current source=sso memberships.
-	var existing []UserGroupMembership
-	if err := db.Where("user_id = ? AND source = ?", userID, MembershipSourceSSO).
-		Find(&existing).Error; err != nil {
-		return err
-	}
-	have := make(map[string]struct{}, len(existing))
-	var toRemove []string
-	for _, m := range existing {
-		have[m.GroupID] = struct{}{}
-		if _, ok := desired[m.GroupID]; !ok {
-			toRemove = append(toRemove, m.GroupID)
-		}
-	}
-
 	return db.Transaction(func(tx *gorm.DB) error {
+		// external(lower) -> native group id, and the set of native groups this provider governs.
+		var mappings []SSOGroupMapping
+		if err := tx.Where("provider = ?", provider).Find(&mappings).Error; err != nil {
+			return err
+		}
+		mapByExternal := make(map[string]string, len(mappings))
+		managed := make(map[string]struct{}, len(mappings)) // native group ids this provider maps to
+		for _, m := range mappings {
+			groupID := strings.TrimSpace(m.GroupID)
+			key := strings.ToLower(strings.TrimSpace(m.ExternalGroup))
+			if key != "" && groupID != "" {
+				mapByExternal[key] = groupID
+				managed[groupID] = struct{}{}
+			}
+		}
+
+		// desired = the native group ids the user's current IdP groups map to.
+		desired := make(map[string]struct{}, len(idpGroups))
+		for _, g := range idpGroups {
+			key := strings.ToLower(strings.TrimSpace(g))
+			if key == "" {
+				continue
+			}
+			if groupID, ok := mapByExternal[key]; ok {
+				desired[groupID] = struct{}{}
+			}
+		}
+
+		// existing = the user's current source=sso memberships (across all providers).
+		var existing []UserGroupMembership
+		if err := tx.Where("user_id = ? AND source = ?", userID, MembershipSourceSSO).
+			Find(&existing).Error; err != nil {
+			return err
+		}
+		have := make(map[string]struct{}, len(existing))
+		var toRemove []string
+		for _, m := range existing {
+			have[m.GroupID] = struct{}{}
+			// Only de-provision groups THIS provider governs; another IdP's memberships are left
+			// alone (they have no mapping here, so they are absent from `managed`).
+			if _, governed := managed[m.GroupID]; !governed {
+				continue
+			}
+			if _, ok := desired[m.GroupID]; !ok {
+				toRemove = append(toRemove, m.GroupID)
+			}
+		}
+
 		for groupID := range desired {
 			if _, ok := have[groupID]; ok {
 				continue

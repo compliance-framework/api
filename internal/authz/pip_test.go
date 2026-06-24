@@ -31,9 +31,11 @@ func TestDBGroupResolverNativeOnly(t *testing.T) {
 	require.Equal(t, []string{"Shared", "engineers"}, groups)
 }
 
-// TestDBGroupResolverIgnoresUnmappedIdPGroups proves that even when an SSO link carries IdP
-// groups, none reach subject.groups unless they were materialized as native memberships — the
-// resolver no longer reads the link or its mappings at decision time (BCH-1331).
+// TestDBGroupResolverIgnoresUnmappedIdPGroups proves that even when an SSO link carries IdP groups
+// AND a matching mapping exists, none reach subject.groups unless materialized as native
+// memberships — the resolver no longer reads the link or its mappings at decision time (BCH-1331).
+// The user is given a native membership so the result is asserted to be *exactly* that group: the
+// absence of the IdP-derived groups is then a meaningful negative, not a vacuously empty slice.
 func TestDBGroupResolverIgnoresUnmappedIdPGroups(t *testing.T) {
 	db := setupAuthzDB(t)
 	user := createUser(t, db, "user@example.com", "sso")
@@ -44,12 +46,15 @@ func TestDBGroupResolverIgnoresUnmappedIdPGroups(t *testing.T) {
 	require.NoError(t, db.Create(&relational.SSOGroupMapping{
 		Provider: "okta", ExternalGroup: "okta-admins", GroupID: group.ID.String(),
 	}).Error)
+	// A real native membership the resolver MUST return, proving resolution itself works.
+	addNativeGroup(t, db, user, "engineers")
 
 	r := NewDBGroupResolver(db, zap.NewNop().Sugar())
 	groups, err := r.ResolveGroups(context.Background(),
 		Subject{Type: "user", ID: "user@example.com", Props: map[string]any{"user_uuid": user.ID.String()}})
 	require.NoError(t, err)
-	require.Empty(t, groups)
+	// Exactly the native group — "okta-admins"/"ccf-admins"/"unmapped" are all absent.
+	require.Equal(t, []string{"engineers"}, groups)
 }
 
 // TestDBGroupResolverResolvesByEmailFallback proves a subject without the user_uuid claim

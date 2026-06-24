@@ -484,7 +484,7 @@ const docTemplate = `{
                 ]
             },
             "delete": {
-                "description": "Soft-deletes a native CCF user group and removes its memberships and SSO mappings",
+                "description": "Soft-deletes an empty native CCF user group and removes its SSO mappings. Returns 409 if the group still has members.",
                 "tags": [
                     "Groups"
                 ],
@@ -510,6 +510,12 @@ const docTemplate = `{
                     },
                     "404": {
                         "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
                         "schema": {
                             "$ref": "#/definitions/api.Error"
                         }
@@ -641,7 +647,7 @@ const docTemplate = `{
         },
         "/admin/groups/{id}/members/{userId}": {
             "delete": {
-                "description": "Removes a user from a native CCF user group",
+                "description": "Removes a manually-added user from a native CCF user group. Returns 403 for SSO-synced memberships, which are managed by the identity provider.",
                 "tags": [
                     "Groups"
                 ],
@@ -668,6 +674,12 @@ const docTemplate = `{
                     },
                     "400": {
                         "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
                         "schema": {
                             "$ref": "#/definitions/api.Error"
                         }
