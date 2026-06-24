@@ -28,11 +28,11 @@ func RegisterHandlers(server *api.Server, logger *zap.SugaredLogger, db *gorm.DB
 
 	dashboardSuggestionHandler := NewDashboardSuggestionHandler(logger, db, config.AI, jobEnqueuer)
 	dashboardGuard := pep.For(authz.ResourceDashboardSuggestion)
-	// /dashboard-suggestions/config carries no group auth (intentionally public); attach
-	// optional auth so a token, when present, identifies the subject for cedar.
+	// /dashboard-suggestions/config sits behind auth like every other route; a valid token
+	// identifies the subject and the read guard enforces dashboard-suggestion:read.
 	dashboardSuggestionHandler.RegisterConfig(
 		server.API().Group("/dashboard-suggestions"),
-		middleware.OptionalUserOrAgentJWTMiddleware(db, config.JWTPublicKey, !config.StrictDisablePublicAgentEndpoints),
+		jwtMiddleware,
 		dashboardGuard.Read(),
 	)
 

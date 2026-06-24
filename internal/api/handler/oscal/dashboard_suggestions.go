@@ -144,9 +144,9 @@ func NewDashboardSuggestionHandler(sugar *zap.SugaredLogger, db *gorm.DB, cfg *c
 	return &DashboardSuggestionHandler{sugar: sugar, db: db, cfg: cfg, jobEnqueuer: jobEnqueuer}
 }
 
-// RegisterConfig mounts the feature-config probe. It carries no group auth (intentionally
-// public), so the caller passes optional auth + the read guard as middlewares: builtin still
-// allows anonymous, cedar identifies the subject when a token is present.
+// RegisterConfig mounts the feature-config probe. The caller passes the auth middleware + the
+// read guard, so /config sits behind auth like every other route: a valid token identifies the
+// subject and the guard enforces dashboard-suggestion:read.
 func (h *DashboardSuggestionHandler) RegisterConfig(apiGroup *echo.Group, middlewares ...echo.MiddlewareFunc) {
 	apiGroup.GET("/config", h.Config, middlewares...)
 }
