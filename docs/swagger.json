@@ -2187,6 +2187,64 @@
                 ]
             }
         },
+        "/admin/users/{id}/groups": {
+            "get": {
+                "description": "Lists the native CCF groups a user belongs to, each with its membership source",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Users"
+                ],
+                "summary": "List a user's group memberships",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "User ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataListResponse-handler_userGroupSummary"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
         "/agent/heartbeat": {
             "post": {
                 "description": "Creates a new heartbeat record for monitoring.",
@@ -29651,6 +29709,19 @@
                 "meta": {}
             }
         },
+        "handler.GenericDataListResponse-handler_userGroupSummary": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handler.userGroupSummary"
+                    }
+                },
+                "meta": {}
+            }
+        },
         "handler.GenericDataListResponse-oscalTypes_1_1_3_AssessmentPlan": {
             "type": "object",
             "properties": {
@@ -32843,6 +32914,20 @@
                     }
                 },
                 "title": {
+                    "type": "string"
+                }
+            }
+        },
+        "handler.userGroupSummary": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "source": {
                     "type": "string"
                 }
             }

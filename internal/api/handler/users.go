@@ -33,9 +33,12 @@ type userResponse struct {
 
 // userGroupSummary is the native CCF group membership surfaced on the admin user views
 // (BCH-1328) so an operator can see a user's groups alongside their other attributes.
+// Source (BCH-1331) records whether the membership was added by an admin (manual) or
+// materialized from an IdP group at login (sso).
 type userGroupSummary struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
+	ID     string `json:"id"`
+	Name   string `json:"name"`
+	Source string `json:"source"`
 }
 
 type selectableUserResponse struct {
@@ -78,6 +81,7 @@ func NewUserHandler(sugar *zap.SugaredLogger, db *gorm.DB) *UserHandler {
 func (h *UserHandler) Register(api *echo.Group) {
 	api.GET("", h.ListUsers)
 	api.GET("/:id", h.GetUser)
+	api.GET("/:id/groups", h.GetUserGroups)
 	api.POST("", h.CreateUser)
 	api.PUT("/:id", h.UpdateUser)
 	api.DELETE("/:id", h.DeleteUser)
@@ -247,6 +251,51 @@ func (h *UserHandler) GetUser(ctx echo.Context) error {
 	})
 }
 
+// GetUserGroups godoc
+//
+//	@Summary		List a user's group memberships
+//	@Description	Lists the native CCF groups a user belongs to, each with its membership source
+//	@Tags			Users
+//	@Produce		json
+//	@Param			id	path		string	true	"User ID"
+//	@Success		200	{object}	handler.GenericDataListResponse[handler.userGroupSummary]
+//	@Failure		400	{object}	api.Error
+//	@Failure		401	{object}	api.Error
+//	@Failure		404	{object}	api.Error
+//	@Failure		500	{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/admin/users/{id}/groups [get]
+func (h *UserHandler) GetUserGroups(ctx echo.Context) error {
+	userID := ctx.Param("id")
+
+	userUUID, err := uuid.Parse(userID)
+	if err != nil {
+		h.sugar.Errorw("Invalid user ID", "error", err)
+		return ctx.JSON(400, api.NewError(err))
+	}
+
+	// 404 for an unknown user, consistent with GetUser, rather than returning an empty list
+	// for an id that does not exist.
+	var user relational.User
+	if err := h.db.First(&user, userUUID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(404, api.NewError(err))
+		}
+		h.sugar.Errorw("Failed to get user for groups", "error", err)
+		return ctx.JSON(500, api.NewError(err))
+	}
+
+	groups, err := h.groupSummariesForUser(user.ID.String())
+	if err != nil {
+		h.sugar.Errorw("Failed to load groups for user", "userID", user.ID.String(), "error", err)
+		return ctx.JSON(500, api.NewError(err))
+	}
+
+	return ctx.JSON(200, GenericDataListResponse[userGroupSummary]{
+		Data: groups,
+	})
+}
+
 // GetPublicUser godoc
 //
 //	@Summary		Get public user details by ID
@@ -287,25 +336,30 @@ func (h *UserHandler) GetPublicUser(ctx echo.Context) error {
 	})
 }
 
-// attachGroups populates the user's native CCF group memberships on the response. Resolved
-// in two steps (membership ids, then the groups) to avoid a column-to-column uuid = text
-// join, which Postgres rejects (see GroupNamesForUser). A failure is logged and the response
-// is left with an empty groups list rather than failing the whole request.
-func (h *UserHandler) attachGroups(resp *userResponse) {
-	if resp == nil || resp.ID == nil {
-		return
-	}
-	resp.Groups = []userGroupSummary{}
+// groupSummariesForUser returns the native CCF group memberships of the user, each carrying its
+// source (BCH-1331), sorted by group name. It resolves in two steps (memberships, then the groups)
+// to avoid a column-to-column uuid = text join between ccf_users.id (uuid) and
+// ccf_user_groups.user_id (text), which Postgres rejects (see GroupNamesForUser). The source lives
+// on the membership row, so it is carried across via an in-memory group_id -> source map rather
+// than a second join. Returns an empty (non-nil) slice when the user has no memberships.
+func (h *UserHandler) groupSummariesForUser(userID string) ([]userGroupSummary, error) {
+	summaries := []userGroupSummary{}
 
-	var groupIDs []string
-	if err := h.db.Model(&relational.UserGroupMembership{}).
-		Where("user_id = ?", resp.User.ID.String()).
-		Pluck("group_id", &groupIDs).Error; err != nil {
-		h.sugar.Warnw("Failed to load group ids for user", "userID", resp.ID.String(), "error", err)
-		return
+	var memberships []relational.UserGroupMembership
+	if err := h.db.
+		Where("user_id = ?", userID).
+		Find(&memberships).Error; err != nil {
+		return nil, err
 	}
-	if len(groupIDs) == 0 {
-		return
+	if len(memberships) == 0 {
+		return summaries, nil
+	}
+
+	sourceByGroupID := make(map[string]string, len(memberships))
+	groupIDs := make([]string, 0, len(memberships))
+	for _, m := range memberships {
+		sourceByGroupID[m.GroupID] = m.Source
+		groupIDs = append(groupIDs, m.GroupID)
 	}
 
 	var groups []relational.UserGroup
@@ -313,15 +367,34 @@ func (h *UserHandler) attachGroups(resp *userResponse) {
 		Where("id IN ?", groupIDs).
 		Order("name ASC").
 		Find(&groups).Error; err != nil {
-		h.sugar.Warnw("Failed to load groups for user", "userID", resp.ID.String(), "error", err)
-		return
+		return nil, err
 	}
 	for _, g := range groups {
 		if g.ID == nil {
 			continue
 		}
-		resp.Groups = append(resp.Groups, userGroupSummary{ID: g.ID.String(), Name: g.Name})
+		summaries = append(summaries, userGroupSummary{
+			ID:     g.ID.String(),
+			Name:   g.Name,
+			Source: sourceByGroupID[g.ID.String()],
+		})
 	}
+	return summaries, nil
+}
+
+// attachGroups populates the user's native CCF group memberships on the response. A failure is
+// logged and the response is left with an empty groups list rather than failing the whole request.
+func (h *UserHandler) attachGroups(resp *userResponse) {
+	if resp == nil || resp.ID == nil {
+		return
+	}
+	groups, err := h.groupSummariesForUser(resp.User.ID.String())
+	if err != nil {
+		h.sugar.Warnw("Failed to load groups for user", "userID", resp.ID.String(), "error", err)
+		resp.Groups = []userGroupSummary{}
+		return
+	}
+	resp.Groups = groups
 }
 
 func (h *UserHandler) attachAuthProvider(resp *userResponse) {

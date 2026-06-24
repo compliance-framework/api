@@ -228,6 +228,55 @@ func (suite *GroupsApiIntegrationSuite) TestRemoveSSOMemberReturns403() {
 	suite.Require().Equal(204, remManual.Code, remManual.Body.String())
 }
 
+func (suite *GroupsApiIntegrationSuite) TestGetUserGroupsEndpoint() {
+	userID := suite.dummyUserID()
+
+	// A manual membership (added via the admin API) and an sso membership (materialized by the
+	// login sync) — the endpoint surfaces both with their source, sorted by group name.
+	manualGroup := suite.createGroup("a-manual-team")
+	add := suite.do("POST", "/api/admin/groups/"+manualGroup+"/members", map[string]string{"userId": userID})
+	suite.Require().Equal(204, add.Code, add.Body.String())
+
+	ssoGroup := suite.createGroup("b-sso-team")
+	suite.Require().NoError(suite.DB.Create(&relational.UserGroupMembership{
+		UserID:  userID,
+		GroupID: ssoGroup,
+		Source:  relational.MembershipSourceSSO,
+	}).Error)
+
+	rec := suite.do("GET", "/api/admin/users/"+userID+"/groups", nil)
+	suite.Require().Equal(200, rec.Code, rec.Body.String())
+	var resp GenericDataListResponse[userGroupSummary]
+	suite.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &resp))
+	suite.Require().Len(resp.Data, 2)
+	// Ordered by group name ASC.
+	suite.Equal("a-manual-team", resp.Data[0].Name)
+	suite.Equal(relational.MembershipSourceManual, resp.Data[0].Source)
+	suite.Equal(manualGroup, resp.Data[0].ID)
+	suite.Equal("b-sso-team", resp.Data[1].Name)
+	suite.Equal(relational.MembershipSourceSSO, resp.Data[1].Source)
+	suite.Equal(ssoGroup, resp.Data[1].ID)
+
+	// Unknown user -> 404.
+	unknown := suite.do("GET", "/api/admin/users/00000000-0000-0000-0000-000000000000/groups", nil)
+	suite.Equal(404, unknown.Code, unknown.Body.String())
+
+	// Unauthenticated -> 401.
+	req := httptest.NewRequest("GET", "/api/admin/users/"+userID+"/groups", nil)
+	unauth := httptest.NewRecorder()
+	suite.server.E().ServeHTTP(unauth, req)
+	suite.Equal(401, unauth.Code, unauth.Body.String())
+}
+
+func (suite *GroupsApiIntegrationSuite) TestGetUserGroupsEmpty() {
+	userID := suite.dummyUserID()
+	rec := suite.do("GET", "/api/admin/users/"+userID+"/groups", nil)
+	suite.Require().Equal(200, rec.Code, rec.Body.String())
+	var resp GenericDataListResponse[userGroupSummary]
+	suite.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &resp))
+	suite.Empty(resp.Data)
+}
+
 func (suite *GroupsApiIntegrationSuite) TestSSOMappingLifecycle() {
 	groupID := suite.createGroup("idp-linked")
 

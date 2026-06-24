@@ -643,6 +643,15 @@ definitions:
         type: array
       meta: {}
     type: object
+  handler.GenericDataListResponse-handler_userGroupSummary:
+    properties:
+      data:
+        description: Items from the list response
+        items:
+          $ref: '#/definitions/handler.userGroupSummary'
+        type: array
+      meta: {}
+    type: object
   handler.GenericDataListResponse-oscal_AiDiagnosticsRun:
     properties:
       data:
@@ -2637,6 +2646,15 @@ definitions:
           $ref: '#/definitions/handler.threatIDRequest'
         type: array
       title:
+        type: string
+    type: object
+  handler.userGroupSummary:
+    properties:
+      id:
+        type: string
+      name:
+        type: string
+      source:
         type: string
     type: object
   labelfilter.Condition:
@@ -11984,6 +12002,44 @@ paths:
       security:
       - OAuth2Password: []
       summary: Update user details
+      tags:
+      - Users
+  /admin/users/{id}/groups:
+    get:
+      description: Lists the native CCF groups a user belongs to, each with its membership
+        source
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-handler_userGroupSummary'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: List a user's group memberships
       tags:
       - Users
   /agent/heartbeat:
