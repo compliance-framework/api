@@ -1,0 +1,4 @@
+lisa-selfreview:
+Pass 1 (strict):
+- [low/lint] users.go attachGroups: golangci-lint QF1008 (staticcheck) — resp.User.ID.String() can drop the embedded field -> resp.ID.String(). CI runs golangci-lint, so fix now. Classified: FIX.
+No other findings: build/vet/gofmt clean; integration + unit suites green; swagger regenerated additive-only.
