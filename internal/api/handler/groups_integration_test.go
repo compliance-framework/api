@@ -275,6 +275,10 @@ func (suite *GroupsApiIntegrationSuite) TestGetUserGroupsEmpty() {
 	var resp GenericDataListResponse[userGroupSummary]
 	suite.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &resp))
 	suite.Empty(resp.Data)
+	// Lock the wire contract: groupSummariesForUser returns a non-nil []userGroupSummary{} on the
+	// empty path, so the response must render "data":[] (not "data":null). suite.Empty above passes
+	// for both, so assert the raw shape to catch a future nil regression.
+	suite.Contains(rec.Body.String(), `"data":[]`)
 }
 
 func (suite *GroupsApiIntegrationSuite) TestSSOMappingLifecycle() {
