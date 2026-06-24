@@ -28,6 +28,7 @@ func setupAuthzDB(t *testing.T) *gorm.DB {
 		&relational.UserGroup{},
 		&relational.UserGroupMembership{},
 		&relational.SSOGroupMapping{},
+		&relational.CCFRoleAssignment{},
 	))
 	return db
 }

@@ -178,6 +178,24 @@ func RegisterHandlers(server *api.Server, logger *zap.SugaredLogger, db *gorm.DB
 	groupsGroup.Use(pep.Authorize(authz.ResourceAdmin, authz.ActionManage))
 	groupsHandler.Register(groupsGroup)
 
+	// System-level role assignments (BCH-1333). Gated on the role-assignment resource (like the
+	// workflow role-assignment handler), not the admin umbrella, so the manifest's role-assignment
+	// grants govern it. The effective-role reads hang off the existing admin user/group trees.
+	roleAssignmentsHandler := NewRoleAssignmentsHandler(logger, db)
+	roleAssignmentsGuard := pep.For(authz.ResourceRoleAssignment)
+
+	roleAssignmentsGroup := server.API().Group("/admin/role-assignments")
+	roleAssignmentsGroup.Use(middleware.JWTMiddleware(config.JWTPublicKey))
+	roleAssignmentsHandler.Register(roleAssignmentsGroup, roleAssignmentsGuard)
+
+	adminUserRolesGroup := server.API().Group("/admin/users")
+	adminUserRolesGroup.Use(middleware.JWTMiddleware(config.JWTPublicKey))
+	roleAssignmentsHandler.RegisterUserRoles(adminUserRolesGroup, roleAssignmentsGuard)
+
+	adminGroupRolesGroup := server.API().Group("/admin/groups")
+	adminGroupRolesGroup.Use(middleware.JWTMiddleware(config.JWTPublicKey))
+	roleAssignmentsHandler.RegisterGroupRoles(adminGroupRolesGroup, roleAssignmentsGuard)
+
 	notificationsHandler := NewNotificationsHandler(logger, db, config, services.NotificationWorkerEnqueuer)
 	notificationsPublicGroup := server.API().Group("/notifications")
 	notificationsPublicGroup.Use(middleware.JWTMiddleware(config.JWTPublicKey))

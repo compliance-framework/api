@@ -40,30 +40,31 @@ func init() {
 
 // Cedar is the embedded Cedar PDP. It evaluates the bundled role policies (compiled from the
 // manifest) plus any operator .cedar files against an in-process entity store it builds per
-// request from the subject's statically-assigned roles. It is a pure function of (policies,
-// entities, request) — it holds no DB handle and reaches no network, so it never returns
-// ErrUnavailable and the configured fail mode never changes its behavior. Safe for
-// concurrent use: the policy set and assignments are read-only after construction and each
-// Evaluate builds its own entity store.
+// request from the subject's resolved roles. The policy set is read-only after construction
+// and each Evaluate builds its own entity store, so it is safe for concurrent use. Roles come
+// from a RoleResolver: the DB-backed resolver (the persisted ccf_role_assignments source of
+// truth, BCH-1333) reads CCF's database, so unlike Phase 1 the engine can now return an error
+// when the role source is unreachable — the PEP's fail mode decides what that means.
 type Cedar struct {
-	policies    *cedar.PolicySet
-	assignments *RoleAssignments
-	logger      *zap.SugaredLogger
+	policies *cedar.PolicySet
+	roles    RoleResolver
+	logger   *zap.SugaredLogger
 }
 
-// NewCedar constructs the embedded Cedar PDP from an already-compiled policy set and the
-// static role assignments. A nil logger is replaced with a no-op; nil assignments default to
-// agents-only (the agent service role), which denies every user — callers should pass loaded
-// assignments. The factory does the file IO (manifest compile, operator policy dir, role
-// assignment file); this constructor stays pure for testing.
-func NewCedar(policies *cedar.PolicySet, assignments *RoleAssignments, logger *zap.SugaredLogger) *Cedar {
+// NewCedar constructs the embedded Cedar PDP from an already-compiled policy set and a role
+// resolver. A nil logger is replaced with a no-op; a nil resolver defaults to agents-only (the
+// agent service role), which denies every user — callers should pass a loaded resolver. The
+// factory does the file IO (manifest compile, operator policy dir, role assignment file) and
+// wires the DB-backed resolver; this constructor stays pure for testing. *RoleAssignments
+// satisfies RoleResolver, so file-only tests can pass static assignments directly.
+func NewCedar(policies *cedar.PolicySet, roles RoleResolver, logger *zap.SugaredLogger) *Cedar {
 	if logger == nil {
 		logger = zap.NewNop().Sugar()
 	}
-	if assignments == nil {
-		assignments = &RoleAssignments{Agents: DefaultAgentRole}
+	if roles == nil {
+		roles = &RoleAssignments{Agents: DefaultAgentRole}
 	}
-	return &Cedar{policies: policies, assignments: assignments, logger: logger}
+	return &Cedar{policies: policies, roles: roles, logger: logger}
 }
 
 // cedarFactory builds the embedded Cedar PDP: compile the manifest roles into the bundled
@@ -133,14 +134,29 @@ func cedarFactory(_ Options, deps Deps) (PDP, error) {
 			"agentRole", assignments.Agents)
 	}
 
-	return NewCedar(policies, assignments, logger), nil
+	// The persisted ccf_role_assignments table is the source of truth for user/group roles
+	// (BCH-1333): when a DB is available, resolve roles from it (behind a short-TTL cache),
+	// falling back to the file's agent/anonymous defaults the table does not hold. authz-roles.yaml
+	// becomes the seed BCH-1334 reconciles into the table. Without a DB (some test suites) the
+	// static file assignments remain the resolver, so behavior is unchanged there.
+	var roles RoleResolver = assignments
+	if deps.DB != nil {
+		roles = NewDBRoleResolver(deps.DB, assignments, DefaultRoleCacheTTL, logger)
+	}
+
+	return NewCedar(policies, roles, logger), nil
 }
 
 // Evaluate implements PDP. It resolves the subject's roles, then asks Cedar. A subject with
 // no role is denied without consulting Cedar (no bundled permit could match it anyway), which
-// also keeps anonymous and unassigned principals from building an entity store needlessly.
-func (c *Cedar) Evaluate(_ context.Context, s Subject, action string, r Resource, _ map[string]any) (Decision, error) {
-	roles := c.assignments.rolesFor(s)
+// also keeps anonymous and unassigned principals from building an entity store needlessly. A
+// role-source error is returned to the caller so the PEP fail mode (not a silent allow/deny)
+// governs an unreachable DB.
+func (c *Cedar) Evaluate(ctx context.Context, s Subject, action string, r Resource, _ map[string]any) (Decision, error) {
+	roles, err := c.roles.RolesFor(ctx, s)
+	if err != nil {
+		return Decision{Allow: false, Reason: "cedar: role resolution failed"}, err
+	}
 	if len(roles) == 0 {
 		return Decision{Allow: false, Reason: "cedar: subject has no assigned role"}, nil
 	}
@@ -150,21 +166,23 @@ func (c *Cedar) Evaluate(_ context.Context, s Subject, action string, r Resource
 // Evaluations implements PDP by deciding each request in order. Role resolution is memoized
 // per subject for the batch (e.g. /me/permissions enumerates ~all actions for one subject),
 // so the group parsing and map lookups happen once rather than per action.
-func (c *Cedar) Evaluations(_ context.Context, reqs []EvalRequest) ([]Decision, error) {
+func (c *Cedar) Evaluations(ctx context.Context, reqs []EvalRequest) ([]Decision, error) {
 	roleMemo := make(map[string][]string)
 
 	out := make([]Decision, len(reqs))
 	for i, req := range reqs {
-		// Key on everything rolesFor depends on — type, id AND the (sorted) groups — so two
-		// requests that share a type+id but carry different groups never reuse each other's
-		// roles. Groups are inert until BCH-1328, but keying on them now keeps the batch path
-		// correct for heterogeneous subjects once they go live.
+		// Key on everything role resolution depends on — type, id AND the (sorted) groups — so two
+		// requests that share a type+id but carry different groups never reuse each other's roles.
 		groups := subjectGroups(req.Subject)
 		sort.Strings(groups)
 		key := req.Subject.Type + "\x00" + req.Subject.ID + "\x00" + strings.Join(groups, ",")
 		roles, ok := roleMemo[key]
 		if !ok {
-			roles = c.assignments.rolesFor(req.Subject)
+			resolved, err := c.roles.RolesFor(ctx, req.Subject)
+			if err != nil {
+				return nil, err
+			}
+			roles = resolved
 			roleMemo[key] = roles
 		}
 		if len(roles) == 0 {

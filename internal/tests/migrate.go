@@ -174,6 +174,7 @@ func (t *TestMigrator) Up() error {
 		&relational.UserGroup{},
 		&relational.UserGroupMembership{},
 		&relational.SSOGroupMapping{},
+		&relational.CCFRoleAssignment{},
 		&relational.UserNotificationSubscription{},
 		&relational.SystemNotificationDestination{},
 
@@ -541,6 +542,7 @@ func (t *TestMigrator) Down() error {
 		&relational.SSOUserLink{},
 		&relational.SlackLinkAttempt{},
 		&relational.SlackUserLink{},
+		&relational.CCFRoleAssignment{},
 		&relational.SSOGroupMapping{},
 		&relational.UserGroupMembership{},
 		&relational.UserGroup{},
