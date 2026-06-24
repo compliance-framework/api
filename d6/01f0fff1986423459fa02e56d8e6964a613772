@@ -1,0 +1,4 @@
+lisa-selfreview:
+BCH-1334 self-review (pass 1, approved):
+- [low, deferred] Observability: ReconcileConfigRoleAssignments is called with a nil logger from MigrateUpWithConfig, so the "synced N config role assignments" summary is not emitted at boot. Errors still surface (caller treats migration failure as fatal). Not fixed: emitting it would require threading a *zap.SugaredLogger through the shared MigrateUpWithConfig signature (run.go, migrate.go, MigrateUp wrapper, tests) for a single info line. The reconciled state is queryable via GET /admin/role-assignments. Revisit if the signature changes for another reason.
+- [note, not a finding] agents/anonymous are intentionally NOT persisted (per the BCH-1333 design note); the AC's parenthetical lists them but the model is user|group-only and the resolver sources those defaults from config. Flagged on the Jira ticket for human override if desired.
