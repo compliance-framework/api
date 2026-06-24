@@ -1,0 +1,5 @@
+lisa-selfreview:
+Pass 1 (strict) findings — both low, both fixed this pass:
+- [low/maintainability] relational.RoleNamesForAssignee was added but never called (the handler reads full rows for provenance; the resolver runs its own union query). Dead exported API. -> removed (and its now-unused gorm import).
+- [low/docs] cedar.go principalUID comment still referenced `rolesFor`; role lookup now goes through the RoleResolver. -> reworded to "the role resolver".
+No blocker/high/medium found. Build, vet, authz unit+integration, relational unit, and the role-assignments handler integration suite (incl. the PDP parity test) all green.
