@@ -1,0 +1,36 @@
+lisa-addressed:
+---
+Comment (internal/api/handler/groups.go:227):
+**High — generated swagger docs are stale, `check-diff` CI is red (blocker).**
+
+This PR adds `@Failure 409` here (and `@Failure 403` on `RemoveMember` at line 400, plus the new `@Description` text on both), but `docs/docs.go`, `docs/swagger.json`, and `docs/swagger.yaml` were not regenerated. `make check-diff` runs `swag init` and fails because the working tree is dirty — I reproduced it locally (a ~40-line diff appears under `docs/`).
+
+Fix: run `make swag` (or `go tool swag init --parseDependency --parseInternal`) and commit the regenerated `docs/` files.
+---
+Comment (internal/service/relational/sso_groups.go:106):
+**Medium — cross-provider de-provisioning wipes another provider's memberships.**
+
+`existing` is loaded for the user across *all* providers (`WHERE user_id = ? AND source = 'sso'`), but `desired` is built only from *this* `provider`'s mappings (line 81). So `toRemove` becomes "every sso membership not granted by this provider," including ones materialized by a different IdP.
+
+For a user linked to two SSO providers (same email, e.g. okta + google — `findOrCreateUser` resolves by email), logging in via provider B deletes provider A's sso memberships. They are re-added on the next login via A, but authorization (subject.groups → permissions) is wrong in the interim.
+
+The `UserGroupMembership` row carries no provider attribution, so removal can't currently be provider-scoped. Two options:
+- Scope removal to groups *this* provider governs: build `managed := {m.GroupID for m in mappings}` and only remove `groupID ∈ managed ∧ groupID ∉ desired`. Fixes the common case (residual ambiguity only if two providers map to the same native group, which self-heals on next login).
+- Or add a `provider` column to the sso membership and scope `existing`/removal by it — a complete fix.
+
+If multi-provider-per-user is considered out of scope, please state that assumption in the doc comment so the unscoped delete is a deliberate, documented choice.
+---
+Comment (internal/service/relational/sso_groups.go:80):
+**Low — reads happen outside the mutating transaction.**
+
+`mappings` (line 81) and `existing` (line 106) are read on `db`, then the add/remove run inside `db.Transaction(...)`. Two concurrent logins for the same user can interleave between the read and the write. It's effectively benign here (login reconcile is best-effort, and the insert uses `OnConflict DoNothing`), but moving the two reads inside the transaction would make the reconcile atomic. Non-blocking.
+---
+Comment (internal/authz/pip_test.go:52):
+**Low / nit — assertion can pass vacuously.**
+
+`require.Empty(t, groups)` would also pass if `ResolveGroups` returned nothing for an unrelated reason (e.g. the user lookup silently failing), so it doesn't fully prove "the resolver ignores the unmapped IdP group" in isolation. `TestDBGroupResolverNativeOnly` covers the positive path, but consider giving this user a native membership too and asserting the result is exactly that native group — then the absence of the IdP groups is a meaningful negative. Non-blocking.
+---
+Comment (internal/api/handler/groups.go:244):
+**Low — TOCTOU between the member-count check and the cascade.**
+
+A membership (including an IdP-owned `source=sso` one) added between this `memberCount` read and the cascade transaction below is silently hard-deleted — the precise "silent revoke" this 409 guard exists to prevent. Admin-only and a narrow window, so low severity, but a member-count re-check inside the transaction (or a guarded conditional delete) would close it. Non-blocking.
