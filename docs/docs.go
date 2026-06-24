@@ -704,6 +704,58 @@ const docTemplate = `{
                 ]
             }
         },
+        "/admin/groups/{id}/roles": {
+            "get": {
+                "description": "Returns the roles assigned directly to a native CCF group.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "RoleAssignments"
+                ],
+                "summary": "Get a group's roles",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Group ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataListResponse-relational_CCFRoleAssignment"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
         "/admin/groups/{id}/sso-mappings": {
             "get": {
                 "description": "Lists the external IdP groups mapped to a native CCF user group",
@@ -1693,6 +1745,164 @@ const docTemplate = `{
                 ]
             }
         },
+        "/admin/role-assignments": {
+            "get": {
+                "description": "Lists system-level role assignments, optionally filtered by assignee (type and/or id) or role.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "RoleAssignments"
+                ],
+                "summary": "List role assignments",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Filter by assignee type (user|group)",
+                        "name": "assigneeType",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by assignee id (email or group name)",
+                        "name": "assigneeId",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by role name",
+                        "name": "roleName",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataListResponse-relational_CCFRoleAssignment"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            },
+            "post": {
+                "description": "Grants a manifest role to a user (by email) or group (by name), system-wide. The grant is source=manual and becomes the PDP's source of truth for that subject's role.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "RoleAssignments"
+                ],
+                "summary": "Create a role assignment",
+                "parameters": [
+                    {
+                        "description": "Role assignment",
+                        "name": "assignment",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.createRoleAssignmentRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-relational_CCFRoleAssignment"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/admin/role-assignments/{id}": {
+            "delete": {
+                "description": "Deletes a manual role assignment. Config-sourced grants (managed by the boot reconcile) cannot be deleted and return 409.",
+                "tags": [
+                    "RoleAssignments"
+                ],
+                "summary": "Delete a role assignment",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Role assignment ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
         "/admin/subject-templates": {
             "get": {
                 "description": "List subject templates with optional filters and pagination.",
@@ -2169,6 +2379,58 @@ const docTemplate = `{
                     },
                     "401": {
                         "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/admin/users/{id}/roles": {
+            "get": {
+                "description": "Returns a user's effective roles: direct grants plus roles inherited from the user's native groups (each inherited entry names the granting group). Matches what the PDP enforces.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "RoleAssignments"
+                ],
+                "summary": "Get a user's effective roles",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "User ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataListResponse-handler_effectiveRole"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
                         "schema": {
                             "$ref": "#/definitions/api.Error"
                         }
@@ -29553,6 +29815,19 @@ const docTemplate = `{
                 "meta": {}
             }
         },
+        "handler.GenericDataListResponse-handler_effectiveRole": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handler.effectiveRole"
+                    }
+                },
+                "meta": {}
+            }
+        },
         "handler.GenericDataListResponse-handler_groupMemberResponse": {
             "type": "object",
             "properties": {
@@ -30211,6 +30486,19 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/poam.PoamItemRiskLink"
+                    }
+                },
+                "meta": {}
+            }
+        },
+        "handler.GenericDataListResponse-relational_CCFRoleAssignment": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/relational.CCFRoleAssignment"
                     }
                 },
                 "meta": {}
@@ -31448,6 +31736,19 @@ const docTemplate = `{
                 }
             }
         },
+        "handler.GenericDataResponse-relational_CCFRoleAssignment": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Wrapped response data",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/relational.CCFRoleAssignment"
+                        }
+                    ]
+                }
+            }
+        },
         "handler.GenericDataResponse-relational_Filter": {
             "type": "object",
             "properties": {
@@ -32017,6 +32318,25 @@ const docTemplate = `{
                 }
             }
         },
+        "handler.createRoleAssignmentRequest": {
+            "type": "object",
+            "required": [
+                "assigneeId",
+                "assigneeType",
+                "roleName"
+            ],
+            "properties": {
+                "assigneeId": {
+                    "type": "string"
+                },
+                "assigneeType": {
+                    "type": "string"
+                },
+                "roleName": {
+                    "type": "string"
+                }
+            }
+        },
         "handler.createSystemNotificationDestinationRequest": {
             "type": "object",
             "required": [
@@ -32028,6 +32348,29 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "providerType": {
+                    "type": "string"
+                }
+            }
+        },
+        "handler.effectiveRole": {
+            "type": "object",
+            "properties": {
+                "assignmentId": {
+                    "type": "string"
+                },
+                "inherited": {
+                    "description": "false = a direct grant to the subject",
+                    "type": "boolean"
+                },
+                "roleName": {
+                    "type": "string"
+                },
+                "source": {
+                    "description": "config (immutable) | manual (deletable)",
+                    "type": "string"
+                },
+                "viaGroup": {
+                    "description": "the granting group's name, when inherited",
                     "type": "string"
                 }
             }
@@ -39357,6 +39700,36 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/relational.SetParameter"
                     }
+                }
+            }
+        },
+        "relational.CCFRoleAssignment": {
+            "type": "object",
+            "properties": {
+                "assigneeId": {
+                    "description": "AssigneeID is the user email or the group name, normalized to lower-case.",
+                    "type": "string"
+                },
+                "assigneeType": {
+                    "description": "AssigneeType is RoleAssigneeTypeUser or RoleAssigneeTypeGroup.",
+                    "type": "string"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "roleName": {
+                    "description": "RoleName is a manifest role (admin/viewer/auditor/contributor/agent or an operator role).\nThe handler validates it against the authz manifest before insert so a typo is rejected\nrather than silently granting nothing.",
+                    "type": "string"
+                },
+                "source": {
+                    "description": "Source is RoleAssignmentSourceConfig (immutable, owned by BCH-1334) or\nRoleAssignmentSourceManual (admin-owned, deletable). Defaults to manual so an API insert\nthat omits it is an ad-hoc grant.",
+                    "type": "string"
+                },
+                "updatedAt": {
+                    "type": "string"
                 }
             }
         },

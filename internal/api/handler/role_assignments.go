@@ -162,7 +162,7 @@ func (h *RoleAssignmentsHandler) List(ctx echo.Context) error {
 //	@Summary		Delete a role assignment
 //	@Description	Deletes a manual role assignment. Config-sourced grants (managed by the boot reconcile) cannot be deleted and return 409.
 //	@Tags			RoleAssignments
-//	@Param			id	path	string	true	"Role assignment ID"
+//	@Param			id	path		string	true	"Role assignment ID"
 //	@Success		204	{object}	nil
 //	@Failure		400	{object}	api.Error
 //	@Failure		404	{object}	api.Error
