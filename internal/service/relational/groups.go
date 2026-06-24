@@ -30,6 +30,18 @@ func (UserGroup) TableName() string {
 	return "ccf_groups"
 }
 
+// Membership source discriminators (BCH-1331). A membership records how it came to exist so the
+// SSO sync and the admin API never clobber each other: only the IdP owns sso memberships, only an
+// admin owns manual ones.
+const (
+	// MembershipSourceManual is an admin-added membership. It is the default for existing rows and
+	// the only source an admin may hand-remove.
+	MembershipSourceManual = "manual"
+	// MembershipSourceSSO is a membership materialized from an SSO IdP group via an SSOGroupMapping.
+	// It is reconciled (added/removed) at login and cannot be hand-removed by an admin.
+	MembershipSourceSSO = "sso"
+)
+
 // UserGroupMembership joins a CCF user to a native UserGroup. The (UserID, GroupID) pair is
 // unique so a user appears in a group at most once. It is a hard-delete join table (removing
 // a member deletes the row); the group and the user themselves are soft-deletable.
@@ -41,6 +53,12 @@ type UserGroupMembership struct {
 	UserID  string `json:"userId" gorm:"not null;uniqueIndex:idx_ccf_user_groups_user_group,priority:1"`
 	GroupID string `json:"groupId" gorm:"not null;uniqueIndex:idx_ccf_user_groups_user_group,priority:2;index"`
 
+	// Source records who owns this membership: MembershipSourceManual (an admin added it) or
+	// MembershipSourceSSO (the login sync materialized it from an IdP group). It defaults to
+	// manual so pre-BCH-1331 rows are treated as admin-managed. The SSO sync only ever touches
+	// sso rows; the admin remove-member API refuses to delete sso rows (BCH-1331).
+	Source string `json:"source" gorm:"not null;default:manual"`
+
 	Group UserGroup `json:"group,omitempty" gorm:"foreignKey:GroupID;references:ID"`
 }
 
@@ -48,11 +66,11 @@ func (UserGroupMembership) TableName() string {
 	return "ccf_user_groups"
 }
 
-// SSOGroupMapping unifies an external IdP group with a native UserGroup so a synced SSO group
-// and a native group denote the same membership instead of colliding. When the group
-// resolver sees the (Provider, ExternalGroup) pair on a user's SSO link it contributes the
-// mapped native group's Name to subject.groups. Optional: unmapped SSO groups still pass
-// through under their raw name.
+// SSOGroupMapping unifies an external IdP group with a native UserGroup. At login the SSO sync
+// translates the user's IdP groups through these (Provider, ExternalGroup) rows and materializes
+// the mapped native group as a source=sso membership (BCH-1331); authorization then reads only
+// those native memberships. Unmapped IdP groups are intentionally dropped — they never become
+// memberships and never reach subject.groups.
 type SSOGroupMapping struct {
 	UUIDModel
 

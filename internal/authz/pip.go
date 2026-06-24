@@ -7,14 +7,15 @@ import (
 	"strings"
 
 	"github.com/compliance-framework/api/internal/service/relational"
-	"github.com/compliance-framework/api/internal/service/sso"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
 // SubjectGroupsAttr is the subject-attribute key under which resolved group memberships are
-// exported into the evaluation tuple (Subject.Props). The value is source-agnostic: native
-// CCF groups unioned with the IdP groups synced via SSO (BCH-1319 §7, BCH-1328).
+// exported into the evaluation tuple (Subject.Props). The value is native-only: SSO IdP groups
+// reach authz only by first being materialized into native ccf_user_groups memberships at login
+// (BCH-1331), so authorization is always evaluated against CCF's own group taxonomy
+// (BCH-1319 §7, BCH-1328).
 const SubjectGroupsAttr = "groups"
 
 // GroupResolver is the in-process Policy Information Point (PIP) for the subject.groups
@@ -22,16 +23,16 @@ const SubjectGroupsAttr = "groups"
 // ever receives already-resolved values (BCH-1319 §8, §11.5). Implementations must be safe
 // for concurrent use.
 type GroupResolver interface {
-	// ResolveGroups returns the group names the subject belongs to: native CCF group
-	// memberships unioned with the subject's SSO IdP groups (translated to native group names
-	// where an SSOGroupMapping exists). Non-user subjects resolve to no groups.
+	// ResolveGroups returns the native CCF group names the subject belongs to. SSO IdP groups are
+	// NOT read here: they enter authz only once the login sync has materialized them as native
+	// memberships through an SSOGroupMapping (BCH-1331). Non-user subjects resolve to no groups.
 	ResolveGroups(ctx context.Context, s Subject) ([]string, error)
 }
 
-// dbGroupResolver resolves subject.groups from CCF's database: native memberships
-// (ccf_user_groups) unioned with the user's latest SSO link groups, the latter translated
-// through ccf_sso_group_mappings so a synced IdP group and a native group unify rather than
-// collide. It is the single resolver the design mandates (BCH-1319 §8).
+// dbGroupResolver resolves subject.groups purely from CCF's native memberships (ccf_user_groups).
+// SSO is upstream of this: the login callback materializes a user's mapped IdP groups as native
+// memberships, so an unmapped IdP group never reaches authz (BCH-1331). It is the single resolver
+// the design mandates (BCH-1319 §8).
 type dbGroupResolver struct {
 	db     *gorm.DB
 	logger *zap.SugaredLogger
@@ -73,7 +74,9 @@ func (r *dbGroupResolver) ResolveGroups(ctx context.Context, s Subject) ([]strin
 	}
 	userID := user.ID.String()
 
-	// case-insensitive dedup: lower(name) -> first canonical spelling seen.
+	// case-insensitive dedup: lower(name) -> first canonical spelling seen. Native group names
+	// carry a case-sensitive unique index, but the fold keeps subject.groups stable if two
+	// spellings ever coexist.
 	set := map[string]string{}
 
 	native, err := relational.GroupNamesForUser(r.db.WithContext(ctx), userID)
@@ -84,70 +87,11 @@ func (r *dbGroupResolver) ResolveGroups(ctx context.Context, s Subject) ([]strin
 		addGroup(set, g)
 	}
 
-	ssoGroups, err := r.ssoGroupNames(ctx, userID)
-	if err != nil {
-		return nil, err
-	}
-	for _, g := range ssoGroups {
-		addGroup(set, g)
-	}
-
 	out := make([]string, 0, len(set))
 	for _, canonical := range set {
 		out = append(out, canonical)
 	}
 	sort.Strings(out)
-	return out, nil
-}
-
-// ssoGroupNames loads the user's most recent SSO link and returns its groups, translating
-// each through the provider's ccf_sso_group_mappings to the mapped native group name where
-// one exists; unmapped groups pass through under their raw name. A user with no SSO link
-// resolves to no SSO groups.
-func (r *dbGroupResolver) ssoGroupNames(ctx context.Context, userID string) ([]string, error) {
-	var link relational.SSOUserLink
-	err := r.db.WithContext(ctx).
-		Where("user_id = ? AND deleted_at IS NULL", userID).
-		Order("last_sync DESC").
-		First(&link).Error
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, nil
-		}
-		return nil, err
-	}
-
-	raw := sso.DeserializeStringArray(link.Groups)
-	if len(raw) == 0 {
-		return nil, nil
-	}
-
-	var mappings []relational.SSOGroupMapping
-	if err := r.db.WithContext(ctx).
-		Where("provider = ?", link.Provider).
-		Preload("Group").
-		Find(&mappings).Error; err != nil {
-		return nil, err
-	}
-	mapByExternal := make(map[string]string, len(mappings)) // lower(externalGroup) -> native name
-	for _, m := range mappings {
-		if name := strings.TrimSpace(m.Group.Name); name != "" {
-			mapByExternal[strings.ToLower(strings.TrimSpace(m.ExternalGroup))] = name
-		}
-	}
-
-	out := make([]string, 0, len(raw))
-	for _, g := range raw {
-		key := strings.ToLower(strings.TrimSpace(g))
-		if key == "" {
-			continue
-		}
-		if native, ok := mapByExternal[key]; ok {
-			out = append(out, native)
-		} else {
-			out = append(out, strings.TrimSpace(g))
-		}
-	}
 	return out, nil
 }
 
