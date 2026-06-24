@@ -207,7 +207,7 @@ resources:
 
   # ── Archetype F: platform / admin ──
   # The Phase-1 `admin` umbrella is retained as the resource the admin enforcement gates on
-  # (RequireAdminGroups → Authorize(admin, manage)), so behavior is unchanged. The split
+  # (admin routes → Authorize(admin, manage)), so behavior is unchanged. The split
   # resources below are the forward-looking granular vocabulary (BCH-1319 §4.6) the granular
   # admin.* actions bind to; per-route granular enforcement migrates onto them later.
   admin:
@@ -293,8 +293,12 @@ roles:
     role-assignment: [read, create, update, delete]
     control-relationship: [read, create, update, delete]
 
-  # Service accounts: ingest telemetry and register.
+  # Service accounts: ingest telemetry and register, and reconcile their own plugin templates
+  # (the /agent/{risk,subject}-templates batch upsert — plugin v2). The batch routes enforce the
+  # `update` action, so the agent role grants update on both template resources.
   agent:
     evidence: [create]
     heartbeat: [ingest]
     agent: [register, ingest]
+    risk-template: [update]
+    subject-template: [update]

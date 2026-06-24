@@ -86,6 +86,7 @@ func bindEnvironmentVariables() {
 	viper.MustBindEnv("ai_max_calls_per_run")
 	viper.MustBindEnv("ai_max_suggestions_per_run")
 	viper.MustBindEnv("authz_driver")
+	viper.MustBindEnv("authz_role_assignments")
 	viper.MustBindEnv("authz_fail_mode")
 }
 

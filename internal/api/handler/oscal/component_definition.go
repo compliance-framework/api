@@ -17,6 +17,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/compliance-framework/api/internal/api/handler"
+	"github.com/compliance-framework/api/internal/api/middleware"
 	"github.com/compliance-framework/api/internal/service/relational"
 )
 
@@ -32,38 +33,38 @@ func NewComponentDefinitionHandler(sugar *zap.SugaredLogger, db *gorm.DB) *Compo
 	}
 }
 
-func (h *ComponentDefinitionHandler) Register(api *echo.Group) {
-	api.GET("", h.List)                                                                                                                // manually tested
-	api.POST("", h.Create)                                                                                                             // manually tested
-	api.GET("/:id", h.Get)                                                                                                             // integration tested
-	api.PUT("/:id", h.Update)                                                                                                          // integration tested
-	api.GET("/:id/full", h.Full)                                                                                                       // manually tested
-	api.GET("/:id/import-component-definitions", h.GetImportComponentDefinitions)                                                      // manually tested
-	api.POST("/:id/import-component-definitions", h.CreateImportComponentDefinitions)                                                  // integration tested
-	api.PUT("/:id/import-component-definitions", h.UpdateImportComponentDefinitions)                                                   // to test
-	api.GET("/:id/components", h.GetComponents)                                                                                        // manually tested
-	api.POST("/:id/components", h.CreateComponents)                                                                                    // integration tested
-	api.PUT("/:id/components", h.UpdateComponents)                                                                                     // integration tested
-	api.GET("/:id/components/:defined-component", h.GetDefinedComponent)                                                               // manually tested
-	api.POST("/:id/components/:defined-component", h.CreateDefinedComponent)                                                           // integration tested
-	api.PUT("/:id/components/:defined-component", h.UpdateDefinedComponent)                                                            // integration tested
-	api.GET("/:id/components/:defined-component/control-implementations", h.GetControlImplementations)                                 // manually tested
-	api.POST("/:id/components/:defined-component/control-implementations", h.CreateControlImplementations)                             // integration tested
-	api.PUT("/:id/components/:defined-component/control-implementations", h.UpdateControlImplementations)                              // integration tested
-	api.PUT("/:id/components/:defined-component/control-implementations/:control-implementation", h.UpdateSingleControlImplementation) // integration tested
-	api.GET("/:id/components/:defined-component/control-implementations/implemented-requirements", h.GetImplementedRequirements)       // manually tested
+func (h *ComponentDefinitionHandler) Register(api *echo.Group, guard middleware.ResourceGuard) {
+	api.GET("", h.List, guard.Read())                                                                                                                  // manually tested
+	api.POST("", h.Create, guard.Create())                                                                                                             // manually tested
+	api.GET("/:id", h.Get, guard.Read())                                                                                                               // integration tested
+	api.PUT("/:id", h.Update, guard.Update())                                                                                                          // integration tested
+	api.GET("/:id/full", h.Full, guard.Read())                                                                                                         // manually tested
+	api.GET("/:id/import-component-definitions", h.GetImportComponentDefinitions, guard.Read())                                                        // manually tested
+	api.POST("/:id/import-component-definitions", h.CreateImportComponentDefinitions, guard.Create())                                                  // integration tested
+	api.PUT("/:id/import-component-definitions", h.UpdateImportComponentDefinitions, guard.Update())                                                   // to test
+	api.GET("/:id/components", h.GetComponents, guard.Read())                                                                                          // manually tested
+	api.POST("/:id/components", h.CreateComponents, guard.Create())                                                                                    // integration tested
+	api.PUT("/:id/components", h.UpdateComponents, guard.Update())                                                                                     // integration tested
+	api.GET("/:id/components/:defined-component", h.GetDefinedComponent, guard.Read())                                                                 // manually tested
+	api.POST("/:id/components/:defined-component", h.CreateDefinedComponent, guard.Create())                                                           // integration tested
+	api.PUT("/:id/components/:defined-component", h.UpdateDefinedComponent, guard.Update())                                                            // integration tested
+	api.GET("/:id/components/:defined-component/control-implementations", h.GetControlImplementations, guard.Read())                                   // manually tested
+	api.POST("/:id/components/:defined-component/control-implementations", h.CreateControlImplementations, guard.Create())                             // integration tested
+	api.PUT("/:id/components/:defined-component/control-implementations", h.UpdateControlImplementations, guard.Update())                              // integration tested
+	api.PUT("/:id/components/:defined-component/control-implementations/:control-implementation", h.UpdateSingleControlImplementation, guard.Update()) // integration tested
+	api.GET("/:id/components/:defined-component/control-implementations/implemented-requirements", h.GetImplementedRequirements, guard.Read())         // manually tested
 	// api.POST("/:id/components/:defined-component/control-implementations/implemented-requirements", h.CreateImplementedRequirements)
 	// api.PUT("/:id/components/:defined-component/control-implementations/implemented-requirements", h.UpdateImplementedRequirements)
-	api.GET("/:id/components/:defined-component/control-implementations/implemented-requirements/statements", h.GetStatements) // manually tested
+	api.GET("/:id/components/:defined-component/control-implementations/implemented-requirements/statements", h.GetStatements, guard.Read()) // manually tested
 	// api.POST("/:id/components/:defined-component/control-implementations/:control-implementation/implemented-requirements/:implemented-requirement/statements", h.CreateStatements)
 	// api.PUT("/:id/components/:defined-component/control-implementations/:statement", h.UpdateSingleStatement)
-	api.GET("/:id/capabilities", h.GetCapabilities)                                       // manually tested
-	api.POST("/:id/capabilities", h.CreateCapabilities)                                   // integration tested
-	api.PUT("/:id/capabilities/:capability", h.UpdateCapability)                          // integration tested
-	api.GET("/:id/capabilities/incorporates-components", h.GetIncorporatesComponents)     // manually tested
-	api.POST("/:id/capabilities/incorporates-components", h.CreateIncorporatesComponents) // integration tested
-	api.GET("/:id/back-matter", h.GetBackMatter)                                          // manually tested
-	api.POST("/:id/back-matter", h.CreateBackMatter)                                      // integration tested
+	api.GET("/:id/capabilities", h.GetCapabilities, guard.Read())                                         // manually tested
+	api.POST("/:id/capabilities", h.CreateCapabilities, guard.Create())                                   // integration tested
+	api.PUT("/:id/capabilities/:capability", h.UpdateCapability, guard.Update())                          // integration tested
+	api.GET("/:id/capabilities/incorporates-components", h.GetIncorporatesComponents, guard.Read())       // manually tested
+	api.POST("/:id/capabilities/incorporates-components", h.CreateIncorporatesComponents, guard.Create()) // integration tested
+	api.GET("/:id/back-matter", h.GetBackMatter, guard.Read())                                            // manually tested
+	api.POST("/:id/back-matter", h.CreateBackMatter, guard.Create())                                      // integration tested
 }
 
 // List godoc

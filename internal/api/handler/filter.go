@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/compliance-framework/api/internal/api"
+	"github.com/compliance-framework/api/internal/api/middleware"
 	"github.com/compliance-framework/api/internal/service/relational"
 	oscalTypes_1_1_3 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
 	"github.com/google/uuid"
@@ -30,13 +31,14 @@ func NewFilterHandler(sugar *zap.SugaredLogger, db *gorm.DB) *FilterHandler {
 }
 
 // Register registers the filter endpoints.
-func (h *FilterHandler) Register(api *echo.Group) {
-	api.GET("", h.List)
-	api.GET("/:id", h.Get)
-	api.POST("", h.Create)
-	api.PUT("/:id", h.Update)
-	api.DELETE("/:id", h.Delete)
-	api.POST("/import", h.ImportFilters)
+func (h *FilterHandler) Register(api *echo.Group, guard middleware.ResourceGuard) {
+	api.GET("", h.List, guard.Read())
+	api.GET("/:id", h.Get, guard.Read())
+	api.POST("", h.Create, guard.Create())
+	api.PUT("/:id", h.Update, guard.Update())
+	api.DELETE("/:id", h.Delete, guard.Delete())
+	// Bulk import creates filters → create.
+	api.POST("/import", h.ImportFilters, guard.Create())
 }
 
 type FilterWithAssociations struct {

@@ -12,7 +12,9 @@ import (
 	"unicode/utf8"
 
 	"github.com/compliance-framework/api/internal/api"
+	"github.com/compliance-framework/api/internal/api/middleware"
 	"github.com/compliance-framework/api/internal/authn"
+	"github.com/compliance-framework/api/internal/authz"
 	svc "github.com/compliance-framework/api/internal/service"
 	poamsvc "github.com/compliance-framework/api/internal/service/relational/poam"
 	riskrel "github.com/compliance-framework/api/internal/service/relational/risks"
@@ -44,78 +46,84 @@ func NewRiskHandler(sugar *zap.SugaredLogger, db *gorm.DB, poamSvc *poamsvc.Poam
 	}
 }
 
-func (h *RiskHandler) Register(api *echo.Group) {
-	api.GET("", h.List)
-	api.POST("", h.Create)
-	api.GET("/score-timeseries", h.GetScoreTimeseries)
-	api.GET("/:id", h.Get)
-	api.PUT("/:id", h.Update)
-	api.POST("/:id/accept", h.Accept)
-	api.POST("/:id/review", h.Review)
-	api.POST("/:id/promote-to-poam", h.PromoteToPoam)
-	api.DELETE("/:id", h.Delete)
-	api.GET("/:id/score-history", h.GetScoreHistory)
-	api.GET("/:id/events", h.GetEvents)
-	api.GET("/:id/reviews", h.GetReviews)
+// Register mounts the flat /risks routes. guard enforces the risk resource: top-level
+// create/delete map to risk create/delete; mutating a risk's sub-parts (links, threat-ids,
+// remediation template, accept/review) is an update of the risk aggregate; promote-to-poam
+// is the dedicated promote action.
+func (h *RiskHandler) Register(api *echo.Group, guard middleware.ResourceGuard) {
+	api.GET("", h.List, guard.Read())
+	api.POST("", h.Create, guard.Create())
+	api.GET("/score-timeseries", h.GetScoreTimeseries, guard.Read())
+	api.GET("/:id", h.Get, guard.Read())
+	api.PUT("/:id", h.Update, guard.Update())
+	api.POST("/:id/accept", h.Accept, guard.Update())
+	api.POST("/:id/review", h.Review, guard.Update())
+	api.POST("/:id/promote-to-poam", h.PromoteToPoam, guard.Do(authz.ActionPromote))
+	api.DELETE("/:id", h.Delete, guard.Delete())
+	api.GET("/:id/score-history", h.GetScoreHistory, guard.Read())
+	api.GET("/:id/events", h.GetEvents, guard.Read())
+	api.GET("/:id/reviews", h.GetReviews, guard.Read())
 
-	api.GET("/:id/evidence", h.GetEvidenceLinks)
-	api.POST("/:id/evidence", h.AddEvidenceLink)
-	api.DELETE("/:id/evidence/:evidenceId", h.DeleteEvidenceLink)
+	api.GET("/:id/evidence", h.GetEvidenceLinks, guard.Read())
+	api.POST("/:id/evidence", h.AddEvidenceLink, guard.Update())
+	api.DELETE("/:id/evidence/:evidenceId", h.DeleteEvidenceLink, guard.Update())
 
-	api.GET("/:id/controls", h.GetControlLinks)
-	api.POST("/:id/controls", h.AddControlLink)
-	api.DELETE("/:id/controls/:catalogId/:controlId", h.DeleteControlLink)
+	api.GET("/:id/controls", h.GetControlLinks, guard.Read())
+	api.POST("/:id/controls", h.AddControlLink, guard.Update())
+	api.DELETE("/:id/controls/:catalogId/:controlId", h.DeleteControlLink, guard.Update())
 
-	api.GET("/:id/components", h.GetComponentLinks)
-	api.POST("/:id/components", h.AddComponentLink)
-	api.DELETE("/:id/components/:componentId", h.DeleteComponentLink)
+	api.GET("/:id/components", h.GetComponentLinks, guard.Read())
+	api.POST("/:id/components", h.AddComponentLink, guard.Update())
+	api.DELETE("/:id/components/:componentId", h.DeleteComponentLink, guard.Update())
 
-	api.GET("/:id/subjects", h.GetSubjectLinks)
-	api.POST("/:id/subjects", h.AddSubjectLink)
-	api.GET("/:id/threat-ids", h.ListThreatRefs)
-	api.POST("/:id/threat-ids", h.AddThreatRef)
-	api.GET("/:id/threat-ids/:threatRefId", h.GetThreatRef)
-	api.PUT("/:id/threat-ids/:threatRefId", h.UpdateThreatRef)
-	api.DELETE("/:id/threat-ids/:threatRefId", h.DeleteThreatRef)
-	api.GET("/:id/remediation-template", h.GetRemediationTemplate)
-	api.POST("/:id/remediation-template", h.CreateRemediationTemplate)
-	api.PUT("/:id/remediation-template", h.UpsertRemediationTemplate)
-	api.DELETE("/:id/remediation-template", h.DeleteRemediationTemplate)
+	api.GET("/:id/subjects", h.GetSubjectLinks, guard.Read())
+	api.POST("/:id/subjects", h.AddSubjectLink, guard.Update())
+	api.GET("/:id/threat-ids", h.ListThreatRefs, guard.Read())
+	api.POST("/:id/threat-ids", h.AddThreatRef, guard.Update())
+	api.GET("/:id/threat-ids/:threatRefId", h.GetThreatRef, guard.Read())
+	api.PUT("/:id/threat-ids/:threatRefId", h.UpdateThreatRef, guard.Update())
+	api.DELETE("/:id/threat-ids/:threatRefId", h.DeleteThreatRef, guard.Update())
+	api.GET("/:id/remediation-template", h.GetRemediationTemplate, guard.Read())
+	api.POST("/:id/remediation-template", h.CreateRemediationTemplate, guard.Update())
+	api.PUT("/:id/remediation-template", h.UpsertRemediationTemplate, guard.Update())
+	api.DELETE("/:id/remediation-template", h.DeleteRemediationTemplate, guard.Update())
 }
 
-func (h *RiskHandler) RegisterSSPScoped(api *echo.Group) {
-	api.GET("", h.ListForSSP)
-	api.POST("", h.CreateForSSP)
-	api.GET("/score-timeseries", h.GetScoreTimeseriesForSSP)
-	api.GET("/:id", h.GetForSSP)
-	api.PUT("/:id", h.UpdateForSSP)
-	api.POST("/:id/accept", h.AcceptForSSP)
-	api.POST("/:id/review", h.ReviewForSSP)
-	api.POST("/:id/promote-to-poam", h.PromoteToPoamForSSP)
-	api.DELETE("/:id", h.DeleteForSSP)
-	api.GET("/:id/score-history", h.GetScoreHistoryForSSP)
-	api.GET("/:id/events", h.GetEventsForSSP)
-	api.GET("/:id/reviews", h.GetReviewsForSSP)
-	api.GET("/:id/evidence", h.GetEvidenceLinksForSSP)
-	api.POST("/:id/evidence", h.AddEvidenceLinkForSSP)
-	api.DELETE("/:id/evidence/:evidenceId", h.DeleteEvidenceLinkForSSP)
+// RegisterSSPScoped mounts the SSP-scoped /system-security-plans/:sspId/risks routes; the
+// same risk action mapping as Register applies.
+func (h *RiskHandler) RegisterSSPScoped(api *echo.Group, guard middleware.ResourceGuard) {
+	api.GET("", h.ListForSSP, guard.Read())
+	api.POST("", h.CreateForSSP, guard.Create())
+	api.GET("/score-timeseries", h.GetScoreTimeseriesForSSP, guard.Read())
+	api.GET("/:id", h.GetForSSP, guard.Read())
+	api.PUT("/:id", h.UpdateForSSP, guard.Update())
+	api.POST("/:id/accept", h.AcceptForSSP, guard.Update())
+	api.POST("/:id/review", h.ReviewForSSP, guard.Update())
+	api.POST("/:id/promote-to-poam", h.PromoteToPoamForSSP, guard.Do(authz.ActionPromote))
+	api.DELETE("/:id", h.DeleteForSSP, guard.Delete())
+	api.GET("/:id/score-history", h.GetScoreHistoryForSSP, guard.Read())
+	api.GET("/:id/events", h.GetEventsForSSP, guard.Read())
+	api.GET("/:id/reviews", h.GetReviewsForSSP, guard.Read())
+	api.GET("/:id/evidence", h.GetEvidenceLinksForSSP, guard.Read())
+	api.POST("/:id/evidence", h.AddEvidenceLinkForSSP, guard.Update())
+	api.DELETE("/:id/evidence/:evidenceId", h.DeleteEvidenceLinkForSSP, guard.Update())
 
-	api.GET("/:id/controls", h.GetControlLinksForSSP)
-	api.POST("/:id/controls", h.AddControlLinkForSSP)
-	api.DELETE("/:id/controls/:catalogId/:controlId", h.DeleteControlLinkForSSP)
+	api.GET("/:id/controls", h.GetControlLinksForSSP, guard.Read())
+	api.POST("/:id/controls", h.AddControlLinkForSSP, guard.Update())
+	api.DELETE("/:id/controls/:catalogId/:controlId", h.DeleteControlLinkForSSP, guard.Update())
 
-	api.GET("/:id/components", h.GetComponentLinksForSSP)
-	api.POST("/:id/components", h.AddComponentLinkForSSP)
-	api.DELETE("/:id/components/:componentId", h.DeleteComponentLinkForSSP)
-	api.GET("/:id/threat-ids", h.ListThreatRefsForSSP)
-	api.POST("/:id/threat-ids", h.AddThreatRefForSSP)
-	api.GET("/:id/threat-ids/:threatRefId", h.GetThreatRefForSSP)
-	api.PUT("/:id/threat-ids/:threatRefId", h.UpdateThreatRefForSSP)
-	api.DELETE("/:id/threat-ids/:threatRefId", h.DeleteThreatRefForSSP)
-	api.GET("/:id/remediation-template", h.GetRemediationTemplateForSSP)
-	api.POST("/:id/remediation-template", h.CreateRemediationTemplateForSSP)
-	api.PUT("/:id/remediation-template", h.UpsertRemediationTemplateForSSP)
-	api.DELETE("/:id/remediation-template", h.DeleteRemediationTemplateForSSP)
+	api.GET("/:id/components", h.GetComponentLinksForSSP, guard.Read())
+	api.POST("/:id/components", h.AddComponentLinkForSSP, guard.Update())
+	api.DELETE("/:id/components/:componentId", h.DeleteComponentLinkForSSP, guard.Update())
+	api.GET("/:id/threat-ids", h.ListThreatRefsForSSP, guard.Read())
+	api.POST("/:id/threat-ids", h.AddThreatRefForSSP, guard.Update())
+	api.GET("/:id/threat-ids/:threatRefId", h.GetThreatRefForSSP, guard.Read())
+	api.PUT("/:id/threat-ids/:threatRefId", h.UpdateThreatRefForSSP, guard.Update())
+	api.DELETE("/:id/threat-ids/:threatRefId", h.DeleteThreatRefForSSP, guard.Update())
+	api.GET("/:id/remediation-template", h.GetRemediationTemplateForSSP, guard.Read())
+	api.POST("/:id/remediation-template", h.CreateRemediationTemplateForSSP, guard.Update())
+	api.PUT("/:id/remediation-template", h.UpsertRemediationTemplateForSSP, guard.Update())
+	api.DELETE("/:id/remediation-template", h.DeleteRemediationTemplateForSSP, guard.Update())
 }
 
 type riskOwnerAssignmentRequest struct {

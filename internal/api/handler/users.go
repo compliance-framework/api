@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/compliance-framework/api/internal/api"
+	"github.com/compliance-framework/api/internal/api/middleware"
 	"github.com/compliance-framework/api/internal/authn"
 	"github.com/compliance-framework/api/internal/service/notification"
 	"github.com/compliance-framework/api/internal/service/relational"
@@ -83,16 +84,16 @@ func (h *UserHandler) Register(api *echo.Group) {
 	api.POST("/:id/change-password", h.ChangePassword)
 }
 
-func (h *UserHandler) RegisterSelfRoutes(api *echo.Group) {
-	api.GET("", h.GetMe)
-	api.POST("/change-password", h.ChangeLoggedInUserPassword)
-	api.GET("/subscriptions", h.GetSubscriptions)
-	api.PUT("/subscriptions", h.UpdateSubscriptions)
+func (h *UserHandler) RegisterSelfRoutes(api *echo.Group, guard middleware.ResourceGuard) {
+	api.GET("", h.GetMe, guard.Read())
+	api.POST("/change-password", h.ChangeLoggedInUserPassword, guard.Update())
+	api.GET("/subscriptions", h.GetSubscriptions, guard.Read())
+	api.PUT("/subscriptions", h.UpdateSubscriptions, guard.Update())
 }
 
-func (h *UserHandler) RegisterPublicRoutes(api *echo.Group) {
-	api.GET("/select", h.ListSelectableUsers)
-	api.GET("/:id", h.GetPublicUser)
+func (h *UserHandler) RegisterPublicRoutes(api *echo.Group, guard middleware.ResourceGuard) {
+	api.GET("/select", h.ListSelectableUsers, guard.Read())
+	api.GET("/:id", h.GetPublicUser, guard.Read())
 }
 
 // ListUsers godoc

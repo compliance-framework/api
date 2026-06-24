@@ -20,6 +20,7 @@ import (
 	"github.com/compliance-framework/api/internal/api"
 	"github.com/compliance-framework/api/internal/api/handler"
 	"github.com/compliance-framework/api/internal/api/middleware"
+	"github.com/compliance-framework/api/internal/authz"
 	evidencesvc "github.com/compliance-framework/api/internal/service/relational/evidence"
 	"github.com/compliance-framework/api/internal/tests"
 	oscalTypes_1_1_3 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
@@ -49,23 +50,25 @@ func (suite *InventoryApiIntegrationSuite) SetupSuite() {
 	metrics := api.NewMetricsHandler(context.Background(), logger)
 	suite.server = api.NewServer(context.Background(), logger, suite.Config, metrics)
 
-	// Register handlers
+	// Register handlers. A builtin-backed PEP reproduces the prior access rules (every
+	// authenticated non-admin request allowed), so route enforcement is a no-op here.
 	apiGroup := suite.server.API()
+	pep := middleware.NewPEP(authz.NewBuiltin(suite.DB, suite.Config, logger), authz.FailClosed, logger)
 
 	// Register inventory handler with auth middleware
 	inventoryGroup := apiGroup.Group("/oscal/inventory")
 	inventoryGroup.Use(middleware.JWTMiddleware(suite.Config.JWTPublicKey))
-	suite.handler.Register(inventoryGroup)
+	suite.handler.Register(inventoryGroup, pep.For(authz.ResourceInventory))
 
 	// Register SSP handler
 	sspGroup := apiGroup.Group("/oscal/system-security-plans")
 	sspGroup.Use(middleware.JWTMiddleware(suite.Config.JWTPublicKey))
-	suite.sspHandler.Register(sspGroup)
+	suite.sspHandler.Register(sspGroup, pep.For(authz.ResourceSSP))
 
 	// Register POAM handler
 	poamGroup := apiGroup.Group("/oscal/plan-of-action-and-milestones")
 	poamGroup.Use(middleware.JWTMiddleware(suite.Config.JWTPublicKey))
-	suite.poamHandler.Register(poamGroup)
+	suite.poamHandler.Register(poamGroup, pep.For(authz.ResourcePoamOSCAL))
 
 	// Register evidence handler
 	evidenceGroup := apiGroup.Group("/evidence")

@@ -53,21 +53,27 @@ func (h *EvidenceHandler) RegisterCreate(api *echo.Group, middlewares ...echo.Mi
 	api.POST("", h.Create, middlewares...)
 }
 
-func (h *EvidenceHandler) RegisterReadRoutes(api *echo.Group) {
-	api.GET("/:id", h.Get)
-	api.GET("/history/:id", h.History)
-	api.GET("/latest/:id", h.Latest)
-	api.POST("/search", h.Search)
-	api.GET("/for-control/:id", h.ForControl)
-	api.GET("/status-over-time/:id", h.StatusOverTimeByUUID)
-	api.POST("/status-over-time", h.StatusOverTime)
-	api.GET("/compliance-by-control/:id", h.ComplianceByControl)
-	api.GET("/compliance-by-filter/:id", h.ComplianceByFilter)
+// RegisterReadRoutes mounts the read-only evidence routes. Every route here is an evidence
+// read, so the caller passes the read guard (and, since these routes carry no group auth, an
+// optional-auth middleware) as middlewares applied uniformly. POST /search and
+// POST /status-over-time are queries, not mutations — hence read.
+func (h *EvidenceHandler) RegisterReadRoutes(api *echo.Group, middlewares ...echo.MiddlewareFunc) {
+	api.GET("/:id", h.Get, middlewares...)
+	api.GET("/history/:id", h.History, middlewares...)
+	api.GET("/latest/:id", h.Latest, middlewares...)
+	api.POST("/search", h.Search, middlewares...)
+	api.GET("/for-control/:id", h.ForControl, middlewares...)
+	api.GET("/status-over-time/:id", h.StatusOverTimeByUUID, middlewares...)
+	api.POST("/status-over-time", h.StatusOverTime, middlewares...)
+	api.GET("/compliance-by-control/:id", h.ComplianceByControl, middlewares...)
+	api.GET("/compliance-by-filter/:id", h.ComplianceByFilter, middlewares...)
 }
 
-func (h *EvidenceHandler) RegisterSignatureRoutes(api *echo.Group) {
-	api.GET("/:id/signature", h.GetSignature)
-	api.POST("/:id/verify", h.VerifySignature)
+// RegisterSignatureRoutes mounts the signature routes; both are reads (verify validates a
+// signature, it does not mutate). The caller passes the read guard.
+func (h *EvidenceHandler) RegisterSignatureRoutes(api *echo.Group, middlewares ...echo.MiddlewareFunc) {
+	api.GET("/:id/signature", h.GetSignature, middlewares...)
+	api.POST("/:id/verify", h.VerifySignature, middlewares...)
 }
 
 type EvidenceActivityStep struct {

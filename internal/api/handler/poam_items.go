@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/compliance-framework/api/internal/api"
+	"github.com/compliance-framework/api/internal/api/middleware"
 	"github.com/compliance-framework/api/internal/authn"
 	poamsvc "github.com/compliance-framework/api/internal/service/relational/poam"
 	riskrel "github.com/compliance-framework/api/internal/service/relational/risks"
@@ -32,44 +33,47 @@ func NewPoamItemsHandler(svc *poamsvc.PoamService, riskSvc *riskrel.RiskService,
 
 // Register mounts all POAM routes onto the given Echo group. JWT middleware
 // is applied at the group level in api.go.
-func (h *PoamItemsHandler) Register(g *echo.Group) {
-	h.registerRoutes(g)
+func (h *PoamItemsHandler) Register(g *echo.Group, guard middleware.ResourceGuard) {
+	h.registerRoutes(g, guard)
 }
 
 // RegisterSSPScoped mounts all POAM routes under an SSP-scoped group
 // (e.g. /system-security-plans/:sspId/poam-items). The :sspId path param is
 // extracted and injected into list/create filters automatically.
-func (h *PoamItemsHandler) RegisterSSPScoped(g *echo.Group) {
-	h.registerRoutes(g)
+func (h *PoamItemsHandler) RegisterSSPScoped(g *echo.Group, guard middleware.ResourceGuard) {
+	h.registerRoutes(g, guard)
 }
 
-func (h *PoamItemsHandler) registerRoutes(g *echo.Group) {
-	g.GET("", h.List)
-	g.POST("", h.Create)
-	g.GET("/:id", h.Get)
-	g.PUT("/:id", h.Update)
-	g.DELETE("/:id", h.Delete)
+// registerRoutes mounts the POAM-item routes guarded as the poam_item resource. Top-level
+// create/delete map to poam_item create/delete; mutating a POAM item's sub-parts (milestones,
+// risk/evidence/control/finding links) is an update of the poam_item aggregate.
+func (h *PoamItemsHandler) registerRoutes(g *echo.Group, guard middleware.ResourceGuard) {
+	g.GET("", h.List, guard.Read())
+	g.POST("", h.Create, guard.Create())
+	g.GET("/:id", h.Get, guard.Read())
+	g.PUT("/:id", h.Update, guard.Update())
+	g.DELETE("/:id", h.Delete, guard.Delete())
 
-	g.GET("/:id/milestones", h.ListMilestones)
-	g.POST("/:id/milestones", h.AddMilestone)
-	g.PUT("/:id/milestones/:milestoneId", h.UpdateMilestone)
-	g.DELETE("/:id/milestones/:milestoneId", h.DeleteMilestone)
+	g.GET("/:id/milestones", h.ListMilestones, guard.Read())
+	g.POST("/:id/milestones", h.AddMilestone, guard.Update())
+	g.PUT("/:id/milestones/:milestoneId", h.UpdateMilestone, guard.Update())
+	g.DELETE("/:id/milestones/:milestoneId", h.DeleteMilestone, guard.Update())
 
-	g.GET("/:id/risks", h.ListRisks)
-	g.POST("/:id/risks", h.AddRiskLink)
-	g.DELETE("/:id/risks/:riskId", h.DeleteRiskLink)
+	g.GET("/:id/risks", h.ListRisks, guard.Read())
+	g.POST("/:id/risks", h.AddRiskLink, guard.Update())
+	g.DELETE("/:id/risks/:riskId", h.DeleteRiskLink, guard.Update())
 
-	g.GET("/:id/evidence", h.ListEvidence)
-	g.POST("/:id/evidence", h.AddEvidenceLink)
-	g.DELETE("/:id/evidence/:evidenceId", h.DeleteEvidenceLink)
+	g.GET("/:id/evidence", h.ListEvidence, guard.Read())
+	g.POST("/:id/evidence", h.AddEvidenceLink, guard.Update())
+	g.DELETE("/:id/evidence/:evidenceId", h.DeleteEvidenceLink, guard.Update())
 
-	g.GET("/:id/controls", h.ListControls)
-	g.POST("/:id/controls", h.AddControlLink)
-	g.DELETE("/:id/controls/:catalogId/:controlId", h.DeleteControlLink)
+	g.GET("/:id/controls", h.ListControls, guard.Read())
+	g.POST("/:id/controls", h.AddControlLink, guard.Update())
+	g.DELETE("/:id/controls/:catalogId/:controlId", h.DeleteControlLink, guard.Update())
 
-	g.GET("/:id/findings", h.ListFindings)
-	g.POST("/:id/findings", h.AddFindingLink)
-	g.DELETE("/:id/findings/:findingId", h.DeleteFindingLink)
+	g.GET("/:id/findings", h.ListFindings, guard.Read())
+	g.POST("/:id/findings", h.AddFindingLink, guard.Update())
+	g.DELETE("/:id/findings/:findingId", h.DeleteFindingLink, guard.Update())
 }
 
 // ---------------------------------------------------------------------------

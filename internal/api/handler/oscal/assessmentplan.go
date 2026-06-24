@@ -13,6 +13,7 @@ import (
 
 	"github.com/compliance-framework/api/internal/api"
 	"github.com/compliance-framework/api/internal/api/handler"
+	"github.com/compliance-framework/api/internal/api/middleware"
 	"github.com/compliance-framework/api/internal/service/relational"
 	oscalTypes_1_1_3 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
 )
@@ -30,43 +31,43 @@ func NewAssessmentPlanHandler(sugar *zap.SugaredLogger, db *gorm.DB) *Assessment
 }
 
 // Register registers Assessment Plan endpoints to the API group.
-func (h *AssessmentPlanHandler) Register(api *echo.Group) {
+func (h *AssessmentPlanHandler) Register(api *echo.Group, guard middleware.ResourceGuard) {
 	// Core CRUD operations
-	api.GET("", h.List)          // GET /oscal/assessment-plans
-	api.POST("", h.Create)       // POST /oscal/assessment-plans
-	api.GET("/:id", h.Get)       // GET /oscal/assessment-plans/:id
-	api.PUT("/:id", h.Update)    // PUT /oscal/assessment-plans/:id
-	api.GET("/:id/full", h.Full) // GET /oscal/assessment-plans/:id/full
-	api.DELETE("/:id", h.Delete) // DELETE /oscal/assessment-plans/:id
+	api.GET("", h.List, guard.Read())            // GET /oscal/assessment-plans
+	api.POST("", h.Create, guard.Create())       // POST /oscal/assessment-plans
+	api.GET("/:id", h.Get, guard.Read())         // GET /oscal/assessment-plans/:id
+	api.PUT("/:id", h.Update, guard.Update())    // PUT /oscal/assessment-plans/:id
+	api.GET("/:id/full", h.Full, guard.Read())   // GET /oscal/assessment-plans/:id/full
+	api.DELETE("/:id", h.Delete, guard.Delete()) // DELETE /oscal/assessment-plans/:id
 
-	api.GET("/:id/metadata", h.GetMetadata)
-	api.GET("/:id/import-ssp", h.GetImportSsp)
-	api.GET("/:id/local-definitions", h.GetLocalDefinitions)
-	api.GET("/:id/terms-and-conditions", h.GetTermsAndConditions)
-	api.GET("/:id/back-matter", h.GetBackMatter)
+	api.GET("/:id/metadata", h.GetMetadata, guard.Read())
+	api.GET("/:id/import-ssp", h.GetImportSsp, guard.Read())
+	api.GET("/:id/local-definitions", h.GetLocalDefinitions, guard.Read())
+	api.GET("/:id/terms-and-conditions", h.GetTermsAndConditions, guard.Read())
+	api.GET("/:id/back-matter", h.GetBackMatter, guard.Read())
 
 	// Tasks sub-resource management
-	api.GET("/:id/tasks", h.GetTasks)
-	api.POST("/:id/tasks", h.CreateTask)
+	api.GET("/:id/tasks", h.GetTasks, guard.Read())
+	api.POST("/:id/tasks", h.CreateTask, guard.Create())
 
-	api.PUT("/:id/tasks/:taskId", h.UpdateTask)
-	api.DELETE("/:id/tasks/:taskId", h.DeleteTask)
+	api.PUT("/:id/tasks/:taskId", h.UpdateTask, guard.Update())
+	api.DELETE("/:id/tasks/:taskId", h.DeleteTask, guard.Delete())
 
-	api.GET("/:id/tasks/:taskId/associated-activities", h.GetTaskActivities)
-	api.POST("/:id/tasks/:taskId/associated-activities/:activityId", h.AssociateTaskActivity)
-	api.DELETE("/:id/tasks/:taskId/associated-activities/:activityId", h.DisassociateTaskActivity)
+	api.GET("/:id/tasks/:taskId/associated-activities", h.GetTaskActivities, guard.Read())
+	api.POST("/:id/tasks/:taskId/associated-activities/:activityId", h.AssociateTaskActivity, guard.Create())
+	api.DELETE("/:id/tasks/:taskId/associated-activities/:activityId", h.DisassociateTaskActivity, guard.Delete())
 
 	// Assessment Subjects sub-resource management
-	api.GET("/:id/assessment-subjects", h.GetAssessmentSubjects)
-	api.POST("/:id/assessment-subjects", h.CreateAssessmentSubject)
-	api.PUT("/:id/assessment-subjects/:subjectId", h.UpdateAssessmentSubject)
-	api.DELETE("/:id/assessment-subjects/:subjectId", h.DeleteAssessmentSubject)
+	api.GET("/:id/assessment-subjects", h.GetAssessmentSubjects, guard.Read())
+	api.POST("/:id/assessment-subjects", h.CreateAssessmentSubject, guard.Create())
+	api.PUT("/:id/assessment-subjects/:subjectId", h.UpdateAssessmentSubject, guard.Update())
+	api.DELETE("/:id/assessment-subjects/:subjectId", h.DeleteAssessmentSubject, guard.Delete())
 
 	// Assessment Assets sub-resource management
-	api.GET("/:id/assessment-assets", h.GetAssessmentAssets)
-	api.POST("/:id/assessment-assets", h.CreateAssessmentAsset)
-	api.PUT("/:id/assessment-assets/:assetId", h.UpdateAssessmentAsset)
-	api.DELETE("/:id/assessment-assets/:assetId", h.DeleteAssessmentAsset)
+	api.GET("/:id/assessment-assets", h.GetAssessmentAssets, guard.Read())
+	api.POST("/:id/assessment-assets", h.CreateAssessmentAsset, guard.Create())
+	api.PUT("/:id/assessment-assets/:assetId", h.UpdateAssessmentAsset, guard.Update())
+	api.DELETE("/:id/assessment-assets/:assetId", h.DeleteAssessmentAsset, guard.Delete())
 }
 
 // verifyAssessmentPlanExists checks if an assessment plan exists in the database

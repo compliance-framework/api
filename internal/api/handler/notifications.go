@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/compliance-framework/api/internal/api"
+	"github.com/compliance-framework/api/internal/api/middleware"
 	"github.com/compliance-framework/api/internal/config"
 	"github.com/compliance-framework/api/internal/service/notification"
 	notificationproviders "github.com/compliance-framework/api/internal/service/notification/providers"
@@ -127,8 +128,8 @@ func (h *NotificationsHandler) Register(api *echo.Group) {
 	api.DELETE("/:notificationName/destinations", h.DeleteSystemNotificationDestination)
 }
 
-func (h *NotificationsHandler) RegisterPublic(api *echo.Group) {
-	api.GET("/providers", h.ListNotificationProviderStatus)
+func (h *NotificationsHandler) RegisterPublic(api *echo.Group, guard middleware.ResourceGuard) {
+	api.GET("/providers", h.ListNotificationProviderStatus, guard.Read())
 }
 
 // GetTroubleshootingHealth godoc

@@ -21,18 +21,22 @@ const DefaultAgentRole = "agent"
 // group it belongs to (plus the agent default for agent subjects), so a subject can hold
 // several roles even though each principal/group maps to a single role.
 //
-//   - Users  — by user: `alice@example.com → auditor`. Keyed by the subject's email
+//   - Users     — by user: `alice@example.com → auditor`. Keyed by the subject's email
 //     (subject.id), matched case-insensitively. Works for every user today.
-//   - Groups — by group: `sec-team → admin`. Keyed by group name. Live only once the subject
-//     carries a groups attribute (native CCF groups ∪ SSO groups), which is BCH-1328's
-//     surface; until then this map is inert (no subject has groups), exactly the documented
-//     "group-based assignment requires BCH-1328" dependency. Structurally ready so it goes
-//     live additively when BCH-1328 lands — no change here.
-//   - Agents — the role granted to authenticated agents (default DefaultAgentRole).
+//   - Groups    — by group: `sec-team → admin`. Keyed by group name. Live only once the
+//     subject carries a groups attribute (native CCF groups ∪ SSO groups), which is
+//     BCH-1328's surface; until then this map is inert (no subject has groups), exactly
+//     the documented "group-based assignment requires BCH-1328" dependency. Structurally
+//     ready so it goes live additively when BCH-1328 lands — no change here.
+//   - Agents    — the role granted to authenticated agents (default DefaultAgentRole).
+//   - Anonymous — the role granted to unauthenticated requests (no default; empty = deny).
+//     Use with care: `anonymous: viewer` makes all read routes open without a login.
+//     This is an explicit opt-in; omitting the field keeps the deny-by-default behaviour.
 type RoleAssignments struct {
-	Users  map[string]string `yaml:"users"`
-	Groups map[string]string `yaml:"groups"`
-	Agents string            `yaml:"agents"`
+	Users     map[string]string `yaml:"users"`
+	Groups    map[string]string `yaml:"groups"`
+	Agents    string            `yaml:"agents"`
+	Anonymous string            `yaml:"anonymous"`
 }
 
 // LoadRoleAssignments reads and parses a role-assignment file. A missing file is returned as
@@ -61,6 +65,9 @@ func (ra *RoleAssignments) normalize() {
 	if ra.Agents == "" {
 		ra.Agents = DefaultAgentRole
 	}
+	ra.Anonymous = strings.TrimSpace(ra.Anonymous)
+	// No default for Anonymous — empty keeps the deny-by-default behaviour for
+	// unauthenticated requests. Setting it is an explicit operator opt-in.
 }
 
 // lowerKeys returns a copy of m with its keys trimmed and lowercased, so user/group matching
@@ -103,6 +110,9 @@ func (ra *RoleAssignments) validate(m *Manifest) error {
 	if ra.Agents != "" && !known(ra.Agents) {
 		unknown = append(unknown, fmt.Sprintf("agents → %q", ra.Agents))
 	}
+	if ra.Anonymous != "" && !known(ra.Anonymous) {
+		unknown = append(unknown, fmt.Sprintf("anonymous → %q", ra.Anonymous))
+	}
 	if len(unknown) > 0 {
 		sort.Strings(unknown)
 		return fmt.Errorf("authz: role assignments reference unknown role(s): %s (declared roles: %s)",
@@ -130,6 +140,10 @@ func (ra *RoleAssignments) rolesFor(s Subject) []string {
 	case "agent":
 		if ra.Agents != "" {
 			set[ra.Agents] = struct{}{}
+		}
+	case "anonymous":
+		if ra.Anonymous != "" {
+			set[ra.Anonymous] = struct{}{}
 		}
 	}
 	if len(set) == 0 {

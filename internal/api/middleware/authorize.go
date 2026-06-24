@@ -34,6 +34,58 @@ func NewPEP(pdp authz.PDP, failMode authz.FailMode, logger *zap.SugaredLogger) *
 	return &PEP{pdp: pdp, failMode: failMode, logger: logger}
 }
 
+// PDP returns the decision engine this PEP enforces, so handlers that talk to the PDP
+// directly (readiness, /me/permissions) share the single configured instance rather than
+// opening their own.
+func (p *PEP) PDP() authz.PDP { return p.pdp }
+
+// FailMode returns the configured PDP-unavailable behavior.
+func (p *PEP) FailMode() authz.FailMode { return p.failMode }
+
+// ResourceGuard binds a PEP to one resource so routes can enforce it tersely:
+//
+//	g := pep.For(authz.ResourceRisk)
+//	api.GET("",  h.List,   g.Read())
+//	api.POST("", h.Create, g.Create())
+//	api.POST("/:id/promote-to-poam", h.Promote, g.Do(authz.ActionPromote))
+//
+// Each method returns the same middleware as PEP.Authorize(resource, action, opts...); the
+// options passed to For are applied to every route the guard produces (e.g. a scope param a
+// whole group shares). Per-route options can still be passed to Do.
+type ResourceGuard struct {
+	pep      *PEP
+	resource string
+	opts     []AuthorizeOption
+}
+
+// For returns a ResourceGuard bound to resource. opts apply to every route the guard guards.
+func (p *PEP) For(resource string, opts ...AuthorizeOption) ResourceGuard {
+	return ResourceGuard{pep: p, resource: resource, opts: opts}
+}
+
+// Do enforces an explicit action on the bound resource. extra options are appended to the
+// guard's own options for this route only.
+func (g ResourceGuard) Do(action string, extra ...AuthorizeOption) echo.MiddlewareFunc {
+	if len(extra) == 0 {
+		return g.pep.Authorize(g.resource, action, g.opts...)
+	}
+	return g.pep.Authorize(g.resource, action, append(append([]AuthorizeOption{}, g.opts...), extra...)...)
+}
+
+// Read/Create/Update/Delete are the CRUD shorthands for Do.
+func (g ResourceGuard) Read(extra ...AuthorizeOption) echo.MiddlewareFunc {
+	return g.Do(authz.ActionRead, extra...)
+}
+func (g ResourceGuard) Create(extra ...AuthorizeOption) echo.MiddlewareFunc {
+	return g.Do(authz.ActionCreate, extra...)
+}
+func (g ResourceGuard) Update(extra ...AuthorizeOption) echo.MiddlewareFunc {
+	return g.Do(authz.ActionUpdate, extra...)
+}
+func (g ResourceGuard) Delete(extra ...AuthorizeOption) echo.MiddlewareFunc {
+	return g.Do(authz.ActionDelete, extra...)
+}
+
 // AuthorizeOption configures how a route binds request data into the resource the PEP
 // hands the PDP.
 type AuthorizeOption func(*authorizeConfig)

@@ -58,16 +58,68 @@ type Healther interface {
 	Health(ctx context.Context) error
 }
 
-// Resource and action identifiers for the routes migrated in Phase 1, all declared in
-// manifest.yaml. ResourceEvidence with ActionCreate/ActionRead maps directly to the
-// evidence actions. ActionManage is the Phase-1 umbrella admin action: every admin route
-// enforces it uniformly, while the manifest also declares the granular admin.* actions
-// (users.manage, sso.manage, settings.manage) for later phases to enforce per-route.
+// Resource and action identifiers, all declared in manifest.yaml. These are the strings the
+// PEP hands the PDP; they must match the manifest (and the cedar entity mapping in cedar.go)
+// EXACTLY — the hyphen/underscore split is load-bearing (poam_item/poam_oscal use
+// underscores, OSCAL document resources use hyphens). ActionManage is the umbrella admin
+// action: every admin route enforces it uniformly, while the manifest also declares the
+// granular admin.* actions for later per-route enforcement.
 const (
-	ResourceAdmin    = "admin"
-	ResourceEvidence = "evidence"
+	// Platform / admin (archetype F).
+	ResourceAdmin           = "admin"
+	ResourceUser            = "user"
+	ResourceAgent           = "agent"
+	ResourceNotification    = "notification"
+	ResourceRiskTemplate    = "risk-template"
+	ResourceSubjectTemplate = "subject-template"
+	ResourceDigest          = "digest"
+	ResourceAIDiagnostics   = "ai-diagnostics"
+	ResourceImport          = "import"
 
-	ActionManage = "manage"
-	ActionCreate = "create"
-	ActionRead   = "read"
+	// Telemetry / ingest (archetype C).
+	ResourceEvidence  = "evidence"
+	ResourceHeartbeat = "heartbeat"
+
+	// OSCAL authoring documents (archetype A).
+	ResourceCatalog             = "catalog"
+	ResourceProfile             = "profile"
+	ResourceComponentDefinition = "component-definition"
+	ResourceSSP                 = "ssp"
+	ResourceAssessmentPlan      = "assessment-plan"
+	ResourceAssessmentResults   = "assessment-results"
+	ResourcePoamOSCAL           = "poam_oscal"
+	ResourceInventory           = "inventory"
+	ResourceParty               = "party"
+	ResourceRole                = "role"
+	ResourceActivity            = "activity"
+
+	// SSP-scoped register items (archetype B).
+	ResourceRisk     = "risk"
+	ResourcePoamItem = "poam_item"
+
+	// Dashboard / config (archetype E).
+	ResourceFilter              = "filter"
+	ResourceDashboardSuggestion = "dashboard-suggestion"
+
+	// Workflow engine (archetype D).
+	ResourceWorkflowDefinition     = "workflow-definition"
+	ResourceWorkflowStepDefinition = "workflow-step-definition"
+	ResourceWorkflowInstance       = "workflow-instance"
+	ResourceWorkflowExecution      = "workflow-execution"
+	ResourceStepExecution          = "step-execution"
+	ResourceRoleAssignment         = "role-assignment"
+	ResourceControlRelationship    = "control-relationship"
+
+	// Actions. read/create/update/delete are the CRUD verbs; the rest are resource-specific
+	// (promote → risk; ingest → heartbeat/agent; register → agent; trigger → digest;
+	// execute → import). ActionManage is the admin umbrella.
+	ActionManage  = "manage"
+	ActionRead    = "read"
+	ActionCreate  = "create"
+	ActionUpdate  = "update"
+	ActionDelete  = "delete"
+	ActionPromote = "promote"
+	ActionIngest  = "ingest"
+	ActionExecute = "execute"
+	ActionTrigger = "trigger"
 )

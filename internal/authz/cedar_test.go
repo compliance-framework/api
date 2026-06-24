@@ -95,6 +95,9 @@ func TestCedarRBACMatrix(t *testing.T) {
 		{agent, "ingest", "heartbeat", true},
 		{agent, "register", "agent", true},
 		{agent, "ingest", "agent", true},
+		{agent, "update", "risk-template", true},    // plugin v2 batch upsert
+		{agent, "update", "subject-template", true},  // plugin v2 batch upsert
+		{agent, "delete", "risk-template", false},    // batch route only enforces update
 		{agent, "read", "catalog", false},
 		{agent, "delete", "evidence", false},
 		{agent, "manage", "admin", false},
@@ -315,6 +318,29 @@ func TestCedarEvaluationsMatchesEvaluate(t *testing.T) {
 	}
 }
 
+// Anonymous subjects with a configured role are granted accordingly; without the field they
+// are denied (the safer default). This is the Option B anonymous-role-assignment feature.
+func TestCedarAnonymousRole(t *testing.T) {
+	// With anonymous: viewer, unauthenticated requests can read but not write.
+	c := mustCedar(t, &RoleAssignments{Anonymous: "viewer"})
+	anon := Subject{Type: "anonymous"}
+	if !allows(t, c, anon, "read", "evidence") {
+		t.Error("anonymous viewer: read evidence should be allowed")
+	}
+	if allows(t, c, anon, "create", "evidence") {
+		t.Error("anonymous viewer: create evidence should be denied")
+	}
+	if allows(t, c, anon, "manage", "admin") {
+		t.Error("anonymous viewer: manage admin should be denied")
+	}
+
+	// Without the anonymous field, unauthenticated subjects are denied everything.
+	cNone := mustCedar(t, &RoleAssignments{})
+	if allows(t, cNone, anon, "read", "evidence") {
+		t.Error("anonymous without grant: read evidence should be denied")
+	}
+}
+
 // The driver self-registers under "cedar".
 func TestCedarRegistered(t *testing.T) {
 	found := false
@@ -325,6 +351,75 @@ func TestCedarRegistered(t *testing.T) {
 	}
 	if !found {
 		t.Errorf("Drivers() = %v, missing %q", Drivers(), DriverCedar)
+	}
+}
+
+// When StrictDisablePublicAgentEndpoints is false (default), the factory auto-grants the
+// agent role to anonymous subjects so Cedar agrees with AgentJWTOrPublicMiddleware's routing.
+// When true, anonymous is denied. An explicit `anonymous:` in the YAML always overrides.
+func TestCedarFactoryPublicAgentEndpoints(t *testing.T) {
+	anon := Subject{Type: "anonymous"}
+	agentActions := []struct{ action, resource string }{
+		{"create", "evidence"},
+		{"ingest", "heartbeat"},
+		{"register", "agent"},
+		{"ingest", "agent"},
+		{"update", "risk-template"},
+		{"update", "subject-template"},
+	}
+
+	// Flag false (public open): anonymous gets the agent role automatically.
+	cfgOpen := &config.Config{StrictDisablePublicAgentEndpoints: false}
+	pdpOpen, err := cedarFactory(Options{}, Deps{Config: cfgOpen, Logger: zap.NewNop().Sugar()})
+	if err != nil {
+		t.Fatalf("cedarFactory(public open) error = %v", err)
+	}
+	for _, a := range agentActions {
+		d, err := pdpOpen.Evaluate(context.Background(), anon, a.action, Resource{Type: a.resource}, nil)
+		if err != nil || !d.Allow {
+			t.Errorf("public open: anonymous %s %s: allow=%v err=%v, want allow", a.action, a.resource, d.Allow, err)
+		}
+	}
+	// Anonymous must not get non-agent permissions even when public endpoints are open.
+	d, _ := pdpOpen.Evaluate(context.Background(), anon, "manage", Resource{Type: "admin"}, nil)
+	if d.Allow {
+		t.Error("public open: anonymous manage admin should be denied")
+	}
+
+	// Flag true (strict): anonymous is denied even for agent actions.
+	cfgStrict := &config.Config{StrictDisablePublicAgentEndpoints: true}
+	pdpStrict, err := cedarFactory(Options{}, Deps{Config: cfgStrict, Logger: zap.NewNop().Sugar()})
+	if err != nil {
+		t.Fatalf("cedarFactory(strict) error = %v", err)
+	}
+	d, _ = pdpStrict.Evaluate(context.Background(), anon, "create", Resource{Type: "evidence"}, nil)
+	if d.Allow {
+		t.Error("strict mode: anonymous create evidence should be denied")
+	}
+
+	// Explicit YAML `anonymous: viewer` overrides the auto-grant.
+	dir := t.TempDir()
+	rolesFile := t.TempDir() + "/roles.yaml"
+	if err := os.WriteFile(rolesFile, []byte("anonymous: viewer\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	_ = dir
+	cfgOverride := &config.Config{
+		StrictDisablePublicAgentEndpoints: false,
+		Authz: &config.AuthzConfig{RoleAssignmentsPath: rolesFile},
+	}
+	pdpOverride, err := cedarFactory(Options{}, Deps{Config: cfgOverride, Logger: zap.NewNop().Sugar()})
+	if err != nil {
+		t.Fatalf("cedarFactory(yaml override) error = %v", err)
+	}
+	// viewer can read but cannot create evidence (agent action)
+	d, _ = pdpOverride.Evaluate(context.Background(), anon, "read", Resource{Type: "evidence"}, nil)
+	if !d.Allow {
+		t.Error("yaml override viewer: anonymous read evidence should be allowed")
+	}
+	d, _ = pdpOverride.Evaluate(context.Background(), anon, "create", Resource{Type: "evidence"}, nil)
+	if d.Allow {
+		t.Error("yaml override viewer: anonymous create evidence should be denied (viewer, not agent)")
 	}
 }
 

@@ -113,6 +113,18 @@ func cedarFactory(_ Options, deps Deps) (PDP, error) {
 		}
 	}
 	assignments.normalize()
+
+	// When public agent endpoints are enabled (StrictDisablePublicAgentEndpoints=false),
+	// unauthenticated requests to agent ingest routes arrive at the PEP as anonymous
+	// subjects (AgentJWTOrPublicMiddleware lets them through without setting agent_claims).
+	// Auto-grant them the agent role so Cedar agrees with the PEP's routing decision.
+	// An explicit `anonymous:` in the role-assignments file overrides this auto-grant.
+	if deps.Config != nil && !deps.Config.StrictDisablePublicAgentEndpoints && assignments.Anonymous == "" {
+		assignments.Anonymous = DefaultAgentRole
+		logger.Infow("authz cedar: public agent endpoints enabled; anonymous subjects granted agent role",
+			"role", DefaultAgentRole)
+	}
+
 	if err := assignments.validate(m); err != nil {
 		return nil, err
 	}
@@ -219,6 +231,8 @@ func principalUID(s Subject) cedar.EntityUID {
 		typ = cedarUserEntityType
 	case "agent":
 		typ = cedarAgentEntityType
+	case "anonymous":
+		typ = cedarAnonymousEntityType
 	default:
 		typ = cedarAnonymousEntityType
 	}

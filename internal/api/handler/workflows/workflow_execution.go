@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/compliance-framework/api/internal/api"
+	"github.com/compliance-framework/api/internal/api/middleware"
 	"github.com/compliance-framework/api/internal/service/relational/workflows"
 	"github.com/compliance-framework/api/internal/workflow"
 	"github.com/google/uuid"
@@ -36,15 +37,15 @@ func NewWorkflowExecutionHandler(
 	}
 }
 
-func (h *WorkflowExecutionHandler) Register(api *echo.Group) {
-	api.POST("", h.Start)
-	api.GET("", h.List)
-	api.GET("/:id", h.Get)
-	api.GET("/:id/status", h.GetStatus)
-	api.GET("/:id/metrics", h.GetMetrics)
-	api.PUT("/:id/cancel", h.Cancel)
-	api.POST("/:id/retry", h.Retry)
-	api.PUT("/:id/reassign-role", h.ReassignRole)
+func (h *WorkflowExecutionHandler) Register(api *echo.Group, guard middleware.ResourceGuard) {
+	api.POST("", h.Start, guard.Create())
+	api.GET("", h.List, guard.Read())
+	api.GET("/:id", h.Get, guard.Read())
+	api.GET("/:id/status", h.GetStatus, guard.Read())
+	api.GET("/:id/metrics", h.GetMetrics, guard.Read())
+	api.PUT("/:id/cancel", h.Cancel, guard.Update())
+	api.POST("/:id/retry", h.Retry, guard.Create())
+	api.PUT("/:id/reassign-role", h.ReassignRole, guard.Update())
 }
 
 type StartWorkflowExecutionRequest struct {

@@ -11,6 +11,7 @@ import (
 
 	"github.com/compliance-framework/api/internal/api"
 	"github.com/compliance-framework/api/internal/api/handler"
+	"github.com/compliance-framework/api/internal/api/middleware"
 	"github.com/compliance-framework/api/internal/authn"
 	"github.com/compliance-framework/api/internal/config"
 	"github.com/compliance-framework/api/internal/converters/labelfilter"
@@ -143,25 +144,32 @@ func NewDashboardSuggestionHandler(sugar *zap.SugaredLogger, db *gorm.DB, cfg *c
 	return &DashboardSuggestionHandler{sugar: sugar, db: db, cfg: cfg, jobEnqueuer: jobEnqueuer}
 }
 
-func (h *DashboardSuggestionHandler) RegisterConfig(apiGroup *echo.Group) {
-	apiGroup.GET("/config", h.Config)
+// RegisterConfig mounts the feature-config probe. The caller passes the auth middleware + the
+// read guard, so /config sits behind auth like every other route: a valid token identifies the
+// subject and the guard enforces dashboard-suggestion:read.
+func (h *DashboardSuggestionHandler) RegisterConfig(apiGroup *echo.Group, middlewares ...echo.MiddlewareFunc) {
+	apiGroup.GET("/config", h.Config, middlewares...)
 }
 
-func (h *DashboardSuggestionHandler) Register(apiGroup *echo.Group, auth echo.MiddlewareFunc) {
-	apiGroup.POST("/:id/dashboard-suggestions/generate", h.Generate, auth)
-	apiGroup.POST("/:id/dashboard-suggestions/generalize", h.Generalize, auth)
-	apiGroup.POST("/:id/dashboard-suggestions/preview", h.Preview, auth)
-	apiGroup.GET("/:id/dashboard-suggestions/label-sets", h.LabelSets, auth)
-	apiGroup.GET("/:id/dashboard-suggestions/label-keys", h.LabelKeys, auth)
-	apiGroup.GET("/:id/dashboard-suggestions/label-values", h.LabelValues, auth)
-	apiGroup.GET("/:id/dashboard-suggestion-runs/latest", h.LatestRun, auth)
-	apiGroup.GET("/:id/dashboard-suggestion-runs/:runId", h.GetRun, auth)
-	apiGroup.GET("/:id/dashboard-suggestions", h.ListSuggestions, auth)
-	apiGroup.GET("/:id/dashboard-suggestions/control-results", h.ControlResults, auth)
-	apiGroup.POST("/:id/dashboard-suggestions/accept", h.Accept, auth)
-	apiGroup.POST("/:id/dashboard-suggestions/reject", h.Reject, auth)
-	apiGroup.POST("/:id/dashboard-suggestions/edit-group", h.EditGroup, auth)
-	apiGroup.GET("/:id/dashboard-suggestions/:suggestionId/events", h.Events, auth)
+// Register mounts the SSP-scoped dashboard-suggestion routes. auth is the per-route auth
+// middleware; guard enforces the dashboard-suggestion resource. generate/generalize create
+// runs; preview and the label/run/list GETs are reads; accept/reject/edit-group mutate
+// existing suggestions (update).
+func (h *DashboardSuggestionHandler) Register(apiGroup *echo.Group, auth echo.MiddlewareFunc, guard middleware.ResourceGuard) {
+	apiGroup.POST("/:id/dashboard-suggestions/generate", h.Generate, auth, guard.Create())
+	apiGroup.POST("/:id/dashboard-suggestions/generalize", h.Generalize, auth, guard.Create())
+	apiGroup.POST("/:id/dashboard-suggestions/preview", h.Preview, auth, guard.Read())
+	apiGroup.GET("/:id/dashboard-suggestions/label-sets", h.LabelSets, auth, guard.Read())
+	apiGroup.GET("/:id/dashboard-suggestions/label-keys", h.LabelKeys, auth, guard.Read())
+	apiGroup.GET("/:id/dashboard-suggestions/label-values", h.LabelValues, auth, guard.Read())
+	apiGroup.GET("/:id/dashboard-suggestion-runs/latest", h.LatestRun, auth, guard.Read())
+	apiGroup.GET("/:id/dashboard-suggestion-runs/:runId", h.GetRun, auth, guard.Read())
+	apiGroup.GET("/:id/dashboard-suggestions", h.ListSuggestions, auth, guard.Read())
+	apiGroup.GET("/:id/dashboard-suggestions/control-results", h.ControlResults, auth, guard.Read())
+	apiGroup.POST("/:id/dashboard-suggestions/accept", h.Accept, auth, guard.Update())
+	apiGroup.POST("/:id/dashboard-suggestions/reject", h.Reject, auth, guard.Update())
+	apiGroup.POST("/:id/dashboard-suggestions/edit-group", h.EditGroup, auth, guard.Update())
+	apiGroup.GET("/:id/dashboard-suggestions/:suggestionId/events", h.Events, auth, guard.Read())
 }
 
 // Config godoc

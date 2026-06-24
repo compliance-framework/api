@@ -9,6 +9,7 @@ import (
 
 	"github.com/compliance-framework/api/internal/api"
 	"github.com/compliance-framework/api/internal/api/authcontext"
+	"github.com/compliance-framework/api/internal/api/middleware"
 	"github.com/compliance-framework/api/internal/authn"
 	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/compliance-framework/api/internal/service/relational/workflows"
@@ -52,15 +53,15 @@ func NewStepExecutionHandler(
 	}
 }
 
-func (h *StepExecutionHandler) Register(api *echo.Group) {
-	api.GET("", h.List)
-	api.GET("/my", h.ListMy)
-	api.GET("/:id", h.Get)
-	api.PUT("/:id/transition", h.TransitionStep)
-	api.GET("/:id/evidence-requirements", h.GetEvidenceRequirements)
-	api.GET("/:id/can-transition", h.CanTransition)
-	api.PUT("/:id/fail", h.Fail)
-	api.PUT("/:id/reassign", h.Reassign)
+func (h *StepExecutionHandler) Register(api *echo.Group, guard middleware.ResourceGuard) {
+	api.GET("", h.List, guard.Read())
+	api.GET("/my", h.ListMy, guard.Read())
+	api.GET("/:id", h.Get, guard.Read())
+	api.PUT("/:id/transition", h.TransitionStep, guard.Update())
+	api.GET("/:id/evidence-requirements", h.GetEvidenceRequirements, guard.Read())
+	api.GET("/:id/can-transition", h.CanTransition, guard.Read())
+	api.PUT("/:id/fail", h.Fail, guard.Update())
+	api.PUT("/:id/reassign", h.Reassign, guard.Update())
 }
 
 type TransitionStepRequest struct {

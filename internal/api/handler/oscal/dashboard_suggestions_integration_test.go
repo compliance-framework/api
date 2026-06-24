@@ -77,7 +77,7 @@ func (suite *DashboardSuggestionsHTTPSuite) newServerWithChunks(enabled bool, en
 	cfg.AI.MaxLabelSetsPerChunk = maxLabelSetsPerChunk
 	cfg.AI.MaxCallsPerRun = maxCalls
 	server := api.NewServer(context.Background(), logger.Sugar(), &cfg, metrics)
-	RegisterHandlers(server, logger.Sugar(), suite.DB, &cfg, nil, enqueuer)
+	RegisterHandlers(server, logger.Sugar(), suite.DB, &cfg, nil, enqueuer, nil)
 	return server
 }
 
@@ -369,8 +369,7 @@ func (suite *DashboardSuggestionsHTTPSuite) TestFlagOffDoesNotRegisterScopedRout
 	disabledServer.E().ServeHTTP(rec, req)
 	suite.Equal(http.StatusNotFound, rec.Code)
 
-	rec = httptest.NewRecorder()
-	req = httptest.NewRequest(http.MethodGet, "/api/dashboard-suggestions/config", nil)
+	rec, req = suite.req(http.MethodGet, "/api/dashboard-suggestions/config", nil)
 	disabledServer.E().ServeHTTP(rec, req)
 	suite.Equal(http.StatusOK, rec.Code)
 	var response apihandler.GenericDataResponse[dashboardSuggestionConfigResponse]

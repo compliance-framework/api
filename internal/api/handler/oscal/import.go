@@ -9,6 +9,8 @@ import (
 
 	"github.com/compliance-framework/api/internal/api"
 	"github.com/compliance-framework/api/internal/api/handler"
+	"github.com/compliance-framework/api/internal/api/middleware"
+	"github.com/compliance-framework/api/internal/authz"
 	"github.com/compliance-framework/api/internal/service/relational"
 	oscalTypes_1_1_3 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
 	"github.com/google/uuid"
@@ -29,8 +31,8 @@ func NewImportHandler(l *zap.SugaredLogger, db *gorm.DB) *ImportHandler {
 	}
 }
 
-func (h *ImportHandler) Register(api *echo.Group) {
-	api.POST("", h.ImportOSCAL)
+func (h *ImportHandler) Register(api *echo.Group, guard middleware.ResourceGuard) {
+	api.POST("", h.ImportOSCAL, guard.Do(authz.ActionExecute))
 }
 
 type ImportFileResult struct {

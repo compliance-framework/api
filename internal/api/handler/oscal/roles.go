@@ -12,6 +12,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/compliance-framework/api/internal/api/handler"
+	"github.com/compliance-framework/api/internal/api/middleware"
 	"github.com/compliance-framework/api/internal/service/relational"
 )
 
@@ -27,9 +28,9 @@ func NewRoleHandler(l *zap.SugaredLogger, db *gorm.DB) *RoleHandler {
 	}
 }
 
-func (h *RoleHandler) Register(api *echo.Group) {
-	api.GET("", h.List)
-	api.GET("/:id", h.Get)
+func (h *RoleHandler) Register(api *echo.Group, guard middleware.ResourceGuard) {
+	api.GET("", h.List, guard.Read())
+	api.GET("/:id", h.Get, guard.Read())
 }
 
 // List godoc

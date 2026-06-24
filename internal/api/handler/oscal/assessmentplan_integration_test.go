@@ -53,7 +53,7 @@ func (suite *AssessmentPlanApiIntegrationSuite) SetupSuite() {
 	}
 	handler.RegisterHandlers(suite.server, suite.logger, suite.DB, suite.Config, services)
 	evidenceSvc := evidencesvc.NewEvidenceService(suite.DB, suite.logger, suite.Config, nil)
-	RegisterHandlers(suite.server, suite.logger, suite.DB, suite.Config, evidenceSvc, nil)
+	RegisterHandlers(suite.server, suite.logger, suite.DB, suite.Config, evidenceSvc, nil, nil)
 }
 
 func (suite *AssessmentPlanApiIntegrationSuite) SetupTest() {

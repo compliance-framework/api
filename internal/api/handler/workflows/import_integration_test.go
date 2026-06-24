@@ -17,6 +17,7 @@ import (
 
 	"github.com/compliance-framework/api/internal/api/middleware"
 	"github.com/compliance-framework/api/internal/authn"
+	"github.com/compliance-framework/api/internal/authz"
 	"github.com/compliance-framework/api/internal/config"
 	"github.com/compliance-framework/api/internal/service/relational"
 	workflowseed "github.com/compliance-framework/api/internal/service/relational/workflows"
@@ -210,10 +211,14 @@ func TestWorkflowImportRouteRequiresAdminGroup(t *testing.T) {
 	e := echo.New()
 	group := e.Group("/workflows")
 	group.Use(middleware.JWTMiddleware(cfg.JWTPublicKey))
+	// Admin enforcement via the builtin-backed PEP, mirroring how the import route is gated in
+	// production (pep.Authorize(admin, manage)); the builtin driver reproduces the prior
+	// SSO-admin-group rule.
+	adminPEP := middleware.NewPEP(authz.NewBuiltin(db, cfg, logger), authz.FailClosed, logger)
 	group.POST(
 		"/import",
 		handler.Import,
-		middleware.RequireAdminGroups(db, cfg, logger),
+		adminPEP.Authorize(authz.ResourceAdmin, authz.ActionManage),
 		echomiddleware.BodyLimit(WorkflowImportBodyLimit),
 	)
 

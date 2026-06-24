@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/compliance-framework/api/internal/api"
+	"github.com/compliance-framework/api/internal/api/middleware"
 	"github.com/compliance-framework/api/internal/service/relational/workflows"
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
@@ -92,13 +93,13 @@ func NewWorkflowStepDefinitionHandler(sugar *zap.SugaredLogger, db *gorm.DB) *Wo
 	}
 }
 
-func (h *WorkflowStepDefinitionHandler) Register(api *echo.Group) {
-	api.POST("", h.Create)
-	api.GET("", h.ListByWorkflowDefinition)
-	api.GET("/:id", h.Get)
-	api.PUT("/:id", h.Update)
-	api.DELETE("/:id", h.Delete)
-	api.GET("/:id/dependencies", h.GetDependencies)
+func (h *WorkflowStepDefinitionHandler) Register(api *echo.Group, guard middleware.ResourceGuard) {
+	api.POST("", h.Create, guard.Create())
+	api.GET("", h.ListByWorkflowDefinition, guard.Read())
+	api.GET("/:id", h.Get, guard.Read())
+	api.PUT("/:id", h.Update, guard.Update())
+	api.DELETE("/:id", h.Delete, guard.Delete())
+	api.GET("/:id/dependencies", h.GetDependencies, guard.Read())
 }
 
 type CreateWorkflowStepDefinitionRequest struct {

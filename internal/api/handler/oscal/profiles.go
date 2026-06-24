@@ -11,6 +11,7 @@ import (
 
 	"github.com/compliance-framework/api/internal/api"
 	"github.com/compliance-framework/api/internal/api/handler"
+	"github.com/compliance-framework/api/internal/api/middleware"
 	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/defenseunicorns/go-oscal/src/pkg/versioning"
 	oscalTypes_1_1_3 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
@@ -63,30 +64,30 @@ func NewProfileHandler(sugar *zap.SugaredLogger, db *gorm.DB) *ProfileHandler {
 	}
 }
 
-func (h *ProfileHandler) Register(api *echo.Group) {
-	api.GET("", h.List)
-	api.POST("", h.Create)
-	api.POST("/build-props", h.BuildByProps)
-	api.GET("/:id", h.Get)
-	api.GET("/:id/resolved", h.Resolved)
-	api.GET("/:id/resolved-with-catalogs", h.ResolvedWithCatalogs)
-	api.GET("/:id/compliance-progress", h.ComplianceProgress)
+func (h *ProfileHandler) Register(api *echo.Group, guard middleware.ResourceGuard) {
+	api.GET("", h.List, guard.Read())
+	api.POST("", h.Create, guard.Create())
+	api.POST("/build-props", h.BuildByProps, guard.Create())
+	api.GET("/:id", h.Get, guard.Read())
+	api.GET("/:id/resolved", h.Resolved, guard.Read())
+	api.GET("/:id/resolved-with-catalogs", h.ResolvedWithCatalogs, guard.Read())
+	api.GET("/:id/compliance-progress", h.ComplianceProgress, guard.Read())
 
-	api.GET("/:id/modify", h.GetModify)
-	api.GET("/:id/back-matter", h.GetBackmatter)
-	api.POST("/:id/resolve", h.Resolve)
-	api.GET("/:id/full", h.GetFull)
+	api.GET("/:id/modify", h.GetModify, guard.Read())
+	api.GET("/:id/back-matter", h.GetBackmatter, guard.Read())
+	api.POST("/:id/resolve", h.Resolve, guard.Create())
+	api.GET("/:id/full", h.GetFull, guard.Read())
 
 	// imports
-	api.GET("/:id/imports", h.ListImports)
-	api.POST("/:id/imports/add", h.AddImport)
-	api.GET("/:id/imports/:href", h.GetImport)
-	api.PUT("/:id/imports/:href", h.UpdateImport)
-	api.DELETE("/:id/imports/:href", h.DeleteImport)
+	api.GET("/:id/imports", h.ListImports, guard.Read())
+	api.POST("/:id/imports/add", h.AddImport, guard.Create())
+	api.GET("/:id/imports/:href", h.GetImport, guard.Read())
+	api.PUT("/:id/imports/:href", h.UpdateImport, guard.Update())
+	api.DELETE("/:id/imports/:href", h.DeleteImport, guard.Delete())
 
 	// merge
-	api.GET("/:id/merge", h.GetMerge)
-	api.PUT("/:id/merge", h.UpdateMerge)
+	api.GET("/:id/merge", h.GetMerge, guard.Read())
+	api.PUT("/:id/merge", h.UpdateMerge, guard.Update())
 }
 
 // BuildByProps
