@@ -3,8 +3,6 @@ package relational
 import (
 	"strings"
 	"time"
-
-	"gorm.io/gorm"
 )
 
 // Role-assignment assignee discriminators. A grant targets either a single user (matched by
@@ -72,17 +70,4 @@ func (CCFRoleAssignment) TableName() string {
 // lower-cased form stored in and matched against the table, so case never splits a grant.
 func NormalizeAssigneeID(id string) string {
 	return strings.ToLower(strings.TrimSpace(id))
-}
-
-// RoleNamesForAssignee returns the (sorted, de-duplicated) role names granted directly to one
-// assignee. assigneeID is normalized before the lookup, so callers may pass a raw email or
-// group name. It is the single-assignee query the group/user effective-role reads share.
-func RoleNamesForAssignee(db *gorm.DB, assigneeType, assigneeID string) ([]string, error) {
-	var names []string
-	if err := db.Model(&CCFRoleAssignment{}).
-		Where("assignee_type = ? AND assignee_id = ?", assigneeType, NormalizeAssigneeID(assigneeID)).
-		Pluck("role_name", &names).Error; err != nil {
-		return nil, err
-	}
-	return dedupeSortedStrings(names), nil
 }

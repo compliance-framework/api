@@ -240,8 +240,8 @@ func (c *Cedar) decide(s Subject, action string, r Resource, roles []string) Dec
 
 // principalUID maps a subject to its Cedar principal entity. The type mirrors the subject
 // type (user/agent) so it matches the User/Agent entities in the schema; an unexpected type
-// gets the Anonymous type, which no bundled policy grants (defense in depth — rolesFor
-// already returns no roles for it).
+// gets the Anonymous type, which no bundled policy grants (defense in depth — the role
+// resolver already returns no roles for it).
 func principalUID(s Subject) cedar.EntityUID {
 	var typ string
 	switch s.Type {
