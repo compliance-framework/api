@@ -10,6 +10,7 @@ import (
 	"github.com/compliance-framework/api/internal/service/relational"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // roleAssignmentKey is the (assigneeType, assigneeId, roleName) triple the table's unique index is
@@ -131,7 +132,20 @@ func ReconcileConfigRoleAssignments(ctx context.Context, db *gorm.DB, path strin
 			row, ok := byTriple[want]
 			switch {
 			case !ok:
-				if err := tx.Create(&relational.CCFRoleAssignment{
+				// OnConflict DoNothing keeps the insert idempotent under concurrent boots: this
+				// reconcile runs on every replica's startup (MigrateUpWithConfig, fatal on error), so in
+				// an HA/rolling deploy two replicas can both see the triple as absent and race to insert
+				// it. Without this, the loser's commit raises a duplicate-key violation that crashes the
+				// replica (CrashLoopBackOff) for a benign race; with it, the loser is a no-op. The unique
+				// index is (assignee_type, assignee_id, role_name).
+				if err := tx.Clauses(clause.OnConflict{
+					Columns: []clause.Column{
+						{Name: "assignee_type"},
+						{Name: "assignee_id"},
+						{Name: "role_name"},
+					},
+					DoNothing: true,
+				}).Create(&relational.CCFRoleAssignment{
 					RoleName:     want.role,
 					AssigneeType: want.assigneeType,
 					AssigneeID:   want.assigneeID,

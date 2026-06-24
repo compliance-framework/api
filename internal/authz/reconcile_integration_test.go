@@ -159,11 +159,15 @@ users:
 		require.Equal(t, manual.ID.String(), rows[0].ID.String(), "the existing row is adopted in place, not replaced")
 	})
 
-	t.Run("updates a changed role for a principal in place", func(t *testing.T) {
+	t.Run("replaces a changed role for a principal (delete old + create new)", func(t *testing.T) {
 		db := setupAuthzDB(t)
 		dir := t.TempDir()
 		path := writeRolesFile(t, dir, "users:\n  alice@example.com: auditor\n")
 		require.NoError(t, ReconcileConfigRoleAssignments(ctx, db, path, nil))
+
+		before := allAssignments(t, db)
+		require.Len(t, before, 1)
+		oldID := before[0].ID.String()
 
 		writeRolesFile(t, dir, "users:\n  alice@example.com: admin\n")
 		require.NoError(t, ReconcileConfigRoleAssignments(ctx, db, path, nil))
@@ -172,6 +176,10 @@ users:
 		require.Len(t, rows, 1, "alice still has exactly one config grant after the role change")
 		require.Equal(t, "admin", rows[0].RoleName)
 		require.Equal(t, relational.RoleAssignmentSourceConfig, rows[0].Source)
+		// The role is part of the unique triple, so a role change is delete(old triple)+create(new),
+		// not an in-place row update: the row identity changes. (Contrast the adopt test, which keeps
+		// the same id because the triple is unchanged.)
+		require.NotEqual(t, oldID, rows[0].ID.String(), "a role change replaces the row rather than updating it in place")
 	})
 
 	t.Run("a file referencing an unknown role fails fast", func(t *testing.T) {
