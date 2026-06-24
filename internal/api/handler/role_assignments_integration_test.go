@@ -165,6 +165,24 @@ func (suite *RoleAssignmentsApiIntegrationSuite) TestCreateRejectsUnknownRole() 
 	suite.Equal(400, rec.Code, rec.Body.String())
 }
 
+// TestCreateDuplicateConflicts: re-granting the same role to the same assignee is a 409, not a
+// duplicate row (the unique index on (assignee_type, assignee_id, role_name)).
+func (suite *RoleAssignmentsApiIntegrationSuite) TestCreateDuplicateConflicts() {
+	body := map[string]string{"roleName": "viewer", "assigneeType": "user", "assigneeId": "Dup@Example.com"}
+	suite.Require().Equal(201, suite.do("POST", "/api/admin/role-assignments", body).Code)
+
+	// Same grant, different casing on the email — normalization makes it the same row → 409.
+	rec := suite.do("POST", "/api/admin/role-assignments", map[string]string{
+		"roleName": "viewer", "assigneeType": "user", "assigneeId": "dup@example.com",
+	})
+	suite.Equal(409, rec.Code, rec.Body.String())
+
+	var count int64
+	suite.Require().NoError(suite.DB.Model(&relational.CCFRoleAssignment{}).
+		Where("assignee_id = ? AND role_name = ?", "dup@example.com", "viewer").Count(&count).Error)
+	suite.Equal(int64(1), count)
+}
+
 // TestEffectiveRolesMatchPDPDecision is the BCH-1333 parity check: the roles GET
 // /admin/users/:id/roles displays are exactly the roles an actual cedar PDP decision enforces
 // for the same subject — no drift between what we show and what we allow.
