@@ -1,0 +1,8 @@
+lisa-addressed:
+---
+Comment (internal/api/handler/groups_integration_test.go:277):
+Nit: `suite.Empty(resp.Data)` passes for both a JSON `[]` and `null`, so it doesn't lock the non-null-empty-slice contract that `groupSummariesForUser` deliberately maintains (it returns `[]userGroupSummary{}`, not nil, so the response renders `"data":[]`). If a future refactor returned nil on the empty path, this test would still pass while the wire format silently flipped to `null`. Consider also asserting the rendered shape, e.g. `suite.Contains(rec.Body.String(), \"[]\")`, to guard `[]` vs `null`.
+Replies:
+**lisa implementation guidance:** Good catch — will lock the wire contract. In TestGetUserGroupsEmpty, after the existing suite.Empty(resp.Data), assert the raw body renders an empty array, not null: suite.Contains(rec.Body.String(), `"data":[]`). This guards the non-nil []userGroupSummary{} the helper deliberately returns against a future nil regression that would flip the JSON to "data":null.
+
+<!-- lisa-guidance-posted -->
