@@ -1,0 +1,2 @@
+lisa-addressed:
+- CI (make check-diff) failed: new role-assignment swagger annotations made docs/ stale and swag fmt reformatted the handler godoc. Ran make swag; committed docs/docs.go, docs/swagger.json, docs/swagger.yaml + the reformatted role_assignments.go. Tree now clean.
