@@ -235,9 +235,11 @@ func (h *SSOHandler) Callback(ctx echo.Context) error {
 	}
 
 	// Materialize the user's IdP groups into native ccf_user_groups memberships (source=sso) so
-	// authorization reads native groups only (BCH-1331). Best-effort: a sync failure must not block
-	// an otherwise-valid login — the user simply keeps their prior native memberships this session.
-	h.reconcileSSOGroups(providerName, user, userInfo.Groups)
+	// authorization reads native groups only (BCH-1331). We pass the RAW IdP claim groups: the DB
+	// SSOGroupMapping rows are the single source of truth for the claim→native translation, so an
+	// admin can manage mappings at runtime without a config redeploy. Best-effort: a sync failure
+	// must not block an otherwise-valid login — the user keeps their prior native memberships.
+	h.reconcileSSOGroups(providerName, user, userInfo.RawGroups)
 
 	jwtToken, err := authn.GenerateJWTToken(user, h.config.JWTPrivateKey)
 	if err != nil {
@@ -269,10 +271,11 @@ func (h *SSOHandler) Callback(ctx echo.Context) error {
 	return ctx.Redirect(http.StatusTemporaryRedirect, redirectURL)
 }
 
-// reconcileSSOGroups translates the user's IdP groups through the provider's SSOGroupMappings and
-// reconciles their source=sso native memberships: mapped groups become memberships, groups lost at
-// the IdP are de-provisioned, and source=manual memberships are left untouched (BCH-1331). Errors
-// are logged, not surfaced — group sync must never fail an otherwise-valid login.
+// reconcileSSOGroups translates the user's RAW IdP claim groups (UserInfo.RawGroups, e.g.
+// "groups:ccf-admins") through the provider's SSOGroupMappings and reconciles their source=sso
+// native memberships: mapped groups become memberships, groups lost at the IdP are de-provisioned,
+// and source=manual memberships are left untouched (BCH-1331). Errors are logged, not surfaced —
+// group sync must never fail an otherwise-valid login.
 func (h *SSOHandler) reconcileSSOGroups(providerName string, user *relational.User, idpGroups []string) {
 	if user == nil || user.ID == nil {
 		return

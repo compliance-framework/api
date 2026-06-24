@@ -8,17 +8,22 @@ import (
 )
 
 // ProvisionSSOGroupMappings declaratively reconciles one SSO provider's config-declared group
-// mappings into the database (BCH-1331). mapping is keyed by native CCF group name and lists the
-// external IdP group claims that map into it:
+// mappings into the database (BCH-1331). `mapping` is the provider's group_mapping verbatim: it is
+// keyed by the raw IdP claim group and lists the native CCF group name(s) that claim grants:
 //
-//	security-team:        // native UserGroup.Name
-//	  - eng-security      // IdP group claims
-//	  - sec-ops
+//	"groups:ccf-admins":             // raw IdP claim (SSOGroupMapping.ExternalGroup)
+//	  - ccf-admins                   // native UserGroup.Name
+//	"hd:example.com":
+//	  - ccf-authorized-users
 //
-// For each native group it creates the UserGroup if absent, then upserts one SSOGroupMapping row
-// per (provider, externalGroup) pair pointing at that group. It is idempotent and safe to run on
-// every boot. It only creates/updates — it never deletes mappings, so mappings an admin added via
-// the API for the same provider are left intact.
+// For each listed native name it creates the UserGroup if absent, then upserts one SSOGroupMapping
+// row keyed by (provider, externalGroup=claim) pointing at that group. It is idempotent and safe to
+// run on every boot. It only creates/updates — it never deletes mappings, so mappings an admin added
+// via the API for the same provider are left intact.
+//
+// Caveat: the (provider, external_group) unique index means one IdP claim maps to exactly one native
+// group. If a claim lists multiple native names, the last one wins (each overwrites the prior row's
+// group_id). Real configs are 1:1; list a native group under several distinct claims instead.
 func ProvisionSSOGroupMappings(db *gorm.DB, provider string, mapping map[string][]string) error {
 	provider = strings.TrimSpace(provider)
 	if provider == "" || len(mapping) == 0 {
@@ -26,28 +31,28 @@ func ProvisionSSOGroupMappings(db *gorm.DB, provider string, mapping map[string]
 	}
 
 	return db.Transaction(func(tx *gorm.DB) error {
-		for rawName, externals := range mapping {
-			name := strings.TrimSpace(rawName)
-			if name == "" {
+		for rawExternal, nativeNames := range mapping {
+			external := strings.TrimSpace(rawExternal)
+			if external == "" {
 				continue
 			}
 
-			// Find-or-create the native group by name (live rows only; the unique index is partial).
-			group := UserGroup{Name: name}
-			if err := tx.Where("name = ?", name).FirstOrCreate(&group).Error; err != nil {
-				return err
-			}
-			if group.ID == nil {
-				continue
-			}
-			groupID := group.ID.String()
-
-			for _, rawExternal := range externals {
-				external := strings.TrimSpace(rawExternal)
-				if external == "" {
+			for _, rawName := range nativeNames {
+				name := strings.TrimSpace(rawName)
+				if name == "" {
 					continue
 				}
-				row := SSOGroupMapping{Provider: provider, ExternalGroup: external, GroupID: groupID}
+
+				// Find-or-create the native group by name (live rows only; the index is partial).
+				group := UserGroup{Name: name}
+				if err := tx.Where("name = ?", name).FirstOrCreate(&group).Error; err != nil {
+					return err
+				}
+				if group.ID == nil {
+					continue
+				}
+
+				row := SSOGroupMapping{Provider: provider, ExternalGroup: external, GroupID: group.ID.String()}
 				// Upsert on the (provider, external_group) unique index: a re-point of an existing
 				// mapping updates its group_id rather than failing or duplicating.
 				if err := tx.Clauses(clause.OnConflict{

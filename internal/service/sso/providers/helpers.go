@@ -27,3 +27,16 @@ func buildClaimGroups(claims map[string]interface{}) map[string]struct{} {
 
 	return groups
 }
+
+// claimGroupKeys returns the raw claim-group identifiers (e.g. "groups:admin", "hd:example.com")
+// derived from a user's claims. These are the exact keys an admin maps via group_mapping /
+// SSOGroupMapping, and they are carried on UserInfo.RawGroups for the login sync to translate
+// through the DB (BCH-1331). Unmapped keys are harmless — reconcile simply ignores them.
+func claimGroupKeys(claims map[string]interface{}) []string {
+	cg := buildClaimGroups(claims)
+	keys := make([]string, 0, len(cg))
+	for k := range cg {
+		keys = append(keys, k)
+	}
+	return keys
+}

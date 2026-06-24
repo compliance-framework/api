@@ -40,21 +40,30 @@ func (p *GoogleOIDCProvider) GetUserInfo(ctx context.Context, token *oauth2.Toke
 		return nil, err
 	}
 
-	// Fetch Google-specific groups (e.g., Google Workspace groups)
-	googleGroups, err := p.fetchGoogleGroups(ctx, token)
+	// Fetch Google-specific groups (e.g., Google Workspace groups) as raw "google-group:<email>"
+	// claim keys, then map them through group_mapping for Groups and carry the raw keys on
+	// RawGroups for the DB-backed login sync (BCH-1331).
+	googleGroupKeys, err := p.fetchGoogleGroupKeys(ctx, token)
 	if err != nil {
 		// Log error but don't fail - groups are optional
 		_ = err
 	} else {
-		userInfo.Groups = append(userInfo.Groups, googleGroups...)
+		userInfo.RawGroups = append(userInfo.RawGroups, googleGroupKeys...)
+		for _, key := range googleGroupKeys {
+			if groups, ok := p.config.GroupMapping[key]; ok {
+				userInfo.Groups = append(userInfo.Groups, groups...)
+			}
+		}
 	}
 
 	return userInfo, nil
 }
 
-// fetchGoogleGroups fetches groups from Google Workspace Directory API
+// fetchGoogleGroupKeys fetches the user's Google Workspace groups and returns them as raw
+// "google-group:<email>" claim keys (un-mapped). Mapping to native CCF groups happens in
+// GetUserInfo / the DB SSOGroupMapping rows.
 // Requires: https://www.googleapis.com/auth/admin.directory.group.readonly scope
-func (p *GoogleOIDCProvider) fetchGoogleGroups(ctx context.Context, token *oauth2.Token) ([]string, error) {
+func (p *GoogleOIDCProvider) fetchGoogleGroupKeys(ctx context.Context, token *oauth2.Token) ([]string, error) {
 	client := p.oauth2Config.Client(ctx, token)
 
 	resp, err := client.Get(googleGroupsEndpoint)
@@ -86,13 +95,10 @@ func (p *GoogleOIDCProvider) fetchGoogleGroups(ctx context.Context, token *oauth
 		return nil, fmt.Errorf("failed to decode groups response: %w", err)
 	}
 
-	var mappedGroups []string
+	var keys []string
 	for _, group := range groupsResponse.Groups {
-		groupKey := fmt.Sprintf("google-group:%s", group.Email)
-		if groups, ok := p.config.GroupMapping[groupKey]; ok {
-			mappedGroups = append(mappedGroups, groups...)
-		}
+		keys = append(keys, fmt.Sprintf("google-group:%s", group.Email))
 	}
 
-	return mappedGroups, nil
+	return keys, nil
 }

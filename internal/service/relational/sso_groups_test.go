@@ -37,41 +37,61 @@ func ssoMembershipGroupIDs(t *testing.T, db *gorm.DB, userID string) []string {
 	return ids
 }
 
-// TestProvisionSSOGroupMappingsCreatesGroupsAndMappings proves config provisioning creates the
-// referenced native group and one mapping row per (provider, externalGroup) pair, and is
-// idempotent across repeated boots.
+// TestProvisionSSOGroupMappingsCreatesGroupsAndMappings proves config provisioning creates a native
+// group named after each mapped VALUE (not the IdP-claim key) and one mapping row per (provider,
+// externalGroup=claim) pair, and is idempotent across repeated boots.
 func TestProvisionSSOGroupMappingsCreatesGroupsAndMappings(t *testing.T) {
 	db := setupGroupsDB(t)
-	mapping := map[string][]string{"security-team": {"eng-security", "sec-ops"}}
+	// Keyed by raw IdP claim; the value is the native CCF group name to create.
+	mapping := map[string][]string{
+		"groups:ccf-admins": {"security-team"},
+		"hd:example.com":    {"authorized-users"},
+	}
 
 	require.NoError(t, ProvisionSSOGroupMappings(db, "okta", mapping))
 	// Re-running must not duplicate anything.
 	require.NoError(t, ProvisionSSOGroupMappings(db, "okta", mapping))
 
-	var groups []UserGroup
-	require.NoError(t, db.Where("name = ?", "security-team").Find(&groups).Error)
-	require.Len(t, groups, 1)
+	// Native groups carry the mapped VALUE name, never the claim key.
+	for _, name := range []string{"security-team", "authorized-users"} {
+		var groups []UserGroup
+		require.NoError(t, db.Where("name = ?", name).Find(&groups).Error)
+		require.Len(t, groups, 1, "expected exactly one native group %q", name)
+	}
+	var claimNamed int64
+	require.NoError(t, db.Model(&UserGroup{}).
+		Where("name IN ?", []string{"groups:ccf-admins", "hd:example.com"}).Count(&claimNamed).Error)
+	require.Zero(t, claimNamed, "native groups must not be named after IdP claims")
 
+	// One mapping row per claim, each pointing at its native group.
 	var mappings []SSOGroupMapping
 	require.NoError(t, db.Where("provider = ?", "okta").Find(&mappings).Error)
 	require.Len(t, mappings, 2)
+	secID := groupIDByName(t, db, "security-team")
 	for _, m := range mappings {
-		require.Equal(t, groups[0].ID.String(), m.GroupID)
+		switch m.ExternalGroup {
+		case "groups:ccf-admins":
+			require.Equal(t, secID, m.GroupID)
+		case "hd:example.com":
+			require.Equal(t, groupIDByName(t, db, "authorized-users"), m.GroupID)
+		default:
+			t.Fatalf("unexpected external group %q", m.ExternalGroup)
+		}
 	}
 }
 
-// TestProvisionSSOGroupMappingsRepointsExisting proves re-running with a mapping pointed at a
-// different native group updates the existing row's group_id rather than failing or duplicating.
+// TestProvisionSSOGroupMappingsRepointsExisting proves re-running with the same IdP claim pointed at
+// a different native group updates the existing row's group_id rather than failing or duplicating.
 func TestProvisionSSOGroupMappingsRepointsExisting(t *testing.T) {
 	db := setupGroupsDB(t)
-	require.NoError(t, ProvisionSSOGroupMappings(db, "okta", map[string][]string{"team-a": {"eng"}}))
-	require.NoError(t, ProvisionSSOGroupMappings(db, "okta", map[string][]string{"team-b": {"eng"}}))
+	require.NoError(t, ProvisionSSOGroupMappings(db, "okta", map[string][]string{"groups:eng": {"team-a"}}))
+	require.NoError(t, ProvisionSSOGroupMappings(db, "okta", map[string][]string{"groups:eng": {"team-b"}}))
 
 	var teamB UserGroup
 	require.NoError(t, db.Where("name = ?", "team-b").First(&teamB).Error)
 
 	var mappings []SSOGroupMapping
-	require.NoError(t, db.Where("provider = ? AND external_group = ?", "okta", "eng").Find(&mappings).Error)
+	require.NoError(t, db.Where("provider = ? AND external_group = ?", "okta", "groups:eng").Find(&mappings).Error)
 	require.Len(t, mappings, 1)
 	require.Equal(t, teamB.ID.String(), mappings[0].GroupID)
 }
@@ -81,23 +101,24 @@ func TestProvisionSSOGroupMappingsRepointsExisting(t *testing.T) {
 func TestReconcileSSOGroupMembershipsAddsAndRemoves(t *testing.T) {
 	db := setupGroupsDB(t)
 	userID := createGroupsUser(t, db)
+	// Keyed by raw IdP claim -> native CCF group name.
 	require.NoError(t, ProvisionSSOGroupMappings(db, "okta", map[string][]string{
-		"security": {"eng-security"},
-		"auditors": {"audit"},
+		"idp:eng-security": {"security"},
+		"idp:audit":        {"auditors"},
 	}))
 	secID := groupIDByName(t, db, "security")
 	audID := groupIDByName(t, db, "auditors")
 
-	// First login: user has both IdP groups.
-	require.NoError(t, ReconcileSSOGroupMemberships(db, userID, "okta", []string{"eng-security", "audit"}))
+	// First login: user has both raw IdP claim groups.
+	require.NoError(t, ReconcileSSOGroupMemberships(db, userID, "okta", []string{"idp:eng-security", "idp:audit"}))
 	require.Equal(t, sortedPair(secID, audID), ssoMembershipGroupIDs(t, db, userID))
 
-	// Second login: user lost "audit" at the IdP -> that membership is de-provisioned.
-	require.NoError(t, ReconcileSSOGroupMemberships(db, userID, "okta", []string{"eng-security"}))
+	// Second login: user lost "idp:audit" at the IdP -> that membership is de-provisioned.
+	require.NoError(t, ReconcileSSOGroupMemberships(db, userID, "okta", []string{"idp:eng-security"}))
 	require.Equal(t, []string{secID}, ssoMembershipGroupIDs(t, db, userID))
 
-	// Unmapped IdP groups never create memberships.
-	require.NoError(t, ReconcileSSOGroupMemberships(db, userID, "okta", []string{"eng-security", "random"}))
+	// Unmapped IdP claim groups never create memberships.
+	require.NoError(t, ReconcileSSOGroupMemberships(db, userID, "okta", []string{"idp:eng-security", "random"}))
 	require.Equal(t, []string{secID}, ssoMembershipGroupIDs(t, db, userID))
 }
 
@@ -106,7 +127,7 @@ func TestReconcileSSOGroupMembershipsAddsAndRemoves(t *testing.T) {
 func TestReconcileSSOGroupMembershipsLeavesManualUntouched(t *testing.T) {
 	db := setupGroupsDB(t)
 	userID := createGroupsUser(t, db)
-	require.NoError(t, ProvisionSSOGroupMappings(db, "okta", map[string][]string{"security": {"eng-security"}}))
+	require.NoError(t, ProvisionSSOGroupMappings(db, "okta", map[string][]string{"idp:eng-security": {"security"}}))
 	secID := groupIDByName(t, db, "security")
 
 	// Admin hand-adds the user to a separate manual-only group.
@@ -116,8 +137,8 @@ func TestReconcileSSOGroupMembershipsLeavesManualUntouched(t *testing.T) {
 		UserID: userID, GroupID: manualGroup.ID.String(), Source: MembershipSourceManual,
 	}).Error)
 
-	// Reconcile with an IdP group; then reconcile it away.
-	require.NoError(t, ReconcileSSOGroupMemberships(db, userID, "okta", []string{"eng-security"}))
+	// Reconcile with an IdP claim group; then reconcile it away.
+	require.NoError(t, ReconcileSSOGroupMemberships(db, userID, "okta", []string{"idp:eng-security"}))
 	require.Equal(t, []string{secID}, ssoMembershipGroupIDs(t, db, userID))
 	require.NoError(t, ReconcileSSOGroupMemberships(db, userID, "okta", nil))
 	require.Empty(t, ssoMembershipGroupIDs(t, db, userID))
@@ -136,21 +157,21 @@ func TestReconcileSSOGroupMembershipsLeavesManualUntouched(t *testing.T) {
 func TestReconcileSSOGroupMembershipsIsProviderScoped(t *testing.T) {
 	db := setupGroupsDB(t)
 	userID := createGroupsUser(t, db)
-	require.NoError(t, ProvisionSSOGroupMappings(db, "okta", map[string][]string{"security": {"eng-security"}}))
-	require.NoError(t, ProvisionSSOGroupMappings(db, "google", map[string][]string{"data": {"data-eng"}}))
+	require.NoError(t, ProvisionSSOGroupMappings(db, "okta", map[string][]string{"idp:eng-security": {"security"}}))
+	require.NoError(t, ProvisionSSOGroupMappings(db, "google", map[string][]string{"idp:data-eng": {"data"}}))
 	secID := groupIDByName(t, db, "security")
 	dataID := groupIDByName(t, db, "data")
 
 	// Login via okta grants "security"; login via google grants "data".
-	require.NoError(t, ReconcileSSOGroupMemberships(db, userID, "okta", []string{"eng-security"}))
-	require.NoError(t, ReconcileSSOGroupMemberships(db, userID, "google", []string{"data-eng"}))
+	require.NoError(t, ReconcileSSOGroupMemberships(db, userID, "okta", []string{"idp:eng-security"}))
+	require.NoError(t, ReconcileSSOGroupMemberships(db, userID, "google", []string{"idp:data-eng"}))
 	require.Equal(t, sortedPair(secID, dataID), ssoMembershipGroupIDs(t, db, userID))
 
-	// A subsequent okta login (still has eng-security) must NOT wipe the google-granted "data".
-	require.NoError(t, ReconcileSSOGroupMemberships(db, userID, "okta", []string{"eng-security"}))
+	// A subsequent okta login (still has idp:eng-security) must NOT wipe the google-granted "data".
+	require.NoError(t, ReconcileSSOGroupMemberships(db, userID, "okta", []string{"idp:eng-security"}))
 	require.Equal(t, sortedPair(secID, dataID), ssoMembershipGroupIDs(t, db, userID))
 
-	// Losing eng-security at okta de-provisions only "security"; "data" survives.
+	// Losing idp:eng-security at okta de-provisions only "security"; "data" survives.
 	require.NoError(t, ReconcileSSOGroupMemberships(db, userID, "okta", nil))
 	require.Equal(t, []string{dataID}, ssoMembershipGroupIDs(t, db, userID))
 }

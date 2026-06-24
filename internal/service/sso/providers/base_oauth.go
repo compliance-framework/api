@@ -118,6 +118,8 @@ func (p *BaseOAuthProvider) GetUserInfo(ctx context.Context, token *oauth2.Token
 	}
 
 	userInfo.Groups = p.extractGroups(userInfoData)
+	// Carry the raw claim-group identifiers for the login sync to translate via the DB (BCH-1331).
+	userInfo.RawGroups = claimGroupKeys(userInfoData)
 
 	return userInfo, nil
 }
