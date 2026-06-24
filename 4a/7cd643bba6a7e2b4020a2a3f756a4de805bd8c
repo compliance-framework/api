@@ -1,0 +1,2 @@
+lisa-addressed:
+- Pass 2: added TestCreateDuplicateConflicts covering the isUniqueViolation -> 409 branch and the case-insensitive normalization (Dup@Example.com vs dup@example.com collapse to one row).
