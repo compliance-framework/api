@@ -218,12 +218,13 @@ func (h *GroupsHandler) UpdateGroup(ctx echo.Context) error {
 // DeleteGroup godoc
 //
 //	@Summary		Delete a user group
-//	@Description	Soft-deletes a native CCF user group and removes its memberships and SSO mappings
+//	@Description	Soft-deletes an empty native CCF user group and removes its SSO mappings. Returns 409 if the group still has members.
 //	@Tags			Groups
 //	@Param			id	path		string	true	"Group ID"
 //	@Success		204	{object}	nil
 //	@Failure		400	{object}	api.Error
 //	@Failure		404	{object}	api.Error
+//	@Failure		409	{object}	api.Error
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/admin/groups/{id} [delete]
@@ -236,6 +237,18 @@ func (h *GroupsHandler) DeleteGroup(ctx echo.Context) error {
 		return ctx.JSON(500, api.NewError(errors.New("group is missing its id")))
 	}
 	groupID := group.ID.String()
+
+	// Refuse to delete a group that still has members. Cascade-deleting memberships here would
+	// silently revoke access (including IdP-owned sso memberships); the operator must empty the
+	// group first so the removal is deliberate and visible (BCH-1331).
+	memberCount, err := h.memberCount(groupID)
+	if err != nil {
+		h.sugar.Errorw("Failed to count group members before delete", "error", err)
+		return ctx.JSON(500, api.NewError(err))
+	}
+	if memberCount > 0 {
+		return ctx.JSON(409, api.NewError(errors.New("group still has members; remove all members before deleting")))
+	}
 
 	err = h.db.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Where("group_id = ?", groupID).Delete(&relational.UserGroupMembership{}).Error; err != nil {
@@ -355,7 +368,11 @@ func (h *GroupsHandler) AddMember(ctx echo.Context) error {
 		return ctx.JSON(500, api.NewError(err))
 	}
 
-	membership := &relational.UserGroupMembership{UserID: userUUID.String(), GroupID: group.ID.String()}
+	membership := &relational.UserGroupMembership{
+		UserID:  userUUID.String(),
+		GroupID: group.ID.String(),
+		Source:  relational.MembershipSourceManual,
+	}
 	// Idempotent: a repeated add is a no-op rather than a duplicate-key error. FirstOrCreate
 	// is SELECT-then-INSERT, so a concurrent duplicate can still lose the race and surface the
 	// unique-index violation — which is also "already a member", so treat it as success.
@@ -374,12 +391,13 @@ func (h *GroupsHandler) AddMember(ctx echo.Context) error {
 // RemoveMember godoc
 //
 //	@Summary		Remove a group member
-//	@Description	Removes a user from a native CCF user group
+//	@Description	Removes a manually-added user from a native CCF user group. Returns 403 for SSO-synced memberships, which are managed by the identity provider.
 //	@Tags			Groups
 //	@Param			id		path		string	true	"Group ID"
 //	@Param			userId	path		string	true	"User ID"
 //	@Success		204		{object}	nil
 //	@Failure		400		{object}	api.Error
+//	@Failure		403		{object}	api.Error
 //	@Failure		404		{object}	api.Error
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
@@ -393,6 +411,24 @@ func (h *GroupsHandler) RemoveMember(ctx echo.Context) error {
 	userUUID, err := uuid.Parse(strings.TrimSpace(ctx.Param("userId")))
 	if err != nil {
 		return ctx.JSON(400, api.NewError(errors.New("invalid user id")))
+	}
+
+	// Load the membership so its source gates the removal: an sso membership is owned by the IdP
+	// (reconciled at login) and may not be hand-removed; only manual ones can. A missing
+	// membership is a no-op, preserving the idempotent 204 the API previously returned.
+	var membership relational.UserGroupMembership
+	err = h.db.
+		Where("user_id = ? AND group_id = ?", userUUID.String(), group.ID.String()).
+		First(&membership).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.NoContent(204)
+		}
+		h.sugar.Errorw("Failed to load group member", "error", err)
+		return ctx.JSON(500, api.NewError(err))
+	}
+	if membership.Source == relational.MembershipSourceSSO {
+		return ctx.JSON(403, api.NewError(errors.New("cannot remove an SSO-synced member; membership is managed by the identity provider")))
 	}
 
 	if err := h.db.

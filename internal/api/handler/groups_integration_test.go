@@ -159,24 +159,36 @@ func (suite *GroupsApiIntegrationSuite) TestAddMemberUnknownUser() {
 	suite.Equal(404, rec.Code, rec.Body.String())
 }
 
-func (suite *GroupsApiIntegrationSuite) TestDeleteGroupCascadesMembersAndMappings() {
+func (suite *GroupsApiIntegrationSuite) TestDeleteNonEmptyGroupReturns409() {
 	groupID := suite.createGroup("doomed")
 	userID := suite.dummyUserID()
 
 	add := suite.do("POST", "/api/admin/groups/"+groupID+"/members", map[string]string{"userId": userID})
 	suite.Require().Equal(204, add.Code, add.Body.String())
+
+	// A non-empty group cannot be deleted — the operator must empty it first (BCH-1331).
+	del := suite.do("DELETE", "/api/admin/groups/"+groupID, nil)
+	suite.Require().Equal(409, del.Code, del.Body.String())
+
+	// The group and its member survive the rejected delete.
+	var memberRows int64
+	suite.Require().NoError(suite.DB.Model(&relational.UserGroupMembership{}).
+		Where("group_id = ?", groupID).Count(&memberRows).Error)
+	suite.Equal(int64(1), memberRows, "membership must survive a rejected delete")
+	get := suite.do("GET", "/api/admin/groups/"+groupID, nil)
+	suite.Equal(200, get.Code)
+}
+
+func (suite *GroupsApiIntegrationSuite) TestDeleteEmptyGroupCascadesMappings() {
+	groupID := suite.createGroup("doomed")
+
 	mapAdd := suite.do("POST", "/api/admin/groups/"+groupID+"/sso-mappings",
 		map[string]string{"provider": "okta", "externalGroup": "doomed-idp"})
 	suite.Require().Equal(201, mapAdd.Code, mapAdd.Body.String())
 
+	// With no members, deletion succeeds and cascades the SSO mappings.
 	del := suite.do("DELETE", "/api/admin/groups/"+groupID, nil)
-	suite.Require().Equal(204, del.Code)
-
-	// Both join rows are hard-deleted by the DeleteGroup transaction.
-	var memberRows int64
-	suite.Require().NoError(suite.DB.Model(&relational.UserGroupMembership{}).
-		Where("group_id = ?", groupID).Count(&memberRows).Error)
-	suite.Equal(int64(0), memberRows, "memberships should be removed when the group is deleted")
+	suite.Require().Equal(204, del.Code, del.Body.String())
 
 	var mappingRows int64
 	suite.Require().NoError(suite.DB.Model(&relational.SSOGroupMapping{}).
@@ -186,6 +198,34 @@ func (suite *GroupsApiIntegrationSuite) TestDeleteGroupCascadesMembersAndMapping
 	// The freed name can be re-created: the partial unique index only covers live rows.
 	recreate := suite.do("POST", "/api/admin/groups", map[string]string{"name": "doomed"})
 	suite.Equal(201, recreate.Code, recreate.Body.String())
+}
+
+func (suite *GroupsApiIntegrationSuite) TestRemoveSSOMemberReturns403() {
+	groupID := suite.createGroup("idp-owned")
+	userID := suite.dummyUserID()
+
+	// An sso-sourced membership is owned by the IdP and cannot be hand-removed (BCH-1331).
+	suite.Require().NoError(suite.DB.Create(&relational.UserGroupMembership{
+		UserID:  userID,
+		GroupID: groupID,
+		Source:  relational.MembershipSourceSSO,
+	}).Error)
+
+	rem := suite.do("DELETE", "/api/admin/groups/"+groupID+"/members/"+userID, nil)
+	suite.Require().Equal(403, rem.Code, rem.Body.String())
+
+	// The membership is untouched.
+	var rows int64
+	suite.Require().NoError(suite.DB.Model(&relational.UserGroupMembership{}).
+		Where("group_id = ? AND user_id = ?", groupID, userID).Count(&rows).Error)
+	suite.Equal(int64(1), rows, "sso membership must survive a rejected removal")
+
+	// A manual membership in the same group is still removable.
+	other := suite.createGroup("admin-owned")
+	add := suite.do("POST", "/api/admin/groups/"+other+"/members", map[string]string{"userId": userID})
+	suite.Require().Equal(204, add.Code, add.Body.String())
+	remManual := suite.do("DELETE", "/api/admin/groups/"+other+"/members/"+userID, nil)
+	suite.Require().Equal(204, remManual.Code, remManual.Body.String())
 }
 
 func (suite *GroupsApiIntegrationSuite) TestSSOMappingLifecycle() {

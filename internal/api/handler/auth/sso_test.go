@@ -91,7 +91,10 @@ func setupTestHandler(t *testing.T) (*SSOHandler, *mockSSOService, *gorm.DB) {
 	dsn := fmt.Sprintf("file:%s?mode=memory&cache=shared", t.Name())
 	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{})
 	require.NoError(t, err)
-	require.NoError(t, db.AutoMigrate(&relational.User{}, &relational.SSOUserLink{}))
+	require.NoError(t, db.AutoMigrate(
+		&relational.User{}, &relational.SSOUserLink{},
+		&relational.UserGroup{}, &relational.UserGroupMembership{}, &relational.SSOGroupMapping{},
+	))
 
 	mockSvc := newMockSSOService()
 	logger := zap.NewNop().Sugar()
@@ -205,6 +208,57 @@ func TestSSOHandlerCallback_NewUserCreated(t *testing.T) {
 		}
 	}
 	require.True(t, authCookieFound, "expected auth cookie to be set")
+}
+
+// TestSSOHandlerCallback_MaterializesNativeMemberships proves the login callback translates the
+// user's IdP groups through the SSOGroupMappings and reconciles source=sso native memberships:
+// mapped groups become memberships, unmapped IdP groups are dropped (BCH-1331).
+func TestSSOHandlerCallback_MaterializesNativeMemberships(t *testing.T) {
+	h, mockSvc, db := setupTestHandler(t)
+	mockSvc.enabled = true
+	mockSvc.oauthConfigs["google"] = &oauth2.Config{}
+	mockSvc.state = "state123"
+	mockSvc.token = &oauth2.Token{AccessToken: "token"}
+	mockSvc.userInfo = &types.UserInfo{
+		Subject: "google-777",
+		Email:   "member@example.com",
+		Groups:  []string{"eng-security", "unmapped"},
+	}
+	mockSvc.canCreate = true
+	mockSvc.providerConfigs["google"] = &config.SSOProviderConfig{}
+
+	// Map the IdP group "eng-security" onto the native group "security-team".
+	require.NoError(t, relational.ProvisionSSOGroupMappings(db, "google",
+		map[string][]string{"security-team": {"eng-security"}}))
+
+	e := echo.New()
+	req := httptest.NewRequest(http.MethodGet, "/api/auth/sso/callback/google", nil)
+	q := req.URL.Query()
+	q.Set("state", "state123")
+	q.Set("code", "abc123")
+	req.URL.RawQuery = q.Encode()
+	req.AddCookie(&http.Cookie{Name: "oauth_state", Value: "state123"})
+	rec := httptest.NewRecorder()
+	ctx := e.NewContext(req, rec)
+	ctx.SetParamNames("provider")
+	ctx.SetParamValues("google")
+
+	require.NoError(t, h.Callback(ctx))
+	require.Equal(t, http.StatusTemporaryRedirect, rec.Code)
+
+	var user relational.User
+	require.NoError(t, db.Where("email = ?", "member@example.com").First(&user).Error)
+
+	// The mapped group is materialized as a source=sso membership; the unmapped group is not.
+	names, err := relational.GroupNamesForUser(db, user.ID.String())
+	require.NoError(t, err)
+	require.Equal(t, []string{"security-team"}, names)
+
+	var ssoCount int64
+	require.NoError(t, db.Model(&relational.UserGroupMembership{}).
+		Where("user_id = ? AND source = ?", user.ID.String(), relational.MembershipSourceSSO).
+		Count(&ssoCount).Error)
+	require.Equal(t, int64(1), ssoCount)
 }
 
 func TestSSOHandler_findByExistingLink_ReturnsUser(t *testing.T) {

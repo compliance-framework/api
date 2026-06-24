@@ -54,12 +54,41 @@ func NewSSOHandler(
 		logger.Warnw("Failed to auto-migrate SSO-related tables", "error", err)
 	}
 
+	provisionSSOGroupMappings(logger, db, cfg.SSO)
+
 	return &SSOHandler{
 		sugar:      logger,
 		db:         db,
 		config:     cfg,
 		ssoService: ssoSvc,
 		metrics:    metrics,
+	}
+}
+
+// provisionSSOGroupMappings applies each enabled provider's config-declared group_mapping at boot:
+// it creates referenced native groups and upserts the (provider, externalGroup) -> group rows so a
+// deployment can declare its IdP-group-to-CCF-group wiring entirely in config (BCH-1331). Providers
+// are keyed by their Name (the identifier the login callback and SSOUserLink.Provider use), falling
+// back to the config map key when Name is unset. Best-effort: a failure is logged, not fatal.
+func provisionSSOGroupMappings(logger *zap.SugaredLogger, db *gorm.DB, ssoCfg *config.SSOConfig) {
+	if ssoCfg == nil || !ssoCfg.Enabled {
+		return
+	}
+	for key, provider := range ssoCfg.Providers {
+		if !provider.Enabled || len(provider.GroupMapping) == 0 {
+			continue
+		}
+		name := strings.TrimSpace(provider.Name)
+		if name == "" {
+			name = strings.TrimSpace(key)
+		}
+		if name == "" {
+			logger.Warnw("Skipping SSO group-mapping provisioning for a provider with no name", "configKey", key)
+			continue
+		}
+		if err := relational.ProvisionSSOGroupMappings(db, name, provider.GroupMapping); err != nil {
+			logger.Errorw("Failed to provision SSO group mappings", "provider", name, "error", err)
+		}
 	}
 }
 
@@ -205,6 +234,11 @@ func (h *SSOHandler) Callback(ctx echo.Context) error {
 		return ctx.Redirect(http.StatusTemporaryRedirect, h.config.SSO.BaseURL+"/login?error=user_creation_failed")
 	}
 
+	// Materialize the user's IdP groups into native ccf_user_groups memberships (source=sso) so
+	// authorization reads native groups only (BCH-1331). Best-effort: a sync failure must not block
+	// an otherwise-valid login — the user simply keeps their prior native memberships this session.
+	h.reconcileSSOGroups(providerName, user, userInfo.Groups)
+
 	jwtToken, err := authn.GenerateJWTToken(user, h.config.JWTPrivateKey)
 	if err != nil {
 		h.sugar.Errorw("Failed to generate JWT token", "error", err)
@@ -233,6 +267,20 @@ func (h *SSOHandler) Callback(ctx echo.Context) error {
 	redirectURL := fmt.Sprintf("%s/auth/sso/callback?provider=%s", baseURL, url.QueryEscape(providerName))
 
 	return ctx.Redirect(http.StatusTemporaryRedirect, redirectURL)
+}
+
+// reconcileSSOGroups translates the user's IdP groups through the provider's SSOGroupMappings and
+// reconciles their source=sso native memberships: mapped groups become memberships, groups lost at
+// the IdP are de-provisioned, and source=manual memberships are left untouched (BCH-1331). Errors
+// are logged, not surfaced — group sync must never fail an otherwise-valid login.
+func (h *SSOHandler) reconcileSSOGroups(providerName string, user *relational.User, idpGroups []string) {
+	if user == nil || user.ID == nil {
+		return
+	}
+	if err := relational.ReconcileSSOGroupMemberships(h.db, user.ID.String(), providerName, idpGroups); err != nil {
+		h.sugar.Errorw("Failed to reconcile SSO group memberships",
+			"provider", providerName, "userID", user.ID.String(), "error", err)
+	}
 }
 
 func (h *SSOHandler) findOrCreateUser(providerName string, userInfo *types.UserInfo) (*relational.User, error) {

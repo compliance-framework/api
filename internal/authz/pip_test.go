@@ -9,52 +9,47 @@ import (
 	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
-	"gorm.io/gorm"
 )
 
-func addSSOMapping(t *testing.T, db *gorm.DB, provider, externalGroup, groupName string) {
-	t.Helper()
-	group := relational.UserGroup{Name: groupName}
-	require.NoError(t, db.Where("name = ?", groupName).FirstOrCreate(&group).Error)
-	require.NoError(t, db.Create(&relational.SSOGroupMapping{
-		Provider:      provider,
-		ExternalGroup: externalGroup,
-		GroupID:       group.ID.String(),
-	}).Error)
-}
-
-// TestDBGroupResolverUnionsNativeAndSSO proves subject.groups is the union of native CCF
-// memberships and SSO IdP groups, de-duplicated case-insensitively and sorted.
-func TestDBGroupResolverUnionsNativeAndSSO(t *testing.T) {
+// TestDBGroupResolverNativeOnly proves subject.groups is derived purely from native CCF
+// memberships (ccf_user_groups), sorted and case-insensitively de-duplicated. Raw IdP groups on
+// the user's SSO link never reach authz on their own — only what login materialized as native
+// memberships does (BCH-1331).
+func TestDBGroupResolverNativeOnly(t *testing.T) {
 	db := setupAuthzDB(t)
 	user := createUser(t, db, "user@example.com", "sso")
-	createSSOLink(t, db, user, "test", []string{"Auditors", "shared"})
+	// The SSO link still carries raw IdP groups, but they are not an authz surface.
+	createSSOLink(t, db, user, "test", []string{"Auditors", "raw-idp-group"})
 	addNativeGroup(t, db, user, "engineers")
-	addNativeGroup(t, db, user, "Shared") // collides case-insensitively with the SSO "shared"
+	addNativeGroup(t, db, user, "Shared")
 
 	r := NewDBGroupResolver(db, zap.NewNop().Sugar())
 	groups, err := r.ResolveGroups(context.Background(),
 		Subject{Type: "user", ID: "user@example.com", Props: map[string]any{"user_uuid": user.ID.String()}})
 	require.NoError(t, err)
-	// "Shared"/"shared" collapse to a single entry (the native spelling, resolved first,
-	// wins); the result is sorted case-sensitively (ASCII: uppercase before lowercase).
-	require.Equal(t, []string{"Auditors", "Shared", "engineers"}, groups)
+	// Only the native memberships appear; the link's "Auditors"/"raw-idp-group" do not.
+	require.Equal(t, []string{"Shared", "engineers"}, groups)
 }
 
-// TestDBGroupResolverMapsSSOGroupToNativeName proves an SSO group is translated to the mapped
-// native group name so a synced IdP group and a native group unify rather than collide.
-func TestDBGroupResolverMapsSSOGroupToNativeName(t *testing.T) {
+// TestDBGroupResolverIgnoresUnmappedIdPGroups proves that even when an SSO link carries IdP
+// groups, none reach subject.groups unless they were materialized as native memberships — the
+// resolver no longer reads the link or its mappings at decision time (BCH-1331).
+func TestDBGroupResolverIgnoresUnmappedIdPGroups(t *testing.T) {
 	db := setupAuthzDB(t)
 	user := createUser(t, db, "user@example.com", "sso")
 	createSSOLink(t, db, user, "okta", []string{"okta-admins", "unmapped"})
-	addSSOMapping(t, db, "okta", "okta-admins", "ccf-admins")
+	// A mapping exists in the table, but the resolver must not consult it — only memberships count.
+	group := relational.UserGroup{Name: "ccf-admins"}
+	require.NoError(t, db.Where("name = ?", "ccf-admins").FirstOrCreate(&group).Error)
+	require.NoError(t, db.Create(&relational.SSOGroupMapping{
+		Provider: "okta", ExternalGroup: "okta-admins", GroupID: group.ID.String(),
+	}).Error)
 
 	r := NewDBGroupResolver(db, zap.NewNop().Sugar())
 	groups, err := r.ResolveGroups(context.Background(),
 		Subject{Type: "user", ID: "user@example.com", Props: map[string]any{"user_uuid": user.ID.String()}})
 	require.NoError(t, err)
-	// okta-admins -> ccf-admins (mapped); unmapped passes through under its raw name.
-	require.Equal(t, []string{"ccf-admins", "unmapped"}, groups)
+	require.Empty(t, groups)
 }
 
 // TestDBGroupResolverResolvesByEmailFallback proves a subject without the user_uuid claim
