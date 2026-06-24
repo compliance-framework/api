@@ -388,7 +388,7 @@ func (h *UserHandler) attachGroups(resp *userResponse) {
 	if resp == nil || resp.ID == nil {
 		return
 	}
-	groups, err := h.groupSummariesForUser(resp.User.ID.String())
+	groups, err := h.groupSummariesForUser(resp.ID.String())
 	if err != nil {
 		h.sugar.Warnw("Failed to load groups for user", "userID", resp.ID.String(), "error", err)
 		resp.Groups = []userGroupSummary{}
