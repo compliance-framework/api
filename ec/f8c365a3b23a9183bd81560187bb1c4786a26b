@@ -1,0 +1,2 @@
+lisa-addressed:
+Pass 1: fixed golangci-lint QF1008 in attachGroups (resp.User.ID.String() -> resp.ID.String()). Lint now 0 issues; build + integration/unit suites green.
