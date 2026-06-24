@@ -77,7 +77,7 @@ func (suite *DashboardSuggestionsHTTPSuite) newServerWithChunks(enabled bool, en
 	cfg.AI.MaxLabelSetsPerChunk = maxLabelSetsPerChunk
 	cfg.AI.MaxCallsPerRun = maxCalls
 	server := api.NewServer(context.Background(), logger.Sugar(), &cfg, metrics)
-	RegisterHandlers(server, logger.Sugar(), suite.DB, &cfg, nil, enqueuer)
+	RegisterHandlers(server, logger.Sugar(), suite.DB, &cfg, nil, enqueuer, nil)
 	return server
 }
 

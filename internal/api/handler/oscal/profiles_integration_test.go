@@ -62,7 +62,7 @@ func (suite *ProfileIntegrationSuite) SetupSuite() {
 	suite.logger = logger.Sugar()
 	metrics := api.NewMetricsHandler(context.Background(), suite.logger)
 	suite.server = api.NewServer(context.Background(), suite.logger, suite.Config, metrics)
-	RegisterHandlers(suite.server, suite.logger, suite.DB, suite.Config, nil, nil)
+	RegisterHandlers(suite.server, suite.logger, suite.DB, suite.Config, nil, nil, nil)
 
 	profileFp, err := os.Open("../../../../testdata/profile_fedramp_low.json")
 	suite.Require().NoError(err, "Failed to open profile file")

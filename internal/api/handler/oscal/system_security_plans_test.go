@@ -157,7 +157,7 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) TestCreateSSP() {
 	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
 	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
 	evidenceSvc := evidencesvc.NewEvidenceService(suite.DB, logger.Sugar(), suite.Config, nil)
-	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, evidenceSvc, nil)
+	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, evidenceSvc, nil, nil)
 
 	ssp := suite.createBasicSSP()
 
@@ -189,7 +189,7 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) TestCreateSSPValidationError
 	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
 	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
 	evidenceSvc := evidencesvc.NewEvidenceService(suite.DB, logger.Sugar(), suite.Config, nil)
-	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, evidenceSvc, nil)
+	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, evidenceSvc, nil, nil)
 
 	testCases := []struct {
 		name        string
@@ -258,7 +258,7 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) TestGetSSP() {
 	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
 	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
 	evidenceSvc := evidencesvc.NewEvidenceService(suite.DB, logger.Sugar(), suite.Config, nil)
-	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, evidenceSvc, nil)
+	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, evidenceSvc, nil, nil)
 
 	// Create SSP first
 	ssp := suite.createBasicSSP()
@@ -295,7 +295,7 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) TestGetSSPNotFound() {
 	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
 	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
 	evidenceSvc := evidencesvc.NewEvidenceService(suite.DB, logger.Sugar(), suite.Config, nil)
-	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, evidenceSvc, nil)
+	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, evidenceSvc, nil, nil)
 
 	nonExistentUUID := uuid.New().String()
 	req := suite.createRequest("GET", fmt.Sprintf("/api/oscal/system-security-plans/%s", nonExistentUUID), nil)
@@ -318,7 +318,7 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) TestListSSPs() {
 	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
 	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
 	evidenceSvc := evidencesvc.NewEvidenceService(suite.DB, logger.Sugar(), suite.Config, nil)
-	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, evidenceSvc, nil)
+	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, evidenceSvc, nil, nil)
 
 	// Create multiple SSPs
 	ssp1 := suite.createBasicSSP()
@@ -382,7 +382,7 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) TestCreateImplementedRequire
 	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
 	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
 	evidenceSvc := evidencesvc.NewEvidenceService(suite.DB, logger.Sugar(), suite.Config, nil)
-	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, evidenceSvc, nil)
+	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, evidenceSvc, nil, nil)
 
 	// Create SSP first (without statements)
 	ssp := suite.createBasicSSP()
@@ -500,7 +500,7 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) TestCreateImplementedRequire
 	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
 	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
 	evidenceSvc := evidencesvc.NewEvidenceService(suite.DB, logger.Sugar(), suite.Config, nil)
-	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, evidenceSvc, nil)
+	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, evidenceSvc, nil, nil)
 
 	// Create SSP first
 	ssp := suite.createBasicSSP()
@@ -577,7 +577,7 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) TestUpdateImplementedRequire
 	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
 	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
 	evidenceSvc := evidencesvc.NewEvidenceService(suite.DB, logger.Sugar(), suite.Config, nil)
-	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, evidenceSvc, nil)
+	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, evidenceSvc, nil, nil)
 
 	// Create SSP first (without statements)
 	ssp := suite.createBasicSSP()
@@ -683,7 +683,7 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) TestUpdateImplementedRequire
 	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
 	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
 	evidenceSvc := evidencesvc.NewEvidenceService(suite.DB, logger.Sugar(), suite.Config, nil)
-	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, evidenceSvc, nil)
+	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, evidenceSvc, nil, nil)
 
 	ssp := suite.createBasicSSP()
 	componentUuid := ssp.SystemImplementation.Components[0].UUID
@@ -787,7 +787,7 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) TestUpdateImplementedRequire
 	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
 	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
 	evidenceSvc := evidencesvc.NewEvidenceService(suite.DB, logger.Sugar(), suite.Config, nil)
-	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, evidenceSvc, nil)
+	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, evidenceSvc, nil, nil)
 
 	// Create SSP first (without statements)
 	ssp := suite.createBasicSSP()
@@ -908,7 +908,7 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) TestDeleteImplementedRequire
 	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
 	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
 	evidenceSvc := evidencesvc.NewEvidenceService(suite.DB, logger.Sugar(), suite.Config, nil)
-	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, evidenceSvc, nil)
+	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, evidenceSvc, nil, nil)
 
 	// Create SSP first (without statements)
 	ssp := suite.createBasicSSP()
@@ -989,7 +989,7 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) TestCreateImplementedRequire
 	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
 	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
 	evidenceSvc := evidencesvc.NewEvidenceService(suite.DB, logger.Sugar(), suite.Config, nil)
-	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, evidenceSvc, nil)
+	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, evidenceSvc, nil, nil)
 
 	// Create SSP first (without statements)
 	ssp := suite.createBasicSSP()
@@ -1098,7 +1098,7 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) TestCreateByComponentInvalid
 	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
 	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
 	evidenceSvc := evidencesvc.NewEvidenceService(suite.DB, logger.Sugar(), suite.Config, nil)
-	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, evidenceSvc, nil)
+	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, evidenceSvc, nil, nil)
 
 	ssp := suite.createBasicSSP()
 	componentUuid := ssp.SystemImplementation.Components[0].UUID
@@ -1197,7 +1197,7 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) TestUpdateImplementedRequire
 	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
 	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
 	evidenceSvc := evidencesvc.NewEvidenceService(suite.DB, logger.Sugar(), suite.Config, nil)
-	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, evidenceSvc, nil)
+	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, evidenceSvc, nil, nil)
 
 	// Create SSP first
 	ssp := suite.createBasicSSP()
@@ -1279,7 +1279,7 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) TestSystemImplementationCRUD
 	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
 	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
 	evidenceSvc := evidencesvc.NewEvidenceService(suite.DB, logger.Sugar(), suite.Config, nil)
-	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, evidenceSvc, nil)
+	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, evidenceSvc, nil, nil)
 
 	// Create SSP first
 	ssp := suite.createBasicSSP()
@@ -1437,7 +1437,7 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) TestSystemImplementationUser
 	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
 	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
 	evidenceSvc := evidencesvc.NewEvidenceService(suite.DB, logger.Sugar(), suite.Config, nil)
-	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, evidenceSvc, nil)
+	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, evidenceSvc, nil, nil)
 
 	// Create SSP first
 	ssp := suite.createBasicSSP()
@@ -1577,7 +1577,7 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) TestSystemImplementationComp
 	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
 	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
 	evidenceSvc := evidencesvc.NewEvidenceService(suite.DB, logger.Sugar(), suite.Config, nil)
-	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, evidenceSvc, nil)
+	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, evidenceSvc, nil, nil)
 
 	// Create SSP first
 	ssp := suite.createBasicSSP()
@@ -1783,7 +1783,7 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) TestSystemImplementationInve
 	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
 	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
 	evidenceSvc := evidencesvc.NewEvidenceService(suite.DB, logger.Sugar(), suite.Config, nil)
-	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, evidenceSvc, nil)
+	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, evidenceSvc, nil, nil)
 
 	// Create SSP first
 	ssp := suite.createBasicSSP()
@@ -1969,7 +1969,7 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) TestSystemImplementationLeve
 	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
 	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
 	evidenceSvc := evidencesvc.NewEvidenceService(suite.DB, logger.Sugar(), suite.Config, nil)
-	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, evidenceSvc, nil)
+	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, evidenceSvc, nil, nil)
 
 	// Create SSP first
 	ssp := suite.createBasicSSP()
@@ -2117,7 +2117,7 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) TestCreateNetworkArchitectur
 	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
 	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
 	evidenceSvc := evidencesvc.NewEvidenceService(suite.DB, logger.Sugar(), suite.Config, nil)
-	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, evidenceSvc, nil)
+	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, evidenceSvc, nil, nil)
 
 	// Create SSP with a NetworkArchitecture present
 	ssp := suite.createBasicSSP()
@@ -2189,7 +2189,7 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) TestCreateDataFlowDiagram() 
 	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
 	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
 	evidenceSvc := evidencesvc.NewEvidenceService(suite.DB, logger.Sugar(), suite.Config, nil)
-	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, evidenceSvc, nil)
+	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, evidenceSvc, nil, nil)
 
 	// Create SSP with a DataFlow present
 	ssp := suite.createBasicSSP()
@@ -2260,7 +2260,7 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) TestCreateAuthorizationBound
 	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
 	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
 	evidenceSvc := evidencesvc.NewEvidenceService(suite.DB, logger.Sugar(), suite.Config, nil)
-	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, evidenceSvc, nil)
+	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, evidenceSvc, nil, nil)
 
 	// Create SSP with an AuthorizationBoundary present
 	ssp := suite.createBasicSSP()
@@ -2331,7 +2331,7 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) TestCreateNetworkArchitectur
 	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
 	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
 	evidenceSvc := evidencesvc.NewEvidenceService(suite.DB, logger.Sugar(), suite.Config, nil)
-	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, evidenceSvc, nil)
+	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, evidenceSvc, nil, nil)
 
 	// 1) Invalid SSP ID in path
 	badDiagram := oscalTypes_1_1_3.Diagram{UUID: uuid.New().String(), Description: "bad"}
@@ -2412,7 +2412,7 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) TestCreateDataFlowDiagram_Ne
 	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
 	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
 	evidenceSvc := evidencesvc.NewEvidenceService(suite.DB, logger.Sugar(), suite.Config, nil)
-	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, evidenceSvc, nil)
+	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, evidenceSvc, nil, nil)
 
 	// 1) Invalid SSP ID in path
 	badDiagram := oscalTypes_1_1_3.Diagram{UUID: uuid.New().String(), Description: "bad"}
@@ -2492,7 +2492,7 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) TestCreateAuthorizationBound
 	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
 	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
 	evidenceSvc := evidencesvc.NewEvidenceService(suite.DB, logger.Sugar(), suite.Config, nil)
-	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, evidenceSvc, nil)
+	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, evidenceSvc, nil, nil)
 
 	// 1) Invalid SSP ID in path
 	badDiagram := oscalTypes_1_1_3.Diagram{UUID: uuid.New().String(), Description: "bad"}
@@ -2539,7 +2539,7 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) TestDeleteNetworkArchitectur
 	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
 	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
 	evidenceSvc := evidencesvc.NewEvidenceService(suite.DB, logger.Sugar(), suite.Config, nil)
-	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, evidenceSvc, nil)
+	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, evidenceSvc, nil, nil)
 
 	// Create SSP with NA and one diagram
 	ssp := suite.createBasicSSP()
@@ -2589,7 +2589,7 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) TestDeleteDataFlowDiagram() 
 	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
 	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
 	evidenceSvc := evidencesvc.NewEvidenceService(suite.DB, logger.Sugar(), suite.Config, nil)
-	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, evidenceSvc, nil)
+	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, evidenceSvc, nil, nil)
 
 	// Create SSP with DF and one diagram
 	ssp := suite.createBasicSSP()
@@ -2639,7 +2639,7 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) TestDeleteAuthorizationBound
 	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
 	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
 	evidenceSvc := evidencesvc.NewEvidenceService(suite.DB, logger.Sugar(), suite.Config, nil)
-	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, evidenceSvc, nil)
+	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, evidenceSvc, nil, nil)
 
 	// Create SSP with AB and one diagram
 	ssp := suite.createBasicSSP()
@@ -2690,7 +2690,7 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) TestDeleteNetworkArchitectur
 	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
 	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
 	evidenceSvc := evidencesvc.NewEvidenceService(suite.DB, logger.Sugar(), suite.Config, nil)
-	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, evidenceSvc, nil)
+	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, evidenceSvc, nil, nil)
 
 	// invalid SSP id
 	req := suite.createRequest(http.MethodDelete, "/api/oscal/system-security-plans/not-a-uuid/system-characteristics/network-architecture/diagrams/not-a-uuid", nil)
@@ -2730,7 +2730,7 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) TestDeleteDataFlowDiagram_Ne
 	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
 	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
 	evidenceSvc := evidencesvc.NewEvidenceService(suite.DB, logger.Sugar(), suite.Config, nil)
-	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, evidenceSvc, nil)
+	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, evidenceSvc, nil, nil)
 
 	// invalid SSP id
 	req := suite.createRequest(http.MethodDelete, "/api/oscal/system-security-plans/not-a-uuid/system-characteristics/data-flow/diagrams/not-a-uuid", nil)
@@ -2770,7 +2770,7 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) TestDeleteAuthorizationBound
 	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
 	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
 	evidenceSvc := evidencesvc.NewEvidenceService(suite.DB, logger.Sugar(), suite.Config, nil)
-	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, evidenceSvc, nil)
+	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, evidenceSvc, nil, nil)
 
 	// invalid SSP id
 	req := suite.createRequest(http.MethodDelete, "/api/oscal/system-security-plans/not-a-uuid/system-characteristics/authorization-boundary/diagrams/not-a-uuid", nil)
@@ -2810,7 +2810,7 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) TestAttachProfile() {
 	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
 	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
 	evidenceSvc := evidencesvc.NewEvidenceService(suite.DB, logger.Sugar(), suite.Config, nil)
-	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, evidenceSvc, nil)
+	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, evidenceSvc, nil, nil)
 
 	// 1. Setup data: Catalog -> Controls -> Profile
 	catalog := &relational.Catalog{
@@ -2895,7 +2895,7 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) TestGetImplementedRequiremen
 	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
 	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
 	evidenceSvc := evidencesvc.NewEvidenceService(suite.DB, logger.Sugar(), suite.Config, nil)
-	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, evidenceSvc, nil)
+	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, evidenceSvc, nil, nil)
 
 	// 1. Setup data: Catalog -> Controls -> Two Profiles
 	catalog := &relational.Catalog{

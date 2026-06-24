@@ -11,9 +11,8 @@ import (
 )
 
 // RegisterHandlers mounts the OSCAL route groups. pep is the shared, config-selected Policy
-// Enforcement Point (cmd/run.go builds it once); it is variadic so existing test callers that
-// omit it still compile — in that case a builtin-backed PEP is used, reproducing the prior
-// access rules with no behavior change.
+// Enforcement Point (cmd/run.go builds it once); callers that pass nil (e.g. test suites) get a
+// builtin-backed PEP, reproducing the prior access rules with no behavior change.
 func RegisterHandlers(server *api.Server, logger *zap.SugaredLogger, db *gorm.DB, config *config.Config, evidenceSvc *evidencesvc.EvidenceService, jobEnqueuer SSPJobEnqueuer, pep *middleware.PEP) {
 	if pep == nil {
 		failMode := authz.FailClosed

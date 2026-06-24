@@ -42,7 +42,7 @@ func (suite *SubjectApiIntegrationSuite) SetupSuite() {
 	metrics := api.NewMetricsHandler(context.Background(), suite.logger)
 	suite.server = api.NewServer(context.Background(), suite.logger, suite.Config, metrics)
 	evidenceSvc := evidencesvc.NewEvidenceService(suite.DB, logger.Sugar(), suite.Config, nil)
-	RegisterHandlers(suite.server, logger.Sugar(), suite.DB, suite.Config, evidenceSvc, nil)
+	RegisterHandlers(suite.server, logger.Sugar(), suite.DB, suite.Config, evidenceSvc, nil, nil)
 }
 
 func (suite *SubjectApiIntegrationSuite) SetupTest() {

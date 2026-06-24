@@ -47,7 +47,7 @@ func (suite *SSPProfilesIntegrationSuite) SetupSuite() {
 	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
 	suite.server = api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
 	evidenceSvc := evidencesvc.NewEvidenceService(suite.DB, logger.Sugar(), suite.Config, nil)
-	RegisterHandlers(suite.server, logger.Sugar(), suite.DB, suite.Config, evidenceSvc, nil)
+	RegisterHandlers(suite.server, logger.Sugar(), suite.DB, suite.Config, evidenceSvc, nil, nil)
 }
 
 func (suite *SSPProfilesIntegrationSuite) SetupTest() {
