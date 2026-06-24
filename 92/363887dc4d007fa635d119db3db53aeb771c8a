@@ -1,0 +1,26 @@
+lisa-addressed:
+---
+Comment (internal/authz/reconcile.go:134):
+**[Medium] Concurrent boot can crash a replica: `Create` has no conflict handling.**
+
+`MigrateUpWithConfig` (and thus this reconcile) runs on *every* `ccf run` replica boot — `cmd/run.go:87` calls it and treats any error as fatal (`sugar.Fatalw`). In an HA / rolling deploy, multiple replicas boot concurrently. When a config grant is newly added, two replicas can both `SELECT` the triple as absent (the `tx.Find` above) and then both reach this `tx.Create`. Under Postgres READ COMMITTED the second `INSERT` blocks on the first's uncommitted unique key, then raises a duplicate-key violation on commit. That error propagates out of the transaction → out of `ReconcileConfigRoleAssignments` → out of `MigrateUpWithConfig` → the replica exits fatally (CrashLoopBackOff).
+
+It self-heals on the next restart (the row now exists, so this branch is skipped), so this is not data loss — but it can wedge/slow a rollout and emits fatal-level logs for a benign race.
+
+Suggestion: make the insert idempotent so a losing race is a no-op rather than fatal:
+```go
+if err := tx.Clauses(clause.OnConflict{
+    Columns:   []clause.Column{{Name: "assignee_type"}, {Name: "assignee_id"}, {Name: "role_name"}},
+    DoNothing: true,
+}).Create(&relational.CCFRoleAssignment{...}).Error; err != nil {
+    return err
+}
+```
+(or catch the unique-violation and treat it as benign). The `adopted`/`deleted` paths are already concurrency-tolerant; only this `Create` introduces a fatal conflict.
+---
+Comment (internal/authz/reconcile_integration_test.go:162):
+**[Low/nit] "in place" is inaccurate — a role change is delete + create, not an in-place update.**
+
+Because the role is part of the unique triple (`assignee_type, assignee_id, role_name`), changing alice from `auditor` to `admin` doesn't update the existing row: the desired triple `(user, alice, admin)` isn't found, so a *new* row is `Create`d with a fresh UUID, and the old `(user, alice, auditor)` config row is then deleted. The end state (one row, role=`admin`) is correct and the assertions are fine, but the row identity changes — so "in place" is misleading to a future reader who might assume ID stability across a role change.
+
+Suggestion: rename to something like "replaces a changed role for a principal (delete old + create new)", and consider asserting the row ID *changed* to document the real behaviour, mirroring the adopt test which asserts ID stability.
