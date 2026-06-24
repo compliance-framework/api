@@ -7,6 +7,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/compliance-framework/api/internal/authz"
 	"github.com/compliance-framework/api/internal/config"
 	"github.com/compliance-framework/api/internal/service/notification"
 	slackprovider "github.com/compliance-framework/api/internal/service/notification/providers/slack"
@@ -414,6 +415,17 @@ func MigrateUpWithConfig(db *gorm.DB, cfg *config.Config) error {
 	// For SQLite and other databases we do not create functional/unique indexes here.
 	// They will rely on their default query plans; a plain index on control_id
 	// is typically not used for expression predicates like UPPER(control_id) without an expression index.
+
+	// Reconcile the role-assignment config file into the persisted ccf_role_assignments table
+	// (BCH-1334). With BCH-1333 the table is the PDP's source of truth, so authz-roles.yaml is a
+	// boot seed: its user/group grants are upserted as source=config and stale config grants removed,
+	// before the server serves traffic. A bad/typo'd file fails fast here (the caller treats a
+	// migration error as fatal). Runs whenever authz config is present; MigrateUp(db, nil) skips it.
+	if cfg != nil && cfg.Authz != nil {
+		if err := authz.ReconcileConfigRoleAssignments(context.Background(), db, cfg.Authz.RoleAssignmentsPath, nil); err != nil {
+			return err
+		}
+	}
 
 	return err
 }
