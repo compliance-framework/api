@@ -1,0 +1,9 @@
+lisa-design:
+BCH-1332 — GET /admin/users/:id/groups
+- BCH-1331's `source` field is ALREADY on main (relational.UserGroupMembership.Source, manual|sso), so the endpoint ships WITH `source` rather than the spec's fallback of omitting it. Verified by grepping the model before implementing.
+- Reused the two-step (memberships -> groups) lookup by extracting a shared helper `groupSummariesForUser(userID)`; `attachGroups` now delegates to it. This intentionally adds `source` to the inline `groups` on GetUser/ListUsers/GetMe too — additive, camelCase, single query path, no duplicated query. Do not "revert" this to a groups-endpoint-only type; the shared helper is the point ("reuse, don't duplicate").
+- `source` lives on the membership row, not the group, so it is carried across the second lookup via an in-memory group_id->source map — NOT a second column-to-column join (ccf_users.id uuid vs ccf_user_groups.user_id text fails in Postgres; see GroupNamesForUser).
+- Admin auth: the route is registered inside UserHandler.Register, and the router (api.go) applies `pep.Authorize(ResourceAdmin, ActionManage)` at the /admin/users group level — so the new route inherits the admin guard with no per-route guard needed.
+- 404 for unknown user via an existence check (h.db.First) before listing, consistent with GetUser, instead of returning an empty list for a non-existent id.
+- Regenerated committed swagger (go tool swag init/fmt) — diff is purely additive (new path + handler.userGroupSummary schema with `source`).
+- Tests added to groups_integration_test.go (not users_integration_test.go) to reuse its createGroup/dummyUserID/do helpers; covers 200 (manual+sso sorted by name), empty list, 404 unknown user, 401 unauthenticated.
