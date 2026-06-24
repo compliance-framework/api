@@ -7,3 +7,18 @@ BCH-1332 — GET /admin/users/:id/groups
 - 404 for unknown user via an existence check (h.db.First) before listing, consistent with GetUser, instead of returning an empty list for a non-existent id.
 - Regenerated committed swagger (go tool swag init/fmt) — diff is purely additive (new path + handler.userGroupSummary schema with `source`).
 - Tests added to groups_integration_test.go (not users_integration_test.go) to reuse its createGroup/dummyUserID/do helpers; covers 200 (manual+sso sorted by name), empty list, 404 unknown user, 401 unauthenticated.
+
+lisa-design:
+BCH-1333 — system-level role assignments (persisted model + admin API + PDP read path).
+
+- Source of truth is cedar-only. The new ccf_role_assignments table is the PDP role source ONLY for the cedar engine (it consumes manifest roles via rolesFor). The default `builtin` engine has its own pre-authz rules and does not read role assignments, so the rewire deliberately touches only the cedar path. Don't "fix" builtin to read the table.
+- The table holds ONLY user/group grants. Agent and anonymous defaults stay config-sourced (authz-roles.yaml `agents:`/`anonymous:`), surfaced through dbRoleResolver.defaults. BCH-1334 reconciles the file's user/group rows into the table; it does NOT move the agent/anonymous defaults.
+- Group grants are keyed by group NAME (lower-cased), not group UUID. This is load-bearing: the PDP matches groups via subject.groups, which carries native group NAMES (NewDBGroupResolver / GroupNamesForUser). Keying by name is what makes display==enforce. Consequence (accepted, same as the prior file model): renaming a group orphans its grants.
+- AssigneeID is normalized to lower-case on write (relational.NormalizeAssigneeID) for both user emails and group names, so the unique index (assignee_type, assignee_id, role_name) and the resolver's exact-match lookups agree. Do not switch the resolver to case-insensitive SQL — storage is already folded.
+- NewCedar's 2nd param changed type *RoleAssignments -> RoleResolver (interface). *RoleAssignments implements RoleResolver (RolesFor wraps rolesFor), so file-only tests/callers still compile and a no-DB deployment keeps file behaviour.
+- Cedar.Evaluate/Evaluations can now return an error (DB role-source failure) — a change from Phase 1 where cedar never errored. This is intentional: an unreachable role source must be governed by the PEP fail mode, not a silent allow/deny.
+- Short-TTL role cache (DefaultRoleCacheTTL=10s) lives in dbRoleResolver, keyed on lower(email)+sorted(groups); ttl<=0 disables it. A grant/revocation lands within the TTL. It mirrors cache.go's mutex+map+opportunistic eviction.
+- Admin write API is gated via pep.For(authz.ResourceRoleAssignment) (per ticket), NOT the admin umbrella — so the contributor role (which the manifest grants role-assignment CRUD) can use it. The users/:id/roles and groups/:id/roles reads hang off separate echo groups under /admin/users and /admin/groups but use the role-assignment Read guard, not admin/manage.
+- manifest.yaml already declared the role-assignment resource with [read, create, update, delete]; no manifest change was needed for this ticket.
+- Effective-roles view (GET /admin/users/:id/roles) resolves groups via relational.GroupNamesForUser — the same native-membership set the PDP's group resolver feeds into subject.groups — which is what guarantees the parity test (display == PDP enforcement). :id is the user/group UUID, resolved to email/name for the table lookup.
+- Model registered in BOTH internal/service/migrator.go (up + MigrateDown) and internal/tests/migrate.go (up + down), and added to internal/authz setupAuthzDB so the sqlite resolver tests migrate it.
