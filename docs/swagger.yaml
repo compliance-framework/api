@@ -11817,9 +11817,12 @@ paths:
     post:
       consumes:
       - application/json
-      description: Grants a manifest role to a user (by email) or group (by name),
-        system-wide. The grant is source=manual and becomes the PDP's source of truth
-        for that subject's role.
+      description: 'Grants a manifest role to a user (by email) or group (by name),
+        system-wide. The grant is source=manual and becomes the PDP''s source of truth
+        for that subject''s role. The assignee is not required to exist: a user may
+        be granted ahead of signup, and a group grant is matched by name and stays
+        inert until a group with that name exists (a rename orphans it) — consistent
+        with the prior file-based model.'
       parameters:
       - description: Role assignment
         in: body

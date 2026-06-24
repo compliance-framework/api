@@ -73,7 +73,7 @@ type effectiveRole struct {
 // Create godoc
 //
 //	@Summary		Create a role assignment
-//	@Description	Grants a manifest role to a user (by email) or group (by name), system-wide. The grant is source=manual and becomes the PDP's source of truth for that subject's role.
+//	@Description	Grants a manifest role to a user (by email) or group (by name), system-wide. The grant is source=manual and becomes the PDP's source of truth for that subject's role. The assignee is not required to exist: a user may be granted ahead of signup, and a group grant is matched by name and stays inert until a group with that name exists (a rename orphans it) — consistent with the prior file-based model.
 //	@Tags			RoleAssignments
 //	@Accept			json
 //	@Produce		json
@@ -242,25 +242,37 @@ func (h *RoleAssignmentsHandler) UserRoles(ctx echo.Context) error {
 		out = append(out, effectiveRole{AssignmentID: idString(a.ID), RoleName: a.RoleName, Source: a.Source})
 	}
 
-	// Inherited grants — one lookup per native group, so each inherited role can name its group.
-	// GroupNamesForUser returns the same native memberships the PDP's group resolver feeds into
-	// subject.groups, so this view matches what is enforced.
+	// Inherited grants — roles granted to any native group the user belongs to, so each inherited
+	// role can name its group. GroupNamesForUser returns the same native memberships the PDP's
+	// group resolver feeds into subject.groups, so this view matches what is enforced. The grants
+	// are fetched in one IN query (not one per group); canonical maps the normalized assignee_id
+	// the rows carry back to the group's display spelling.
 	groups, err := relational.GroupNamesForUser(h.db, user.ID.String())
 	if err != nil {
 		h.sugar.Errorw("Failed to load user groups", "error", err)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
-	for _, groupName := range groups {
+	if len(groups) > 0 {
+		canonical := make(map[string]string, len(groups))
+		normNames := make([]string, 0, len(groups))
+		for _, name := range groups {
+			norm := relational.NormalizeAssigneeID(name)
+			if _, seen := canonical[norm]; !seen {
+				canonical[norm] = name
+				normNames = append(normNames, norm)
+			}
+		}
+
 		var grants []relational.CCFRoleAssignment
 		if err := h.db.
-			Where("assignee_type = ? AND assignee_id = ?", relational.RoleAssigneeTypeGroup, relational.NormalizeAssigneeID(groupName)).
-			Order("role_name ASC").
+			Where("assignee_type = ? AND assignee_id IN ?", relational.RoleAssigneeTypeGroup, normNames).
+			Order("assignee_id ASC, role_name ASC").
 			Find(&grants).Error; err != nil {
 			h.sugar.Errorw("Failed to load group role assignments", "error", err)
 			return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 		}
 		for _, a := range grants {
-			out = append(out, effectiveRole{AssignmentID: idString(a.ID), RoleName: a.RoleName, Source: a.Source, Inherited: true, ViaGroup: groupName})
+			out = append(out, effectiveRole{AssignmentID: idString(a.ID), RoleName: a.RoleName, Source: a.Source, Inherited: true, ViaGroup: canonical[a.AssigneeID]})
 		}
 	}
 
