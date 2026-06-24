@@ -571,6 +571,15 @@ definitions:
         type: array
       meta: {}
     type: object
+  handler.GenericDataListResponse-handler_effectiveRole:
+    properties:
+      data:
+        description: Items from the list response
+        items:
+          $ref: '#/definitions/handler.effectiveRole'
+        type: array
+      meta: {}
+    type: object
   handler.GenericDataListResponse-handler_groupMemberResponse:
     properties:
       data:
@@ -1027,6 +1036,15 @@ definitions:
         description: Items from the list response
         items:
           $ref: '#/definitions/poam.PoamItemRiskLink'
+        type: array
+      meta: {}
+    type: object
+  handler.GenericDataListResponse-relational_CCFRoleAssignment:
+    properties:
+      data:
+        description: Items from the list response
+        items:
+          $ref: '#/definitions/relational.CCFRoleAssignment'
         type: array
       meta: {}
     type: object
@@ -1710,6 +1728,13 @@ definitions:
         - $ref: '#/definitions/poam.PoamItemRiskLink'
         description: Wrapped response data
     type: object
+  handler.GenericDataResponse-relational_CCFRoleAssignment:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/relational.CCFRoleAssignment'
+        description: Wrapped response data
+    type: object
   handler.GenericDataResponse-relational_Filter:
     properties:
       data:
@@ -2080,6 +2105,19 @@ definitions:
       title:
         type: string
     type: object
+  handler.createRoleAssignmentRequest:
+    properties:
+      assigneeId:
+        type: string
+      assigneeType:
+        type: string
+      roleName:
+        type: string
+    required:
+    - assigneeId
+    - assigneeType
+    - roleName
+    type: object
   handler.createSystemNotificationDestinationRequest:
     properties:
       destinationTarget:
@@ -2089,6 +2127,22 @@ definitions:
     required:
     - destinationTarget
     - providerType
+    type: object
+  handler.effectiveRole:
+    properties:
+      assignmentId:
+        type: string
+      inherited:
+        description: false = a direct grant to the subject
+        type: boolean
+      roleName:
+        type: string
+      source:
+        description: config (immutable) | manual (deletable)
+        type: string
+      viaGroup:
+        description: the granting group's name, when inherited
+        type: string
     type: object
   handler.evidenceLinkResponse:
     properties:
@@ -6936,6 +6990,34 @@ definitions:
           $ref: '#/definitions/relational.SetParameter'
         type: array
     type: object
+  relational.CCFRoleAssignment:
+    properties:
+      assigneeId:
+        description: AssigneeID is the user email or the group name, normalized to
+          lower-case.
+        type: string
+      assigneeType:
+        description: AssigneeType is RoleAssigneeTypeUser or RoleAssigneeTypeGroup.
+        type: string
+      createdAt:
+        type: string
+      id:
+        type: string
+      roleName:
+        description: |-
+          RoleName is a manifest role (admin/viewer/auditor/contributor/agent or an operator role).
+          The handler validates it against the authz manifest before insert so a typo is rejected
+          rather than silently granting nothing.
+        type: string
+      source:
+        description: |-
+          Source is RoleAssignmentSourceConfig (immutable, owned by BCH-1334) or
+          RoleAssignmentSourceManual (admin-owned, deletable). Defaults to manual so an API insert
+          that omits it is an ad-hoc grant.
+        type: string
+      updatedAt:
+        type: string
+    type: object
   relational.Capability:
     properties:
       componentDefinition:
@@ -11019,6 +11101,39 @@ paths:
       summary: Remove a group member
       tags:
       - Groups
+  /admin/groups/{id}/roles:
+    get:
+      description: Returns the roles assigned directly to a native CCF group.
+      parameters:
+      - description: Group ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-relational_CCFRoleAssignment'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Get a group's roles
+      tags:
+      - RoleAssignments
   /admin/groups/{id}/sso-mappings:
     get:
       description: Lists the external IdP groups mapped to a native CCF user group
@@ -11666,6 +11781,113 @@ paths:
       summary: Update risk template
       tags:
       - Risk Templates
+  /admin/role-assignments:
+    get:
+      description: Lists system-level role assignments, optionally filtered by assignee
+        (type and/or id) or role.
+      parameters:
+      - description: Filter by assignee type (user|group)
+        in: query
+        name: assigneeType
+        type: string
+      - description: Filter by assignee id (email or group name)
+        in: query
+        name: assigneeId
+        type: string
+      - description: Filter by role name
+        in: query
+        name: roleName
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-relational_CCFRoleAssignment'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: List role assignments
+      tags:
+      - RoleAssignments
+    post:
+      consumes:
+      - application/json
+      description: 'Grants a manifest role to a user (by email) or group (by name),
+        system-wide. The grant is source=manual and becomes the PDP''s source of truth
+        for that subject''s role. The assignee is not required to exist: a user may
+        be granted ahead of signup, and a group grant is matched by name and stays
+        inert until a group with that name exists (a rename orphans it) — consistent
+        with the prior file-based model.'
+      parameters:
+      - description: Role assignment
+        in: body
+        name: assignment
+        required: true
+        schema:
+          $ref: '#/definitions/handler.createRoleAssignmentRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-relational_CCFRoleAssignment'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Create a role assignment
+      tags:
+      - RoleAssignments
+  /admin/role-assignments/{id}:
+    delete:
+      description: Deletes a manual role assignment. Config-sourced grants (managed
+        by the boot reconcile) cannot be deleted and return 409.
+      parameters:
+      - description: Role assignment ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Delete a role assignment
+      tags:
+      - RoleAssignments
   /admin/subject-templates:
     get:
       description: List subject templates with optional filters and pagination.
@@ -11986,6 +12208,41 @@ paths:
       summary: Update user details
       tags:
       - Users
+  /admin/users/{id}/roles:
+    get:
+      description: 'Returns a user''s effective roles: direct grants plus roles inherited
+        from the user''s native groups (each inherited entry names the granting group).
+        Matches what the PDP enforces.'
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-handler_effectiveRole'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Get a user's effective roles
+      tags:
+      - RoleAssignments
   /agent/heartbeat:
     post:
       consumes:
