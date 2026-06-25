@@ -32485,6 +32485,10 @@
                 "displayName": {
                     "type": "string"
                 },
+                "inherited": {
+                    "description": "Inherited is true when the membership was materialized from an SSO IdP group (source=sso).\nSuch memberships are owned by the IdP: the remove-member API refuses to delete them, so the\nUI must surface them as read-only rather than offering a Remove action that 403s.",
+                    "type": "boolean"
+                },
                 "userId": {
                     "type": "string"
                 }
@@ -32510,6 +32514,10 @@
                 },
                 "name": {
                     "description": "Name is the group's policy-facing identifier — the token that appears in\nsubject.groups and that role-assignment config matches on. Unique among live groups.",
+                    "type": "string"
+                },
+                "source": {
+                    "description": "Source records how the group came to exist: GroupSourceManual (an admin created it via the API)\nor GroupSourceSSO (SSO provisioning materialized it from a group_mapping value). It defaults to\nmanual so admin-created and pre-attribution groups are never auto-removed. Only sso groups that\nhave become fully unreferenced are cleaned up at boot (CleanupOrphanedSSOGroups); the source is\nset only when the group is first created, so an admin group that later appears in SSO config\nstays manual.",
                     "type": "string"
                 },
                 "updatedAt": {
@@ -41893,6 +41901,10 @@
                 "provider": {
                     "type": "string"
                 },
+                "source": {
+                    "description": "Source records who owns the mapping: MappingSourceConfig (declared in a provider's\ngroup_mapping and reconciled by boot provisioning) or MappingSourceManual (added at runtime via\nthe admin API). It defaults to config so pre-attribution rows — all of which came from config\nprovisioning — are reconciled declaratively: provisioning prunes config rows the config no\nlonger declares, while manual rows are never auto-removed.",
+                    "type": "string"
+                },
                 "updatedAt": {
                     "type": "string"
                 }
@@ -42516,6 +42528,10 @@
                 },
                 "name": {
                     "description": "Name is the group's policy-facing identifier — the token that appears in\nsubject.groups and that role-assignment config matches on. Unique among live groups.",
+                    "type": "string"
+                },
+                "source": {
+                    "description": "Source records how the group came to exist: GroupSourceManual (an admin created it via the API)\nor GroupSourceSSO (SSO provisioning materialized it from a group_mapping value). It defaults to\nmanual so admin-created and pre-attribution groups are never auto-removed. Only sso groups that\nhave become fully unreferenced are cleaned up at boot (CleanupOrphanedSSOGroups); the source is\nset only when the group is first created, so an admin group that later appears in SSO config\nstays manual.",
                     "type": "string"
                 },
                 "updatedAt": {

@@ -90,6 +90,13 @@ func provisionSSOGroupMappings(logger *zap.SugaredLogger, db *gorm.DB, ssoCfg *c
 			logger.Errorw("Failed to provision SSO group mappings", "provider", name, "error", err)
 		}
 	}
+
+	// After every provider's mappings are applied, reclaim sso-created groups that nothing references
+	// anymore (e.g. a group left behind by a renamed group_mapping value). Best-effort: a failure is
+	// logged, not fatal.
+	if err := relational.CleanupOrphanedSSOGroups(db); err != nil {
+		logger.Errorw("Failed to clean up orphaned SSO groups", "error", err)
+	}
 }
 
 func (h *SSOHandler) Register(api *echo.Group) {

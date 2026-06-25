@@ -128,6 +128,7 @@ func (suite *GroupsApiIntegrationSuite) TestMembershipLifecycleAndUserSurfacing(
 	suite.Require().NoError(json.Unmarshal(members.Body.Bytes(), &memberResp))
 	suite.Require().Len(memberResp.Data, 1)
 	suite.Equal(userID, memberResp.Data[0].UserID)
+	suite.False(memberResp.Data[0].Inherited, "a manually added member is not inherited")
 
 	// Membership surfaces on the admin user view.
 	userView := suite.do("GET", "/api/admin/users/"+userID, nil)
@@ -210,6 +211,15 @@ func (suite *GroupsApiIntegrationSuite) TestRemoveSSOMemberReturns403() {
 		GroupID: groupID,
 		Source:  relational.MembershipSourceSSO,
 	}).Error)
+
+	// The member list flags the sso membership as inherited so the UI can render it read-only
+	// instead of offering a Remove action that would 403.
+	members := suite.do("GET", "/api/admin/groups/"+groupID+"/members", nil)
+	suite.Require().Equal(200, members.Code)
+	var memberResp GenericDataListResponse[groupMemberResponse]
+	suite.Require().NoError(json.Unmarshal(members.Body.Bytes(), &memberResp))
+	suite.Require().Len(memberResp.Data, 1)
+	suite.True(memberResp.Data[0].Inherited, "an sso-synced member must be flagged inherited")
 
 	rem := suite.do("DELETE", "/api/admin/groups/"+groupID+"/members/"+userID, nil)
 	suite.Require().Equal(403, rem.Code, rem.Body.String())

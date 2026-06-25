@@ -2182,6 +2182,12 @@ definitions:
     properties:
       displayName:
         type: string
+      inherited:
+        description: |-
+          Inherited is true when the membership was materialized from an SSO IdP group (source=sso).
+          Such memberships are owned by the IdP: the remove-member API refuses to delete them, so the
+          UI must surface them as read-only rather than offering a Remove action that 403s.
+        type: boolean
       userId:
         type: string
     type: object
@@ -2201,6 +2207,15 @@ definitions:
         description: |-
           Name is the group's policy-facing identifier — the token that appears in
           subject.groups and that role-assignment config matches on. Unique among live groups.
+        type: string
+      source:
+        description: |-
+          Source records how the group came to exist: GroupSourceManual (an admin created it via the API)
+          or GroupSourceSSO (SSO provisioning materialized it from a group_mapping value). It defaults to
+          manual so admin-created and pre-attribution groups are never auto-removed. Only sso groups that
+          have become fully unreferenced are cleaned up at boot (CleanupOrphanedSSOGroups); the source is
+          set only when the group is first created, so an admin group that later appears in SSO config
+          stays manual.
         type: string
       updatedAt:
         type: string
@@ -8429,6 +8444,14 @@ definitions:
         type: string
       provider:
         type: string
+      source:
+        description: |-
+          Source records who owns the mapping: MappingSourceConfig (declared in a provider's
+          group_mapping and reconciled by boot provisioning) or MappingSourceManual (added at runtime via
+          the admin API). It defaults to config so pre-attribution rows — all of which came from config
+          provisioning — are reconciled declaratively: provisioning prunes config rows the config no
+          longer declares, while manual rows are never auto-removed.
+        type: string
       updatedAt:
         type: string
     type: object
@@ -8848,6 +8871,15 @@ definitions:
         description: |-
           Name is the group's policy-facing identifier — the token that appears in
           subject.groups and that role-assignment config matches on. Unique among live groups.
+        type: string
+      source:
+        description: |-
+          Source records how the group came to exist: GroupSourceManual (an admin created it via the API)
+          or GroupSourceSSO (SSO provisioning materialized it from a group_mapping value). It defaults to
+          manual so admin-created and pre-attribution groups are never auto-removed. Only sso groups that
+          have become fully unreferenced are cleaned up at boot (CleanupOrphanedSSOGroups); the source is
+          set only when the group is first created, so an admin group that later appears in SSO config
+          stays manual.
         type: string
       updatedAt:
         type: string
