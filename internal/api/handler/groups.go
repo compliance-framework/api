@@ -43,6 +43,10 @@ func (h *GroupsHandler) Register(api *echo.Group) {
 type groupMemberResponse struct {
 	UserID      string `json:"userId"`
 	DisplayName string `json:"displayName"`
+	// Inherited is true when the membership was materialized from an SSO IdP group (source=sso).
+	// Such memberships are owned by the IdP: the remove-member API refuses to delete them, so the
+	// UI must surface them as read-only rather than offering a Remove action that 403s.
+	Inherited bool `json:"inherited"`
 }
 
 type groupResponse struct {
@@ -288,15 +292,24 @@ func (h *GroupsHandler) ListMembers(ctx echo.Context) error {
 		return h.groupError(ctx, err)
 	}
 
-	// Two-step lookup (member ids, then the users) avoids a column-to-column uuid = text
+	// Two-step lookup (membership rows, then the users) avoids a column-to-column uuid = text
 	// join between ccf_users.id (uuid) and ccf_user_groups.user_id (text), which Postgres
-	// rejects; the string IN clause coerces cleanly on both Postgres and SQLite.
-	var memberIDs []string
-	if err := h.db.Model(&relational.UserGroupMembership{}).
+	// rejects; the string IN clause coerces cleanly on both Postgres and SQLite. We keep each
+	// membership's source so the response can flag SSO-synced (inherited) members the remove
+	// API won't delete. The (user_id, group_id) unique index means at most one row per user.
+	var memberships []relational.UserGroupMembership
+	if err := h.db.
 		Where("group_id = ?", group.ID.String()).
-		Pluck("user_id", &memberIDs).Error; err != nil {
+		Find(&memberships).Error; err != nil {
 		h.sugar.Errorw("Failed to list group member ids", "error", err)
 		return ctx.JSON(500, api.NewError(err))
+	}
+
+	sourceByUser := make(map[string]string, len(memberships))
+	memberIDs := make([]string, 0, len(memberships))
+	for _, m := range memberships {
+		sourceByUser[m.UserID] = m.Source
+		memberIDs = append(memberIDs, m.UserID)
 	}
 
 	var users []relational.User
@@ -318,6 +331,7 @@ func (h *GroupsHandler) ListMembers(ctx echo.Context) error {
 		responses = append(responses, groupMemberResponse{
 			UserID:      u.ID.String(),
 			DisplayName: UserDisplayName(u),
+			Inherited:   sourceByUser[u.ID.String()] == relational.MembershipSourceSSO,
 		})
 	}
 
@@ -517,6 +531,8 @@ func (h *GroupsHandler) AddSSOMapping(ctx echo.Context) error {
 		Provider:      provider,
 		ExternalGroup: externalGroup,
 		GroupID:       group.ID.String(),
+		// Manual so boot provisioning never prunes an admin-added mapping as "not in config".
+		Source: relational.MappingSourceManual,
 	}
 	if err := h.db.Create(mapping).Error; err != nil {
 		if isUniqueViolation(err) {

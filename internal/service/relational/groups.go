@@ -24,11 +24,28 @@ type UserGroup struct {
 	// subject.groups and that role-assignment config matches on. Unique among live groups.
 	Name        string `json:"name" gorm:"uniqueIndex:idx_ccf_groups_name,WHERE:deleted_at IS NULL;not null"`
 	Description string `json:"description"`
+
+	// Source records how the group came to exist: GroupSourceManual (an admin created it via the API)
+	// or GroupSourceSSO (SSO provisioning materialized it from a group_mapping value). It defaults to
+	// manual so admin-created and pre-attribution groups are never auto-removed. Only sso groups that
+	// have become fully unreferenced are cleaned up at boot (CleanupOrphanedSSOGroups); the source is
+	// set only when the group is first created, so an admin group that later appears in SSO config
+	// stays manual.
+	Source string `json:"source" gorm:"not null;default:manual"`
 }
 
 func (UserGroup) TableName() string {
 	return "ccf_groups"
 }
+
+// Group source discriminators (see UserGroup.Source).
+const (
+	// GroupSourceManual is an admin-created native group. It is the default and is never auto-removed.
+	GroupSourceManual = "manual"
+	// GroupSourceSSO is a group materialized by SSO provisioning from a group_mapping value. It is
+	// eligible for boot-time cleanup once nothing references it (no mapping, no members, no grants).
+	GroupSourceSSO = "sso"
+)
 
 // Membership source discriminators (BCH-1331). A membership records how it came to exist so the
 // SSO sync and the admin API never clobber each other: only the IdP owns sso memberships, only an
@@ -59,6 +76,15 @@ type UserGroupMembership struct {
 	// sso rows; the admin remove-member API refuses to delete sso rows (BCH-1331).
 	Source string `json:"source" gorm:"not null;default:manual"`
 
+	// Provider attributes an sso membership to the SSO provider whose mapping materialized it
+	// (matching SSOUserLink.Provider / the login callback's provider name); empty for manual rows and
+	// for sso rows created before attribution existed. Reconcile uses it to de-provision exactly the
+	// rows the logging-in provider granted, so a group_mapping change is treated like the IdP
+	// changing the user's groups, and two providers that map the SAME native group do not pin each
+	// other's memberships — the previous group-scoped reconcile could not tell whose membership a
+	// shared group was, leaving a renamed mapping's old membership stranded as an un-removable sso row.
+	Provider string `json:"provider,omitempty" gorm:"default:''"`
+
 	Group UserGroup `json:"group,omitempty" gorm:"foreignKey:GroupID;references:ID"`
 }
 
@@ -81,12 +107,28 @@ type SSOGroupMapping struct {
 	ExternalGroup string `json:"externalGroup" gorm:"not null;uniqueIndex:idx_ccf_sso_group_mappings_provider_group,priority:2"`
 	GroupID       string `json:"groupId" gorm:"not null;index"`
 
+	// Source records who owns the mapping: MappingSourceConfig (declared in a provider's
+	// group_mapping and reconciled by boot provisioning) or MappingSourceManual (added at runtime via
+	// the admin API). It defaults to config so pre-attribution rows — all of which came from config
+	// provisioning — are reconciled declaratively: provisioning prunes config rows the config no
+	// longer declares, while manual rows are never auto-removed.
+	Source string `json:"source" gorm:"not null;default:config"`
+
 	Group UserGroup `json:"group,omitempty" gorm:"foreignKey:GroupID;references:ID"`
 }
 
 func (SSOGroupMapping) TableName() string {
 	return "ccf_sso_group_mappings"
 }
+
+// SSO group-mapping source discriminators (see SSOGroupMapping.Source).
+const (
+	// MappingSourceConfig is a mapping declared in a provider's group_mapping. Boot provisioning owns
+	// it: it is created/re-pointed to match config and pruned when config drops it.
+	MappingSourceConfig = "config"
+	// MappingSourceManual is a mapping added at runtime via the admin API. Provisioning never prunes it.
+	MappingSourceManual = "manual"
+)
 
 // GroupNamesForUser returns the names of the native CCF groups the user belongs to, sorted
 // and de-duplicated. It is the single native-membership query shared by the authz group
