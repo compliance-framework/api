@@ -37,7 +37,8 @@ func TestGetControlIDsForAllProfilesFallsBackForProfilesMissingPivotRows(t *test
 	).Error)
 
 	handler := NewSystemSecurityPlanHandler(zap.NewNop().Sugar(), db, nil, nil)
-	handler.profileCache.Store(profileWithoutPivot, []string{"AC-1", "ac-2"})
+	profileControlsCache.store(profileWithoutPivot, []string{"AC-1", "ac-2"})
+	t.Cleanup(func() { profileControlsCache.invalidate(profileWithoutPivot) })
 
 	controlIDs, err := handler.getControlIDsForAllProfiles([]relational.Profile{
 		{UUIDModel: relational.UUIDModel{ID: &profileWithPivot}},
@@ -46,6 +47,50 @@ func TestGetControlIDsForAllProfilesFallsBackForProfilesMissingPivotRows(t *test
 
 	require.NoError(t, err)
 	require.ElementsMatch(t, []string{"ac-1", "ac-2"}, controlIDs)
+}
+
+func TestExtractControlIDsFromProfileDoesNotCacheEmptyResult(t *testing.T) {
+	// Regression: a profile whose import has no include-controls resolves to zero
+	// controls transiently. That empty result must NOT be cached, otherwise the
+	// in-memory profileCache is poisoned for the process lifetime (it is never
+	// invalidated when the profile's imports later change), causing attaches to
+	// fail with "no controls were resolved from the selected profile".
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+
+	handler := NewSystemSecurityPlanHandler(zap.NewNop().Sugar(), db, nil, nil)
+
+	profileID := uuid.New()
+	// No imports -> resolves to zero controls without touching the DB.
+	profile := relational.Profile{UUIDModel: relational.UUIDModel{ID: &profileID}}
+
+	controlIDs, err := handler.extractControlIDsFromProfile(&profile)
+	require.NoError(t, err)
+	require.Empty(t, controlIDs)
+
+	_, cached := profileControlsCache.load(profileID)
+	require.False(t, cached, "empty resolution must not be cached")
+}
+
+func TestSyncProfileControlsInvalidatesCache(t *testing.T) {
+	// Regression: when a profile's controls change, SyncProfileControls rewrites
+	// the profile_controls pivot. It must also invalidate the in-memory cache,
+	// otherwise getControlIDsForProfile keeps returning the stale cached set
+	// instead of the freshly-resolved controls. The invalidation is deferred, so
+	// it runs on every return path — including this early-error one (no schema).
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+
+	profileID := uuid.New()
+	profileControlsCache.store(profileID, []string{"stale-1", "stale-2"})
+	t.Cleanup(func() { profileControlsCache.invalidate(profileID) })
+
+	// Resolution fails (no profiles table), but the deferred invalidation must run.
+	_, err = SyncProfileControls(db, profileID)
+	require.Error(t, err)
+
+	_, cached := profileControlsCache.load(profileID)
+	require.False(t, cached, "SyncProfileControls must invalidate the cached entry")
 }
 
 func TestNormalizeControlIDsDeduplicatesMixedCase(t *testing.T) {
