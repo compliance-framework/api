@@ -110,9 +110,57 @@ func buildProfileSummaries(profiles []relational.Profile) ([]profileSummary, err
 type SystemSecurityPlanHandler struct {
 	sugar             *zap.SugaredLogger
 	db                *gorm.DB
-	profileCache      sync.Map // map[uuid.UUID][]string
 	suggestionService *relational.SystemComponentSuggestionService
 	jobEnqueuer       SSPJobEnqueuer
+}
+
+// profileControlCache memoizes the set of resolved control IDs for a profile.
+//
+// It is a process-wide singleton (profileControlsCache) rather than per-handler
+// state on purpose: profile control resolution is a pure function of persisted
+// data, and the cache must stay coherent across every handler that reads or
+// mutates profiles (the SSP handler reads it, while the profile/import handlers
+// change a profile's controls). Writes go through store, which never caches an
+// empty set — a profile resolves to zero controls transiently while its imports
+// are being configured, and caching that would poison the entry for the process
+// lifetime. Invalidation is centralized in SyncProfileControls, the single
+// chokepoint that rewrites a profile's resolved controls in the profile_controls
+// pivot table.
+type profileControlCache struct {
+	entries sync.Map // map[uuid.UUID][]string
+}
+
+var profileControlsCache = &profileControlCache{}
+
+// load returns the cached control IDs for a profile, if present and well-typed.
+// A malformed entry (only possible via test seams) is dropped and reported as a
+// miss.
+func (c *profileControlCache) load(profileID uuid.UUID) ([]string, bool) {
+	val, ok := c.entries.Load(profileID)
+	if !ok {
+		return nil, false
+	}
+	controlIDs, ok := val.([]string)
+	if !ok {
+		c.entries.Delete(profileID)
+		return nil, false
+	}
+	return controlIDs, true
+}
+
+// store caches the resolved control IDs for a profile. Empty results are never
+// cached — see the type doc.
+func (c *profileControlCache) store(profileID uuid.UUID, controlIDs []string) {
+	if len(controlIDs) == 0 {
+		return
+	}
+	c.entries.Store(profileID, controlIDs)
+}
+
+// invalidate drops any cached entry for a profile so the next read repopulates
+// from the profile_controls pivot table. Safe to call even when no entry exists.
+func (c *profileControlCache) invalidate(profileID uuid.UUID) {
+	c.entries.Delete(profileID)
 }
 
 type SystemComponentRequest struct {
@@ -150,14 +198,10 @@ func NewSystemSecurityPlanHandler(sugar *zap.SugaredLogger, db *gorm.DB, evidenc
 // 3. Fallback to full recursive resolution (and updates the cache/pivot table)
 func (h *SystemSecurityPlanHandler) getControlIDsForProfile(profileID uuid.UUID) ([]string, error) {
 	// 1. Check in-memory cache first
-	if val, ok := h.profileCache.Load(profileID); ok {
-		if cachedControlIDs, ok := val.([]string); ok {
-			dedupedControlIDs := dedupeControlIDs(cachedControlIDs)
-			h.profileCache.Store(profileID, dedupedControlIDs)
-			return dedupedControlIDs, nil
-		}
-		h.sugar.Warnw("profileCache contains value of unexpected type", "profileId", profileID, "actualType", fmt.Sprintf("%T", val))
-		h.profileCache.Delete(profileID)
+	if cachedControlIDs, ok := profileControlsCache.load(profileID); ok {
+		dedupedControlIDs := dedupeControlIDs(cachedControlIDs)
+		profileControlsCache.store(profileID, dedupedControlIDs)
+		return dedupedControlIDs, nil
 	}
 
 	// 2. Check the ProfileControl pivot table in DB
@@ -185,15 +229,10 @@ func (h *SystemSecurityPlanHandler) getControlIDsForProfile(profileID uuid.UUID)
 	}
 
 	controlIDs = dedupeControlIDs(controlIDs)
-	// Don't cache empty results. A profile commonly resolves to zero controls
-	// transiently (e.g. an import was just added but its include-controls aren't
-	// set yet). Caching that empty set would poison this in-memory cache for the
-	// lifetime of the process, since it is never invalidated when the profile's
-	// imports later change. Skipping the store lets a subsequent call re-resolve
-	// against the now-populated profile_controls pivot.
-	if len(controlIDs) > 0 {
-		h.profileCache.Store(profileID, controlIDs)
-	}
+	// store skips empty results (see profileControlCache): a profile resolves to
+	// zero controls transiently while its imports are being configured, and that
+	// empty state must not be cached.
+	profileControlsCache.store(profileID, controlIDs)
 	return controlIDs, nil
 }
 
@@ -4566,12 +4605,8 @@ func (h *SystemSecurityPlanHandler) CreateImplementedRequirementStatementByCompo
 // extractControlIDsFromProfile resolves a profile and extracts all control IDs
 func (h *SystemSecurityPlanHandler) extractControlIDsFromProfile(profile *relational.Profile) (controlIDs []string, err error) {
 	if profile.ID != nil {
-		if val, ok := h.profileCache.Load(*profile.ID); ok {
-			if cachedControlIDs, ok := val.([]string); ok {
-				return cachedControlIDs, nil
-			}
-			h.sugar.Warnw("profileCache contains value of unexpected type", "profileId", *profile.ID, "actualType", fmt.Sprintf("%T", val))
-			h.profileCache.Delete(*profile.ID)
+		if cachedControlIDs, ok := profileControlsCache.load(*profile.ID); ok {
+			return cachedControlIDs, nil
 		}
 	}
 
@@ -4597,11 +4632,9 @@ func (h *SystemSecurityPlanHandler) extractControlIDsFromProfile(profile *relati
 	}
 	controlIDs = dedupeControlIDs(controlIDs)
 
-	// Don't cache empty results — see getControlIDsForProfile. An import with no
-	// include-controls resolves to zero controls and would otherwise poison the
-	// cache permanently, because it is never invalidated when the profile changes.
-	if profile.ID != nil && len(controlIDs) > 0 {
-		h.profileCache.Store(*profile.ID, controlIDs)
+	// store skips empty results (see profileControlCache).
+	if profile.ID != nil {
+		profileControlsCache.store(*profile.ID, controlIDs)
 	}
 
 	h.sugar.Infow("Extracted control IDs from profile", "count", len(controlIDs))
