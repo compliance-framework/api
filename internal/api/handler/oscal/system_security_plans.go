@@ -185,7 +185,15 @@ func (h *SystemSecurityPlanHandler) getControlIDsForProfile(profileID uuid.UUID)
 	}
 
 	controlIDs = dedupeControlIDs(controlIDs)
-	h.profileCache.Store(profileID, controlIDs)
+	// Don't cache empty results. A profile commonly resolves to zero controls
+	// transiently (e.g. an import was just added but its include-controls aren't
+	// set yet). Caching that empty set would poison this in-memory cache for the
+	// lifetime of the process, since it is never invalidated when the profile's
+	// imports later change. Skipping the store lets a subsequent call re-resolve
+	// against the now-populated profile_controls pivot.
+	if len(controlIDs) > 0 {
+		h.profileCache.Store(profileID, controlIDs)
+	}
 	return controlIDs, nil
 }
 
@@ -4589,7 +4597,10 @@ func (h *SystemSecurityPlanHandler) extractControlIDsFromProfile(profile *relati
 	}
 	controlIDs = dedupeControlIDs(controlIDs)
 
-	if profile.ID != nil {
+	// Don't cache empty results — see getControlIDsForProfile. An import with no
+	// include-controls resolves to zero controls and would otherwise poison the
+	// cache permanently, because it is never invalidated when the profile changes.
+	if profile.ID != nil && len(controlIDs) > 0 {
 		h.profileCache.Store(*profile.ID, controlIDs)
 	}
 

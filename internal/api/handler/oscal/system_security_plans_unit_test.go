@@ -48,6 +48,29 @@ func TestGetControlIDsForAllProfilesFallsBackForProfilesMissingPivotRows(t *test
 	require.ElementsMatch(t, []string{"ac-1", "ac-2"}, controlIDs)
 }
 
+func TestExtractControlIDsFromProfileDoesNotCacheEmptyResult(t *testing.T) {
+	// Regression: a profile whose import has no include-controls resolves to zero
+	// controls transiently. That empty result must NOT be cached, otherwise the
+	// in-memory profileCache is poisoned for the process lifetime (it is never
+	// invalidated when the profile's imports later change), causing attaches to
+	// fail with "no controls were resolved from the selected profile".
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+
+	handler := NewSystemSecurityPlanHandler(zap.NewNop().Sugar(), db, nil, nil)
+
+	profileID := uuid.New()
+	// No imports -> resolves to zero controls without touching the DB.
+	profile := relational.Profile{UUIDModel: relational.UUIDModel{ID: &profileID}}
+
+	controlIDs, err := handler.extractControlIDsFromProfile(&profile)
+	require.NoError(t, err)
+	require.Empty(t, controlIDs)
+
+	_, cached := handler.profileCache.Load(profileID)
+	require.False(t, cached, "empty resolution must not be cached")
+}
+
 func TestNormalizeControlIDsDeduplicatesMixedCase(t *testing.T) {
 	require.ElementsMatch(t, []string{"ac-1", "au-2"}, normalizeControlIDs([]string{"ac-1", "AC-1", "Au-2"}))
 }
