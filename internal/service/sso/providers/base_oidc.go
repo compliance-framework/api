@@ -219,16 +219,7 @@ func splitDisplayName(name string) (string, string) {
 }
 
 func (p *BaseOIDCProvider) extractGroups(claims map[string]interface{}) []string {
-	claimGroups := buildClaimGroups(claims)
-
-	var mappedGroups []string
-	for claimGroup := range claimGroups {
-		if groups, ok := p.config.GroupMapping[claimGroup]; ok {
-			mappedGroups = append(mappedGroups, groups...)
-		}
-	}
-
-	return mappedGroups
+	return mapClaimGroups(p.config.GroupMapping, claims)
 }
 
 func (p *BaseOIDCProvider) GetProviderConfig() *config.SSOProviderConfig {

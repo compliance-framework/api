@@ -163,16 +163,7 @@ func (p *BaseOAuthProvider) fetchEmail(ctx context.Context, client *http.Client)
 }
 
 func (p *BaseOAuthProvider) extractGroups(claims map[string]interface{}) []string {
-	claimGroups := buildClaimGroups(claims)
-
-	var mappedGroups []string
-	for claimGroup := range claimGroups {
-		if groups, ok := p.config.GroupMapping[claimGroup]; ok {
-			mappedGroups = append(mappedGroups, groups...)
-		}
-	}
-
-	return mappedGroups
+	return mapClaimGroups(p.config.GroupMapping, claims)
 }
 
 func (p *BaseOAuthProvider) GetProviderConfig() *config.SSOProviderConfig {
