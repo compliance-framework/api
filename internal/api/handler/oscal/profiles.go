@@ -1292,6 +1292,12 @@ func GetControlIDsMapFromProfile(profile *relational.Profile, db *gorm.DB) (map[
 
 // SyncProfileControls resolves all controls for a profile and updates the ProfileControl pivot table.
 func SyncProfileControls(db *gorm.DB, profileID uuid.UUID) ([]string, error) {
+	// Invalidate the in-memory resolution cache once the pivot has been rewritten.
+	// Deferring runs this AFTER the transaction below commits, so a reader that
+	// repopulates the cache from pre-commit (old) pivot rows mid-transaction is
+	// still cleared and re-resolves against the new rows on its next read.
+	defer profileControlsCache.invalidate(profileID)
+
 	profile, err := FindFullProfile(db, profileID)
 	if err != nil {
 		return nil, err
