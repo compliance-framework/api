@@ -1,6 +1,9 @@
 package providers
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 // buildClaimGroups creates claim-based group keys from user claims
 // For example: "hd:example.com", "email:user@example.com", "groups:admin"
@@ -39,4 +42,35 @@ func claimGroupKeys(claims map[string]interface{}) []string {
 		keys = append(keys, k)
 	}
 	return keys
+}
+
+// mapClaimGroups translates a user's claim-group identifiers through the provider's configured
+// group_mapping and returns the native CCF group name(s) those claims grant.
+//
+// Matching is CASE-INSENSITIVE, and deliberately so: viper lowercases every group_mapping key when
+// it loads sso.yaml (see config.LoadSSOConfig), whereas the claim values come straight from the IdP
+// with their original casing — an Active Directory group is typically something like
+// "rAppMyGroup". A case-sensitive lookup therefore silently drops every mapping whose IdP group name
+// contains an uppercase letter, so the user's groups resolve to an empty set and required-group
+// gating rejects them. Folding both sides to lower case here mirrors what the DB-backed reconcile
+// path already does (relational.ReconcileSSOGroupMemberships) and keeps the two translation paths in
+// agreement.
+func mapClaimGroups(mapping map[string][]string, claims map[string]interface{}) []string {
+	if len(mapping) == 0 {
+		return nil
+	}
+
+	lowered := make(map[string][]string, len(mapping))
+	for key, groups := range mapping {
+		lowered[strings.ToLower(strings.TrimSpace(key))] = groups
+	}
+
+	var mappedGroups []string
+	for claimGroup := range buildClaimGroups(claims) {
+		if groups, ok := lowered[strings.ToLower(strings.TrimSpace(claimGroup))]; ok {
+			mappedGroups = append(mappedGroups, groups...)
+		}
+	}
+
+	return mappedGroups
 }
