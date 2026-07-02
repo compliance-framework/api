@@ -15,3 +15,10 @@ Replies:
 **lisa implementation guidance:** Aligning — `/lineage/roots` will return the same `svc.ListResponse` envelope as `/children` (additive for consumers reading `.data`). Switching to `svc.NewListResponse(nodes, len(nodes), 1, len(nodes))`, updating the `@Success` annotation to `svc.ListResponse[LineageNode]`, and regenerating docs.
 
 <!-- lisa-guidance-posted -->
+
+lisa-addressed:
+PERF FIX (post-approval, found in e2e): GET /api/lineage/roots hung ("insta locks") on a populated catalog.
+- Root cause: GetEvidenceStatusCountsByFilters ran one `SELECT DISTINCT ON (uuid) * FROM evidences` (full latest-stream scan) PER filter — O(filters) full-table scans. Reproduced: 1 standard catalog / 150 controls / 150 filters / 5000 evidence = 28.95s (empty stays ~2ms).
+- Fix: rewrote it as a single query per ~50-filter chunk — a MATERIALIZED `latest` CTE (DISTINCT ON runs ONCE) + UNION ALL of per-filter aggregations, with a recursive labelScopeToSQL builder mirroring getScopeClause (=, !=, AND/OR nesting). Same dataset now 414ms (~70x). Correctness asserted: all 150 controls roll up satisfied / 100%.
+- Also fixed internal/tests/migrate.go: the hand-maintained TestMigrator AutoMigrate list was missing relational.ControlLink, so any lineage integration test 500'd on `relation "control_links" does not exist`. Added it (catalog_type column is picked up automatically since the list AutoMigrates relational.Catalog).
+- Added internal/api/handler/lineage_perf_integration_test.go (build tag integration): reproduces the scenario, asserts correctness, and guards <5s to prevent an N+1 regression.
