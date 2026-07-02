@@ -88,6 +88,9 @@ func bindEnvironmentVariables() {
 	viper.MustBindEnv("authz_driver")
 	viper.MustBindEnv("authz_role_assignments")
 	viper.MustBindEnv("authz_fail_mode")
+	viper.MustBindEnv("authz_endpoint")
+	viper.MustBindEnv("authz_cache_ttl")
+	viper.MustBindEnv("authz_cedar_policy_dir")
 }
 
 func init() {
