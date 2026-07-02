@@ -415,3 +415,43 @@ func TestCatalog_StandardTypeOmitsProp(t *testing.T) {
 		t.Errorf("default catalog type = %q, want %q", back.CatalogType, CatalogTypeStandard)
 	}
 }
+
+func TestCatalog_CatalogTypePropNotDuplicatedOnRoundTrip(t *testing.T) {
+	id := uuid.New()
+
+	// A catalog whose SOURCE metadata already carries the catalog-type prop (the
+	// documented round-trip path) must not accumulate a second copy on marshal.
+	cat := Catalog{
+		UUIDModel:   UUIDModel{ID: &id},
+		CatalogType: CatalogTypePolicy,
+		Metadata: Metadata{
+			Title:        "Access Control Policy",
+			Version:      "1.0.0",
+			OscalVersion: "1.1.3",
+			Props: []Prop{
+				{Name: catalogTypePropName, Ns: CCFPropNamespace, Value: CatalogTypePolicy},
+			},
+		},
+	}
+
+	oscal := cat.MarshalOscal()
+	if oscal.Metadata.Props == nil {
+		t.Fatal("expected catalog-type prop in marshalled metadata")
+	}
+	count := 0
+	for _, p := range *oscal.Metadata.Props {
+		if p.Name == catalogTypePropName && p.Ns == CCFPropNamespace {
+			count++
+		}
+	}
+	if count != 1 {
+		t.Fatalf("expected exactly one catalog-type prop after round-trip, got %d", count)
+	}
+
+	// And it still unmarshals cleanly back to the column.
+	var back Catalog
+	back.UnmarshalOscal(*oscal)
+	if back.CatalogType != CatalogTypePolicy {
+		t.Errorf("round-trip catalog type = %q, want %q", back.CatalogType, CatalogTypePolicy)
+	}
+}

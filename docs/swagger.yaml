@@ -544,15 +544,6 @@ definitions:
         type: array
       meta: {}
     type: object
-  handler.GenericDataListResponse-handler_LineageNode:
-    properties:
-      data:
-        description: Items from the list response
-        items:
-          $ref: '#/definitions/handler.LineageNode'
-        type: array
-      meta: {}
-    type: object
   handler.GenericDataListResponse-handler_OverTime_HeartbeatInterval:
     properties:
       data:
@@ -13658,7 +13649,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/handler.GenericDataListResponse-handler_LineageNode'
+            $ref: '#/definitions/service.ListResponse-handler_LineageNode'
         "400":
           description: Bad Request
           schema:

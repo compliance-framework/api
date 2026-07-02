@@ -4242,7 +4242,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/handler.GenericDataListResponse-handler_LineageNode"
+                            "$ref": "#/definitions/service.ListResponse-handler_LineageNode"
                         }
                     },
                     "400": {
@@ -30211,19 +30211,6 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/handler.FilterWithAssociations"
-                    }
-                },
-                "meta": {}
-            }
-        },
-        "handler.GenericDataListResponse-handler_LineageNode": {
-            "type": "object",
-            "properties": {
-                "data": {
-                    "description": "Items from the list response",
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/handler.LineageNode"
                     }
                 },
                 "meta": {}

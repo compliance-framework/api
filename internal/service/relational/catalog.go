@@ -99,11 +99,18 @@ func (c *Catalog) MarshalOscal() *oscalTypes_1_1_3.Catalog {
 		Metadata: *c.Metadata.MarshalOscal(),
 	}
 	// Emit catalog-type as a metadata prop only when it deviates from the default,
-	// so standard catalogs round-trip byte-identically to how they arrived.
+	// so standard catalogs round-trip byte-identically to how they arrived. Strip
+	// any pre-existing catalog-type prop first: a catalog imported WITH the prop in
+	// its body carries it in Metadata.Props, and re-emitting would duplicate it.
 	if c.CatalogType != "" && c.CatalogType != CatalogTypeStandard {
 		props := []oscalTypes_1_1_3.Property{}
 		if cat.Metadata.Props != nil {
-			props = *cat.Metadata.Props
+			for _, p := range *cat.Metadata.Props {
+				if p.Name == catalogTypePropName && p.Ns == CCFPropNamespace {
+					continue
+				}
+				props = append(props, p)
+			}
 		}
 		props = append(props, oscalTypes_1_1_3.Property{
 			Name:  catalogTypePropName,

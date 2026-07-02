@@ -99,7 +99,7 @@ type LineageNode struct {
 // @Param			sspId		query		string	false	"Scope metrics to a System Security Plan"
 // @Param			componentId	query		string	false	"Scope metrics to a system component"
 // @Param			types		query		string	false	"Comma-separated catalog types to include (standard,policy,procedure)"
-// @Success		200			{object}	handler.GenericDataListResponse[LineageNode]
+// @Success		200			{object}	svc.ListResponse[LineageNode]
 // @Failure		400			{object}	api.Error
 // @Failure		500			{object}	api.Error
 // @Security		OAuth2Password
@@ -134,7 +134,14 @@ func (h *LineageHandler) Roots(ctx echo.Context) error {
 	}
 	sortNodes(nodes)
 
-	return ctx.JSON(http.StatusOK, GenericDataListResponse[LineageNode]{Data: nodes})
+	// Roots aren't paginated, but return the same ListResponse envelope as
+	// /children so a UI consumer handles one shape across the lineage family.
+	// Guard the limit against 0 (empty roots) since NewListResponse divides by it.
+	limit := len(nodes)
+	if limit < 1 {
+		limit = 1
+	}
+	return ctx.JSON(http.StatusOK, svc.NewListResponse(nodes, int64(len(nodes)), 1, limit))
 }
 
 // Children godoc
