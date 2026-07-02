@@ -55,13 +55,20 @@ func NewAuthZen(endpoint string, logger *zap.SugaredLogger) (*AuthZen, error) {
 	if logger == nil {
 		logger = zap.NewNop().Sugar()
 	}
-	return &AuthZen{
+	a := &AuthZen{
 		evalURL:      endpoint,
 		evalsURL:     deriveEvaluationsURL(endpoint),
 		wellKnownURL: u.Scheme + "://" + u.Host + "/.well-known/authzen-configuration",
 		client:       &http.Client{Timeout: defaultAuthzenTimeout},
 		logger:       logger,
-	}, nil
+	}
+	// An always-visible startup line confirms the authzen driver is the active engine (vs the
+	// builtin/cedar defaults) and shows exactly where decisions are sent — the first thing to
+	// check when a remote PDP isn't taking effect.
+	logger.Infow("authz: authzen driver initialized",
+		"evalURL", a.evalURL, "evalsURL", a.evalsURL, "wellKnownURL", a.wellKnownURL,
+		"timeout", defaultAuthzenTimeout.String())
+	return a, nil
 }
 
 // deriveEvaluationsURL maps the single-evaluation URL to its batch sibling using the
@@ -142,11 +149,20 @@ func decisionFrom(resp authzenDecisionResponse) Decision {
 
 // Evaluate implements PDP via the AuthZen single Access Evaluation API.
 func (a *AuthZen) Evaluate(ctx context.Context, s Subject, action string, r Resource, reqCtx map[string]any) (Decision, error) {
+	start := time.Now()
 	var resp authzenDecisionResponse
 	if err := a.post(ctx, a.evalURL, toEvaluation(s, action, r, reqCtx), &resp); err != nil {
+		a.logger.Warnw("authz: authzen evaluate failed",
+			"subject", s.ID, "subjectType", s.Type, "action", action,
+			"resource", r.Type, "resourceID", r.ID, "error", err)
 		return Decision{}, err
 	}
-	return decisionFrom(resp), nil
+	dec := decisionFrom(resp)
+	a.logger.Debugw("authz: authzen decision",
+		"subject", s.ID, "subjectType", s.Type, "action", action,
+		"resource", r.Type, "resourceID", r.ID, "allow", dec.Allow, "reason", dec.Reason,
+		"latencyMs", float64(time.Since(start).Microseconds())/1000.0)
+	return dec, nil
 }
 
 // Evaluations implements PDP via the AuthZen batch Access Evaluations API — one HTTP call
@@ -155,21 +171,30 @@ func (a *AuthZen) Evaluations(ctx context.Context, reqs []EvalRequest) ([]Decisi
 	if len(reqs) == 0 {
 		return []Decision{}, nil
 	}
+	start := time.Now()
 	body := authzenEvaluationsRequest{Evaluations: make([]authzenEvaluation, len(reqs))}
 	for i, req := range reqs {
 		body.Evaluations[i] = toEvaluation(req.Subject, req.Action, req.Resource, req.Context)
 	}
 	var resp authzenEvaluationsResponse
 	if err := a.post(ctx, a.evalsURL, body, &resp); err != nil {
+		a.logger.Warnw("authz: authzen batch evaluate failed", "count", len(reqs), "error", err)
 		return nil, err
 	}
 	if len(resp.Evaluations) != len(reqs) {
 		return nil, fmt.Errorf("authz: authzen returned %d decisions for %d requests", len(resp.Evaluations), len(reqs))
 	}
 	out := make([]Decision, len(reqs))
+	allowed := 0
 	for i, d := range resp.Evaluations {
 		out[i] = decisionFrom(d)
+		if out[i].Allow {
+			allowed++
+		}
 	}
+	a.logger.Debugw("authz: authzen batch decision",
+		"count", len(reqs), "allowed", allowed, "denied", len(reqs)-allowed,
+		"latencyMs", float64(time.Since(start).Microseconds())/1000.0)
 	return out, nil
 }
 
@@ -201,6 +226,7 @@ func (a *AuthZen) post(ctx context.Context, endpoint string, payload any, out an
 	if err != nil {
 		return fmt.Errorf("authz: marshal authzen request: %w", err)
 	}
+	a.logger.Debugw("authz: authzen request", "endpoint", endpoint, "body", string(buf))
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(buf))
 	if err != nil {
 		return fmt.Errorf("authz: build authzen request: %w", err)
@@ -222,6 +248,7 @@ func (a *AuthZen) post(ctx context.Context, endpoint string, payload any, out an
 	default:
 		return fmt.Errorf("authz: authzen PDP %s returned %s: %s", endpoint, resp.Status, readSnippet(resp.Body))
 	}
+	a.logger.Debugw("authz: authzen response", "endpoint", endpoint, "status", resp.StatusCode)
 
 	if err := json.NewDecoder(resp.Body).Decode(out); err != nil {
 		return fmt.Errorf("authz: decode authzen response from %s: %w", endpoint, err)
