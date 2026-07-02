@@ -56,6 +56,7 @@ func (t *TestMigrator) Up() error {
 		&relational.Group{},
 		&relational.Control{},
 		&relational.Catalog{},
+		&relational.ControlLink{},
 		&relational.ControlStatementImplementation{},
 		&relational.ImplementedRequirementControlImplementation{},
 		&relational.ControlImplementationSet{},
