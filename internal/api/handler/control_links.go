@@ -64,22 +64,22 @@ type bulkControlLinkResponse struct {
 }
 
 // List godoc
-//
-//	@Summary		List control links
-//	@Description	Lists typed control-to-control links, filterable by either endpoint, paginated.
-//	@Tags			ControlLink
-//	@Produce		json
-//	@Param			sourceCatalogId	query	string	false	"Filter by source catalog id"
-//	@Param			sourceControlId	query	string	false	"Filter by source control id"
-//	@Param			targetCatalogId	query	string	false	"Filter by target catalog id"
-//	@Param			targetControlId	query	string	false	"Filter by target control id"
-//	@Param			page			query	int		false	"Page number"
-//	@Param			limit			query	int		false	"Page size"
-//	@Success		200	{object}	service.ListResponse[relational.ControlLink]
-//	@Failure		400	{object}	api.Error
-//	@Failure		500	{object}	api.Error
-//	@Security		OAuth2Password
-//	@Router			/control-links [get]
+
+// @Summary		List control links
+// @Description	Lists typed control-to-control links, filterable by either endpoint, paginated.
+// @Tags			ControlLink
+// @Produce		json
+// @Param			sourceCatalogId	query		string	false	"Filter by source catalog id"
+// @Param			sourceControlId	query		string	false	"Filter by source control id"
+// @Param			targetCatalogId	query		string	false	"Filter by target catalog id"
+// @Param			targetControlId	query		string	false	"Filter by target control id"
+// @Param			page			query		int		false	"Page number"
+// @Param			limit			query		int		false	"Page size"
+// @Success		200				{object}	svc.ListResponse[relational.ControlLink]
+// @Failure		400				{object}	api.Error
+// @Failure		500				{object}	api.Error
+// @Security		OAuth2Password
+// @Router			/control-links [get]
 func (h *ControlLinkHandler) List(ctx echo.Context) error {
 	pagination, err := h.pagination.ParseParams(ctx)
 	if err != nil {
@@ -128,18 +128,18 @@ func (h *ControlLinkHandler) List(ctx echo.Context) error {
 }
 
 // Create godoc
-//
-//	@Summary		Create a control link
-//	@Description	Creates one typed control-to-control link after validating endpoint existence, the relationship vocabulary matrix, and acyclicity.
-//	@Tags			ControlLink
-//	@Accept			json
-//	@Produce		json
-//	@Param			link	body		createControlLinkRequest	true	"Control link"
-//	@Success		201		{object}	handler.GenericDataResponse[relational.ControlLink]
-//	@Failure		409		{object}	api.Error
-//	@Failure		422		{object}	api.Error
-//	@Security		OAuth2Password
-//	@Router			/control-links [post]
+
+// @Summary		Create a control link
+// @Description	Creates one typed control-to-control link after validating endpoint existence, the relationship vocabulary matrix, and acyclicity.
+// @Tags			ControlLink
+// @Accept			json
+// @Produce		json
+// @Param			link	body		createControlLinkRequest	true	"Control link"
+// @Success		201		{object}	handler.GenericDataResponse[relational.ControlLink]
+// @Failure		409		{object}	api.Error
+// @Failure		422		{object}	api.Error
+// @Security		OAuth2Password
+// @Router			/control-links [post]
 func (h *ControlLinkHandler) Create(ctx echo.Context) error {
 	var req createControlLinkRequest
 	if err := ctx.Bind(&req); err != nil {
@@ -193,17 +193,17 @@ func (h *ControlLinkHandler) Create(ctx echo.Context) error {
 }
 
 // BulkCreate godoc
-//
-//	@Summary		Bulk create control links
-//	@Description	Idempotently upserts many control links (ON CONFLICT DO NOTHING). Invalid vocabulary/existence rejects the batch; cycles and duplicates are skipped.
-//	@Tags			ControlLink
-//	@Accept			json
-//	@Produce		json
-//	@Param			links	body		bulkControlLinkRequest	true	"Control links"
-//	@Success		200		{object}	handler.GenericDataResponse[bulkControlLinkResponse]
-//	@Failure		422		{object}	api.Error
-//	@Security		OAuth2Password
-//	@Router			/control-links/bulk [post]
+
+// @Summary		Bulk create control links
+// @Description	Idempotently upserts many control links (ON CONFLICT DO NOTHING). Invalid vocabulary/existence rejects the batch; cycles and duplicates are skipped.
+// @Tags			ControlLink
+// @Accept			json
+// @Produce		json
+// @Param			links	body		bulkControlLinkRequest	true	"Control links"
+// @Success		200		{object}	handler.GenericDataResponse[bulkControlLinkResponse]
+// @Failure		422		{object}	api.Error
+// @Security		OAuth2Password
+// @Router			/control-links/bulk [post]
 func (h *ControlLinkHandler) BulkCreate(ctx echo.Context) error {
 	var req bulkControlLinkRequest
 	if err := ctx.Bind(&req); err != nil {
@@ -267,20 +267,20 @@ func (h *ControlLinkHandler) BulkCreate(ctx echo.Context) error {
 }
 
 // Delete godoc
-//
-//	@Summary		Delete a control link
-//	@Description	Deletes the control link identified by its full composite key (all query params required).
-//	@Tags			ControlLink
-//	@Param			sourceCatalogId	query	string	true	"Source catalog id"
-//	@Param			sourceControlId	query	string	true	"Source control id"
-//	@Param			targetCatalogId	query	string	true	"Target catalog id"
-//	@Param			targetControlId	query	string	true	"Target control id"
-//	@Param			relationshipType	query	string	true	"Relationship type"
-//	@Success		204
-//	@Failure		400	{object}	api.Error
-//	@Failure		404	{object}	api.Error
-//	@Security		OAuth2Password
-//	@Router			/control-links [delete]
+
+// @Summary		Delete a control link
+// @Description	Deletes the control link identified by its full composite key (all query params required).
+// @Tags			ControlLink
+// @Param			sourceCatalogId		query	string	true	"Source catalog id"
+// @Param			sourceControlId		query	string	true	"Source control id"
+// @Param			targetCatalogId		query	string	true	"Target catalog id"
+// @Param			targetControlId		query	string	true	"Target control id"
+// @Param			relationshipType	query	string	true	"Relationship type"
+// @Success		204
+// @Failure		400	{object}	api.Error
+// @Failure		404	{object}	api.Error
+// @Security		OAuth2Password
+// @Router			/control-links [delete]
 func (h *ControlLinkHandler) Delete(ctx echo.Context) error {
 	sourceCatalogID, err := uuid.Parse(ctx.QueryParam("sourceCatalogId"))
 	if err != nil {

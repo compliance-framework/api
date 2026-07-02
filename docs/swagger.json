@@ -2910,6 +2910,241 @@
                 }
             }
         },
+        "/control-links": {
+            "get": {
+                "description": "Lists typed control-to-control links, filterable by either endpoint, paginated.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "ControlLink"
+                ],
+                "summary": "List control links",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Filter by source catalog id",
+                        "name": "sourceCatalogId",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by source control id",
+                        "name": "sourceControlId",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by target catalog id",
+                        "name": "targetCatalogId",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by target control id",
+                        "name": "targetControlId",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page number",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page size",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/service.ListResponse-relational_ControlLink"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            },
+            "post": {
+                "description": "Creates one typed control-to-control link after validating endpoint existence, the relationship vocabulary matrix, and acyclicity.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "ControlLink"
+                ],
+                "summary": "Create a control link",
+                "parameters": [
+                    {
+                        "description": "Control link",
+                        "name": "link",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.createControlLinkRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-relational_ControlLink"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            },
+            "delete": {
+                "description": "Deletes the control link identified by its full composite key (all query params required).",
+                "tags": [
+                    "ControlLink"
+                ],
+                "summary": "Delete a control link",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Source catalog id",
+                        "name": "sourceCatalogId",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Source control id",
+                        "name": "sourceControlId",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Target catalog id",
+                        "name": "targetCatalogId",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Target control id",
+                        "name": "targetControlId",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Relationship type",
+                        "name": "relationshipType",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/control-links/bulk": {
+            "post": {
+                "description": "Idempotently upserts many control links (ON CONFLICT DO NOTHING). Invalid vocabulary/existence rejects the batch; cycles and duplicates are skipped.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "ControlLink"
+                ],
+                "summary": "Bulk create control links",
+                "parameters": [
+                    {
+                        "description": "Control links",
+                        "name": "links",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.bulkControlLinkRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-handler_bulkControlLinkResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
         "/dashboard-suggestions/config": {
             "get": {
                 "description": "Returns whether AI dashboard suggestions are enabled.",
@@ -3889,6 +4124,139 @@
                         }
                     }
                 }
+            }
+        },
+        "/lineage/nodes/{key}/children": {
+            "get": {
+                "description": "Returns one level of children for a node. Every node carries full-subtree rollup metrics. Key is a composite like catalog:\u003cuuid\u003e, group:\u003ccatalogId\u003e/\u003cgroupId\u003e, control:\u003ccatalogId\u003e/\u003ccontrolId\u003e.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Lineage"
+                ],
+                "summary": "List lineage node children",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "URL-encoded node key",
+                        "name": "key",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Scope metrics to a System Security Plan",
+                        "name": "sspId",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Scope metrics to a system component",
+                        "name": "componentId",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page number",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page size (default 100)",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/service.ListResponse-handler_LineageNode"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/lineage/roots": {
+            "get": {
+                "description": "Returns catalog roots (standard/policy/procedure) with full-subtree compliance and risk rollups. Rootness is catalog_type, never link presence.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Lineage"
+                ],
+                "summary": "List lineage roots",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Scope metrics to a System Security Plan",
+                        "name": "sspId",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Scope metrics to a system component",
+                        "name": "componentId",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated catalog types to include (standard,policy,procedure)",
+                        "name": "types",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataListResponse-handler_LineageNode"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
             }
         },
         "/notifications/providers": {
@@ -8842,7 +9210,7 @@
         },
         "/oscal/catalogs": {
             "get": {
-                "description": "Retrieves all catalogs.",
+                "description": "Retrieves all catalogs, optionally filtered by catalog type.",
                 "produces": [
                     "application/json"
                 ],
@@ -8850,6 +9218,14 @@
                     "Catalog"
                 ],
                 "summary": "List catalogs",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Filter by catalog type (standard|policy|procedure)",
+                        "name": "type",
+                        "in": "query"
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -8877,7 +9253,7 @@
                 ]
             },
             "post": {
-                "description": "Creates a new OSCAL Catalog.",
+                "description": "Creates a new OSCAL Catalog. The catalog type may be supplied via the ?type= query param or a catalog-type metadata prop; it defaults to standard.",
                 "consumes": [
                     "application/json"
                 ],
@@ -8897,6 +9273,12 @@
                         "schema": {
                             "$ref": "#/definitions/oscalTypes_1_1_3.Catalog"
                         }
+                    },
+                    {
+                        "type": "string",
+                        "description": "Catalog type (standard|policy|procedure); overrides any metadata prop",
+                        "name": "type",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -29828,6 +30210,19 @@
                 "meta": {}
             }
         },
+        "handler.GenericDataListResponse-handler_LineageNode": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handler.LineageNode"
+                    }
+                },
+                "meta": {}
+            }
+        },
         "handler.GenericDataListResponse-handler_OverTime_HeartbeatInterval": {
             "type": "object",
             "properties": {
@@ -30769,6 +31164,19 @@
                     "allOf": [
                         {
                             "$ref": "#/definitions/handler.SubscriptionsResponse"
+                        }
+                    ]
+                }
+            }
+        },
+        "handler.GenericDataResponse-handler_bulkControlLinkResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Wrapped response data",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/handler.bulkControlLinkResponse"
                         }
                     ]
                 }
@@ -31814,6 +32222,19 @@
                 }
             }
         },
+        "handler.GenericDataResponse-relational_ControlLink": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Wrapped response data",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/relational.ControlLink"
+                        }
+                    ]
+                }
+            }
+        },
         "handler.GenericDataResponse-relational_Filter": {
             "type": "object",
             "properties": {
@@ -31942,6 +32363,121 @@
                 },
                 "uuid": {
                     "type": "string"
+                }
+            }
+        },
+        "handler.LineageCompliance": {
+            "type": "object",
+            "properties": {
+                "assessedPercent": {
+                    "type": "number"
+                },
+                "compliancePercent": {
+                    "type": "number"
+                },
+                "notSatisfied": {
+                    "type": "integer"
+                },
+                "satisfied": {
+                    "type": "integer"
+                },
+                "totalControls": {
+                    "type": "integer"
+                },
+                "unknown": {
+                    "type": "integer"
+                }
+            }
+        },
+        "handler.LineageLinkage": {
+            "type": "object",
+            "properties": {
+                "operationalControls": {
+                    "type": "integer"
+                },
+                "policies": {
+                    "type": "integer"
+                },
+                "procedures": {
+                    "type": "integer"
+                },
+                "unanchored": {
+                    "type": "boolean"
+                },
+                "unmapped": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "handler.LineageNode": {
+            "type": "object",
+            "properties": {
+                "catalogId": {
+                    "type": "string"
+                },
+                "childrenCount": {
+                    "type": "integer"
+                },
+                "compliance": {
+                    "$ref": "#/definitions/handler.LineageCompliance"
+                },
+                "controlId": {
+                    "type": "string"
+                },
+                "groupId": {
+                    "type": "string"
+                },
+                "hasChildren": {
+                    "type": "boolean"
+                },
+                "key": {
+                    "type": "string"
+                },
+                "linkage": {
+                    "$ref": "#/definitions/handler.LineageLinkage"
+                },
+                "nodeType": {
+                    "type": "string"
+                },
+                "risk": {
+                    "$ref": "#/definitions/handler.LineageRisk"
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
+        "handler.LineageRisk": {
+            "type": "object",
+            "properties": {
+                "counts": {
+                    "$ref": "#/definitions/handler.LineageRiskCounts"
+                },
+                "mutedScoreSum": {
+                    "type": "integer"
+                },
+                "openScoreSum": {
+                    "type": "integer"
+                }
+            }
+        },
+        "handler.LineageRiskCounts": {
+            "type": "object",
+            "properties": {
+                "investigating": {
+                    "type": "integer"
+                },
+                "mitigatingImplemented": {
+                    "type": "integer"
+                },
+                "mitigatingPlanned": {
+                    "type": "integer"
+                },
+                "open": {
+                    "type": "integer"
+                },
+                "riskAccepted": {
+                    "type": "integer"
                 }
             }
         },
@@ -32169,6 +32705,28 @@
                 }
             }
         },
+        "handler.bulkControlLinkRequest": {
+            "type": "object",
+            "properties": {
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handler.createControlLinkRequest"
+                    }
+                }
+            }
+        },
+        "handler.bulkControlLinkResponse": {
+            "type": "object",
+            "properties": {
+                "created": {
+                    "type": "integer"
+                },
+                "skipped": {
+                    "type": "integer"
+                }
+            }
+        },
         "handler.configuredSystemDestinationResponse": {
             "type": "object",
             "properties": {
@@ -32194,6 +32752,31 @@
                 },
                 "poam-item-id": {
                     "type": "string"
+                }
+            }
+        },
+        "handler.controlRefRequest": {
+            "type": "object",
+            "properties": {
+                "catalogId": {
+                    "type": "string"
+                },
+                "controlId": {
+                    "type": "string"
+                }
+            }
+        },
+        "handler.createControlLinkRequest": {
+            "type": "object",
+            "properties": {
+                "relationshipType": {
+                    "type": "string"
+                },
+                "source": {
+                    "$ref": "#/definitions/handler.controlRefRequest"
+                },
+                "target": {
+                    "$ref": "#/definitions/handler.controlRefRequest"
                 }
             }
         },
@@ -40079,6 +40662,32 @@
                 }
             }
         },
+        "relational.ControlLink": {
+            "type": "object",
+            "properties": {
+                "createdAt": {
+                    "type": "string"
+                },
+                "createdById": {
+                    "type": "string"
+                },
+                "relationshipType": {
+                    "type": "string"
+                },
+                "sourceCatalogId": {
+                    "type": "string"
+                },
+                "sourceControlId": {
+                    "type": "string"
+                },
+                "targetCatalogId": {
+                    "type": "string"
+                },
+                "targetControlId": {
+                    "type": "string"
+                }
+            }
+        },
         "relational.ControlObjectiveSelection": {
             "type": "object",
             "properties": {
@@ -42681,6 +43290,29 @@
                 }
             }
         },
+        "service.ListResponse-handler_LineageNode": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handler.LineageNode"
+                    }
+                },
+                "limit": {
+                    "type": "integer"
+                },
+                "page": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
+                },
+                "totalPages": {
+                    "type": "integer"
+                }
+            }
+        },
         "service.ListResponse-handler_PublicEvidenceResponse": {
             "type": "object",
             "properties": {
@@ -42757,6 +43389,29 @@
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/handler.threatIDResponse"
+                    }
+                },
+                "limit": {
+                    "type": "integer"
+                },
+                "page": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
+                },
+                "totalPages": {
+                    "type": "integer"
+                }
+            }
+        },
+        "service.ListResponse-relational_ControlLink": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/relational.ControlLink"
                     }
                 },
                 "limit": {

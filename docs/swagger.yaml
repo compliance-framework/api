@@ -544,6 +544,15 @@ definitions:
         type: array
       meta: {}
     type: object
+  handler.GenericDataListResponse-handler_LineageNode:
+    properties:
+      data:
+        description: Items from the list response
+        items:
+          $ref: '#/definitions/handler.LineageNode'
+        type: array
+      meta: {}
+    type: object
   handler.GenericDataListResponse-handler_OverTime_HeartbeatInterval:
     properties:
       data:
@@ -1184,6 +1193,13 @@ definitions:
         - $ref: '#/definitions/handler.SubscriptionsResponse'
         description: Wrapped response data
     type: object
+  handler.GenericDataResponse-handler_bulkControlLinkResponse:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/handler.bulkControlLinkResponse'
+        description: Wrapped response data
+    type: object
   handler.GenericDataResponse-handler_configuredSystemDestinationResponse:
     properties:
       data:
@@ -1744,6 +1760,13 @@ definitions:
         - $ref: '#/definitions/relational.CCFRoleAssignment'
         description: Wrapped response data
     type: object
+  handler.GenericDataResponse-relational_ControlLink:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/relational.ControlLink'
+        description: Wrapped response data
+    type: object
   handler.GenericDataResponse-relational_Filter:
     properties:
       data:
@@ -1817,6 +1840,81 @@ definitions:
     required:
     - created_at
     - uuid
+    type: object
+  handler.LineageCompliance:
+    properties:
+      assessedPercent:
+        type: number
+      compliancePercent:
+        type: number
+      notSatisfied:
+        type: integer
+      satisfied:
+        type: integer
+      totalControls:
+        type: integer
+      unknown:
+        type: integer
+    type: object
+  handler.LineageLinkage:
+    properties:
+      operationalControls:
+        type: integer
+      policies:
+        type: integer
+      procedures:
+        type: integer
+      unanchored:
+        type: boolean
+      unmapped:
+        type: boolean
+    type: object
+  handler.LineageNode:
+    properties:
+      catalogId:
+        type: string
+      childrenCount:
+        type: integer
+      compliance:
+        $ref: '#/definitions/handler.LineageCompliance'
+      controlId:
+        type: string
+      groupId:
+        type: string
+      hasChildren:
+        type: boolean
+      key:
+        type: string
+      linkage:
+        $ref: '#/definitions/handler.LineageLinkage'
+      nodeType:
+        type: string
+      risk:
+        $ref: '#/definitions/handler.LineageRisk'
+      title:
+        type: string
+    type: object
+  handler.LineageRisk:
+    properties:
+      counts:
+        $ref: '#/definitions/handler.LineageRiskCounts'
+      mutedScoreSum:
+        type: integer
+      openScoreSum:
+        type: integer
+    type: object
+  handler.LineageRiskCounts:
+    properties:
+      investigating:
+        type: integer
+      mitigatingImplemented:
+        type: integer
+      mitigatingPlanned:
+        type: integer
+      open:
+        type: integer
+      riskAccepted:
+        type: integer
     type: object
   handler.OverTime.HeartbeatInterval:
     properties:
@@ -1968,6 +2066,20 @@ definitions:
       providerType:
         type: string
     type: object
+  handler.bulkControlLinkRequest:
+    properties:
+      links:
+        items:
+          $ref: '#/definitions/handler.createControlLinkRequest'
+        type: array
+    type: object
+  handler.bulkControlLinkResponse:
+    properties:
+      created:
+        type: integer
+      skipped:
+        type: integer
+    type: object
   handler.configuredSystemDestinationResponse:
     properties:
       destinationTarget:
@@ -1985,6 +2097,22 @@ definitions:
         type: string
       poam-item-id:
         type: string
+    type: object
+  handler.controlRefRequest:
+    properties:
+      catalogId:
+        type: string
+      controlId:
+        type: string
+    type: object
+  handler.createControlLinkRequest:
+    properties:
+      relationshipType:
+        type: string
+      source:
+        $ref: '#/definitions/handler.controlRefRequest'
+      target:
+        $ref: '#/definitions/handler.controlRefRequest'
     type: object
   handler.createFilterRequest:
     properties:
@@ -7223,6 +7351,23 @@ definitions:
         description: required
         type: string
     type: object
+  relational.ControlLink:
+    properties:
+      createdAt:
+        type: string
+      createdById:
+        type: string
+      relationshipType:
+        type: string
+      sourceCatalogId:
+        type: string
+      sourceControlId:
+        type: string
+      targetCatalogId:
+        type: string
+      targetControlId:
+        type: string
+    type: object
   relational.ControlObjectiveSelection:
     properties:
       description:
@@ -8978,6 +9123,21 @@ definitions:
       subjectId:
         type: string
     type: object
+  service.ListResponse-handler_LineageNode:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/handler.LineageNode'
+        type: array
+      limit:
+        type: integer
+      page:
+        type: integer
+      total:
+        type: integer
+      totalPages:
+        type: integer
+    type: object
   service.ListResponse-handler_PublicEvidenceResponse:
     properties:
       data:
@@ -9028,6 +9188,21 @@ definitions:
       data:
         items:
           $ref: '#/definitions/handler.threatIDResponse'
+        type: array
+      limit:
+        type: integer
+      page:
+        type: integer
+      total:
+        type: integer
+      totalPages:
+        type: integer
+    type: object
+  service.ListResponse-relational_ControlLink:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/relational.ControlLink'
         type: array
       limit:
         type: integer
@@ -12599,6 +12774,162 @@ paths:
       summary: Get OAuth2 token
       tags:
       - Auth
+  /control-links:
+    delete:
+      description: Deletes the control link identified by its full composite key (all
+        query params required).
+      parameters:
+      - description: Source catalog id
+        in: query
+        name: sourceCatalogId
+        required: true
+        type: string
+      - description: Source control id
+        in: query
+        name: sourceControlId
+        required: true
+        type: string
+      - description: Target catalog id
+        in: query
+        name: targetCatalogId
+        required: true
+        type: string
+      - description: Target control id
+        in: query
+        name: targetControlId
+        required: true
+        type: string
+      - description: Relationship type
+        in: query
+        name: relationshipType
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Delete a control link
+      tags:
+      - ControlLink
+    get:
+      description: Lists typed control-to-control links, filterable by either endpoint,
+        paginated.
+      parameters:
+      - description: Filter by source catalog id
+        in: query
+        name: sourceCatalogId
+        type: string
+      - description: Filter by source control id
+        in: query
+        name: sourceControlId
+        type: string
+      - description: Filter by target catalog id
+        in: query
+        name: targetCatalogId
+        type: string
+      - description: Filter by target control id
+        in: query
+        name: targetControlId
+        type: string
+      - description: Page number
+        in: query
+        name: page
+        type: integer
+      - description: Page size
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/service.ListResponse-relational_ControlLink'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: List control links
+      tags:
+      - ControlLink
+    post:
+      consumes:
+      - application/json
+      description: Creates one typed control-to-control link after validating endpoint
+        existence, the relationship vocabulary matrix, and acyclicity.
+      parameters:
+      - description: Control link
+        in: body
+        name: link
+        required: true
+        schema:
+          $ref: '#/definitions/handler.createControlLinkRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-relational_ControlLink'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/api.Error'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Create a control link
+      tags:
+      - ControlLink
+  /control-links/bulk:
+    post:
+      consumes:
+      - application/json
+      description: Idempotently upserts many control links (ON CONFLICT DO NOTHING).
+        Invalid vocabulary/existence rejects the batch; cycles and duplicates are
+        skipped.
+      parameters:
+      - description: Control links
+        in: body
+        name: links
+        required: true
+        schema:
+          $ref: '#/definitions/handler.bulkControlLinkRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-handler_bulkControlLinkResponse'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Bulk create control links
+      tags:
+      - ControlLink
   /dashboard-suggestions/config:
     get:
       description: Returns whether AI dashboard suggestions are enabled.
@@ -13253,6 +13584,94 @@ paths:
       summary: Import dashboard filters
       tags:
       - Filters
+  /lineage/nodes/{key}/children:
+    get:
+      description: Returns one level of children for a node. Every node carries full-subtree
+        rollup metrics. Key is a composite like catalog:<uuid>, group:<catalogId>/<groupId>,
+        control:<catalogId>/<controlId>.
+      parameters:
+      - description: URL-encoded node key
+        in: path
+        name: key
+        required: true
+        type: string
+      - description: Scope metrics to a System Security Plan
+        in: query
+        name: sspId
+        type: string
+      - description: Scope metrics to a system component
+        in: query
+        name: componentId
+        type: string
+      - description: Page number
+        in: query
+        name: page
+        type: integer
+      - description: Page size (default 100)
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/service.ListResponse-handler_LineageNode'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: List lineage node children
+      tags:
+      - Lineage
+  /lineage/roots:
+    get:
+      description: Returns catalog roots (standard/policy/procedure) with full-subtree
+        compliance and risk rollups. Rootness is catalog_type, never link presence.
+      parameters:
+      - description: Scope metrics to a System Security Plan
+        in: query
+        name: sspId
+        type: string
+      - description: Scope metrics to a system component
+        in: query
+        name: componentId
+        type: string
+      - description: Comma-separated catalog types to include (standard,policy,procedure)
+        in: query
+        name: types
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-handler_LineageNode'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: List lineage roots
+      tags:
+      - Lineage
   /notifications/providers:
     get:
       description: Returns notification provider availability for authenticated users
@@ -16460,7 +16879,12 @@ paths:
       - Assessment Results
   /oscal/catalogs:
     get:
-      description: Retrieves all catalogs.
+      description: Retrieves all catalogs, optionally filtered by catalog type.
+      parameters:
+      - description: Filter by catalog type (standard|policy|procedure)
+        in: query
+        name: type
+        type: string
       produces:
       - application/json
       responses:
@@ -16484,7 +16908,8 @@ paths:
     post:
       consumes:
       - application/json
-      description: Creates a new OSCAL Catalog.
+      description: Creates a new OSCAL Catalog. The catalog type may be supplied via
+        the ?type= query param or a catalog-type metadata prop; it defaults to standard.
       parameters:
       - description: Catalog object
         in: body
@@ -16492,6 +16917,11 @@ paths:
         required: true
         schema:
           $ref: '#/definitions/oscalTypes_1_1_3.Catalog'
+      - description: Catalog type (standard|policy|procedure); overrides any metadata
+          prop
+        in: query
+        name: type
+        type: string
       produces:
       - application/json
       responses:

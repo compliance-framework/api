@@ -91,19 +91,19 @@ type LineageNode struct {
 // ── Endpoints ──────────────────────────────────────────────────────────────────
 
 // Roots godoc
-//
-//	@Summary		List lineage roots
-//	@Description	Returns catalog roots (standard/policy/procedure) with full-subtree compliance and risk rollups. Rootness is catalog_type, never link presence.
-//	@Tags			Lineage
-//	@Produce		json
-//	@Param			sspId		query	string	false	"Scope metrics to a System Security Plan"
-//	@Param			componentId	query	string	false	"Scope metrics to a system component"
-//	@Param			types		query	string	false	"Comma-separated catalog types to include (standard,policy,procedure)"
-//	@Success		200	{object}	handler.GenericDataListResponse[LineageNode]
-//	@Failure		400	{object}	api.Error
-//	@Failure		500	{object}	api.Error
-//	@Security		OAuth2Password
-//	@Router			/lineage/roots [get]
+
+// @Summary		List lineage roots
+// @Description	Returns catalog roots (standard/policy/procedure) with full-subtree compliance and risk rollups. Rootness is catalog_type, never link presence.
+// @Tags			Lineage
+// @Produce		json
+// @Param			sspId		query		string	false	"Scope metrics to a System Security Plan"
+// @Param			componentId	query		string	false	"Scope metrics to a system component"
+// @Param			types		query		string	false	"Comma-separated catalog types to include (standard,policy,procedure)"
+// @Success		200			{object}	handler.GenericDataListResponse[LineageNode]
+// @Failure		400			{object}	api.Error
+// @Failure		500			{object}	api.Error
+// @Security		OAuth2Password
+// @Router			/lineage/roots [get]
 func (h *LineageHandler) Roots(ctx echo.Context) error {
 	sspID, componentID, err := parseScope(ctx)
 	if err != nil {
@@ -138,22 +138,22 @@ func (h *LineageHandler) Roots(ctx echo.Context) error {
 }
 
 // Children godoc
-//
-//	@Summary		List lineage node children
-//	@Description	Returns one level of children for a node. Every node carries full-subtree rollup metrics. Key is a composite like catalog:<uuid>, group:<catalogId>/<groupId>, control:<catalogId>/<controlId>.
-//	@Tags			Lineage
-//	@Produce		json
-//	@Param			key			path	string	true	"URL-encoded node key"
-//	@Param			sspId		query	string	false	"Scope metrics to a System Security Plan"
-//	@Param			componentId	query	string	false	"Scope metrics to a system component"
-//	@Param			page		query	int		false	"Page number"
-//	@Param			limit		query	int		false	"Page size (default 100)"
-//	@Success		200	{object}	service.ListResponse[LineageNode]
-//	@Failure		400	{object}	api.Error
-//	@Failure		404	{object}	api.Error
-//	@Failure		500	{object}	api.Error
-//	@Security		OAuth2Password
-//	@Router			/lineage/nodes/{key}/children [get]
+
+// @Summary		List lineage node children
+// @Description	Returns one level of children for a node. Every node carries full-subtree rollup metrics. Key is a composite like catalog:<uuid>, group:<catalogId>/<groupId>, control:<catalogId>/<controlId>.
+// @Tags			Lineage
+// @Produce		json
+// @Param			key			path		string	true	"URL-encoded node key"
+// @Param			sspId		query		string	false	"Scope metrics to a System Security Plan"
+// @Param			componentId	query		string	false	"Scope metrics to a system component"
+// @Param			page		query		int		false	"Page number"
+// @Param			limit		query		int		false	"Page size (default 100)"
+// @Success		200			{object}	svc.ListResponse[LineageNode]
+// @Failure		400			{object}	api.Error
+// @Failure		404			{object}	api.Error
+// @Failure		500			{object}	api.Error
+// @Security		OAuth2Password
+// @Router			/lineage/nodes/{key}/children [get]
 func (h *LineageHandler) Children(ctx echo.Context) error {
 	sspID, componentID, err := parseScope(ctx)
 	if err != nil {

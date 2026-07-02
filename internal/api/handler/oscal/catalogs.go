@@ -65,10 +65,10 @@ func (h *CatalogHandler) Register(api *echo.Group, guard middleware.ResourceGuar
 // @Description	Retrieves all catalogs, optionally filtered by catalog type.
 // @Tags			Catalog
 // @Produce		json
-// @Param			type	query	string	false	"Filter by catalog type (standard|policy|procedure)"
-// @Success		200	{object}	handler.GenericDataListResponse[oscalTypes_1_1_3.Catalog]
-// @Failure		400	{object}	api.Error
-// @Failure		500	{object}	api.Error
+// @Param			type	query		string	false	"Filter by catalog type (standard|policy|procedure)"
+// @Success		200		{object}	handler.GenericDataListResponse[oscalTypes_1_1_3.Catalog]
+// @Failure		400		{object}	api.Error
+// @Failure		500		{object}	api.Error
 // @Security		OAuth2Password
 // @Router			/oscal/catalogs [get]
 func (h *CatalogHandler) List(ctx echo.Context) error {
@@ -460,7 +460,7 @@ func (h *CatalogHandler) DeleteControl(ctx echo.Context) error {
 // @Accept			json
 // @Produce		json
 // @Param			catalog	body		oscalTypes_1_1_3.Catalog	true	"Catalog object"
-// @Param			type	query	string	false	"Catalog type (standard|policy|procedure); overrides any metadata prop"
+// @Param			type	query		string						false	"Catalog type (standard|policy|procedure); overrides any metadata prop"
 // @Success		201		{object}	handler.GenericDataResponse[oscalTypes_1_1_3.Catalog]
 // @Failure		400		{object}	api.Error
 // @Failure		500		{object}	api.Error
