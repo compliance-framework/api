@@ -1,0 +1,17 @@
+lisa-addressed:
+---
+Comment (internal/service/relational/catalog.go:108):
+**Low — duplicate `catalog-type` prop on OSCAL round-trip.** `UnmarshalOscal` (catalog.go:50-59) stores metadata props verbatim into `Metadata.Props` *and* derives `CatalogType` from those same props. So a policy/procedure catalog imported **with** a `catalog-type` prop in its body — the documented round-trip path — persists that prop in metadata; on marshal `c.Metadata.MarshalOscal()` re-emits it and then this block appends a **second** identical prop. Output ends up with two `catalog-type` props, contradicting the "reads it straight back / non-standard types ride a metadata prop" round-trip guarantee.
+
+The unit tests only cover the column-only case (no prop in the source metadata), so they miss this. Suggest deduping — e.g. strip any existing `catalog-type` prop before appending here, or drop it from `Metadata.Props` in `UnmarshalOscal` so the column is the sole source. Minor for a PoC, but the prop mechanism exists precisely for clean round-tripping.
+Replies:
+**lisa implementation guidance:** Good catch — fixing. In `Catalog.MarshalOscal`, before appending the catalog-type prop, strip any pre-existing `catalog-type` prop (name==catalogTypePropName && ns==CCFPropNamespace) from the copied metadata props, so a catalog imported *with* the prop in its body doesn't end up with two. Adding a round-trip unit test whose source metadata already carries a catalog-type prop, asserting exactly one after marshal.
+
+<!-- lisa-guidance-posted -->
+---
+Comment (internal/api/handler/lineage.go:137):
+**Nit — inconsistent response envelope within one API family.** `/lineage/roots` returns `GenericDataListResponse` (unpaginated `{data: […]}`) while `/lineage/nodes/:key/children` returns `svc.ListResponse` (paginated). A UI consumer has to handle two shapes for sibling endpoints. Intentional (roots aren't paginated), but worth aligning or documenting.
+Replies:
+**lisa implementation guidance:** Aligning — `/lineage/roots` will return the same `svc.ListResponse` envelope as `/children` (additive for consumers reading `.data`). Switching to `svc.NewListResponse(nodes, len(nodes), 1, len(nodes))`, updating the `@Success` annotation to `svc.ListResponse[LineageNode]`, and regenerating docs.
+
+<!-- lisa-guidance-posted -->
