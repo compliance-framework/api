@@ -4,3 +4,9 @@ Self-review pass 1 (implement mode). Build, go vet, gofmt, and the full test sui
 - [low] GetEvidenceStatusCountsByFilters runs one query per filter rather than a single UNION ALL (explicit [PoC corner] in the spec). Batch signature preserved so it can be optimised without touching callers.
 - [low] lineage children endpoint requires clients to URL-encode the composite node key (the '/' in control:<cat>/<ctrl>) so echo matches it to a single :key segment — this is the documented contract ("URL-encoded composite").
 - [info] componentId metric scoping is implemented (not deferred): evidence via evidence_components EXISTS on the latest-stream alias l.id, risks via risk_component_links. Relies on GORM keeping the .Table("(?) as l") FROM in precedence over .Model() (same pattern as profile_compliance.getStatusCountsForFilters).
+
+lisa-addressed:
+CI fix (make swag): the swagger `make swag` step failed on the new handlers' godoc.
+- Converted control_links.go + lineage.go godoc annotation blocks from the `//<tab>@attr` + bare `//` separator form to the repo's proven style (blank-line separator, `// @attr`); swag's parser rejected the bare `//` line.
+- Fixed the @Success type reference from `service.ListResponse[...]` to the file's import alias `svc.ListResponse[...]`, which swag resolves.
+- Regenerated tracked docs (docs/docs.go, docs/swagger.json, docs/swagger.yaml) via `make swag` (now exits 0; go build + full test suite still green).
