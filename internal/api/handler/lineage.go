@@ -4,6 +4,7 @@ import (
 	"errors"
 	"math"
 	"net/http"
+	"net/url"
 	"sort"
 	"strings"
 
@@ -819,7 +820,15 @@ func parseTypes(raw string) (map[string]struct{}, error) {
 
 // parseNodeKey decodes a composite node key into its kind, catalog id, and the
 // trailing sub-id (group id or control id).
+//
+// The key travels as a single URL-encoded path segment (the ':' and the '/'
+// separator arrive as %3A/%2F). Echo does not unescape path params, so we decode
+// here before splitting. A raw, unencoded key contains no '%' and passes through
+// url.PathUnescape unchanged, so direct callers keep working.
 func parseNodeKey(raw string) (kind string, catalogID uuid.UUID, subID string, err error) {
+	if decoded, derr := url.PathUnescape(raw); derr == nil {
+		raw = decoded
+	}
 	colon := strings.IndexByte(raw, ':')
 	if colon < 0 {
 		return "", uuid.Nil, "", errors.New("malformed node key")

@@ -107,4 +107,11 @@ func TestParseNodeKey(t *testing.T) {
 	if _, _, _, err := parseNodeKey("control:not-a-uuid/ac-1"); err == nil {
 		t.Error("bad catalog uuid should error")
 	}
+
+	// Echo delivers path params still percent-encoded (the UI sends
+	// encodeURIComponent(key)); parseNodeKey must decode %3A/%2F before splitting.
+	kind, gotCat, sub, err = parseNodeKey("control%3A" + catID.String() + "%2Fac-1")
+	if err != nil || kind != "control" || gotCat != catID || sub != "ac-1" {
+		t.Errorf("URL-encoded control key parse failed: kind=%q cat=%v sub=%q err=%v", kind, gotCat, sub, err)
+	}
 }
