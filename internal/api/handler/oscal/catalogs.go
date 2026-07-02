@@ -2,6 +2,7 @@ package oscal
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -61,20 +62,29 @@ func (h *CatalogHandler) Register(api *echo.Group, guard middleware.ResourceGuar
 // List godoc
 
 // @Summary		List catalogs
-// @Description	Retrieves all catalogs.
+// @Description	Retrieves all catalogs, optionally filtered by catalog type.
 // @Tags			Catalog
 // @Produce		json
+// @Param			type	query	string	false	"Filter by catalog type (standard|policy|procedure)"
 // @Success		200	{object}	handler.GenericDataListResponse[oscalTypes_1_1_3.Catalog]
 // @Failure		400	{object}	api.Error
 // @Failure		500	{object}	api.Error
 // @Security		OAuth2Password
 // @Router			/oscal/catalogs [get]
 func (h *CatalogHandler) List(ctx echo.Context) error {
-	var catalogs []relational.Catalog
-	if err := h.db.
+	query := h.db.
 		Preload("Metadata").
-		Preload("Metadata.Revisions").
-		Find(&catalogs).Error; err != nil {
+		Preload("Metadata.Revisions")
+
+	if catalogType := ctx.QueryParam("type"); catalogType != "" {
+		if !relational.IsValidCatalogType(catalogType) {
+			return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("invalid catalog type %q: must be one of standard|policy|procedure", catalogType)))
+		}
+		query = query.Where("catalog_type = ?", catalogType)
+	}
+
+	var catalogs []relational.Catalog
+	if err := query.Find(&catalogs).Error; err != nil {
 		h.sugar.Warnw("Failed to load catalogs", "error", err)
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
@@ -445,11 +455,12 @@ func (h *CatalogHandler) DeleteControl(ctx echo.Context) error {
 // Create godoc
 
 // @Summary		Create a new Catalog
-// @Description	Creates a new OSCAL Catalog.
+// @Description	Creates a new OSCAL Catalog. The catalog type may be supplied via the ?type= query param or a catalog-type metadata prop; it defaults to standard.
 // @Tags			Catalog
 // @Accept			json
 // @Produce		json
 // @Param			catalog	body		oscalTypes_1_1_3.Catalog	true	"Catalog object"
+// @Param			type	query	string	false	"Catalog type (standard|policy|procedure); overrides any metadata prop"
 // @Success		201		{object}	handler.GenericDataResponse[oscalTypes_1_1_3.Catalog]
 // @Failure		400		{object}	api.Error
 // @Failure		500		{object}	api.Error
@@ -465,6 +476,14 @@ func (h *CatalogHandler) Create(ctx echo.Context) error {
 	}
 	relCat := &relational.Catalog{}
 	relCat.UnmarshalOscal(oscalCat)
+	// An explicit ?type= query param overrides whatever the OSCAL metadata prop
+	// carried (UnmarshalOscal already defaulted it to standard when absent).
+	if catalogType := ctx.QueryParam("type"); catalogType != "" {
+		if !relational.IsValidCatalogType(catalogType) {
+			return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("invalid catalog type %q: must be one of standard|policy|procedure", catalogType)))
+		}
+		relCat.CatalogType = catalogType
+	}
 	relCat.Metadata.LastModified = &now
 	relCat.Metadata.OscalVersion = versioning.GetLatestSupportedVersion()
 	if err := h.db.Create(relCat).Error; err != nil {

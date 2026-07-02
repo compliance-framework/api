@@ -6,13 +6,38 @@ import (
 	"gorm.io/datatypes"
 )
 
+// Catalog type vocabulary. Catalogs default to "standard"; policy/procedure
+// catalogs model organizational Policies & Procedures (see Compliance Lineage).
+const (
+	CatalogTypeStandard  = "standard"
+	CatalogTypePolicy    = "policy"
+	CatalogTypeProcedure = "procedure"
+
+	// catalogTypePropName / CCFPropNamespace are how catalog_type survives an
+	// OSCAL round-trip: it rides as a metadata prop since OSCAL has no native slot.
+	catalogTypePropName = "catalog-type"
+	CCFPropNamespace    = "https://compliance-framework.github.io/ns"
+)
+
+// IsValidCatalogType reports whether t is one of the known catalog types.
+func IsValidCatalogType(t string) bool {
+	switch t {
+	case CatalogTypeStandard, CatalogTypePolicy, CatalogTypeProcedure:
+		return true
+	}
+	return false
+}
+
 type Catalog struct {
 	UUIDModel
-	Metadata   Metadata                       `json:"metadata" gorm:"polymorphic:Parent;"`
-	Params     datatypes.JSONSlice[Parameter] `json:"params"`
-	Groups     []Group                        `json:"groups"`
-	Controls   []Control                      `json:"controls"`
-	BackMatter *BackMatter                    `json:"back-matter,omitempty" gorm:"polymorphic:Parent;"`
+	Metadata Metadata `json:"metadata" gorm:"polymorphic:Parent;"`
+	// CatalogType is one of standard|policy|procedure. It is the canonical source
+	// of truth for rootness in the lineage API and is never derived from links.
+	CatalogType string                         `json:"catalogType" gorm:"type:text;not null;default:'standard';index"`
+	Params      datatypes.JSONSlice[Parameter] `json:"params"`
+	Groups      []Group                        `json:"groups"`
+	Controls    []Control                      `json:"controls"`
+	BackMatter  *BackMatter                    `json:"back-matter,omitempty" gorm:"polymorphic:Parent;"`
 	/**
 	"required": [
 		"uuid",
@@ -30,7 +55,8 @@ func (c *Catalog) UnmarshalOscal(ocatalog oscalTypes_1_1_3.Catalog) *Catalog {
 		UUIDModel: UUIDModel{
 			ID: &id,
 		},
-		Metadata: *metadata,
+		Metadata:    *metadata,
+		CatalogType: catalogTypeFromOscalProps(ocatalog.Metadata.Props),
 	}
 
 	if ocatalog.BackMatter != nil {
@@ -72,6 +98,20 @@ func (c *Catalog) MarshalOscal() *oscalTypes_1_1_3.Catalog {
 		UUID:     c.ID.String(),
 		Metadata: *c.Metadata.MarshalOscal(),
 	}
+	// Emit catalog-type as a metadata prop only when it deviates from the default,
+	// so standard catalogs round-trip byte-identically to how they arrived.
+	if c.CatalogType != "" && c.CatalogType != CatalogTypeStandard {
+		props := []oscalTypes_1_1_3.Property{}
+		if cat.Metadata.Props != nil {
+			props = *cat.Metadata.Props
+		}
+		props = append(props, oscalTypes_1_1_3.Property{
+			Name:  catalogTypePropName,
+			Ns:    CCFPropNamespace,
+			Value: c.CatalogType,
+		})
+		cat.Metadata.Props = &props
+	}
 	if len(c.Params) > 0 {
 		params := make([]oscalTypes_1_1_3.Parameter, len(c.Params))
 		for i, p := range c.Params {
@@ -97,6 +137,19 @@ func (c *Catalog) MarshalOscal() *oscalTypes_1_1_3.Catalog {
 		cat.BackMatter = c.BackMatter.MarshalOscal()
 	}
 	return cat
+}
+
+// catalogTypeFromOscalProps extracts the ccf catalog-type prop from an OSCAL
+// metadata prop list, defaulting to "standard" when absent or unrecognised.
+func catalogTypeFromOscalProps(props *[]oscalTypes_1_1_3.Property) string {
+	if props != nil {
+		for _, p := range *props {
+			if p.Name == catalogTypePropName && p.Ns == CCFPropNamespace && IsValidCatalogType(p.Value) {
+				return p.Value
+			}
+		}
+	}
+	return CatalogTypeStandard
 }
 
 type Group struct {

@@ -60,6 +60,54 @@ type Evidence struct {
 	Status datatypes.JSONType[oscalTypes_1_1_3.ObjectiveStatus] `json:"status"`
 }
 
+// StatusCount is one (status-state, distinct-stream-count) row of an evidence
+// status rollup. It mirrors the ad-hoc struct in profile_compliance.go so the
+// lineage rollups and the profile compliance endpoint speak the same shape.
+type StatusCount struct {
+	Count  int64  `json:"count"`
+	Status string `json:"status"`
+}
+
+// GetEvidenceStatusCountsByFilters computes latest-evidence status counts for a
+// batch of label filters keyed by an opaque id (typically the Filter row UUID),
+// so the lineage rollups can resolve every in-scope control's compliance without
+// an N+1 of one query per control.
+//
+// Semantics are identical to profile_compliance.getStatusCountsForFilters: it
+// counts DISTINCT evidence streams grouped by status->>'state' over the latest
+// evidence in each stream. componentID, when set, further restricts to evidence
+// observed on that system component (via evidence_components).
+//
+// PoC note: this runs one query per filter rather than a single UNION-ALL. The
+// signature is deliberately batch-shaped so the assembly can be optimised later
+// without touching callers. Postgres-first (the latest-stream CTE uses DISTINCT ON).
+func GetEvidenceStatusCountsByFilters(db *gorm.DB, filters map[uuid.UUID]labelfilter.Filter, componentID *uuid.UUID) (map[uuid.UUID][]StatusCount, error) {
+	result := make(map[uuid.UUID][]StatusCount, len(filters))
+	for id, filter := range filters {
+		latestQuery := GetLatestEvidenceStreamsQuery(db.Session(&gorm.Session{}))
+		query, err := GetEvidenceSearchByFilterQuery(latestQuery, db, filter)
+		if err != nil {
+			return nil, err
+		}
+		if componentID != nil {
+			query = query.Where(
+				"EXISTS (SELECT 1 FROM evidence_components ec WHERE ec.evidence_id = l.id AND ec.system_component_id = ?)",
+				*componentID,
+			)
+		}
+
+		rows := []StatusCount{}
+		if err := query.Model(&Evidence{}).
+			Select("count(DISTINCT uuid) as count, status->>'state' as status").
+			Group("status->>'state'").
+			Scan(&rows).Error; err != nil {
+			return nil, err
+		}
+		result[id] = rows
+	}
+	return result, nil
+}
+
 func GetLatestEvidenceStreamsQuery(db *gorm.DB) *gorm.DB {
 	query := db.
 		Model(&Evidence{}).
