@@ -1,0 +1,6 @@
+lisa-addressed:
+PERF FIX v2 (measured against the LIVE local-dev dataset: 21 catalogs, 3412 controls, 130 filters, 543k evidences, ~5M evidence_labels). The first CTE-UNION fix was still ~10s live. Root causes found by profiling the live DB:
+1. `latest` used `SELECT DISTINCT ON (uuid) * FROM evidences` — a parallel seq scan + external-merge sort of all 543k rows spilling ~24MB to disk (~1s), redone once per 50-filter chunk.
+2. Each of 130 filters ran a correlated EXISTS over the ~4895 latest rows (~636k label probes) — 86/130 filters are nested queries.
+Fix: replaced the SQL-per-filter approach entirely. Now GetEvidenceStatusCountsByFilters (a) derives `latest` via a LOOSE INDEX SCAN — `SELECT DISTINCT uuid` + lateral latest-per-uuid over the (uuid,"end" DESC) index (no full-table sort) — and LEFT JOINs evidence_labels ONCE (~48k rows, ~450ms), then (b) evaluates every filter in Go via labelfilter.MatchLabels (which mirrors the SQL evaluator, so results are unchanged and stay consistent with profile compliance). componentId scoping folded into the CTE.
+Measured on live data: GET /api/lineage/roots 10.15s -> 0.30-0.46s; per-catalog compliance+risk numbers byte-identical to the old path across all 20 catalogs. Integration regression test updated (150 controls/150 filters/5000 evidence now ~40ms, asserts correctness + <5s guard).
