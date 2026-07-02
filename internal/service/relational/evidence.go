@@ -68,129 +68,121 @@ type StatusCount struct {
 	Status string `json:"status"`
 }
 
-// evidenceFilterChunkSize bounds how many per-filter subqueries go into one
-// UNION ALL statement, keeping any single query's size and parameter count sane.
-const evidenceFilterChunkSize = 50
+// latestEvidenceStreamsCTE builds the "latest evidence per stream" set as a
+// MATERIALIZED CTE named `latest(id, uuid, state)` using a loose index scan:
+// distinct stream uuids + a lateral pick of the most-recent row per uuid over the
+// (uuid, "end" DESC) index. This avoids sorting the entire evidences table (a
+// DISTINCT ON * over hundreds of thousands of rows spills to disk and costs ~1s+).
+// componentID, when set, restricts to streams observed on that system component.
+func latestEvidenceStreamsCTE(componentID *uuid.UUID) (string, []any) {
+	componentFilter := ""
+	var args []any
+	if componentID != nil {
+		componentFilter = "WHERE EXISTS (SELECT 1 FROM evidence_components ec WHERE ec.evidence_id = l.id AND ec.system_component_id = ?)"
+		args = append(args, *componentID)
+	}
+	cte := `WITH latest AS MATERIALIZED (
+		SELECT l.id, u.uuid, l.status->>'state' AS state
+		FROM (SELECT DISTINCT uuid FROM evidences) u
+		CROSS JOIN LATERAL (
+			SELECT e.id, e.status FROM evidences e WHERE e.uuid = u.uuid ORDER BY e."end" DESC LIMIT 1
+		) l
+		` + componentFilter + `
+	)`
+	return cte, args
+}
 
 // GetEvidenceStatusCountsByFilters computes latest-evidence status counts for a
 // batch of label filters keyed by an opaque id (typically the Filter row UUID),
-// so the lineage rollups can resolve every in-scope control's compliance in a
-// handful of queries instead of an N+1 of one query per control/filter.
+// so the lineage rollups can resolve every in-scope control's compliance without
+// an N+1 of one query per control/filter.
 //
-// Semantics are identical to profile_compliance.getStatusCountsForFilters: it
-// counts DISTINCT evidence streams grouped by status->>'state' over the latest
-// evidence in each stream. componentID, when set, further restricts to evidence
-// observed on that system component (via evidence_components).
+// Semantics match profile_compliance.getStatusCountsForFilters: it counts DISTINCT
+// evidence streams grouped by status state over the latest evidence in each stream.
+// componentID, when set, restricts to evidence observed on that system component.
 //
-// Performance: the latest-per-stream set (the expensive DISTINCT ON scan) is
-// computed ONCE per chunk in a MATERIALIZED CTE and reused by every filter's
-// UNION ALL branch — versus the old per-filter loop that re-scanned the whole
-// evidences table for each filter (O(filters) full scans, seconds-to-minutes on
-// real data). Postgres-first: DISTINCT ON + MATERIALIZED are Postgres features.
+// Performance: rather than run one label-scoped SQL aggregation per filter (which
+// re-derives the latest-per-stream set every time — O(filters) full scans, tens of
+// seconds on real data), this loads the latest streams and their labels ONCE and
+// evaluates every filter in memory via labelfilter.MatchLabels (whose semantics
+// mirror the SQL evaluator). That collapses the DB work to a single query and keeps
+// the per-filter cost to cheap in-Go boolean checks. Postgres-first (loose index
+// scan + MATERIALIZED CTE).
 func GetEvidenceStatusCountsByFilters(db *gorm.DB, filters map[uuid.UUID]labelfilter.Filter, componentID *uuid.UUID) (map[uuid.UUID][]StatusCount, error) {
 	result := make(map[uuid.UUID][]StatusCount, len(filters))
 	if len(filters) == 0 {
 		return result, nil
 	}
-
-	ids := make([]uuid.UUID, 0, len(filters))
 	for id := range filters {
-		ids = append(ids, id)
 		result[id] = []StatusCount{} // ensure every filter has an entry, even with zero matches
 	}
 
-	for start := 0; start < len(ids); start += evidenceFilterChunkSize {
-		end := start + evidenceFilterChunkSize
-		if end > len(ids) {
-			end = len(ids)
-		}
+	// 1) Load the latest evidence per stream + its labels in one pass.
+	cte, args := latestEvidenceStreamsCTE(componentID)
+	query := cte + `
+		SELECT l.uuid AS uuid, l.state AS state, el.labels_name AS name, el.labels_value AS value
+		FROM latest l LEFT JOIN evidence_labels el ON el.evidence_id = l.id`
 
-		branches := make([]string, 0, end-start)
-		args := make([]any, 0, (end-start)*3)
-		for _, id := range ids[start:end] {
-			clause := "TRUE"
-			if scope := filters[id].Scope; scope != nil {
-				sql, sqlArgs, err := labelScopeToSQL(*scope)
-				if err != nil {
-					return nil, err
-				}
-				clause = sql
-				// filter_id placeholder comes first in the SELECT, then the WHERE args.
-				args = append(args, id)
-				args = append(args, sqlArgs...)
-			} else {
-				args = append(args, id)
+	rows := []struct {
+		UUID  uuid.UUID `gorm:"column:uuid"`
+		State string    `gorm:"column:state"`
+		Name  *string   `gorm:"column:name"`
+		Value *string   `gorm:"column:value"`
+	}{}
+	if err := db.Raw(query, args...).Scan(&rows).Error; err != nil {
+		return nil, err
+	}
+
+	// 2) Group rows into per-stream {state, normalized labels}.
+	type stream struct {
+		state  string
+		labels map[string][]string
+	}
+	streams := map[uuid.UUID]*stream{}
+	for _, r := range rows {
+		s := streams[r.UUID]
+		if s == nil {
+			s = &stream{state: r.State, labels: map[string][]string{}}
+			streams[r.UUID] = s
+		}
+		if r.Name != nil {
+			key := strings.ToLower(strings.TrimSpace(*r.Name))
+			if key == "" {
+				continue
 			}
-
-			branch := "SELECT ?::uuid AS filter_id, l.status->>'state' AS status, count(DISTINCT l.uuid) AS count FROM latest l WHERE (" + clause + ")"
-			if componentID != nil {
-				branch += " AND EXISTS (SELECT 1 FROM evidence_components ec WHERE ec.evidence_id = l.id AND ec.system_component_id = ?)"
-				args = append(args, *componentID)
+			val := ""
+			if r.Value != nil {
+				val = strings.ToLower(strings.TrimSpace(*r.Value))
 			}
-			branch += " GROUP BY l.status->>'state'"
-			branches = append(branches, branch)
+			s.labels[key] = append(s.labels[key], val)
 		}
+	}
 
-		query := `WITH latest AS MATERIALIZED (SELECT DISTINCT ON (uuid) * FROM evidences ORDER BY uuid, "end" DESC) ` +
-			strings.Join(branches, " UNION ALL ")
+	streamList := make([]*stream, 0, len(streams))
+	for _, s := range streams {
+		streamList = append(streamList, s)
+	}
 
-		rows := []struct {
-			FilterID uuid.UUID `gorm:"column:filter_id"`
-			Status   string    `gorm:"column:status"`
-			Count    int64     `gorm:"column:count"`
-		}{}
-		if err := db.Raw(query, args...).Scan(&rows).Error; err != nil {
-			return nil, err
+	// 3) Evaluate every filter against every latest stream in memory. Each stream
+	// is one distinct uuid, so a matching stream is one distinct-stream count.
+	for id, filter := range filters {
+		counts := map[string]int64{}
+		for _, s := range streamList {
+			match, err := labelfilter.MatchLabels(filter.Scope, s.labels)
+			if err != nil {
+				return nil, err
+			}
+			if match {
+				counts[s.state]++
+			}
 		}
-		for _, r := range rows {
-			result[r.FilterID] = append(result[r.FilterID], StatusCount{Count: r.Count, Status: r.Status})
+		sc := make([]StatusCount, 0, len(counts))
+		for state, c := range counts {
+			sc = append(sc, StatusCount{Count: c, Status: state})
 		}
+		result[id] = sc
 	}
 	return result, nil
-}
-
-// labelScopeToSQL renders a label filter scope into a boolean SQL predicate over
-// the `latest l` relation, mirroring getScopeClause but as reusable SQL text so
-// many filters can share one materialized latest-stream CTE. Uses `?` placeholders.
-func labelScopeToSQL(scope labelfilter.Scope) (string, []any, error) {
-	if scope.IsCondition() {
-		sql, args := labelConditionToSQL(*scope.Condition)
-		return sql, args, nil
-	}
-	if scope.IsQuery() {
-		return labelQueryToSQL(*scope.Query)
-	}
-	return "TRUE", nil, nil
-}
-
-func labelConditionToSQL(condition labelfilter.Condition) (string, []any) {
-	exists := "EXISTS (SELECT 1 FROM evidence_labels el WHERE el.evidence_id = l.id AND lower(el.labels_name) = lower(?) AND lower(el.labels_value) = lower(?))"
-	args := []any{condition.Label, condition.Value}
-	if condition.Operator == "!=" {
-		return "NOT " + exists, args
-	}
-	return exists, args
-}
-
-func labelQueryToSQL(query labelfilter.Query) (string, []any, error) {
-	op := strings.ToUpper(strings.TrimSpace(query.Operator))
-	if op != "AND" && op != "OR" {
-		return "", nil, errors.New("unrecognised query operator in label filter")
-	}
-	parts := make([]string, 0, len(query.Scopes))
-	args := make([]any, 0)
-	for _, scope := range query.Scopes {
-		sql, sqlArgs, err := labelScopeToSQL(scope)
-		if err != nil {
-			return "", nil, err
-		}
-		parts = append(parts, "("+sql+")")
-		args = append(args, sqlArgs...)
-	}
-	if len(parts) == 0 {
-		return "TRUE", nil, nil
-	}
-	return "(" + strings.Join(parts, " "+op+" ") + ")", args, nil
 }
 
 func GetLatestEvidenceStreamsQuery(db *gorm.DB) *gorm.DB {
