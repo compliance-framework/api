@@ -1185,6 +1185,578 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) TestCreateByComponentInvalid
 	suite.Equal(http.StatusCreated, resp.Code)
 }
 
+// setupSSPWithByComponents creates a basic SSP with one implemented requirement that has
+// both a control-level by-component and a statement with a statement-level by-component,
+// both referencing the SSP's first system component. It returns the running server and the
+// IDs needed to exercise by-component-scoped routes.
+func (suite *SystemSecurityPlanApiIntegrationSuite) setupSSPWithByComponents() (server *api.Server, sspUUID, reqUUID, stmtUUID, controlBCUUID, stmtBCUUID string) {
+	logConf := zap.NewDevelopmentConfig()
+	logConf.Level = zap.NewAtomicLevelAt(zap.ErrorLevel)
+	logger, _ := logConf.Build()
+
+	err := suite.Migrator.Refresh()
+	suite.Require().NoError(err)
+
+	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
+	server = api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
+	evidenceSvc := evidencesvc.NewEvidenceService(suite.DB, logger.Sugar(), suite.Config, nil)
+	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, evidenceSvc, nil, nil)
+
+	ssp := suite.createBasicSSP()
+	componentUuid := ssp.SystemImplementation.Components[0].UUID
+	ssp.ControlImplementation.ImplementedRequirements[0].Statements = nil
+
+	req := suite.createRequest("POST", "/api/oscal/system-security-plans", ssp)
+	resp := httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Require().Equal(http.StatusCreated, resp.Code)
+
+	controlBCUUID = uuid.New().String()
+	stmtBCUUID = uuid.New().String()
+
+	implementedReq := oscalTypes_1_1_3.ImplementedRequirement{
+		UUID:      uuid.New().String(),
+		ControlId: "ac-1",
+		ByComponents: &[]oscalTypes_1_1_3.ByComponent{
+			{
+				UUID:          controlBCUUID,
+				ComponentUuid: componentUuid,
+				Description:   "Control-level by component",
+			},
+		},
+		Statements: &[]oscalTypes_1_1_3.Statement{
+			{
+				UUID:        uuid.New().String(),
+				StatementId: "ac-1_stmt.a",
+				ByComponents: &[]oscalTypes_1_1_3.ByComponent{
+					{
+						UUID:          stmtBCUUID,
+						ComponentUuid: componentUuid,
+						Description:   "Statement-level by component",
+					},
+				},
+			},
+		},
+	}
+
+	req = suite.createRequest("POST", fmt.Sprintf("/api/oscal/system-security-plans/%s/control-implementation/implemented-requirements", ssp.UUID), implementedReq)
+	resp = httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Require().Equal(http.StatusCreated, resp.Code)
+
+	var createResponse handler.GenericDataResponse[oscalTypes_1_1_3.ImplementedRequirement]
+	err = json.Unmarshal(resp.Body.Bytes(), &createResponse)
+	suite.Require().NoError(err)
+
+	requirement := createResponse.Data
+	suite.Require().NotNil(requirement.Statements)
+	suite.Require().NotEmpty(*requirement.Statements)
+
+	return server, ssp.UUID, requirement.UUID, (*requirement.Statements)[0].UUID, controlBCUUID, stmtBCUUID
+}
+
+// exerciseByComponentExportCRUD drives the full Export CRUD lifecycle (get-missing,
+// create, create-conflict, get, update, delete, get-missing-again, delete-missing) against
+// the given by-component's export path, shared between the control- and statement-level
+// tests below since the handler logic is identical once the by-component is resolved.
+func (suite *SystemSecurityPlanApiIntegrationSuite) exerciseByComponentExportCRUD(server *api.Server, exportPath string) {
+	// GET before creation: 404
+	req := suite.createRequest("GET", exportPath, nil)
+	resp := httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Equal(http.StatusNotFound, resp.Code)
+
+	// POST creates the export, including nested provided/responsibilities
+	providedUUID := uuid.New().String()
+	newExport := oscalTypes_1_1_3.Export{
+		Description: "Export description",
+		Remarks:     "Export remarks",
+		Provided: &[]oscalTypes_1_1_3.ProvidedControlImplementation{
+			{
+				UUID:        providedUUID,
+				Description: "Provided description",
+			},
+		},
+		Responsibilities: &[]oscalTypes_1_1_3.ControlImplementationResponsibility{
+			{
+				UUID:         uuid.New().String(),
+				Description:  "Responsibility description",
+				ProvidedUuid: providedUUID,
+			},
+		},
+	}
+	req = suite.createRequest("POST", exportPath, newExport)
+	resp = httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Require().Equal(http.StatusCreated, resp.Code)
+
+	var createResponse handler.GenericDataResponse[oscalTypes_1_1_3.Export]
+	suite.Require().NoError(json.Unmarshal(resp.Body.Bytes(), &createResponse))
+	suite.Equal("Export description", createResponse.Data.Description)
+	suite.Require().NotNil(createResponse.Data.Provided)
+	suite.Len(*createResponse.Data.Provided, 1)
+	suite.Require().NotNil(createResponse.Data.Responsibilities)
+	suite.Len(*createResponse.Data.Responsibilities, 1)
+
+	// POST again: 409 conflict, export already exists
+	req = suite.createRequest("POST", exportPath, newExport)
+	resp = httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Equal(http.StatusConflict, resp.Code)
+
+	// GET returns the created export
+	req = suite.createRequest("GET", exportPath, nil)
+	resp = httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Require().Equal(http.StatusOK, resp.Code)
+
+	var getResponse handler.GenericDataResponse[oscalTypes_1_1_3.Export]
+	suite.Require().NoError(json.Unmarshal(resp.Body.Bytes(), &getResponse))
+	suite.Equal("Export description", getResponse.Data.Description)
+
+	// PUT rejects a payload carrying nested provided/responsibilities; those are
+	// managed via their own routes, not by replacing the export wholesale.
+	rejectedExport := oscalTypes_1_1_3.Export{
+		Description: "Should be rejected",
+		Provided: &[]oscalTypes_1_1_3.ProvidedControlImplementation{
+			{UUID: uuid.New().String(), Description: "Should not be applied"},
+		},
+	}
+	req = suite.createRequest("PUT", exportPath, rejectedExport)
+	resp = httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Equal(http.StatusBadRequest, resp.Code)
+
+	// PUT updates scalar fields only.
+	updatedExport := oscalTypes_1_1_3.Export{
+		Description: "Updated export description",
+		Remarks:     "Updated export remarks",
+	}
+	req = suite.createRequest("PUT", exportPath, updatedExport)
+	resp = httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Require().Equal(http.StatusOK, resp.Code)
+
+	var updateResponse handler.GenericDataResponse[oscalTypes_1_1_3.Export]
+	suite.Require().NoError(json.Unmarshal(resp.Body.Bytes(), &updateResponse))
+	suite.Equal("Updated export description", updateResponse.Data.Description)
+	suite.Equal("Updated export remarks", updateResponse.Data.Remarks)
+	suite.Require().NotNil(updateResponse.Data.Provided)
+	suite.Len(*updateResponse.Data.Provided, 1)
+	suite.Require().NotNil(updateResponse.Data.Responsibilities)
+	suite.Len(*updateResponse.Data.Responsibilities, 1)
+
+	// DELETE removes the export
+	req = suite.createRequest("DELETE", exportPath, nil)
+	resp = httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Equal(http.StatusNoContent, resp.Code)
+
+	// GET after deletion: 404
+	req = suite.createRequest("GET", exportPath, nil)
+	resp = httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Equal(http.StatusNotFound, resp.Code)
+
+	// DELETE again: 404
+	req = suite.createRequest("DELETE", exportPath, nil)
+	resp = httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Equal(http.StatusNotFound, resp.Code)
+}
+
+func (suite *SystemSecurityPlanApiIntegrationSuite) TestByComponentExportCRUD_ControlLevel() {
+	server, sspUUID, reqUUID, _, controlBCUUID, _ := suite.setupSSPWithByComponents()
+	exportPath := fmt.Sprintf("/api/oscal/system-security-plans/%s/control-implementation/implemented-requirements/%s/by-components/%s/export",
+		sspUUID, reqUUID, controlBCUUID)
+	suite.exerciseByComponentExportCRUD(server, exportPath)
+}
+
+func (suite *SystemSecurityPlanApiIntegrationSuite) TestByComponentExportCRUD_StatementLevel() {
+	server, sspUUID, reqUUID, stmtUUID, _, stmtBCUUID := suite.setupSSPWithByComponents()
+	exportPath := fmt.Sprintf("/api/oscal/system-security-plans/%s/control-implementation/implemented-requirements/%s/statements/%s/by-components/%s/export",
+		sspUUID, reqUUID, stmtUUID, stmtBCUUID)
+	suite.exerciseByComponentExportCRUD(server, exportPath)
+}
+
+// setupSSPWithExports extends setupSSPWithByComponents by also creating an empty Export
+// on both the control-level and statement-level by-components, since Provided and
+// Responsibility entries nest under an existing Export.
+func (suite *SystemSecurityPlanApiIntegrationSuite) setupSSPWithExports() (server *api.Server, controlExportPath, stmtExportPath string) {
+	server, sspUUID, reqUUID, stmtUUID, controlBCUUID, stmtBCUUID := suite.setupSSPWithByComponents()
+	controlExportPath = fmt.Sprintf("/api/oscal/system-security-plans/%s/control-implementation/implemented-requirements/%s/by-components/%s/export",
+		sspUUID, reqUUID, controlBCUUID)
+	stmtExportPath = fmt.Sprintf("/api/oscal/system-security-plans/%s/control-implementation/implemented-requirements/%s/statements/%s/by-components/%s/export",
+		sspUUID, reqUUID, stmtUUID, stmtBCUUID)
+
+	for _, path := range []string{controlExportPath, stmtExportPath} {
+		req := suite.createRequest("POST", path, oscalTypes_1_1_3.Export{Description: "export"})
+		resp := httptest.NewRecorder()
+		server.E().ServeHTTP(resp, req)
+		suite.Require().Equal(http.StatusCreated, resp.Code)
+	}
+
+	return server, controlExportPath, stmtExportPath
+}
+
+// exerciseByComponentExportProvidedCRUD drives the full CRUD lifecycle for a single
+// provided entry against the given export path, shared between the control- and
+// statement-level tests below.
+func (suite *SystemSecurityPlanApiIntegrationSuite) exerciseByComponentExportProvidedCRUD(server *api.Server, exportPath string) {
+	providedPath := exportPath + "/provided"
+
+	newProvided := oscalTypes_1_1_3.ProvidedControlImplementation{
+		UUID:        uuid.New().String(),
+		Description: "Provided description",
+	}
+	req := suite.createRequest("POST", providedPath, newProvided)
+	resp := httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Require().Equal(http.StatusCreated, resp.Code)
+
+	var createResponse handler.GenericDataResponse[oscalTypes_1_1_3.ProvidedControlImplementation]
+	suite.Require().NoError(json.Unmarshal(resp.Body.Bytes(), &createResponse))
+	suite.Equal(newProvided.UUID, createResponse.Data.UUID)
+	suite.Equal("Provided description", createResponse.Data.Description)
+
+	itemPath := fmt.Sprintf("%s/%s", providedPath, newProvided.UUID)
+
+	updatedProvided := oscalTypes_1_1_3.ProvidedControlImplementation{
+		UUID:        newProvided.UUID,
+		Description: "Updated provided description",
+		Remarks:     "Updated remarks",
+	}
+	req = suite.createRequest("PUT", itemPath, updatedProvided)
+	resp = httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Require().Equal(http.StatusOK, resp.Code)
+
+	var updateResponse handler.GenericDataResponse[oscalTypes_1_1_3.ProvidedControlImplementation]
+	suite.Require().NoError(json.Unmarshal(resp.Body.Bytes(), &updateResponse))
+	suite.Equal("Updated provided description", updateResponse.Data.Description)
+	suite.Equal("Updated remarks", updateResponse.Data.Remarks)
+
+	// The parent export now reflects the updated provided entry.
+	var getExportResponse handler.GenericDataResponse[oscalTypes_1_1_3.Export]
+	req = suite.createRequest("GET", exportPath, nil)
+	resp = httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Require().Equal(http.StatusOK, resp.Code)
+	suite.Require().NoError(json.Unmarshal(resp.Body.Bytes(), &getExportResponse))
+	suite.Require().NotNil(getExportResponse.Data.Provided)
+	suite.Len(*getExportResponse.Data.Provided, 1)
+	suite.Equal("Updated provided description", (*getExportResponse.Data.Provided)[0].Description)
+
+	// DELETE removes the entry.
+	req = suite.createRequest("DELETE", itemPath, nil)
+	resp = httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Equal(http.StatusNoContent, resp.Code)
+
+	// DELETE again: 404.
+	req = suite.createRequest("DELETE", itemPath, nil)
+	resp = httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Equal(http.StatusNotFound, resp.Code)
+
+	// PUT on a missing entry: 404.
+	req = suite.createRequest("PUT", itemPath, updatedProvided)
+	resp = httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Equal(http.StatusNotFound, resp.Code)
+
+	// The parent export no longer lists the deleted provided entry.
+	req = suite.createRequest("GET", exportPath, nil)
+	resp = httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Require().Equal(http.StatusOK, resp.Code)
+	var finalExportResponse handler.GenericDataResponse[oscalTypes_1_1_3.Export]
+	suite.Require().NoError(json.Unmarshal(resp.Body.Bytes(), &finalExportResponse))
+	if finalExportResponse.Data.Provided != nil {
+		suite.Empty(*finalExportResponse.Data.Provided)
+	}
+}
+
+func (suite *SystemSecurityPlanApiIntegrationSuite) TestByComponentExportProvidedCRUD_ControlLevel() {
+	server, controlExportPath, _ := suite.setupSSPWithExports()
+	suite.exerciseByComponentExportProvidedCRUD(server, controlExportPath)
+}
+
+func (suite *SystemSecurityPlanApiIntegrationSuite) TestByComponentExportProvidedCRUD_StatementLevel() {
+	server, _, stmtExportPath := suite.setupSSPWithExports()
+	suite.exerciseByComponentExportProvidedCRUD(server, stmtExportPath)
+}
+
+// exerciseByComponentExportResponsibilityCRUD drives the full CRUD lifecycle for a single
+// responsibility entry against the given export path, shared between the control- and
+// statement-level tests below.
+func (suite *SystemSecurityPlanApiIntegrationSuite) exerciseByComponentExportResponsibilityCRUD(server *api.Server, exportPath string) {
+	responsibilityPath := exportPath + "/responsibilities"
+
+	newResponsibility := oscalTypes_1_1_3.ControlImplementationResponsibility{
+		UUID:        uuid.New().String(),
+		Description: "Responsibility description",
+	}
+	req := suite.createRequest("POST", responsibilityPath, newResponsibility)
+	resp := httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Require().Equal(http.StatusCreated, resp.Code)
+
+	var createResponse handler.GenericDataResponse[oscalTypes_1_1_3.ControlImplementationResponsibility]
+	suite.Require().NoError(json.Unmarshal(resp.Body.Bytes(), &createResponse))
+	suite.Equal(newResponsibility.UUID, createResponse.Data.UUID)
+	suite.Equal("Responsibility description", createResponse.Data.Description)
+
+	itemPath := fmt.Sprintf("%s/%s", responsibilityPath, newResponsibility.UUID)
+
+	updatedResponsibility := oscalTypes_1_1_3.ControlImplementationResponsibility{
+		UUID:        newResponsibility.UUID,
+		Description: "Updated responsibility description",
+		Remarks:     "Updated remarks",
+	}
+	req = suite.createRequest("PUT", itemPath, updatedResponsibility)
+	resp = httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Require().Equal(http.StatusOK, resp.Code)
+
+	var updateResponse handler.GenericDataResponse[oscalTypes_1_1_3.ControlImplementationResponsibility]
+	suite.Require().NoError(json.Unmarshal(resp.Body.Bytes(), &updateResponse))
+	suite.Equal("Updated responsibility description", updateResponse.Data.Description)
+	suite.Equal("Updated remarks", updateResponse.Data.Remarks)
+
+	// The parent export now reflects the updated responsibility entry.
+	var getExportResponse handler.GenericDataResponse[oscalTypes_1_1_3.Export]
+	req = suite.createRequest("GET", exportPath, nil)
+	resp = httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Require().Equal(http.StatusOK, resp.Code)
+	suite.Require().NoError(json.Unmarshal(resp.Body.Bytes(), &getExportResponse))
+	suite.Require().NotNil(getExportResponse.Data.Responsibilities)
+	suite.Len(*getExportResponse.Data.Responsibilities, 1)
+	suite.Equal("Updated responsibility description", (*getExportResponse.Data.Responsibilities)[0].Description)
+
+	// DELETE removes the entry.
+	req = suite.createRequest("DELETE", itemPath, nil)
+	resp = httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Equal(http.StatusNoContent, resp.Code)
+
+	// DELETE again: 404.
+	req = suite.createRequest("DELETE", itemPath, nil)
+	resp = httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Equal(http.StatusNotFound, resp.Code)
+
+	// PUT on a missing entry: 404.
+	req = suite.createRequest("PUT", itemPath, updatedResponsibility)
+	resp = httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Equal(http.StatusNotFound, resp.Code)
+
+	// The parent export no longer lists the deleted responsibility entry.
+	req = suite.createRequest("GET", exportPath, nil)
+	resp = httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Require().Equal(http.StatusOK, resp.Code)
+	var finalExportResponse handler.GenericDataResponse[oscalTypes_1_1_3.Export]
+	suite.Require().NoError(json.Unmarshal(resp.Body.Bytes(), &finalExportResponse))
+	if finalExportResponse.Data.Responsibilities != nil {
+		suite.Empty(*finalExportResponse.Data.Responsibilities)
+	}
+}
+
+func (suite *SystemSecurityPlanApiIntegrationSuite) TestByComponentExportResponsibilityCRUD_ControlLevel() {
+	server, controlExportPath, _ := suite.setupSSPWithExports()
+	suite.exerciseByComponentExportResponsibilityCRUD(server, controlExportPath)
+}
+
+func (suite *SystemSecurityPlanApiIntegrationSuite) TestByComponentExportResponsibilityCRUD_StatementLevel() {
+	server, _, stmtExportPath := suite.setupSSPWithExports()
+	suite.exerciseByComponentExportResponsibilityCRUD(server, stmtExportPath)
+}
+
+// TestSSPExportRoundTrip authors Export/Provided/Responsibility data on both a
+// control-level and a statement-level by-component (plus Inherited/Satisfied entries with
+// unequal counts, to exercise the task 001 marshalling fix live against a full SSP), fetches
+// the full SSP (the same MarshalOscal() path used by `ccf oscal export`), and then re-imports
+// that document by unmarshalling it back into a fresh relational model and re-marshalling —
+// asserting no loss of the provided/responsibility/satisfied data through that round trip.
+func (suite *SystemSecurityPlanApiIntegrationSuite) TestSSPExportRoundTrip() {
+	logConf := zap.NewDevelopmentConfig()
+	logConf.Level = zap.NewAtomicLevelAt(zap.ErrorLevel)
+	logger, _ := logConf.Build()
+
+	err := suite.Migrator.Refresh()
+	suite.Require().NoError(err)
+
+	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
+	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
+	evidenceSvc := evidencesvc.NewEvidenceService(suite.DB, logger.Sugar(), suite.Config, nil)
+	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, evidenceSvc, nil, nil)
+
+	ssp := suite.createBasicSSP()
+	componentUuid := ssp.SystemImplementation.Components[0].UUID
+	ssp.ControlImplementation.ImplementedRequirements[0].Statements = nil
+
+	req := suite.createRequest("POST", "/api/oscal/system-security-plans", ssp)
+	resp := httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Require().Equal(http.StatusCreated, resp.Code)
+
+	controlBCUUID := uuid.New().String()
+	stmtBCUUID := uuid.New().String()
+
+	implementedReq := oscalTypes_1_1_3.ImplementedRequirement{
+		UUID:      uuid.New().String(),
+		ControlId: "ac-1",
+		ByComponents: &[]oscalTypes_1_1_3.ByComponent{
+			{
+				UUID:          controlBCUUID,
+				ComponentUuid: componentUuid,
+				Description:   "Control-level by component",
+				Inherited: &[]oscalTypes_1_1_3.InheritedControlImplementation{
+					{UUID: uuid.New().String(), Description: "Inherited from upstream SSP"},
+				},
+				Satisfied: &[]oscalTypes_1_1_3.SatisfiedControlImplementationResponsibility{
+					{UUID: uuid.New().String(), Description: "Satisfied 1"},
+					{UUID: uuid.New().String(), Description: "Satisfied 2"},
+					{UUID: uuid.New().String(), Description: "Satisfied 3"},
+				},
+			},
+		},
+		Statements: &[]oscalTypes_1_1_3.Statement{
+			{
+				UUID:        uuid.New().String(),
+				StatementId: "ac-1_stmt.a",
+				ByComponents: &[]oscalTypes_1_1_3.ByComponent{
+					{
+						UUID:          stmtBCUUID,
+						ComponentUuid: componentUuid,
+						Description:   "Statement-level by component",
+					},
+				},
+			},
+		},
+	}
+
+	req = suite.createRequest("POST", fmt.Sprintf("/api/oscal/system-security-plans/%s/control-implementation/implemented-requirements", ssp.UUID), implementedReq)
+	resp = httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Require().Equal(http.StatusCreated, resp.Code)
+
+	var createIRResponse handler.GenericDataResponse[oscalTypes_1_1_3.ImplementedRequirement]
+	suite.Require().NoError(json.Unmarshal(resp.Body.Bytes(), &createIRResponse))
+	requirement := createIRResponse.Data
+	suite.Require().NotNil(requirement.Statements)
+	suite.Require().NotEmpty(*requirement.Statements)
+	stmtUUID := (*requirement.Statements)[0].UUID
+
+	controlExportPath := fmt.Sprintf("/api/oscal/system-security-plans/%s/control-implementation/implemented-requirements/%s/by-components/%s/export",
+		ssp.UUID, requirement.UUID, controlBCUUID)
+	stmtExportPath := fmt.Sprintf("/api/oscal/system-security-plans/%s/control-implementation/implemented-requirements/%s/statements/%s/by-components/%s/export",
+		ssp.UUID, requirement.UUID, stmtUUID, stmtBCUUID)
+
+	// Author an Export with one Provided and one Responsibility entry on both levels.
+	for _, exportPath := range []string{controlExportPath, stmtExportPath} {
+		providedUUID := uuid.New().String()
+
+		req = suite.createRequest("POST", exportPath, oscalTypes_1_1_3.Export{Description: "Export description", Remarks: "Export remarks"})
+		resp = httptest.NewRecorder()
+		server.E().ServeHTTP(resp, req)
+		suite.Require().Equal(http.StatusCreated, resp.Code)
+
+		req = suite.createRequest("POST", exportPath+"/provided", oscalTypes_1_1_3.ProvidedControlImplementation{
+			UUID:        providedUUID,
+			Description: "Provided description",
+		})
+		resp = httptest.NewRecorder()
+		server.E().ServeHTTP(resp, req)
+		suite.Require().Equal(http.StatusCreated, resp.Code)
+
+		req = suite.createRequest("POST", exportPath+"/responsibilities", oscalTypes_1_1_3.ControlImplementationResponsibility{
+			UUID:         uuid.New().String(),
+			Description:  "Responsibility description",
+			ProvidedUuid: providedUUID,
+		})
+		resp = httptest.NewRecorder()
+		server.E().ServeHTTP(resp, req)
+		suite.Require().Equal(http.StatusCreated, resp.Code)
+	}
+
+	// Fetch the full SSP — the same MarshalOscal() path `ccf oscal export` uses.
+	req = suite.createRequest("GET", fmt.Sprintf("/api/oscal/system-security-plans/%s/full", ssp.UUID), nil)
+	resp = httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Require().Equal(http.StatusOK, resp.Code)
+
+	var fullResponse handler.GenericDataResponse[oscalTypes_1_1_3.SystemSecurityPlan]
+	suite.Require().NoError(json.Unmarshal(resp.Body.Bytes(), &fullResponse))
+	exported := fullResponse.Data
+
+	var exportedReq *oscalTypes_1_1_3.ImplementedRequirement
+	for i := range exported.ControlImplementation.ImplementedRequirements {
+		if exported.ControlImplementation.ImplementedRequirements[i].UUID == requirement.UUID {
+			exportedReq = &exported.ControlImplementation.ImplementedRequirements[i]
+			break
+		}
+	}
+	suite.Require().NotNil(exportedReq)
+	suite.Require().NotNil(exportedReq.ByComponents)
+	suite.Require().NotEmpty(*exportedReq.ByComponents)
+	exportedControlBC := (*exportedReq.ByComponents)[0]
+
+	// The task 001 fix: 3 satisfied vs 1 inherited must marshal correctly end-to-end.
+	suite.Require().NotNil(exportedControlBC.Satisfied)
+	suite.Len(*exportedControlBC.Satisfied, 3)
+	suite.Require().NotNil(exportedControlBC.Inherited)
+	suite.Len(*exportedControlBC.Inherited, 1)
+
+	suite.Require().NotNil(exportedControlBC.Export)
+	suite.Require().NotNil(exportedControlBC.Export.Provided)
+	suite.Len(*exportedControlBC.Export.Provided, 1)
+	suite.Require().NotNil(exportedControlBC.Export.Responsibilities)
+	suite.Len(*exportedControlBC.Export.Responsibilities, 1)
+
+	suite.Require().NotNil(exportedReq.Statements)
+	suite.Require().NotEmpty(*exportedReq.Statements)
+	exportedStmt := (*exportedReq.Statements)[0]
+	suite.Require().NotNil(exportedStmt.ByComponents)
+	suite.Require().NotEmpty(*exportedStmt.ByComponents)
+	exportedStmtBC := (*exportedStmt.ByComponents)[0]
+	suite.Require().NotNil(exportedStmtBC.Export)
+	suite.Require().NotNil(exportedStmtBC.Export.Provided)
+	suite.Len(*exportedStmtBC.Export.Provided, 1)
+	suite.Require().NotNil(exportedStmtBC.Export.Responsibilities)
+	suite.Len(*exportedStmtBC.Export.Responsibilities, 1)
+
+	// Re-import: unmarshal the exported OSCAL document back into a fresh relational model
+	// and re-marshal it, then assert no loss of provided/responsibility/satisfied data.
+	reimported := &relational.SystemSecurityPlan{}
+	reimported.UnmarshalOscal(exported)
+	reexported := reimported.MarshalOscal()
+
+	var reexportedReq *oscalTypes_1_1_3.ImplementedRequirement
+	for i := range reexported.ControlImplementation.ImplementedRequirements {
+		if reexported.ControlImplementation.ImplementedRequirements[i].UUID == requirement.UUID {
+			reexportedReq = &reexported.ControlImplementation.ImplementedRequirements[i]
+			break
+		}
+	}
+	suite.Require().NotNil(reexportedReq)
+	suite.Require().NotNil(reexportedReq.ByComponents)
+	reexportedControlBC := (*reexportedReq.ByComponents)[0]
+
+	suite.Equal(*exportedControlBC.Satisfied, *reexportedControlBC.Satisfied)
+	suite.Equal(*exportedControlBC.Inherited, *reexportedControlBC.Inherited)
+	suite.Equal(*exportedControlBC.Export.Provided, *reexportedControlBC.Export.Provided)
+	suite.Equal(*exportedControlBC.Export.Responsibilities, *reexportedControlBC.Export.Responsibilities)
+
+	suite.Require().NotNil(reexportedReq.Statements)
+	reexportedStmtBC := (*(*reexportedReq.Statements)[0].ByComponents)[0]
+	suite.Equal(*exportedStmtBC.Export.Provided, *reexportedStmtBC.Export.Provided)
+	suite.Equal(*exportedStmtBC.Export.Responsibilities, *reexportedStmtBC.Export.Responsibilities)
+}
+
 // Test updating a statement with invalid IDs
 func (suite *SystemSecurityPlanApiIntegrationSuite) TestUpdateImplementedRequirementStatementInvalidIDs() {
 	logConf := zap.NewDevelopmentConfig()

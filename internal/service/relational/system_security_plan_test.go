@@ -9,6 +9,7 @@ import (
 	oscalTypes_1_1_3 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"gorm.io/datatypes"
 )
 
@@ -248,6 +249,69 @@ func TestByComponent_OscalMarshalling(t *testing.T) {
 	outputJson, err := json.Marshal(output)
 	assert.NoError(t, err)
 	assert.JSONEq(t, string(inputJson), string(outputJson))
+}
+
+func TestByComponent_MarshalOscal_SatisfiedInheritedCountMismatch(t *testing.T) {
+	makeInherited := func(n int) []InheritedControlImplementation {
+		out := make([]InheritedControlImplementation, n)
+		for i := range out {
+			id := uuid.New()
+			out[i] = InheritedControlImplementation{
+				UUIDModel:   UUIDModel{ID: &id},
+				Description: "inherited",
+			}
+		}
+		return out
+	}
+	makeSatisfied := func(n int) []SatisfiedControlImplementationResponsibility {
+		out := make([]SatisfiedControlImplementationResponsibility, n)
+		for i := range out {
+			id := uuid.New()
+			out[i] = SatisfiedControlImplementationResponsibility{
+				UUIDModel:   UUIDModel{ID: &id},
+				Description: "satisfied",
+			}
+		}
+		return out
+	}
+
+	bcID := uuid.New()
+	componentID := uuid.New()
+
+	t.Run("more satisfied than inherited", func(t *testing.T) {
+		bc := &ByComponent{
+			UUIDModel:     UUIDModel{ID: &bcID},
+			ComponentUUID: componentID,
+			Inherited:     makeInherited(1),
+			Satisfied:     makeSatisfied(3),
+		}
+
+		var output *oscalTypes_1_1_3.ByComponent
+		assert.NotPanics(t, func() {
+			output = bc.MarshalOscal()
+		})
+		require.NotNil(t, output.Satisfied)
+		require.Len(t, *output.Satisfied, 3)
+		for i, s := range *output.Satisfied {
+			assert.Equal(t, bc.Satisfied[i].ID.String(), s.UUID)
+			assert.Equal(t, "satisfied", s.Description)
+		}
+	})
+
+	t.Run("fewer satisfied than inherited", func(t *testing.T) {
+		bc := &ByComponent{
+			UUIDModel:     UUIDModel{ID: &bcID},
+			ComponentUUID: componentID,
+			Inherited:     makeInherited(3),
+			Satisfied:     makeSatisfied(1),
+		}
+
+		output := bc.MarshalOscal()
+		assert.NotNil(t, output.Satisfied)
+		assert.Len(t, *output.Satisfied, 1)
+		assert.Equal(t, bc.Satisfied[0].ID.String(), (*output.Satisfied)[0].UUID)
+		assert.Equal(t, "satisfied", (*output.Satisfied)[0].Description)
+	})
 }
 
 func TestImplementedRequirement_OscalMarshalling(t *testing.T) {

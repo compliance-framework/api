@@ -1392,7 +1392,7 @@ func (bc *ByComponent) MarshalOscal() *oscalTypes_1_1_3.ByComponent {
 	}
 
 	if len(bc.Satisfied) > 0 {
-		satisfied := make([]oscalTypes_1_1_3.SatisfiedControlImplementationResponsibility, len(bc.Inherited))
+		satisfied := make([]oscalTypes_1_1_3.SatisfiedControlImplementationResponsibility, len(bc.Satisfied))
 		for i, rr := range bc.Satisfied {
 			satisfied[i] = *rr.MarshalOscal()
 		}
