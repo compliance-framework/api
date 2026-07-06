@@ -82,14 +82,84 @@ func latestEvidenceStreamsCTE(componentID *uuid.UUID) (string, []any) {
 		args = append(args, *componentID)
 	}
 	cte := `WITH latest AS MATERIALIZED (
-		SELECT l.id, u.uuid, l.status->>'state' AS state
+		SELECT l.id, u.uuid, l.title, l.status, l.collected, l.expires
 		FROM (SELECT DISTINCT uuid FROM evidences) u
 		CROSS JOIN LATERAL (
-			SELECT e.id, e.status FROM evidences e WHERE e.uuid = u.uuid ORDER BY e."end" DESC LIMIT 1
+			SELECT e.id, e.title, e.status, e."end" AS collected, e.expires
+			FROM evidences e WHERE e.uuid = u.uuid ORDER BY e."end" DESC LIMIT 1
 		) l
 		` + componentFilter + `
 	)`
 	return cte, args
+}
+
+// LatestEvidenceStream is the most-recent evidence in one stream plus its
+// normalized labels, the unit lineage compliance is evaluated over in memory.
+type LatestEvidenceStream struct {
+	UUID      uuid.UUID
+	Title     string
+	State     string
+	Reason    string
+	Collected time.Time
+	Expires   *time.Time
+	Labels    map[string][]string
+}
+
+// LoadLatestEvidenceStreams loads the latest evidence per stream (loose index
+// scan) with its labels, in a single query. componentID, when set, restricts to
+// streams observed on that system component. Postgres-first.
+func LoadLatestEvidenceStreams(db *gorm.DB, componentID *uuid.UUID) ([]LatestEvidenceStream, error) {
+	cte, args := latestEvidenceStreamsCTE(componentID)
+	query := cte + `
+		SELECT l.uuid AS uuid, l.title AS title, l.status->>'state' AS state,
+		       l.status->>'reason' AS reason, l.collected AS collected, l.expires AS expires,
+		       el.labels_name AS name, el.labels_value AS value
+		FROM latest l LEFT JOIN evidence_labels el ON el.evidence_id = l.id`
+
+	rows := []struct {
+		UUID      uuid.UUID  `gorm:"column:uuid"`
+		Title     string     `gorm:"column:title"`
+		State     string     `gorm:"column:state"`
+		Reason    string     `gorm:"column:reason"`
+		Collected time.Time  `gorm:"column:collected"`
+		Expires   *time.Time `gorm:"column:expires"`
+		Name      *string    `gorm:"column:name"`
+		Value     *string    `gorm:"column:value"`
+	}{}
+	if err := db.Raw(query, args...).Scan(&rows).Error; err != nil {
+		return nil, err
+	}
+
+	byUUID := map[uuid.UUID]*LatestEvidenceStream{}
+	order := make([]uuid.UUID, 0)
+	for _, r := range rows {
+		s := byUUID[r.UUID]
+		if s == nil {
+			s = &LatestEvidenceStream{
+				UUID: r.UUID, Title: r.Title, State: r.State, Reason: r.Reason,
+				Collected: r.Collected, Expires: r.Expires, Labels: map[string][]string{},
+			}
+			byUUID[r.UUID] = s
+			order = append(order, r.UUID)
+		}
+		if r.Name != nil {
+			key := strings.ToLower(strings.TrimSpace(*r.Name))
+			if key == "" {
+				continue
+			}
+			val := ""
+			if r.Value != nil {
+				val = strings.ToLower(strings.TrimSpace(*r.Value))
+			}
+			s.Labels[key] = append(s.Labels[key], val)
+		}
+	}
+
+	streams := make([]LatestEvidenceStream, 0, len(order))
+	for _, id := range order {
+		streams = append(streams, *byUUID[id])
+	}
+	return streams, nil
 }
 
 // GetEvidenceStatusCountsByFilters computes latest-evidence status counts for a
@@ -117,63 +187,22 @@ func GetEvidenceStatusCountsByFilters(db *gorm.DB, filters map[uuid.UUID]labelfi
 		result[id] = []StatusCount{} // ensure every filter has an entry, even with zero matches
 	}
 
-	// 1) Load the latest evidence per stream + its labels in one pass.
-	cte, args := latestEvidenceStreamsCTE(componentID)
-	query := cte + `
-		SELECT l.uuid AS uuid, l.state AS state, el.labels_name AS name, el.labels_value AS value
-		FROM latest l LEFT JOIN evidence_labels el ON el.evidence_id = l.id`
-
-	rows := []struct {
-		UUID  uuid.UUID `gorm:"column:uuid"`
-		State string    `gorm:"column:state"`
-		Name  *string   `gorm:"column:name"`
-		Value *string   `gorm:"column:value"`
-	}{}
-	if err := db.Raw(query, args...).Scan(&rows).Error; err != nil {
+	streams, err := LoadLatestEvidenceStreams(db, componentID)
+	if err != nil {
 		return nil, err
 	}
 
-	// 2) Group rows into per-stream {state, normalized labels}.
-	type stream struct {
-		state  string
-		labels map[string][]string
-	}
-	streams := map[uuid.UUID]*stream{}
-	for _, r := range rows {
-		s := streams[r.UUID]
-		if s == nil {
-			s = &stream{state: r.State, labels: map[string][]string{}}
-			streams[r.UUID] = s
-		}
-		if r.Name != nil {
-			key := strings.ToLower(strings.TrimSpace(*r.Name))
-			if key == "" {
-				continue
-			}
-			val := ""
-			if r.Value != nil {
-				val = strings.ToLower(strings.TrimSpace(*r.Value))
-			}
-			s.labels[key] = append(s.labels[key], val)
-		}
-	}
-
-	streamList := make([]*stream, 0, len(streams))
-	for _, s := range streams {
-		streamList = append(streamList, s)
-	}
-
-	// 3) Evaluate every filter against every latest stream in memory. Each stream
-	// is one distinct uuid, so a matching stream is one distinct-stream count.
+	// Evaluate every filter against every latest stream in memory. Each stream is
+	// one distinct uuid, so a matching stream is one distinct-stream count.
 	for id, filter := range filters {
 		counts := map[string]int64{}
-		for _, s := range streamList {
-			match, err := labelfilter.MatchLabels(filter.Scope, s.labels)
+		for i := range streams {
+			match, err := labelfilter.MatchLabels(filter.Scope, streams[i].Labels)
 			if err != nil {
 				return nil, err
 			}
 			if match {
-				counts[s.state]++
+				counts[streams[i].State]++
 			}
 		}
 		sc := make([]StatusCount, 0, len(counts))

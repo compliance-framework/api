@@ -272,9 +272,12 @@ type lineageEngine struct {
 
 	// rollup inputs
 	filtersByControl map[relational.ControlRef][]uuid.UUID
-	statusByFilter   map[uuid.UUID][]relational.StatusCount
 	controlStatus    map[relational.ControlRef]string
 	risksByControl   map[relational.ControlRef][]riskEntry
+	// latestStreams holds every latest-per-stream evidence (loaded once); the
+	// per-control indices into it are the control's own compliance evidence.
+	latestStreams            []relational.LatestEvidenceStream
+	evidenceStreamsByControl map[relational.ControlRef][]int
 
 	// SSP scope: standard controls resolved by the SSP's profiles.
 	profileControlSet map[string]struct{}
@@ -282,22 +285,23 @@ type lineageEngine struct {
 
 func (h *LineageHandler) buildEngine(sspID, componentID *uuid.UUID) (*lineageEngine, error) {
 	e := &lineageEngine{
-		db:                 h.db,
-		sspID:              sspID,
-		componentID:        componentID,
-		catalogs:           map[uuid.UUID]catalogInfo{},
-		controlTitle:       map[relational.ControlRef]string{},
-		controlCatalogType: map[relational.ControlRef]string{},
-		standardCatalogs:   map[uuid.UUID]struct{}{},
-		catalogAllControls: map[uuid.UUID][]relational.ControlRef{},
-		catalogTopControls: map[uuid.UUID][]relational.ControlRef{},
-		catalogTopGroups:   map[uuid.UUID][]groupMeta{},
-		groupControls:      map[string][]relational.ControlRef{},
-		groupTitle:         map[string]string{},
-		filtersByControl:   map[relational.ControlRef][]uuid.UUID{},
-		controlStatus:      map[relational.ControlRef]string{},
-		risksByControl:     map[relational.ControlRef][]riskEntry{},
-		profileControlSet:  map[string]struct{}{},
+		db:                       h.db,
+		sspID:                    sspID,
+		componentID:              componentID,
+		catalogs:                 map[uuid.UUID]catalogInfo{},
+		controlTitle:             map[relational.ControlRef]string{},
+		controlCatalogType:       map[relational.ControlRef]string{},
+		standardCatalogs:         map[uuid.UUID]struct{}{},
+		catalogAllControls:       map[uuid.UUID][]relational.ControlRef{},
+		catalogTopControls:       map[uuid.UUID][]relational.ControlRef{},
+		catalogTopGroups:         map[uuid.UUID][]groupMeta{},
+		groupControls:            map[string][]relational.ControlRef{},
+		groupTitle:               map[string]string{},
+		filtersByControl:         map[relational.ControlRef][]uuid.UUID{},
+		controlStatus:            map[relational.ControlRef]string{},
+		risksByControl:           map[relational.ControlRef][]riskEntry{},
+		evidenceStreamsByControl: map[relational.ControlRef][]int{},
+		profileControlSet:        map[string]struct{}{},
 	}
 
 	if err := e.loadCatalogs(h.db); err != nil {
@@ -411,33 +415,75 @@ func (e *lineageEngine) loadCompliance(db *gorm.DB) error {
 		return err
 	}
 
-	filterMap := make(map[uuid.UUID]labelfilter.Filter, len(filters))
+	scopeByFilter := map[uuid.UUID]*labelfilter.Scope{}
 	for i := range filters {
 		f := filters[i]
 		if f.ID == nil {
 			continue
 		}
-		filterMap[*f.ID] = f.Filter.Data()
+		scopeByFilter[*f.ID] = f.Filter.Data().Scope
 		for _, c := range f.Controls {
 			ref := relational.ControlRef{CatalogID: c.CatalogID, ControlID: c.ID}
 			e.filtersByControl[ref] = append(e.filtersByControl[ref], *f.ID)
 		}
 	}
 
-	statusByFilter, err := relational.GetEvidenceStatusCountsByFilters(db, filterMap, e.componentID)
+	// Load the latest evidence per stream once, then evaluate filters in memory.
+	streams, err := relational.LoadLatestEvidenceStreams(db, e.componentID)
 	if err != nil {
 		return err
 	}
-	e.statusByFilter = statusByFilter
+	e.latestStreams = streams
 
-	for ref, ids := range e.filtersByControl {
-		merged := make([]relational.StatusCount, 0)
-		for _, id := range ids {
-			merged = append(merged, statusByFilter[id]...)
+	// Each filter's matching stream indices (evaluated once).
+	filterMatched := make(map[uuid.UUID][]int, len(scopeByFilter))
+	for id, scope := range scopeByFilter {
+		for i := range streams {
+			m, matchErr := labelfilter.MatchLabels(scope, streams[i].Labels)
+			if matchErr != nil {
+				return matchErr
+			}
+			if m {
+				filterMatched[id] = append(filterMatched[id], i)
+			}
 		}
-		e.controlStatus[ref] = computeLineageStatus(merged)
+	}
+
+	// Per control: the distinct latest streams matching any of its filters (the
+	// control's own compliance evidence), plus the derived compliance status.
+	for ref, ids := range e.filtersByControl {
+		seen := map[int]struct{}{}
+		matched := []int{}
+		for _, id := range ids {
+			for _, si := range filterMatched[id] {
+				if _, dup := seen[si]; !dup {
+					seen[si] = struct{}{}
+					matched = append(matched, si)
+				}
+			}
+		}
+		e.evidenceStreamsByControl[ref] = matched
+		e.controlStatus[ref] = e.statusFromStreams(matched)
 	}
 	return nil
+}
+
+// statusFromStreams collapses a control's matching latest-evidence streams into
+// one status: any not-satisfied wins; else any satisfied; else unknown.
+func (e *lineageEngine) statusFromStreams(indices []int) string {
+	hasSatisfied := false
+	for _, i := range indices {
+		switch strings.ToLower(strings.TrimSpace(e.latestStreams[i].State)) {
+		case relational.EvidenceStatusNotSatisfied:
+			return relational.EvidenceStatusNotSatisfied
+		case relational.EvidenceStatusSatisfied:
+			hasSatisfied = true
+		}
+	}
+	if hasSatisfied {
+		return relational.EvidenceStatusSatisfied
+	}
+	return "unknown"
 }
 
 type riskScanRow struct {
@@ -644,8 +690,12 @@ func (e *lineageEngine) controlNode(ref relational.ControlRef) LineageNode {
 		linkage.Unmapped = len(e.graph.ImplementsChildren(ref)) == 0 && len(e.filtersByControl[ref]) == 0
 	}
 	// Children are the implementing/documenting controls PLUS this control's
-	// directly-linked risks (leaf risks, which in turn expand to their evidence).
+	// directly-linked risks. A fully-compliant control also exposes its own
+	// compliance evidence (the streams that make it satisfied) as leaf children.
 	childCount := len(e.graph.Children(ref)) + e.distinctRiskCount(ref)
+	if e.controlFullyCompliant(ref) {
+		childCount += len(e.evidenceStreamsByControl[ref])
+	}
 	return LineageNode{
 		Key:           "control:" + ref.CatalogID.String() + "/" + ref.ControlID,
 		NodeType:      controlNodeType(ctype),
@@ -668,6 +718,39 @@ func (e *lineageEngine) distinctRiskCount(ref relational.ControlRef) int {
 		seen[re.riskID] = struct{}{}
 	}
 	return len(seen)
+}
+
+// controlFullyCompliant reports whether a control's own evidence makes it fully
+// satisfied (satisfied status with at least one matching stream).
+func (e *lineageEngine) controlFullyCompliant(ref relational.ControlRef) bool {
+	return e.controlStatus[ref] == relational.EvidenceStatusSatisfied &&
+		len(e.evidenceStreamsByControl[ref]) > 0
+}
+
+// controlEvidenceNodes builds the evidence leaf nodes for a control's own
+// compliance evidence (the latest streams matching its filters).
+func (e *lineageEngine) controlEvidenceNodes(ref relational.ControlRef) []LineageNode {
+	indices := e.evidenceStreamsByControl[ref]
+	nodes := make([]LineageNode, 0, len(indices))
+	for _, i := range indices {
+		nodes = append(nodes, evidenceNodeFromStream(e.latestStreams[i]))
+	}
+	return nodes
+}
+
+func evidenceNodeFromStream(s relational.LatestEvidenceStream) LineageNode {
+	collected := s.Collected
+	return LineageNode{
+		Key:          "evidence:" + s.UUID.String(),
+		NodeType:     "evidence",
+		Relationship: "has-evidence",
+		EvidenceID:   s.UUID.String(),
+		Title:        s.Title,
+		Status:       s.State,
+		Reason:       s.Reason,
+		CollectedAt:  &collected,
+		Expires:      s.Expires,
+	}
 }
 
 type riskRow struct {
@@ -900,7 +983,12 @@ func (e *lineageEngine) childrenOf(kind string, catalogID uuid.UUID, subID strin
 		if err != nil {
 			return nil, err
 		}
-		return append(nodes, riskNodes...), nil
+		nodes = append(nodes, riskNodes...)
+		// A fully-compliant control also exposes its own compliance evidence.
+		if e.controlFullyCompliant(ref) {
+			nodes = append(nodes, e.controlEvidenceNodes(ref)...)
+		}
+		return nodes, nil
 	case "risk":
 		riskID, err := uuid.Parse(subID)
 		if err != nil {
