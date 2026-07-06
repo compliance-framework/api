@@ -332,11 +332,12 @@ func (e *lineageEngine) loadCatalogs(db *gorm.DB) error {
 			e.controlCatalogType[ref] = ctype
 		}
 
-		var topControls []relational.ControlRef
-		flattenControls(cat.Controls, catID, &topControls, register)
-		e.catalogTopControls[catID] = topControls
-
-		allControls := append([]relational.ControlRef(nil), topControls...)
+		// Load groups first and record which controls belong to a group. GORM's
+		// Preload("Controls") on a catalog returns EVERY control by catalog_id —
+		// including grouped ones — so a control's group membership is the only way
+		// to tell true top-level controls from grouped ones.
+		inGroup := map[relational.ControlRef]struct{}{}
+		allControls := []relational.ControlRef{}
 		for _, g := range cat.Groups {
 			var gc []relational.ControlRef
 			flattenGroup(g, catID, &gc, register)
@@ -344,8 +345,27 @@ func (e *lineageEngine) loadCatalogs(db *gorm.DB) error {
 			e.groupControls[gkey] = gc
 			e.groupTitle[gkey] = g.Title
 			e.catalogTopGroups[catID] = append(e.catalogTopGroups[catID], groupMeta{ID: g.ID, Title: g.Title})
-			allControls = append(allControls, gc...)
+			for _, ref := range gc {
+				if _, seen := inGroup[ref]; !seen {
+					inGroup[ref] = struct{}{}
+					allControls = append(allControls, ref)
+				}
+			}
 		}
+
+		// Top-level controls are the catalog's controls that are NOT in any group,
+		// so a grouped control appears only under its group, never at catalog level.
+		var catControls []relational.ControlRef
+		flattenControls(cat.Controls, catID, &catControls, register)
+		topControls := []relational.ControlRef{}
+		for _, ref := range catControls {
+			if _, grouped := inGroup[ref]; grouped {
+				continue
+			}
+			topControls = append(topControls, ref)
+			allControls = append(allControls, ref)
+		}
+		e.catalogTopControls[catID] = topControls
 		e.catalogAllControls[catID] = allControls
 	}
 	return nil
