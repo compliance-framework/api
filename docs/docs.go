@@ -32411,6 +32411,9 @@ const docTemplate = `{
                 "childrenCount": {
                     "type": "integer"
                 },
+                "collectedAt": {
+                    "type": "string"
+                },
                 "compliance": {
                     "$ref": "#/definitions/handler.LineageCompliance"
                 },
@@ -32420,19 +32423,51 @@ const docTemplate = `{
                 "evidenceId": {
                     "type": "string"
                 },
+                "expires": {
+                    "type": "string"
+                },
+                "firstSeenAt": {
+                    "type": "string"
+                },
                 "groupId": {
                     "type": "string"
                 },
                 "hasChildren": {
                     "type": "boolean"
                 },
+                "impact": {
+                    "type": "string"
+                },
                 "key": {
+                    "type": "string"
+                },
+                "lastReviewedAt": {
+                    "type": "string"
+                },
+                "lastSeenAt": {
+                    "type": "string"
+                },
+                "likelihood": {
                     "type": "string"
                 },
                 "linkage": {
                     "$ref": "#/definitions/handler.LineageLinkage"
                 },
+                "linkedEvidenceCount": {
+                    "type": "integer"
+                },
                 "nodeType": {
+                    "type": "string"
+                },
+                "reason": {
+                    "description": "Evidence-node detail.",
+                    "type": "string"
+                },
+                "relationship": {
+                    "description": "Relationship describes how this node relates to the parent it was expanded\nfrom (group | control | implements | documents | has-risk | has-evidence),\nso a node-link graph can label/style edges. Empty for roots.",
+                    "type": "string"
+                },
+                "reviewDeadline": {
                     "type": "string"
                 },
                 "risk": {
@@ -32443,6 +32478,10 @@ const docTemplate = `{
                 },
                 "score": {
                     "type": "integer"
+                },
+                "severity": {
+                    "description": "Risk-node detail.",
+                    "type": "string"
                 },
                 "status": {
                     "type": "string"

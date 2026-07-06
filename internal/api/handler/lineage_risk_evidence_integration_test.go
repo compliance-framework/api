@@ -100,19 +100,29 @@ func (suite *LineageRiskEvidenceSuite) TestControlToRiskToEvidence() {
 	suite.Require().Len(riskNodes, 1, "one risk under the control")
 	rn := riskNodes[0]
 	suite.Equal("risk:"+risk.ID.String(), rn.Key)
+	suite.Equal("has-risk", rn.Relationship)
 	suite.Equal("Test Risk", rn.Title)
 	suite.Equal("open", rn.Status)
 	suite.Require().NotNil(rn.Score)
 	suite.Equal(16, *rn.Score, "high x high")
+	suite.Equal("high", rn.Severity, "score 16 bands to high")
+	suite.Equal("high", rn.Likelihood)
+	suite.Equal("high", rn.Impact)
+	suite.Require().NotNil(rn.LinkedEvidenceCount)
+	suite.Equal(1, *rn.LinkedEvidenceCount)
+	suite.NotNil(rn.FirstSeenAt)
 	suite.True(rn.HasChildren)
 	suite.Equal(1, rn.ChildrenCount, "one linked stream")
 
 	// risk -> evidence (latest per stream: one node, satisfied)
 	evs := suite.childrenOf(rn.Key)
 	suite.Require().Len(evs, 1, "one latest-evidence node per stream")
-	suite.Equal("evidence", evs[0].NodeType)
-	suite.Equal("evidence:"+streamID.String(), evs[0].Key)
-	suite.Equal("satisfied", evs[0].Status, "latest row wins")
+	ev := evs[0]
+	suite.Equal("evidence", ev.NodeType)
+	suite.Equal("has-evidence", ev.Relationship)
+	suite.Equal("evidence:"+streamID.String(), ev.Key)
+	suite.Equal("satisfied", ev.Status, "latest row wins")
+	suite.NotNil(ev.CollectedAt, "collectedAt is the latest evidence end time")
 
 	// evidence is a leaf
 	suite.Empty(suite.childrenOf(evs[0].Key))

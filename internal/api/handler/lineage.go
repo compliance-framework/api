@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/compliance-framework/api/internal/api"
 	"github.com/compliance-framework/api/internal/api/middleware"
@@ -76,16 +77,36 @@ type LineageLinkage struct {
 }
 
 type LineageNode struct {
-	Key           string            `json:"key"`
-	NodeType      string            `json:"nodeType"`
-	CatalogID     string            `json:"catalogId,omitempty"`
-	ControlID     string            `json:"controlId,omitempty"`
-	GroupID       string            `json:"groupId,omitempty"`
-	RiskID        string            `json:"riskId,omitempty"`
-	EvidenceID    string            `json:"evidenceId,omitempty"`
-	Status        string            `json:"status,omitempty"`
-	Score         *int              `json:"score,omitempty"`
-	Title         string            `json:"title"`
+	Key      string `json:"key"`
+	NodeType string `json:"nodeType"`
+	// Relationship describes how this node relates to the parent it was expanded
+	// from (group | control | implements | documents | has-risk | has-evidence),
+	// so a node-link graph can label/style edges. Empty for roots.
+	Relationship string `json:"relationship,omitempty"`
+	CatalogID    string `json:"catalogId,omitempty"`
+	ControlID    string `json:"controlId,omitempty"`
+	GroupID      string `json:"groupId,omitempty"`
+	RiskID       string `json:"riskId,omitempty"`
+	EvidenceID   string `json:"evidenceId,omitempty"`
+	Title        string `json:"title"`
+	Status       string `json:"status,omitempty"`
+
+	// Risk-node detail.
+	Severity            string     `json:"severity,omitempty"`
+	Score               *int       `json:"score,omitempty"`
+	Likelihood          string     `json:"likelihood,omitempty"`
+	Impact              string     `json:"impact,omitempty"`
+	LinkedEvidenceCount *int       `json:"linkedEvidenceCount,omitempty"`
+	ReviewDeadline      *time.Time `json:"reviewDeadline,omitempty"`
+	LastReviewedAt      *time.Time `json:"lastReviewedAt,omitempty"`
+	FirstSeenAt         *time.Time `json:"firstSeenAt,omitempty"`
+	LastSeenAt          *time.Time `json:"lastSeenAt,omitempty"`
+
+	// Evidence-node detail.
+	Reason      string     `json:"reason,omitempty"`
+	CollectedAt *time.Time `json:"collectedAt,omitempty"`
+	Expires     *time.Time `json:"expires,omitempty"`
+
 	Compliance    LineageCompliance `json:"compliance"`
 	Risk          LineageRisk       `json:"risk"`
 	Linkage       LineageLinkage    `json:"linkage"`
@@ -650,18 +671,22 @@ func (e *lineageEngine) distinctRiskCount(ref relational.ControlRef) int {
 }
 
 type riskRow struct {
-	ID         uuid.UUID `gorm:"column:id"`
-	Title      string    `gorm:"column:title"`
-	Status     string    `gorm:"column:status"`
-	Likelihood *string   `gorm:"column:likelihood"`
-	Impact     *string   `gorm:"column:impact"`
+	ID             uuid.UUID  `gorm:"column:id"`
+	Title          string     `gorm:"column:title"`
+	Status         string     `gorm:"column:status"`
+	Likelihood     *string    `gorm:"column:likelihood"`
+	Impact         *string    `gorm:"column:impact"`
+	ReviewDeadline *time.Time `gorm:"column:review_deadline"`
+	LastReviewedAt *time.Time `gorm:"column:last_reviewed_at"`
+	FirstSeenAt    *time.Time `gorm:"column:first_seen_at"`
+	LastSeenAt     *time.Time `gorm:"column:last_seen_at"`
 }
 
 // riskNodesForControl loads the risks directly linked to a control (same SSP/
 // component scoping as loadRisks) as leaf-ish lineage nodes that expand to evidence.
 func (e *lineageEngine) riskNodesForControl(ref relational.ControlRef) ([]LineageNode, error) {
 	q := e.db.Table("risk_control_links rcl").
-		Select("r.id, r.title, r.status, r.likelihood, r.impact").
+		Select("r.id, r.title, r.status, r.likelihood, r.impact, r.review_deadline, r.last_reviewed_at, r.first_seen_at, r.last_seen_at").
 		Joins("JOIN risk_register_risks r ON r.id = rcl.risk_id").
 		Where("rcl.catalog_id = ? AND rcl.control_id = ?", ref.CatalogID, ref.ControlID)
 	if e.sspID != nil {
@@ -725,14 +750,19 @@ func (e *lineageEngine) riskEvidenceCounts(riskIDs []uuid.UUID) (map[uuid.UUID]i
 // evidenceNodesForRisk loads the latest evidence per stream linked to a risk.
 func (e *lineageEngine) evidenceNodesForRisk(riskID uuid.UUID) ([]LineageNode, error) {
 	rows := []struct {
-		UUID  uuid.UUID `gorm:"column:uuid"`
-		Title string    `gorm:"column:title"`
-		State string    `gorm:"column:state"`
+		UUID      uuid.UUID  `gorm:"column:uuid"`
+		Title     string     `gorm:"column:title"`
+		State     string     `gorm:"column:state"`
+		Reason    string     `gorm:"column:reason"`
+		Collected time.Time  `gorm:"column:collected"`
+		Expires   *time.Time `gorm:"column:expires"`
 	}{}
 	// evidences.uuid is text while risk_evidence_links.evidence_id is uuid; join
 	// on text (the established repo convention for this mismatch).
 	query := `
-		SELECT DISTINCT ON (e.uuid) e.uuid AS uuid, e.title AS title, e.status->>'state' AS state
+		SELECT DISTINCT ON (e.uuid) e.uuid AS uuid, e.title AS title,
+		       e.status->>'state' AS state, e.status->>'reason' AS reason,
+		       e."end" AS collected, e.expires AS expires
 		FROM risk_evidence_links rel
 		JOIN evidences e ON e.uuid = rel.evidence_id::text
 		WHERE rel.risk_id = ?
@@ -742,7 +772,18 @@ func (e *lineageEngine) evidenceNodesForRisk(riskID uuid.UUID) ([]LineageNode, e
 	}
 	nodes := make([]LineageNode, 0, len(rows))
 	for _, r := range rows {
-		nodes = append(nodes, evidenceNode(r.UUID, r.Title, r.State))
+		collected := r.Collected
+		nodes = append(nodes, LineageNode{
+			Key:          "evidence:" + r.UUID.String(),
+			NodeType:     "evidence",
+			Relationship: "has-evidence",
+			EvidenceID:   r.UUID.String(),
+			Title:        r.Title,
+			Status:       r.State,
+			Reason:       r.Reason,
+			CollectedAt:  &collected,
+			Expires:      r.Expires,
+		})
 	}
 	return nodes, nil
 }
@@ -750,26 +791,51 @@ func (e *lineageEngine) evidenceNodesForRisk(riskID uuid.UUID) ([]LineageNode, e
 func riskNode(r riskRow, evidenceCount int) LineageNode {
 	score, _ := riskrel.NumericalRiskScore(r.Likelihood, r.Impact)
 	s := score
-	return LineageNode{
-		Key:           "risk:" + r.ID.String(),
-		NodeType:      "risk",
-		RiskID:        r.ID.String(),
-		Title:         r.Title,
-		Status:        r.Status,
-		Score:         &s,
-		Risk:          bucketRisks([]riskEntry{{riskID: r.ID, status: r.Status, score: score}}),
-		HasChildren:   evidenceCount > 0,
-		ChildrenCount: evidenceCount,
+	linked := evidenceCount
+	node := LineageNode{
+		Key:                 "risk:" + r.ID.String(),
+		NodeType:            "risk",
+		Relationship:        "has-risk",
+		RiskID:              r.ID.String(),
+		Title:               r.Title,
+		Status:              r.Status,
+		Severity:            severityForScore(score),
+		Score:               &s,
+		LinkedEvidenceCount: &linked,
+		ReviewDeadline:      r.ReviewDeadline,
+		LastReviewedAt:      r.LastReviewedAt,
+		FirstSeenAt:         r.FirstSeenAt,
+		LastSeenAt:          r.LastSeenAt,
+		Risk:                bucketRisks([]riskEntry{{riskID: r.ID, status: r.Status, score: score}}),
+		HasChildren:         evidenceCount > 0,
+		ChildrenCount:       evidenceCount,
 	}
+	if r.Likelihood != nil {
+		node.Likelihood = *r.Likelihood
+	}
+	if r.Impact != nil {
+		node.Impact = *r.Impact
+	}
+	return node
 }
 
-func evidenceNode(streamUUID uuid.UUID, title, state string) LineageNode {
-	return LineageNode{
-		Key:        "evidence:" + streamUUID.String(),
-		NodeType:   "evidence",
-		EvidenceID: streamUUID.String(),
-		Title:      title,
-		Status:     state,
+// severityForScore bands the 1..25 likelihood×impact score into a categorical
+// level for node coloring. 0 (unscored) yields "". Thresholds are a standard 5×5
+// heat-map banding; the UI may re-band from the raw score/likelihood/impact.
+func severityForScore(score int) string {
+	switch {
+	case score <= 0:
+		return ""
+	case score <= 2:
+		return "negligible"
+	case score <= 5:
+		return "low"
+	case score <= 11:
+		return "moderate"
+	case score <= 19:
+		return "high"
+	default:
+		return "critical"
 	}
 }
 
@@ -781,10 +847,14 @@ func (e *lineageEngine) childrenOf(kind string, catalogID uuid.UUID, subID strin
 		}
 		nodes := []LineageNode{}
 		for _, g := range e.catalogTopGroups[catalogID] {
-			nodes = append(nodes, e.groupNode(catalogID, g.ID))
+			n := e.groupNode(catalogID, g.ID)
+			n.Relationship = "group"
+			nodes = append(nodes, n)
 		}
 		for _, ref := range e.catalogTopControls[catalogID] {
-			nodes = append(nodes, e.controlNode(ref))
+			n := e.controlNode(ref)
+			n.Relationship = "control"
+			nodes = append(nodes, n)
 		}
 		return nodes, nil
 	case "group":
@@ -794,7 +864,9 @@ func (e *lineageEngine) childrenOf(kind string, catalogID uuid.UUID, subID strin
 		}
 		nodes := make([]LineageNode, 0, len(refs))
 		for _, ref := range refs {
-			nodes = append(nodes, e.controlNode(ref))
+			n := e.controlNode(ref)
+			n.Relationship = "control"
+			nodes = append(nodes, n)
 		}
 		return nodes, nil
 	case "control":
@@ -802,11 +874,27 @@ func (e *lineageEngine) childrenOf(kind string, catalogID uuid.UUID, subID strin
 		if _, ok := e.controlCatalogType[ref]; !ok {
 			return nil, errors.New("control not found")
 		}
-		// Child controls (implementing/documenting), then this control's linked risks.
-		children := e.graph.Children(ref)
-		nodes := make([]LineageNode, 0, len(children))
-		for _, child := range children {
-			nodes = append(nodes, e.controlNode(child))
+		// Implementing controls, then documenting controls, then linked risks —
+		// each child labelled with how it relates to this control.
+		nodes := []LineageNode{}
+		seen := map[relational.ControlRef]struct{}{}
+		for _, child := range e.graph.ImplementsChildren(ref) {
+			if _, dup := seen[child]; dup {
+				continue
+			}
+			seen[child] = struct{}{}
+			n := e.controlNode(child)
+			n.Relationship = "implements"
+			nodes = append(nodes, n)
+		}
+		for _, child := range e.graph.DocumentsChildren(ref) {
+			if _, dup := seen[child]; dup {
+				continue
+			}
+			seen[child] = struct{}{}
+			n := e.controlNode(child)
+			n.Relationship = "documents"
+			nodes = append(nodes, n)
 		}
 		riskNodes, err := e.riskNodesForControl(ref)
 		if err != nil {
