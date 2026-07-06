@@ -96,6 +96,9 @@ func latestEvidenceStreamsCTE(componentID *uuid.UUID) (string, []any) {
 // LatestEvidenceStream is the most-recent evidence in one stream plus its
 // normalized labels, the unit lineage compliance is evaluated over in memory.
 type LatestEvidenceStream struct {
+	// ID is the latest evidence record's primary key (for deep-linking to
+	// GET /evidence/{id}); UUID is the stream identifier.
+	ID        uuid.UUID
 	UUID      uuid.UUID
 	Title     string
 	State     string
@@ -111,12 +114,13 @@ type LatestEvidenceStream struct {
 func LoadLatestEvidenceStreams(db *gorm.DB, componentID *uuid.UUID) ([]LatestEvidenceStream, error) {
 	cte, args := latestEvidenceStreamsCTE(componentID)
 	query := cte + `
-		SELECT l.uuid AS uuid, l.title AS title, l.status->>'state' AS state,
+		SELECT l.id AS id, l.uuid AS uuid, l.title AS title, l.status->>'state' AS state,
 		       l.status->>'reason' AS reason, l.collected AS collected, l.expires AS expires,
 		       el.labels_name AS name, el.labels_value AS value
 		FROM latest l LEFT JOIN evidence_labels el ON el.evidence_id = l.id`
 
 	rows := []struct {
+		ID        uuid.UUID  `gorm:"column:id"`
 		UUID      uuid.UUID  `gorm:"column:uuid"`
 		Title     string     `gorm:"column:title"`
 		State     string     `gorm:"column:state"`
@@ -136,7 +140,7 @@ func LoadLatestEvidenceStreams(db *gorm.DB, componentID *uuid.UUID) ([]LatestEvi
 		s := byUUID[r.UUID]
 		if s == nil {
 			s = &LatestEvidenceStream{
-				UUID: r.UUID, Title: r.Title, State: r.State, Reason: r.Reason,
+				ID: r.ID, UUID: r.UUID, Title: r.Title, State: r.State, Reason: r.Reason,
 				Collected: r.Collected, Expires: r.Expires, Labels: map[string][]string{},
 			}
 			byUUID[r.UUID] = s

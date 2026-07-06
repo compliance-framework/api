@@ -744,7 +744,7 @@ func evidenceNodeFromStream(s relational.LatestEvidenceStream) LineageNode {
 		Key:          "evidence:" + s.UUID.String(),
 		NodeType:     "evidence",
 		Relationship: "has-evidence",
-		EvidenceID:   s.UUID.String(),
+		EvidenceID:   s.ID.String(),
 		Title:        s.Title,
 		Status:       s.State,
 		Reason:       s.Reason,
@@ -833,6 +833,7 @@ func (e *lineageEngine) riskEvidenceCounts(riskIDs []uuid.UUID) (map[uuid.UUID]i
 // evidenceNodesForRisk loads the latest evidence per stream linked to a risk.
 func (e *lineageEngine) evidenceNodesForRisk(riskID uuid.UUID) ([]LineageNode, error) {
 	rows := []struct {
+		ID        uuid.UUID  `gorm:"column:id"`
 		UUID      uuid.UUID  `gorm:"column:uuid"`
 		Title     string     `gorm:"column:title"`
 		State     string     `gorm:"column:state"`
@@ -841,9 +842,12 @@ func (e *lineageEngine) evidenceNodesForRisk(riskID uuid.UUID) ([]LineageNode, e
 		Expires   *time.Time `gorm:"column:expires"`
 	}{}
 	// evidences.uuid is text while risk_evidence_links.evidence_id is uuid; join
-	// on text (the established repo convention for this mismatch).
+	// on text (the established repo convention for this mismatch). We pick the
+	// latest record per stream (DISTINCT ON uuid) and expose that record's id so
+	// the UI can deep-link to GET /evidence/{id} (which looks up by record id, not
+	// the stream uuid).
 	query := `
-		SELECT DISTINCT ON (e.uuid) e.uuid AS uuid, e.title AS title,
+		SELECT DISTINCT ON (e.uuid) e.id AS id, e.uuid AS uuid, e.title AS title,
 		       e.status->>'state' AS state, e.status->>'reason' AS reason,
 		       e."end" AS collected, e.expires AS expires
 		FROM risk_evidence_links rel
@@ -857,10 +861,12 @@ func (e *lineageEngine) evidenceNodesForRisk(riskID uuid.UUID) ([]LineageNode, e
 	for _, r := range rows {
 		collected := r.Collected
 		nodes = append(nodes, LineageNode{
+			// Key stays the stream uuid (node identity / graph dedup), but the
+			// EvidenceID is the record id so the UI links to GET /evidence/{id}.
 			Key:          "evidence:" + r.UUID.String(),
 			NodeType:     "evidence",
 			Relationship: "has-evidence",
-			EvidenceID:   r.UUID.String(),
+			EvidenceID:   r.ID.String(),
 			Title:        r.Title,
 			Status:       r.State,
 			Reason:       r.Reason,
