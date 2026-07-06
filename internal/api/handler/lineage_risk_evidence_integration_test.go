@@ -1,0 +1,119 @@
+//go:build integration
+
+package handler
+
+import (
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+	"time"
+
+	"github.com/compliance-framework/api/internal/service/relational"
+	riskrel "github.com/compliance-framework/api/internal/service/relational/risks"
+	"github.com/compliance-framework/api/internal/tests"
+	oscalTypes_1_1_3 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
+	"github.com/google/uuid"
+	"github.com/labstack/echo/v4"
+	"github.com/stretchr/testify/suite"
+	"go.uber.org/zap"
+	"gorm.io/datatypes"
+)
+
+func TestLineageRiskEvidence(t *testing.T) {
+	suite.Run(t, new(LineageRiskEvidenceSuite))
+}
+
+type LineageRiskEvidenceSuite struct {
+	tests.IntegrationTestSuite
+}
+
+func (suite *LineageRiskEvidenceSuite) childrenOf(key string) []LineageNode {
+	e := echo.New()
+	req := httptest.NewRequest(http.MethodGet, "/x", nil)
+	rec := httptest.NewRecorder()
+	ctx := e.NewContext(req, rec)
+	ctx.SetParamNames("key")
+	ctx.SetParamValues(key)
+	suite.Require().NoError(NewLineageHandler(zap.NewNop().Sugar(), suite.DB).Children(ctx))
+	suite.Require().Equal(http.StatusOK, rec.Code, rec.Body.String())
+	var resp struct {
+		Data []LineageNode `json:"data"`
+	}
+	suite.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &resp))
+	return resp.Data
+}
+
+// A control expands to its linked risks; a risk expands to its latest evidence
+// per linked stream.
+func (suite *LineageRiskEvidenceSuite) TestControlToRiskToEvidence() {
+	suite.Require().NoError(suite.Migrator.Refresh())
+	now := time.Now().UTC()
+
+	catID := uuid.New()
+	catalog := relational.Catalog{
+		UUIDModel:   relational.UUIDModel{ID: &catID},
+		CatalogType: relational.CatalogTypeStandard,
+		Metadata:    relational.Metadata{Title: "Std", Version: "1.0.0", OscalVersion: "1.1.3", LastModified: &now},
+		Controls:    []relational.Control{{CatalogID: catID, ID: "ac-1", Title: "Access Control"}},
+	}
+	suite.Require().NoError(suite.DB.Create(&catalog).Error)
+
+	// A risk (high x high = 16) linked to ac-1.
+	high := "high"
+	risk := riskrel.Risk{
+		Title:       "Test Risk",
+		Description: "d",
+		Status:      string(riskrel.RiskStatusOpen),
+		SSPID:       uuid.New(),
+		Likelihood:  &high,
+		Impact:      &high,
+		SourceType:  string(riskrel.RiskSourceTypeManual),
+	}
+	suite.Require().NoError(suite.DB.Create(&risk).Error)
+	suite.Require().NoError(suite.DB.Create(&riskrel.RiskControlLink{
+		RiskID: *risk.ID, CatalogID: catID, ControlID: "ac-1",
+	}).Error)
+
+	// One evidence stream with two rows (latest wins), linked to the risk.
+	streamID := uuid.New()
+	older := uuid.New()
+	newer := uuid.New()
+	suite.Require().NoError(suite.DB.Create(&[]relational.Evidence{
+		{UUIDModel: relational.UUIDModel{ID: &older}, UUID: streamID, Title: "ev", Start: now.Add(-time.Hour), End: now.Add(-time.Hour),
+			Status: datatypes.NewJSONType(oscalTypes_1_1_3.ObjectiveStatus{State: "not-satisfied"})},
+		{UUIDModel: relational.UUIDModel{ID: &newer}, UUID: streamID, Title: "ev", Start: now, End: now,
+			Status: datatypes.NewJSONType(oscalTypes_1_1_3.ObjectiveStatus{State: "satisfied"})},
+	}).Error)
+	suite.Require().NoError(suite.DB.Create(&riskrel.RiskEvidenceLink{
+		RiskID: *risk.ID, EvidenceID: streamID,
+	}).Error)
+
+	// control -> risk
+	kids := suite.childrenOf("control:" + catID.String() + "/ac-1")
+	var riskNodes []LineageNode
+	for _, n := range kids {
+		if n.NodeType == "risk" {
+			riskNodes = append(riskNodes, n)
+		}
+	}
+	suite.Require().Len(riskNodes, 1, "one risk under the control")
+	rn := riskNodes[0]
+	suite.Equal("risk:"+risk.ID.String(), rn.Key)
+	suite.Equal("Test Risk", rn.Title)
+	suite.Equal("open", rn.Status)
+	suite.Require().NotNil(rn.Score)
+	suite.Equal(16, *rn.Score, "high x high")
+	suite.True(rn.HasChildren)
+	suite.Equal(1, rn.ChildrenCount, "one linked stream")
+
+	// risk -> evidence (latest per stream: one node, satisfied)
+	evs := suite.childrenOf(rn.Key)
+	suite.Require().Len(evs, 1, "one latest-evidence node per stream")
+	suite.Equal("evidence", evs[0].NodeType)
+	suite.Equal("evidence:"+streamID.String(), evs[0].Key)
+	suite.Equal("satisfied", evs[0].Status, "latest row wins")
+
+	// evidence is a leaf
+	suite.Empty(suite.childrenOf(evs[0].Key))
+}

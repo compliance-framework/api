@@ -1870,6 +1870,8 @@ definitions:
         $ref: '#/definitions/handler.LineageCompliance'
       controlId:
         type: string
+      evidenceId:
+        type: string
       groupId:
         type: string
       hasChildren:
@@ -1882,6 +1884,12 @@ definitions:
         type: string
       risk:
         $ref: '#/definitions/handler.LineageRisk'
+      riskId:
+        type: string
+      score:
+        type: integer
+      status:
+        type: string
       title:
         type: string
     type: object
@@ -13577,9 +13585,11 @@ paths:
       - Filters
   /lineage/nodes/{key}/children:
     get:
-      description: Returns one level of children for a node. Every node carries full-subtree
-        rollup metrics. Key is a composite like catalog:<uuid>, group:<catalogId>/<groupId>,
-        control:<catalogId>/<controlId>.
+      description: Returns one level of children for a node. Key is a composite like
+        catalog:<uuid>, group:<catalogId>/<groupId>, control:<catalogId>/<controlId>,
+        risk:<riskId>, evidence:<streamUuid>. A control expands to its implementing/documenting
+        controls plus its directly-linked risks; a risk expands to its latest evidence
+        per linked stream; evidence is a leaf.
       parameters:
       - description: URL-encoded node key
         in: path

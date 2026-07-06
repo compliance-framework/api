@@ -4128,7 +4128,7 @@
         },
         "/lineage/nodes/{key}/children": {
             "get": {
-                "description": "Returns one level of children for a node. Every node carries full-subtree rollup metrics. Key is a composite like catalog:\u003cuuid\u003e, group:\u003ccatalogId\u003e/\u003cgroupId\u003e, control:\u003ccatalogId\u003e/\u003ccontrolId\u003e.",
+                "description": "Returns one level of children for a node. Key is a composite like catalog:\u003cuuid\u003e, group:\u003ccatalogId\u003e/\u003cgroupId\u003e, control:\u003ccatalogId\u003e/\u003ccontrolId\u003e, risk:\u003criskId\u003e, evidence:\u003cstreamUuid\u003e. A control expands to its implementing/documenting controls plus its directly-linked risks; a risk expands to its latest evidence per linked stream; evidence is a leaf.",
                 "produces": [
                     "application/json"
                 ],
@@ -32411,6 +32411,9 @@
                 "controlId": {
                     "type": "string"
                 },
+                "evidenceId": {
+                    "type": "string"
+                },
                 "groupId": {
                     "type": "string"
                 },
@@ -32428,6 +32431,15 @@
                 },
                 "risk": {
                     "$ref": "#/definitions/handler.LineageRisk"
+                },
+                "riskId": {
+                    "type": "string"
+                },
+                "score": {
+                    "type": "integer"
+                },
+                "status": {
+                    "type": "string"
                 },
                 "title": {
                     "type": "string"

@@ -81,6 +81,10 @@ type LineageNode struct {
 	CatalogID     string            `json:"catalogId,omitempty"`
 	ControlID     string            `json:"controlId,omitempty"`
 	GroupID       string            `json:"groupId,omitempty"`
+	RiskID        string            `json:"riskId,omitempty"`
+	EvidenceID    string            `json:"evidenceId,omitempty"`
+	Status        string            `json:"status,omitempty"`
+	Score         *int              `json:"score,omitempty"`
 	Title         string            `json:"title"`
 	Compliance    LineageCompliance `json:"compliance"`
 	Risk          LineageRisk       `json:"risk"`
@@ -148,7 +152,7 @@ func (h *LineageHandler) Roots(ctx echo.Context) error {
 // Children godoc
 
 // @Summary		List lineage node children
-// @Description	Returns one level of children for a node. Every node carries full-subtree rollup metrics. Key is a composite like catalog:<uuid>, group:<catalogId>/<groupId>, control:<catalogId>/<controlId>.
+// @Description	Returns one level of children for a node. Key is a composite like catalog:<uuid>, group:<catalogId>/<groupId>, control:<catalogId>/<controlId>, risk:<riskId>, evidence:<streamUuid>. A control expands to its implementing/documenting controls plus its directly-linked risks; a risk expands to its latest evidence per linked stream; evidence is a leaf.
 // @Tags			Lineage
 // @Produce		json
 // @Param			key			path		string	true	"URL-encoded node key"
@@ -228,6 +232,7 @@ type riskEntry struct {
 // lineageEngine holds everything loaded once per request to compute rollups
 // without per-node N+1 queries.
 type lineageEngine struct {
+	db          *gorm.DB
 	sspID       *uuid.UUID
 	componentID *uuid.UUID
 
@@ -256,6 +261,7 @@ type lineageEngine struct {
 
 func (h *LineageHandler) buildEngine(sspID, componentID *uuid.UUID) (*lineageEngine, error) {
 	e := &lineageEngine{
+		db:                 h.db,
 		sspID:              sspID,
 		componentID:        componentID,
 		catalogs:           map[uuid.UUID]catalogInfo{},
@@ -592,11 +598,13 @@ func (e *lineageEngine) groupNode(catID uuid.UUID, groupID string) LineageNode {
 func (e *lineageEngine) controlNode(ref relational.ControlRef) LineageNode {
 	ctype := e.controlCatalogType[ref]
 	set := e.evidenceSet([]relational.ControlRef{ref})
-	children := e.graph.Children(ref)
 	linkage := e.linkageFor([]relational.ControlRef{ref}, ctype == relational.CatalogTypePolicy)
 	if ctype == relational.CatalogTypeStandard {
 		linkage.Unmapped = len(e.graph.ImplementsChildren(ref)) == 0 && len(e.filtersByControl[ref]) == 0
 	}
+	// Children are the implementing/documenting controls PLUS this control's
+	// directly-linked risks (leaf risks, which in turn expand to their evidence).
+	childCount := len(e.graph.Children(ref)) + e.distinctRiskCount(ref)
 	return LineageNode{
 		Key:           "control:" + ref.CatalogID.String() + "/" + ref.ControlID,
 		NodeType:      controlNodeType(ctype),
@@ -606,8 +614,142 @@ func (e *lineageEngine) controlNode(ref relational.ControlRef) LineageNode {
 		Compliance:    e.compliance(set),
 		Risk:          e.risk(set),
 		Linkage:       linkage,
-		HasChildren:   len(children) > 0,
-		ChildrenCount: len(children),
+		HasChildren:   childCount > 0,
+		ChildrenCount: childCount,
+	}
+}
+
+// distinctRiskCount returns how many distinct risks are linked to a control
+// (already scoped by loadRisks), for child counts.
+func (e *lineageEngine) distinctRiskCount(ref relational.ControlRef) int {
+	seen := map[uuid.UUID]struct{}{}
+	for _, re := range e.risksByControl[ref] {
+		seen[re.riskID] = struct{}{}
+	}
+	return len(seen)
+}
+
+type riskRow struct {
+	ID         uuid.UUID `gorm:"column:id"`
+	Title      string    `gorm:"column:title"`
+	Status     string    `gorm:"column:status"`
+	Likelihood *string   `gorm:"column:likelihood"`
+	Impact     *string   `gorm:"column:impact"`
+}
+
+// riskNodesForControl loads the risks directly linked to a control (same SSP/
+// component scoping as loadRisks) as leaf-ish lineage nodes that expand to evidence.
+func (e *lineageEngine) riskNodesForControl(ref relational.ControlRef) ([]LineageNode, error) {
+	q := e.db.Table("risk_control_links rcl").
+		Select("r.id, r.title, r.status, r.likelihood, r.impact").
+		Joins("JOIN risk_register_risks r ON r.id = rcl.risk_id").
+		Where("rcl.catalog_id = ? AND rcl.control_id = ?", ref.CatalogID, ref.ControlID)
+	if e.sspID != nil {
+		q = q.Where("r.ssp_id = ?", *e.sspID)
+	}
+	if e.componentID != nil {
+		q = q.Joins("JOIN risk_component_links rcomp ON rcomp.risk_id = r.id").
+			Where("rcomp.component_id = ?", *e.componentID)
+	}
+	rows := []riskRow{}
+	if err := q.Scan(&rows).Error; err != nil {
+		return nil, err
+	}
+
+	seen := map[uuid.UUID]riskRow{}
+	order := make([]uuid.UUID, 0, len(rows))
+	for _, r := range rows {
+		if _, ok := seen[r.ID]; !ok {
+			seen[r.ID] = r
+			order = append(order, r.ID)
+		}
+	}
+
+	counts, err := e.riskEvidenceCounts(order)
+	if err != nil {
+		return nil, err
+	}
+
+	nodes := make([]LineageNode, 0, len(order))
+	for _, id := range order {
+		r := seen[id]
+		nodes = append(nodes, riskNode(r, counts[id]))
+	}
+	return nodes, nil
+}
+
+// riskEvidenceCounts returns the number of distinct linked evidence streams per
+// risk, for the risk nodes' hasChildren/childrenCount.
+func (e *lineageEngine) riskEvidenceCounts(riskIDs []uuid.UUID) (map[uuid.UUID]int, error) {
+	counts := map[uuid.UUID]int{}
+	if len(riskIDs) == 0 {
+		return counts, nil
+	}
+	rows := []struct {
+		RiskID uuid.UUID `gorm:"column:risk_id"`
+		C      int       `gorm:"column:c"`
+	}{}
+	if err := e.db.Table("risk_evidence_links").
+		Select("risk_id, count(DISTINCT evidence_id) AS c").
+		Where("risk_id IN ?", riskIDs).
+		Group("risk_id").
+		Scan(&rows).Error; err != nil {
+		return nil, err
+	}
+	for _, r := range rows {
+		counts[r.RiskID] = r.C
+	}
+	return counts, nil
+}
+
+// evidenceNodesForRisk loads the latest evidence per stream linked to a risk.
+func (e *lineageEngine) evidenceNodesForRisk(riskID uuid.UUID) ([]LineageNode, error) {
+	rows := []struct {
+		UUID  uuid.UUID `gorm:"column:uuid"`
+		Title string    `gorm:"column:title"`
+		State string    `gorm:"column:state"`
+	}{}
+	// evidences.uuid is text while risk_evidence_links.evidence_id is uuid; join
+	// on text (the established repo convention for this mismatch).
+	query := `
+		SELECT DISTINCT ON (e.uuid) e.uuid AS uuid, e.title AS title, e.status->>'state' AS state
+		FROM risk_evidence_links rel
+		JOIN evidences e ON e.uuid = rel.evidence_id::text
+		WHERE rel.risk_id = ?
+		ORDER BY e.uuid, e."end" DESC`
+	if err := e.db.Raw(query, riskID).Scan(&rows).Error; err != nil {
+		return nil, err
+	}
+	nodes := make([]LineageNode, 0, len(rows))
+	for _, r := range rows {
+		nodes = append(nodes, evidenceNode(r.UUID, r.Title, r.State))
+	}
+	return nodes, nil
+}
+
+func riskNode(r riskRow, evidenceCount int) LineageNode {
+	score, _ := riskrel.NumericalRiskScore(r.Likelihood, r.Impact)
+	s := score
+	return LineageNode{
+		Key:           "risk:" + r.ID.String(),
+		NodeType:      "risk",
+		RiskID:        r.ID.String(),
+		Title:         r.Title,
+		Status:        r.Status,
+		Score:         &s,
+		Risk:          bucketRisks([]riskEntry{{riskID: r.ID, status: r.Status, score: score}}),
+		HasChildren:   evidenceCount > 0,
+		ChildrenCount: evidenceCount,
+	}
+}
+
+func evidenceNode(streamUUID uuid.UUID, title, state string) LineageNode {
+	return LineageNode{
+		Key:        "evidence:" + streamUUID.String(),
+		NodeType:   "evidence",
+		EvidenceID: streamUUID.String(),
+		Title:      title,
+		Status:     state,
 	}
 }
 
@@ -640,12 +782,26 @@ func (e *lineageEngine) childrenOf(kind string, catalogID uuid.UUID, subID strin
 		if _, ok := e.controlCatalogType[ref]; !ok {
 			return nil, errors.New("control not found")
 		}
+		// Child controls (implementing/documenting), then this control's linked risks.
 		children := e.graph.Children(ref)
 		nodes := make([]LineageNode, 0, len(children))
 		for _, child := range children {
 			nodes = append(nodes, e.controlNode(child))
 		}
-		return nodes, nil
+		riskNodes, err := e.riskNodesForControl(ref)
+		if err != nil {
+			return nil, err
+		}
+		return append(nodes, riskNodes...), nil
+	case "risk":
+		riskID, err := uuid.Parse(subID)
+		if err != nil {
+			return nil, errors.New("invalid risk id")
+		}
+		return e.evidenceNodesForRisk(riskID)
+	case "evidence":
+		// Evidence is a leaf.
+		return []LineageNode{}, nil
 	default:
 		return nil, errors.New("unknown node kind: " + kind)
 	}
@@ -819,7 +975,8 @@ func parseTypes(raw string) (map[string]struct{}, error) {
 }
 
 // parseNodeKey decodes a composite node key into its kind, catalog id, and the
-// trailing sub-id (group id or control id).
+// trailing sub-id. For risk/evidence keys (risk:<uuid>, evidence:<uuid>) the id
+// is returned in subID and catalogID is Nil.
 //
 // The key travels as a single URL-encoded path segment (the ':' and the '/'
 // separator arrive as %3A/%2F). Echo does not unescape path params, so we decode
@@ -843,6 +1000,11 @@ func parseNodeKey(raw string) (kind string, catalogID uuid.UUID, subID string, e
 			return "", uuid.Nil, "", errors.New("malformed catalog key")
 		}
 		return kind, catalogID, "", nil
+	case "risk", "evidence":
+		if rest == "" {
+			return "", uuid.Nil, "", errors.New("missing id in " + kind + " key")
+		}
+		return kind, uuid.Nil, rest, nil
 	case "group", "control":
 		slash := strings.IndexByte(rest, '/')
 		if slash < 0 {
