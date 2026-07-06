@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 	"time"
 
@@ -1379,6 +1380,62 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) TestByComponentExportCRUD_St
 	suite.exerciseByComponentExportCRUD(server, exportPath)
 }
 
+// TestByComponentExportCreate_ConcurrentRequestsDoNotDuplicate fires many concurrent
+// POSTs at the same by-component's export path and asserts exactly one succeeds (201)
+// while every other request is rejected with 409 — never two 201s (which would mean two
+// Export rows for the same by-component) and never a 500. This exercises the advisory
+// lock in createByComponentExport that closes the TOCTOU race between the existence
+// check and the insert (Export.ByComponentId has no unique DB constraint).
+func (suite *SystemSecurityPlanApiIntegrationSuite) TestByComponentExportCreate_ConcurrentRequestsDoNotDuplicate() {
+	server, sspUUID, reqUUID, _, controlBCUUID, _ := suite.setupSSPWithByComponents()
+	exportPath := fmt.Sprintf("/api/oscal/system-security-plans/%s/control-implementation/implemented-requirements/%s/by-components/%s/export",
+		sspUUID, reqUUID, controlBCUUID)
+
+	const concurrency = 30
+	codes := make([]int, concurrency)
+	requests := make([]*http.Request, concurrency)
+	for i := range requests {
+		requests[i] = suite.createRequest("POST", exportPath, oscalTypes_1_1_3.Export{Description: "concurrent export"})
+	}
+
+	start := make(chan struct{})
+	var ready, wg sync.WaitGroup
+	ready.Add(concurrency)
+	wg.Add(concurrency)
+	for i := 0; i < concurrency; i++ {
+		go func(i int) {
+			defer wg.Done()
+			ready.Done()
+			<-start // all goroutines fire together, maximizing overlap on the race window
+			resp := httptest.NewRecorder()
+			server.E().ServeHTTP(resp, requests[i])
+			codes[i] = resp.Code
+		}(i)
+	}
+	ready.Wait()
+	close(start)
+	wg.Wait()
+
+	created, conflicted, other := 0, 0, 0
+	for _, code := range codes {
+		switch code {
+		case http.StatusCreated:
+			created++
+		case http.StatusConflict:
+			conflicted++
+		default:
+			other++
+		}
+	}
+	suite.Equal(0, other, "expected no unexpected status codes, got codes: %v", codes)
+	suite.Equal(1, created, "expected exactly one request to create the export, got codes: %v", codes)
+	suite.Equal(concurrency-1, conflicted, "expected all other requests to conflict, got codes: %v", codes)
+
+	var count int64
+	suite.Require().NoError(suite.DB.Table("exports").Where("by_component_id = ?", controlBCUUID).Count(&count).Error)
+	suite.Equal(int64(1), count, "expected exactly one export row for the by-component")
+}
+
 // setupSSPWithExports extends setupSSPWithByComponents by also creating an empty Export
 // on both the control-level and statement-level by-components, since Provided and
 // Responsibility entries nest under an existing Export.
@@ -1744,15 +1801,28 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) TestSSPExportRoundTrip() {
 	}
 	suite.Require().NotNil(reexportedReq)
 	suite.Require().NotNil(reexportedReq.ByComponents)
+	suite.Require().NotEmpty(*reexportedReq.ByComponents)
 	reexportedControlBC := (*reexportedReq.ByComponents)[0]
 
+	suite.Require().NotNil(reexportedControlBC.Satisfied)
+	suite.Require().NotNil(reexportedControlBC.Inherited)
+	suite.Require().NotNil(reexportedControlBC.Export)
+	suite.Require().NotNil(reexportedControlBC.Export.Provided)
+	suite.Require().NotNil(reexportedControlBC.Export.Responsibilities)
 	suite.Equal(*exportedControlBC.Satisfied, *reexportedControlBC.Satisfied)
 	suite.Equal(*exportedControlBC.Inherited, *reexportedControlBC.Inherited)
 	suite.Equal(*exportedControlBC.Export.Provided, *reexportedControlBC.Export.Provided)
 	suite.Equal(*exportedControlBC.Export.Responsibilities, *reexportedControlBC.Export.Responsibilities)
 
 	suite.Require().NotNil(reexportedReq.Statements)
-	reexportedStmtBC := (*(*reexportedReq.Statements)[0].ByComponents)[0]
+	suite.Require().NotEmpty(*reexportedReq.Statements)
+	reexportedStmt := (*reexportedReq.Statements)[0]
+	suite.Require().NotNil(reexportedStmt.ByComponents)
+	suite.Require().NotEmpty(*reexportedStmt.ByComponents)
+	reexportedStmtBC := (*reexportedStmt.ByComponents)[0]
+	suite.Require().NotNil(reexportedStmtBC.Export)
+	suite.Require().NotNil(reexportedStmtBC.Export.Provided)
+	suite.Require().NotNil(reexportedStmtBC.Export.Responsibilities)
 	suite.Equal(*exportedStmtBC.Export.Provided, *reexportedStmtBC.Export.Provided)
 	suite.Equal(*exportedStmtBC.Export.Responsibilities, *reexportedStmtBC.Export.Responsibilities)
 }

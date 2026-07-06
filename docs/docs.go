@@ -16556,7 +16556,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
             },
             "put": {
                 "description": "Updates the scalar fields of an existing Export for a by-component within an implemented requirement. Provided and Responsibilities entries are managed via their own routes.",
@@ -16627,7 +16632,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
             },
             "post": {
                 "description": "Creates the Export for a by-component within an implemented requirement. A by-component may have at most one Export.",
@@ -16704,7 +16714,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
             },
             "delete": {
                 "description": "Deletes the Export (and its Provided/Responsibilities entries) for a by-component within an implemented requirement.",
@@ -16757,7 +16772,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
             }
         },
         "/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/by-components/{byComponentId}/export/provided": {
@@ -16830,7 +16850,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
             }
         },
         "/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/by-components/{byComponentId}/export/provided/{providedId}": {
@@ -16910,7 +16935,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
             },
             "delete": {
                 "description": "Deletes an existing ProvidedControlImplementation entry under the Export of a by-component within an implemented requirement.",
@@ -16970,7 +17000,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
             }
         },
         "/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/by-components/{byComponentId}/export/responsibilities": {
@@ -17043,7 +17078,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
             }
         },
         "/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/by-components/{byComponentId}/export/responsibilities/{responsibilityId}": {
@@ -17123,7 +17163,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
             },
             "delete": {
                 "description": "Deletes an existing ControlImplementationResponsibility entry under the Export of a by-component within an implemented requirement.",
@@ -17183,7 +17228,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
             }
         },
         "/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/statements": {
@@ -17503,8 +17553,8 @@ const docTemplate = `{
                     }
                 ],
                 "responses": {
-                    "200": {
-                        "description": "OK",
+                    "201": {
+                        "description": "Created",
                         "schema": {
                             "$ref": "#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_ByComponent"
                         }
@@ -17744,7 +17794,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
             },
             "put": {
                 "description": "Updates the scalar fields of an existing Export for a by-component within a statement. Provided and Responsibilities entries are managed via their own routes.",
@@ -17822,7 +17877,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
             },
             "post": {
                 "description": "Creates the Export for a by-component within a statement. A by-component may have at most one Export.",
@@ -17906,7 +17966,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
             },
             "delete": {
                 "description": "Deletes the Export (and its Provided/Responsibilities entries) for a by-component within a statement.",
@@ -17966,7 +18031,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
             }
         },
         "/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/statements/{stmtId}/by-components/{byComponentId}/export/provided": {
@@ -18046,7 +18116,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
             }
         },
         "/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/statements/{stmtId}/by-components/{byComponentId}/export/provided/{providedId}": {
@@ -18133,7 +18208,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
             },
             "delete": {
                 "description": "Deletes an existing ProvidedControlImplementation entry under the Export of a by-component within a statement.",
@@ -18200,7 +18280,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
             }
         },
         "/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/statements/{stmtId}/by-components/{byComponentId}/export/responsibilities": {
@@ -18280,7 +18365,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
             }
         },
         "/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/statements/{stmtId}/by-components/{byComponentId}/export/responsibilities/{responsibilityId}": {
@@ -18367,7 +18457,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
             },
             "delete": {
                 "description": "Deletes an existing ControlImplementationResponsibility entry under the Export of a by-component within a statement.",
@@ -18434,7 +18529,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
             }
         },
         "/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/statements/{stmtId}/suggest-components": {

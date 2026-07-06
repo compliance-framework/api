@@ -2,6 +2,8 @@ package oscal
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"net/http"
@@ -4539,7 +4541,7 @@ func (h *SystemSecurityPlanHandler) DeleteImplementedRequirementStatementByCompo
 //	@Param			reqId			path		string							true	"Requirement ID"
 //	@Param			stmtId			path		string							true	"Statement ID"
 //	@Param			by-component	body		oscalTypes_1_1_3.ByComponent	true	"By-Component data"
-//	@Success		200				{object}	handler.GenericDataResponse[oscalTypes_1_1_3.ByComponent]
+//	@Success		201				{object}	handler.GenericDataResponse[oscalTypes_1_1_3.ByComponent]
 //	@Failure		400				{object}	api.Error
 //	@Failure		404				{object}	api.Error
 //	@Failure		500				{object}	api.Error
@@ -4776,15 +4778,6 @@ func (h *SystemSecurityPlanHandler) getByComponentExport(ctx echo.Context, bc *r
 // createByComponentExport creates the (singleton) Export sub-resource for an
 // already-resolved by-component. A by-component may have at most one Export.
 func (h *SystemSecurityPlanHandler) createByComponentExport(ctx echo.Context, bc *relational.ByComponent) error {
-	var existing relational.Export
-	err := h.db.Where("by_component_id = ?", bc.ID).First(&existing).Error
-	if err == nil {
-		return ctx.JSON(http.StatusConflict, api.NewError(fmt.Errorf("export already exists for this by-component")))
-	}
-	if !errors.Is(err, gorm.ErrRecordNotFound) {
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
-	}
-
 	var oscalExport oscalTypes_1_1_3.Export
 	if err := ctx.Bind(&oscalExport); err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
@@ -4794,8 +4787,31 @@ func (h *SystemSecurityPlanHandler) createByComponentExport(ctx echo.Context, bc
 	relExport.UnmarshalOscal(oscalExport)
 	relExport.ByComponentId = *bc.ID
 
-	if err := h.db.Create(relExport).Error; err != nil {
+	conflict := false
+	if err := h.db.Transaction(func(tx *gorm.DB) error {
+		// Export.ByComponentId has no unique DB constraint (this ticket makes no
+		// schema change), so an advisory lock keyed on the by-component closes the
+		// race between the existence check and the insert for concurrent creates.
+		if err := lockByComponentExportCreate(tx, *bc.ID); err != nil {
+			return err
+		}
+
+		var existing relational.Export
+		err := tx.Where("by_component_id = ?", bc.ID).First(&existing).Error
+		if err == nil {
+			conflict = true
+			return nil
+		}
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return err
+		}
+
+		return tx.Create(relExport).Error
+	}); err != nil {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+	if conflict {
+		return ctx.JSON(http.StatusConflict, api.NewError(fmt.Errorf("export already exists for this by-component")))
 	}
 
 	created, err := h.reloadByComponentExport(*bc.ID)
@@ -4803,6 +4819,19 @@ func (h *SystemSecurityPlanHandler) createByComponentExport(ctx echo.Context, bc
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 	return ctx.JSON(http.StatusCreated, handler.GenericDataResponse[oscalTypes_1_1_3.Export]{Data: *created.MarshalOscal()})
+}
+
+// lockByComponentExportCreate serializes concurrent Export creation for the same
+// by-component using a transaction-scoped Postgres advisory lock keyed on the
+// by-component's UUID. It is a no-op against non-Postgres test drivers.
+func lockByComponentExportCreate(tx *gorm.DB, byComponentID uuid.UUID) error {
+	if tx.Name() != "postgres" {
+		return nil
+	}
+	sum := sha256.Sum256([]byte("export-create:" + byComponentID.String()))
+	key1 := int32(binary.BigEndian.Uint32(sum[0:4]))
+	key2 := int32(binary.BigEndian.Uint32(sum[4:8]))
+	return tx.Exec("SELECT pg_advisory_xact_lock(?, ?)", key1, key2).Error
 }
 
 // updateByComponentExport updates the scalar fields (description, remarks, props,
@@ -4888,6 +4917,7 @@ func (h *SystemSecurityPlanHandler) deleteByComponentExport(ctx echo.Context, bc
 //	@Failure		400				{object}	api.Error
 //	@Failure		404				{object}	api.Error
 //	@Failure		500				{object}	api.Error
+//	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/by-components/{byComponentId}/export [get]
 func (h *SystemSecurityPlanHandler) GetImplementedRequirementByComponentExport(ctx echo.Context) error {
 	bc, ok := h.resolveByComponentForRequirement(ctx)
@@ -4913,6 +4943,7 @@ func (h *SystemSecurityPlanHandler) GetImplementedRequirementByComponentExport(c
 //	@Failure		404				{object}	api.Error
 //	@Failure		409				{object}	api.Error
 //	@Failure		500				{object}	api.Error
+//	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/by-components/{byComponentId}/export [post]
 func (h *SystemSecurityPlanHandler) CreateImplementedRequirementByComponentExport(ctx echo.Context) error {
 	bc, ok := h.resolveByComponentForRequirement(ctx)
@@ -4937,6 +4968,7 @@ func (h *SystemSecurityPlanHandler) CreateImplementedRequirementByComponentExpor
 //	@Failure		400				{object}	api.Error
 //	@Failure		404				{object}	api.Error
 //	@Failure		500				{object}	api.Error
+//	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/by-components/{byComponentId}/export [put]
 func (h *SystemSecurityPlanHandler) UpdateImplementedRequirementByComponentExport(ctx echo.Context) error {
 	bc, ok := h.resolveByComponentForRequirement(ctx)
@@ -4958,6 +4990,7 @@ func (h *SystemSecurityPlanHandler) UpdateImplementedRequirementByComponentExpor
 //	@Failure		400				{object}	api.Error
 //	@Failure		404				{object}	api.Error
 //	@Failure		500				{object}	api.Error
+//	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/by-components/{byComponentId}/export [delete]
 func (h *SystemSecurityPlanHandler) DeleteImplementedRequirementByComponentExport(ctx echo.Context) error {
 	bc, ok := h.resolveByComponentForRequirement(ctx)
@@ -4981,6 +5014,7 @@ func (h *SystemSecurityPlanHandler) DeleteImplementedRequirementByComponentExpor
 //	@Failure		400				{object}	api.Error
 //	@Failure		404				{object}	api.Error
 //	@Failure		500				{object}	api.Error
+//	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/statements/{stmtId}/by-components/{byComponentId}/export [get]
 func (h *SystemSecurityPlanHandler) GetImplementedRequirementStatementByComponentExport(ctx echo.Context) error {
 	bc, ok := h.resolveByComponentForStatement(ctx)
@@ -5007,6 +5041,7 @@ func (h *SystemSecurityPlanHandler) GetImplementedRequirementStatementByComponen
 //	@Failure		404				{object}	api.Error
 //	@Failure		409				{object}	api.Error
 //	@Failure		500				{object}	api.Error
+//	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/statements/{stmtId}/by-components/{byComponentId}/export [post]
 func (h *SystemSecurityPlanHandler) CreateImplementedRequirementStatementByComponentExport(ctx echo.Context) error {
 	bc, ok := h.resolveByComponentForStatement(ctx)
@@ -5032,6 +5067,7 @@ func (h *SystemSecurityPlanHandler) CreateImplementedRequirementStatementByCompo
 //	@Failure		400				{object}	api.Error
 //	@Failure		404				{object}	api.Error
 //	@Failure		500				{object}	api.Error
+//	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/statements/{stmtId}/by-components/{byComponentId}/export [put]
 func (h *SystemSecurityPlanHandler) UpdateImplementedRequirementStatementByComponentExport(ctx echo.Context) error {
 	bc, ok := h.resolveByComponentForStatement(ctx)
@@ -5054,6 +5090,7 @@ func (h *SystemSecurityPlanHandler) UpdateImplementedRequirementStatementByCompo
 //	@Failure		400				{object}	api.Error
 //	@Failure		404				{object}	api.Error
 //	@Failure		500				{object}	api.Error
+//	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/statements/{stmtId}/by-components/{byComponentId}/export [delete]
 func (h *SystemSecurityPlanHandler) DeleteImplementedRequirementStatementByComponentExport(ctx echo.Context) error {
 	bc, ok := h.resolveByComponentForStatement(ctx)
@@ -5183,6 +5220,7 @@ func (h *SystemSecurityPlanHandler) deleteByComponentExportProvided(ctx echo.Con
 //	@Failure		400				{object}	api.Error
 //	@Failure		404				{object}	api.Error
 //	@Failure		500				{object}	api.Error
+//	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/by-components/{byComponentId}/export/provided [post]
 func (h *SystemSecurityPlanHandler) CreateImplementedRequirementByComponentExportProvided(ctx echo.Context) error {
 	bc, ok := h.resolveByComponentForRequirement(ctx)
@@ -5208,6 +5246,7 @@ func (h *SystemSecurityPlanHandler) CreateImplementedRequirementByComponentExpor
 //	@Failure		400				{object}	api.Error
 //	@Failure		404				{object}	api.Error
 //	@Failure		500				{object}	api.Error
+//	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/by-components/{byComponentId}/export/provided/{providedId} [put]
 func (h *SystemSecurityPlanHandler) UpdateImplementedRequirementByComponentExportProvided(ctx echo.Context) error {
 	bc, ok := h.resolveByComponentForRequirement(ctx)
@@ -5230,6 +5269,7 @@ func (h *SystemSecurityPlanHandler) UpdateImplementedRequirementByComponentExpor
 //	@Failure		400				{object}	api.Error
 //	@Failure		404				{object}	api.Error
 //	@Failure		500				{object}	api.Error
+//	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/by-components/{byComponentId}/export/provided/{providedId} [delete]
 func (h *SystemSecurityPlanHandler) DeleteImplementedRequirementByComponentExportProvided(ctx echo.Context) error {
 	bc, ok := h.resolveByComponentForRequirement(ctx)
@@ -5255,6 +5295,7 @@ func (h *SystemSecurityPlanHandler) DeleteImplementedRequirementByComponentExpor
 //	@Failure		400				{object}	api.Error
 //	@Failure		404				{object}	api.Error
 //	@Failure		500				{object}	api.Error
+//	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/statements/{stmtId}/by-components/{byComponentId}/export/provided [post]
 func (h *SystemSecurityPlanHandler) CreateImplementedRequirementStatementByComponentExportProvided(ctx echo.Context) error {
 	bc, ok := h.resolveByComponentForStatement(ctx)
@@ -5281,6 +5322,7 @@ func (h *SystemSecurityPlanHandler) CreateImplementedRequirementStatementByCompo
 //	@Failure		400				{object}	api.Error
 //	@Failure		404				{object}	api.Error
 //	@Failure		500				{object}	api.Error
+//	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/statements/{stmtId}/by-components/{byComponentId}/export/provided/{providedId} [put]
 func (h *SystemSecurityPlanHandler) UpdateImplementedRequirementStatementByComponentExportProvided(ctx echo.Context) error {
 	bc, ok := h.resolveByComponentForStatement(ctx)
@@ -5304,6 +5346,7 @@ func (h *SystemSecurityPlanHandler) UpdateImplementedRequirementStatementByCompo
 //	@Failure		400				{object}	api.Error
 //	@Failure		404				{object}	api.Error
 //	@Failure		500				{object}	api.Error
+//	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/statements/{stmtId}/by-components/{byComponentId}/export/provided/{providedId} [delete]
 func (h *SystemSecurityPlanHandler) DeleteImplementedRequirementStatementByComponentExportProvided(ctx echo.Context) error {
 	bc, ok := h.resolveByComponentForStatement(ctx)
@@ -5418,6 +5461,7 @@ func (h *SystemSecurityPlanHandler) deleteByComponentExportResponsibility(ctx ec
 //	@Failure		400				{object}	api.Error
 //	@Failure		404				{object}	api.Error
 //	@Failure		500				{object}	api.Error
+//	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/by-components/{byComponentId}/export/responsibilities [post]
 func (h *SystemSecurityPlanHandler) CreateImplementedRequirementByComponentExportResponsibility(ctx echo.Context) error {
 	bc, ok := h.resolveByComponentForRequirement(ctx)
@@ -5443,6 +5487,7 @@ func (h *SystemSecurityPlanHandler) CreateImplementedRequirementByComponentExpor
 //	@Failure		400					{object}	api.Error
 //	@Failure		404					{object}	api.Error
 //	@Failure		500					{object}	api.Error
+//	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/by-components/{byComponentId}/export/responsibilities/{responsibilityId} [put]
 func (h *SystemSecurityPlanHandler) UpdateImplementedRequirementByComponentExportResponsibility(ctx echo.Context) error {
 	bc, ok := h.resolveByComponentForRequirement(ctx)
@@ -5465,6 +5510,7 @@ func (h *SystemSecurityPlanHandler) UpdateImplementedRequirementByComponentExpor
 //	@Failure		400					{object}	api.Error
 //	@Failure		404					{object}	api.Error
 //	@Failure		500					{object}	api.Error
+//	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/by-components/{byComponentId}/export/responsibilities/{responsibilityId} [delete]
 func (h *SystemSecurityPlanHandler) DeleteImplementedRequirementByComponentExportResponsibility(ctx echo.Context) error {
 	bc, ok := h.resolveByComponentForRequirement(ctx)
@@ -5490,6 +5536,7 @@ func (h *SystemSecurityPlanHandler) DeleteImplementedRequirementByComponentExpor
 //	@Failure		400				{object}	api.Error
 //	@Failure		404				{object}	api.Error
 //	@Failure		500				{object}	api.Error
+//	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/statements/{stmtId}/by-components/{byComponentId}/export/responsibilities [post]
 func (h *SystemSecurityPlanHandler) CreateImplementedRequirementStatementByComponentExportResponsibility(ctx echo.Context) error {
 	bc, ok := h.resolveByComponentForStatement(ctx)
@@ -5516,6 +5563,7 @@ func (h *SystemSecurityPlanHandler) CreateImplementedRequirementStatementByCompo
 //	@Failure		400					{object}	api.Error
 //	@Failure		404					{object}	api.Error
 //	@Failure		500					{object}	api.Error
+//	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/statements/{stmtId}/by-components/{byComponentId}/export/responsibilities/{responsibilityId} [put]
 func (h *SystemSecurityPlanHandler) UpdateImplementedRequirementStatementByComponentExportResponsibility(ctx echo.Context) error {
 	bc, ok := h.resolveByComponentForStatement(ctx)
@@ -5539,6 +5587,7 @@ func (h *SystemSecurityPlanHandler) UpdateImplementedRequirementStatementByCompo
 //	@Failure		400					{object}	api.Error
 //	@Failure		404					{object}	api.Error
 //	@Failure		500					{object}	api.Error
+//	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/statements/{stmtId}/by-components/{byComponentId}/export/responsibilities/{responsibilityId} [delete]
 func (h *SystemSecurityPlanHandler) DeleteImplementedRequirementStatementByComponentExportResponsibility(ctx echo.Context) error {
 	bc, ok := h.resolveByComponentForStatement(ctx)

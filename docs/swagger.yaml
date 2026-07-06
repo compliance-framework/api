@@ -21526,6 +21526,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
       summary: Delete the export for a control-level by-component
       tags:
       - System Security Plans
@@ -21567,6 +21569,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
       summary: Get the export for a control-level by-component
       tags:
       - System Security Plans
@@ -21620,6 +21624,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
       summary: Create the export for a control-level by-component
       tags:
       - System Security Plans
@@ -21670,6 +21676,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
       summary: Update the export for a control-level by-component
       tags:
       - System Security Plans
@@ -21720,6 +21728,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
       summary: Create a provided entry on a control-level by-component's export
       tags:
       - System Security Plans
@@ -21763,6 +21773,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
       summary: Delete a provided entry on a control-level by-component's export
       tags:
       - System Security Plans
@@ -21817,6 +21829,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
       summary: Update a provided entry on a control-level by-component's export
       tags:
       - System Security Plans
@@ -21867,6 +21881,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
       summary: Create a responsibility entry on a control-level by-component's export
       tags:
       - System Security Plans
@@ -21910,6 +21926,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
       summary: Delete a responsibility entry on a control-level by-component's export
       tags:
       - System Security Plans
@@ -21964,6 +21982,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
       summary: Update a responsibility entry on a control-level by-component's export
       tags:
       - System Security Plans
@@ -22181,8 +22201,8 @@ paths:
       produces:
       - application/json
       responses:
-        "200":
-          description: OK
+        "201":
+          description: Created
           schema:
             $ref: '#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_ByComponent'
         "400":
@@ -22343,6 +22363,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
       summary: Delete the export for a statement-level by-component
       tags:
       - System Security Plans
@@ -22389,6 +22411,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
       summary: Get the export for a statement-level by-component
       tags:
       - System Security Plans
@@ -22447,6 +22471,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
       summary: Create the export for a statement-level by-component
       tags:
       - System Security Plans
@@ -22502,6 +22528,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
       summary: Update the export for a statement-level by-component
       tags:
       - System Security Plans
@@ -22557,6 +22585,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
       summary: Create a provided entry on a statement-level by-component's export
       tags:
       - System Security Plans
@@ -22605,6 +22635,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
       summary: Delete a provided entry on a statement-level by-component's export
       tags:
       - System Security Plans
@@ -22664,6 +22696,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
       summary: Update a provided entry on a statement-level by-component's export
       tags:
       - System Security Plans
@@ -22719,6 +22753,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
       summary: Create a responsibility entry on a statement-level by-component's export
       tags:
       - System Security Plans
@@ -22767,6 +22803,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
       summary: Delete a responsibility entry on a statement-level by-component's export
       tags:
       - System Security Plans
@@ -22826,6 +22864,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
       summary: Update a responsibility entry on a statement-level by-component's export
       tags:
       - System Security Plans
