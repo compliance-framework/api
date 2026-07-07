@@ -127,3 +127,52 @@ func (suite *LineageRiskEvidenceSuite) TestControlToRiskToEvidence() {
 	// evidence is a leaf
 	suite.Empty(suite.childrenOf(evs[0].Key))
 }
+
+// Closed risks are dropped from the lineage entirely; remediated (and other) risks
+// stay as nodes.
+func (suite *LineageRiskEvidenceSuite) TestClosedRisksAreNotNodes() {
+	suite.Require().NoError(suite.Migrator.Refresh())
+	now := time.Now().UTC()
+
+	catID := uuid.New()
+	suite.Require().NoError(suite.DB.Create(&relational.Catalog{
+		UUIDModel:   relational.UUIDModel{ID: &catID},
+		CatalogType: relational.CatalogTypeStandard,
+		Metadata:    relational.Metadata{Title: "Std", Version: "1.0.0", OscalVersion: "1.1.3", LastModified: &now},
+		Controls:    []relational.Control{{CatalogID: catID, ID: "ac-1", Title: "Access Control"}},
+	}).Error)
+
+	mkRisk := func(title, status string) {
+		r := riskrel.Risk{
+			Title: title, Description: "d", Status: status, SSPID: uuid.New(),
+			SourceType: string(riskrel.RiskSourceTypeManual), FirstSeenAt: now, LastSeenAt: now,
+		}
+		suite.Require().NoError(suite.DB.Create(&r).Error)
+		suite.Require().NoError(suite.DB.Create(&riskrel.RiskControlLink{RiskID: *r.ID, CatalogID: catID, ControlID: "ac-1"}).Error)
+	}
+	mkRisk("Open Risk", string(riskrel.RiskStatusOpen))
+	mkRisk("Remediated Risk", string(riskrel.RiskStatusRemediated))
+	mkRisk("Closed Risk", string(riskrel.RiskStatusClosed))
+
+	titles := map[string]bool{}
+	for _, n := range suite.childrenOf("control:" + catID.String() + "/ac-1") {
+		if n.NodeType == "risk" {
+			titles[n.Title] = true
+		}
+	}
+	suite.True(titles["Open Risk"], "open risk is a node")
+	suite.True(titles["Remediated Risk"], "remediated risk stays a node")
+	suite.False(titles["Closed Risk"], "closed risk must not appear as a node")
+	suite.Len(titles, 2)
+
+	// The child count matches the visible risks (closed excluded).
+	var ac1 *LineageNode
+	for _, n := range suite.childrenOf("catalog:" + catID.String()) {
+		if n.ControlID == "ac-1" {
+			n := n
+			ac1 = &n
+		}
+	}
+	suite.Require().NotNil(ac1)
+	suite.Equal(2, ac1.ChildrenCount, "child count excludes the closed risk")
+}

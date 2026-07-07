@@ -361,3 +361,103 @@ func (suite *LineagePostureSuite) TestPolicyInProfileBehavesLikeControl() {
 	// The documentation-only policy control carries no overlay.
 	suite.Nil(nodes["pol-doc"].SSP, "a documentation policy control should have no posture overlay")
 }
+
+// With a single SSP selected, a structural node's posture bar (PostureCounts) sums
+// its descendant LEAF controls — including out-of-scope leaves — the same way the
+// global cross-SSP breakdown does, rather than counting the abstract parent once.
+func (suite *LineagePostureSuite) TestSingleSSPPostureCountsSumLeaves() {
+	suite.Require().NoError(suite.Migrator.Refresh())
+	now := time.Now().UTC()
+
+	stdCat := uuid.New()
+	suite.Require().NoError(suite.DB.Create(&relational.Catalog{
+		UUIDModel:   relational.UUIDModel{ID: &stdCat},
+		CatalogType: relational.CatalogTypeStandard,
+		Metadata:    relational.Metadata{Title: "Std", Version: "1.0.0", OscalVersion: "1.1.3", LastModified: &now},
+		Controls:    []relational.Control{{CatalogID: stdCat, ID: "std-1", Title: "Abstract"}},
+	}).Error)
+
+	intCat := uuid.New()
+	suite.Require().NoError(suite.DB.Create(&relational.Catalog{
+		UUIDModel:   relational.UUIDModel{ID: &intCat},
+		CatalogType: relational.CatalogTypeInternal,
+		Metadata:    relational.Metadata{Title: "Int", Version: "1.0.0", OscalVersion: "1.1.3", LastModified: &now},
+		Controls: []relational.Control{
+			{CatalogID: intCat, ID: "op-in", Title: "In profile"},
+			{CatalogID: intCat, ID: "op-out", Title: "Out of profile"},
+		},
+	}).Error)
+	for _, op := range []string{"op-in", "op-out"} {
+		suite.Require().NoError(suite.DB.Create(&relational.ControlLink{
+			SourceCatalogID: intCat, SourceControlID: op,
+			TargetCatalogID: stdCat, TargetControlID: "std-1",
+			RelationshipType: relational.RelationshipImplements,
+		}).Error)
+	}
+
+	// The profile resolves op-in only; op-out is out of scope for this plan.
+	profileID := uuid.New()
+	suite.Require().NoError(suite.DB.Create(&relational.Profile{
+		UUIDModel: relational.UUIDModel{ID: &profileID},
+		Metadata:  relational.Metadata{Title: "P", Version: "1.0.0", OscalVersion: "1.1.3"},
+	}).Error)
+	suite.Require().NoError(suite.DB.Exec(
+		"INSERT INTO profile_controls (profile_id, control_catalog_id, control_id) VALUES (?, ?, ?)",
+		profileID, intCat, "op-in").Error)
+	sspID := uuid.New()
+	suite.Require().NoError(suite.DB.Create(&relational.SystemSecurityPlan{
+		UUIDModel: relational.UUIDModel{ID: &sspID},
+		Metadata:  relational.Metadata{Title: "S", Version: "1.0.0", OscalVersion: "1.1.3", LastModified: &now},
+	}).Error)
+	suite.Require().NoError(suite.DB.Exec(
+		"INSERT INTO ssp_profiles (system_security_plan_id, profile_id) VALUES (?, ?)",
+		sspID, profileID).Error)
+
+	// op-in has satisfying evidence.
+	f := relational.Filter{
+		Name: "f",
+		Filter: datatypes.NewJSONType(labelfilter.Filter{
+			Scope: &labelfilter.Scope{Condition: &labelfilter.Condition{Label: "ctrl", Operator: "=", Value: "in"}},
+		}),
+	}
+	suite.Require().NoError(suite.DB.Create(&f).Error)
+	suite.Require().NoError(suite.DB.Exec(
+		"INSERT INTO filter_controls (filter_id, control_catalog_id, control_id) VALUES (?, ?, ?)",
+		f.ID, intCat, "op-in").Error)
+	evID := uuid.New()
+	suite.Require().NoError(suite.DB.Create(&relational.Evidence{
+		UUIDModel: relational.UUIDModel{ID: &evID},
+		UUID:      uuid.New(),
+		Title:     "ev",
+		Start:     now, End: now, Expires: &now,
+		Status: datatypes.NewJSONType(oscalTypes_1_1_3.ObjectiveStatus{State: "satisfied", Reason: "auto"}),
+	}).Error)
+	suite.Require().NoError(suite.DB.Exec(
+		"INSERT INTO labels (name, value) VALUES ('ctrl', 'in') ON CONFLICT DO NOTHING").Error)
+	suite.Require().NoError(suite.DB.Exec(
+		"INSERT INTO evidence_labels (evidence_id, labels_name, labels_value) VALUES (?, 'ctrl', 'in')", evID).Error)
+
+	// The standard catalog's bar sums its two leaves: op-in satisfied, op-out
+	// out-of-scope — NOT the abstract std-1 counted once.
+	var stdRoot *LineageNode
+	for _, r := range suite.roots(sspID.String()) {
+		if r.CatalogID == stdCat.String() {
+			r := r
+			stdRoot = &r
+		}
+	}
+	suite.Require().NotNil(stdRoot)
+	suite.Require().NotNil(stdRoot.PostureCounts, "structural node should carry a posture bar")
+	suite.Equal(1, stdRoot.PostureCounts.Satisfied, "op-in")
+	suite.Equal(1, stdRoot.PostureCounts.OutOfScope, "op-out is summed as out-of-scope")
+	suite.Equal(0, stdRoot.PostureCounts.NotSatisfied+stdRoot.PostureCounts.NotApplicable+
+		stdRoot.PostureCounts.Planned+stdRoot.PostureCounts.Attention)
+
+	// The abstract std-1 CONTROL node carries the same bar in single-SSP as its
+	// catalog (and as its global SSPBreakdown) — a control's bar is consistent
+	// whether or not an SSP is filtered.
+	std := byControlID(suite.childrenOf("catalog:"+stdCat.String(), sspID.String()))["std-1"]
+	suite.Require().NotNil(std.PostureCounts, "control node should carry a posture bar in single-SSP")
+	suite.Equal(1, std.PostureCounts.Satisfied)
+	suite.Equal(1, std.PostureCounts.OutOfScope)
+}

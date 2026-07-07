@@ -741,7 +741,11 @@ type riskScanRow struct {
 func (e *lineageEngine) loadRisks(db *gorm.DB) error {
 	q := db.Table("risk_control_links rcl").
 		Select("rcl.catalog_id, rcl.control_id, r.id as risk_id, r.status, r.likelihood, r.impact").
-		Joins("JOIN risk_register_risks r ON r.id = rcl.risk_id")
+		Joins("JOIN risk_register_risks r ON r.id = rcl.risk_id").
+		// Closed risks are dropped from the lineage entirely — they only clutter the
+		// tree/graph. Remediated risks stay (they already contribute nothing to the
+		// heat sums, but remain visible as nodes).
+		Where("r.status != ?", string(riskrel.RiskStatusClosed))
 	if e.sspID != nil {
 		q = q.Where("r.ssp_id = ?", *e.sspID)
 	}
@@ -1043,31 +1047,35 @@ func (e *lineageEngine) postureCountsFor(seeds []relational.ControlRef) *Lineage
 	counts := &LineagePostureCounts{}
 	seen := map[relational.ControlRef]struct{}{}
 	any := false
-	for _, ref := range seeds {
-		if _, dup := seen[ref]; dup {
-			continue
-		}
-		seen[ref] = struct{}{}
-		a := e.assessSSP(ref, *e.sspID, e.profileControlSet)
-		// Operational controls count even when out of scope (to show what the SSP
-		// excludes); documentation controls only count when actually relevant.
-		if !relational.IsOperationalCatalogType(e.controlCatalogType[ref]) && !a.inScope {
-			continue
-		}
-		any = true
-		switch a.posture {
-		case PostureSatisfied:
-			counts.Satisfied++
-		case PostureNotSatisfied:
-			counts.NotSatisfied++
-		case PostureNotApplicable:
-			counts.NotApplicable++
-		case PosturePlanned:
-			counts.Planned++
-		case PostureOutOfScope:
-			counts.OutOfScope++
-		default:
-			counts.Attention++
+	// Sum the descendant leaf controls up the tree — the single-SSP analogue of the
+	// global sspBreakdown. Walk each seed's evidence closure, skip abstract
+	// pass-throughs (the same controls the compliance rollup skips), and bucket each
+	// leaf's posture for the selected SSP, including out-of-scope leaves the SSP's
+	// profile doesn't carry. So a parent's bar equals the sum of its children's.
+	for _, seed := range seeds {
+		for _, ref := range e.closureOf(seed) {
+			if _, dup := seen[ref]; dup {
+				continue
+			}
+			seen[ref] = struct{}{}
+			if !e.countsInCompliance(ref) {
+				continue
+			}
+			any = true
+			switch e.assessSSP(ref, *e.sspID, e.profileControlSet).posture {
+			case PostureSatisfied:
+				counts.Satisfied++
+			case PostureNotSatisfied:
+				counts.NotSatisfied++
+			case PostureNotApplicable:
+				counts.NotApplicable++
+			case PosturePlanned:
+				counts.Planned++
+			case PostureOutOfScope:
+				counts.OutOfScope++
+			default:
+				counts.Attention++
+			}
 		}
 	}
 	if !any {
@@ -1378,6 +1386,11 @@ func (e *lineageEngine) controlNode(ref relational.ControlRef) LineageNode {
 		if operational || st.InProfile {
 			node.SSP = &st
 		}
+		// The same posture bar structural nodes and the global view carry: this
+		// control's leaf implementers summed for the selected SSP (the single-SSP
+		// slice of its global SSPBreakdown). Keeps a control's bar consistent whether
+		// or not an SSP is filtered.
+		node.PostureCounts = e.postureCountsFor([]relational.ControlRef{ref})
 	} else {
 		node.SSPBreakdown = breakdown
 	}
@@ -1505,7 +1518,9 @@ func (e *lineageEngine) riskNodesForControl(ref relational.ControlRef) ([]Lineag
 	q := e.db.Table("risk_control_links rcl").
 		Select("r.id, r.title, r.status, r.likelihood, r.impact, r.review_deadline, r.last_reviewed_at, r.first_seen_at, r.last_seen_at").
 		Joins("JOIN risk_register_risks r ON r.id = rcl.risk_id").
-		Where("rcl.catalog_id = ? AND rcl.control_id = ?", ref.CatalogID, ref.ControlID)
+		Where("rcl.catalog_id = ? AND rcl.control_id = ?", ref.CatalogID, ref.ControlID).
+		// Closed risks are omitted as nodes (matches loadRisks / the child count).
+		Where("r.status != ?", string(riskrel.RiskStatusClosed))
 	if e.sspID != nil {
 		q = q.Where("r.ssp_id = ?", *e.sspID)
 	}
