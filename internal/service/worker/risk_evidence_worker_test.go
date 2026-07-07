@@ -66,7 +66,8 @@ func newRiskEvidenceWorkerTestDB(t *testing.T) *gorm.DB {
 		updated_at DATETIME,
 		deleted_at DATETIME,
 		name TEXT,
-		filter JSON
+		filter JSON,
+		ssp_id TEXT
 	)`).Error)
 
 	require.NoError(t, db.Exec(`CREATE TABLE IF NOT EXISTS filter_controls (
@@ -190,6 +191,36 @@ func seedFilterForControl(t *testing.T, db *gorm.DB, controlCatalogID uuid.UUID,
 		filterID.String(), "test-filter", string(filterJSON),
 	).Error)
 
+	require.NoError(t, db.Exec(
+		`INSERT INTO filter_controls (filter_id, control_catalog_id, control_id) VALUES (?, ?, ?)`,
+		filterID.String(), controlCatalogID.String(), controlID,
+	).Error)
+
+	return filterID
+}
+
+// seedScopedFilterForControl is like seedFilterForControl but binds the filter to a
+// specific SSP (nil sspID leaves it global).
+func seedScopedFilterForControl(t *testing.T, db *gorm.DB, sspID *uuid.UUID, controlCatalogID uuid.UUID, controlID, labelKey, labelValue string) uuid.UUID {
+	t.Helper()
+	filterID := uuid.New()
+
+	filterScope := labelfilter.Filter{
+		Scope: &labelfilter.Scope{
+			Condition: &labelfilter.Condition{Label: labelKey, Operator: "=", Value: labelValue},
+		},
+	}
+	filterJSON, err := json.Marshal(filterScope)
+	require.NoError(t, err)
+
+	var sspValue any
+	if sspID != nil {
+		sspValue = sspID.String()
+	}
+	require.NoError(t, db.Exec(
+		`INSERT INTO filters (id, name, filter, ssp_id) VALUES (?, ?, ?, ?)`,
+		filterID.String(), "scoped-filter", string(filterJSON), sspValue,
+	).Error)
 	require.NoError(t, db.Exec(
 		`INSERT INTO filter_controls (filter_id, control_catalog_id, control_id) VALUES (?, ?, ?)`,
 		filterID.String(), controlCatalogID.String(), controlID,
@@ -328,6 +359,66 @@ func TestRiskEvidenceWorker_Work_Success(t *testing.T) {
 	require.NoError(t, worker.db.WithContext(ctx).
 		Where("risk_id = ? AND event_type = ?", risk.ID, string(risks.RiskEventTypeCreated)).
 		First(&event).Error)
+}
+
+// A filter scoped to one SSP must not spawn risks in a different SSP that merely
+// carries the same control id in its profile.
+func TestRiskEvidenceWorker_Work_ScopedFilterDoesNotLeakToOtherSSP(t *testing.T) {
+	t.Parallel()
+
+	worker := createTestRiskEvidenceWorker(t)
+	ctx := context.Background()
+
+	createTestRiskTemplate(t, worker.db)
+
+	catalogID := uuid.New()
+	controlID := "AC-1"
+	// Both plans resolve the same control in their profiles.
+	sspA := createTestSSPWithControl(t, worker.db, catalogID, controlID)
+	sspB := createTestSSPWithControl(t, worker.db, catalogID, controlID)
+
+	// The matching filter belongs to plan A only.
+	seedScopedFilterForControl(t, worker.db, sspA.ID, catalogID, controlID, "environment", "production")
+
+	evidence := createTestEvidence(t, worker.db)
+	args := RiskProcessEvidenceArgs{EvidenceID: *evidence.ID, EvidenceEnd: "2023-01-01T00:00:00Z", Status: "not-satisfied"}
+	require.NoError(t, worker.Work(ctx, &river.Job[RiskProcessEvidenceArgs]{Args: args}))
+
+	var countA int64
+	require.NoError(t, worker.db.Model(&risks.Risk{}).Where("ssp_id = ?", sspA.ID).Count(&countA).Error)
+	assert.Equal(t, int64(1), countA, "scoped filter should create a risk for its own SSP")
+
+	var countB int64
+	require.NoError(t, worker.db.Model(&risks.Risk{}).Where("ssp_id = ?", sspB.ID).Count(&countB).Error)
+	assert.Equal(t, int64(0), countB, "scoped filter must NOT create a risk in another SSP")
+}
+
+// A global filter (no ssp_id) still resolves to every SSP whose profile carries the control.
+func TestRiskEvidenceWorker_Work_GlobalFilterResolvesToAllSSPs(t *testing.T) {
+	t.Parallel()
+
+	worker := createTestRiskEvidenceWorker(t)
+	ctx := context.Background()
+
+	createTestRiskTemplate(t, worker.db)
+
+	catalogID := uuid.New()
+	controlID := "AC-1"
+	sspA := createTestSSPWithControl(t, worker.db, catalogID, controlID)
+	sspB := createTestSSPWithControl(t, worker.db, catalogID, controlID)
+
+	// A global filter (nil ssp_id via seedFilterForControl) applies to both plans.
+	seedFilterForControl(t, worker.db, catalogID, controlID, "environment", "production")
+
+	evidence := createTestEvidence(t, worker.db)
+	args := RiskProcessEvidenceArgs{EvidenceID: *evidence.ID, EvidenceEnd: "2023-01-01T00:00:00Z", Status: "not-satisfied"}
+	require.NoError(t, worker.Work(ctx, &river.Job[RiskProcessEvidenceArgs]{Args: args}))
+
+	for _, ssp := range []*relational.SystemSecurityPlan{sspA, sspB} {
+		var count int64
+		require.NoError(t, worker.db.Model(&risks.Risk{}).Where("ssp_id = ?", ssp.ID).Count(&count).Error)
+		assert.Equalf(t, int64(1), count, "global filter should create a risk for SSP %s", ssp.ID)
+	}
 }
 
 func TestRiskEvidenceWorker_Work_EvidenceNotFound(t *testing.T) {

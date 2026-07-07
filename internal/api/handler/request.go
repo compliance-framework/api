@@ -36,6 +36,13 @@ type createFilterRequest struct {
 	Components *[]string          `json:"components" yaml:"components"`
 }
 
+// SetCatalogActiveRequest is the body for toggling a catalog's active state.
+// Active is a pointer so a missing field is rejected rather than defaulting to
+// false and silently deactivating the catalog.
+type SetCatalogActiveRequest struct {
+	Active *bool `json:"active" validate:"required"`
+}
+
 // TODO: Using minimal data for now, we might need to expand it later
 type filteredSearchRequest struct {
 	Filter labelfilter.Filter `json:"filter" yaml:"filter" validate:"required"`

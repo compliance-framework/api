@@ -111,6 +111,10 @@ const (
 	ResourceRoleAssignment         = "role-assignment"
 	ResourceControlRelationship    = "control-relationship"
 
+	// Policies & Procedures + Compliance Lineage.
+	ResourceControlLink = "control-link"
+	ResourceLineage     = "lineage"
+
 	// Actions. read/create/update/delete are the CRUD verbs; the rest are resource-specific
 	// (promote → risk; ingest → heartbeat/agent; register → agent; trigger → digest;
 	// execute → import; export/subscribe → ssp/ssp-export-offering, BCH-1337). ActionManage

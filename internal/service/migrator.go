@@ -51,6 +51,7 @@ func MigrateUpWithConfig(db *gorm.DB, cfg *config.Config) error {
 		&relational.Group{},
 		&relational.Control{},
 		&relational.Catalog{},
+		&relational.ControlLink{},
 		&relational.ControlStatementImplementation{},
 		&relational.ImplementedRequirementControlImplementation{},
 		&relational.ControlImplementationSet{},
@@ -223,6 +224,12 @@ func MigrateUpWithConfig(db *gorm.DB, cfg *config.Config) error {
 		return err
 	}
 	if err := migrateSSPProfileIDToJoinTable(db); err != nil {
+		return err
+	}
+	if err := migrateBackfillCatalogType(db); err != nil {
+		return err
+	}
+	if err := migrateBackfillCatalogActive(db); err != nil {
 		return err
 	}
 
@@ -619,6 +626,32 @@ func backfillLegacyNotificationSubscriptions(db *gorm.DB, legacyColumn string, n
 		}).Error
 }
 
+// migrateBackfillCatalogType ensures every existing catalog row carries a concrete
+// catalog_type. AutoMigrate adds the column with a 'standard' default (Postgres
+// backfills existing rows on ADD COLUMN), but this keeps the invariant explicit and
+// idempotent across drivers, following the established data-migration step pattern.
+func migrateBackfillCatalogType(db *gorm.DB) error {
+	if !db.Migrator().HasColumn(&relational.Catalog{}, "catalog_type") {
+		return nil
+	}
+	return db.Model(&relational.Catalog{}).
+		Where("catalog_type IS NULL OR catalog_type = ''").
+		Update("catalog_type", relational.CatalogTypeStandard).Error
+}
+
+// migrateBackfillCatalogActive ensures every existing catalog row is marked active.
+// AutoMigrate adds the column with a 'true' default (Postgres backfills existing
+// rows on ADD COLUMN), but this keeps the invariant explicit and idempotent across
+// drivers so catalogs pre-dating the column are never hidden from the lineage roots.
+func migrateBackfillCatalogActive(db *gorm.DB) error {
+	if !db.Migrator().HasColumn(&relational.Catalog{}, "active") {
+		return nil
+	}
+	return db.Model(&relational.Catalog{}).
+		Where("active IS NULL").
+		Update("active", true).Error
+}
+
 // migrateSSPProfileIDToJoinTable copies the legacy single profile_id FK from
 // system_security_plans into the new ssp_profiles join table. Rows that already
 // exist (ON CONFLICT DO NOTHING) are skipped, making the migration idempotent.
@@ -646,6 +679,7 @@ func MigrateDown(db *gorm.DB) error {
 		&relational.Role{},
 		&relational.Revision{},
 		&relational.Control{},
+		&relational.ControlLink{},
 		&relational.Group{},
 		&relational.ResponsibleParty{},
 		&relational.Action{},
