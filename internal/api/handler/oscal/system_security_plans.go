@@ -4928,28 +4928,37 @@ func (h *SystemSecurityPlanHandler) deleteByComponentExport(ctx echo.Context, bc
 	}
 
 	if err := h.db.Transaction(func(tx *gorm.DB) error {
-		for _, provided := range existing.Provided {
-			if err := deleteResponsibleRoles(tx, provided.ResponsibleRoles); err != nil {
-				return err
-			}
-		}
-		for _, resp := range existing.Responsibilities {
-			if err := deleteResponsibleRoles(tx, resp.ResponsibleRoles); err != nil {
-				return err
-			}
-		}
-		if err := tx.Where("export_id = ?", existing.ID).Delete(&relational.ProvidedControlImplementation{}).Error; err != nil {
-			return err
-		}
-		if err := tx.Where("export_id = ?", existing.ID).Delete(&relational.ControlImplementationResponsibility{}).Error; err != nil {
-			return err
-		}
-		return tx.Delete(&existing).Error
+		return deleteExportCascade(tx, &existing)
 	}); err != nil {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
 	return ctx.NoContent(http.StatusNoContent)
+}
+
+// deleteExportCascade deletes an Export's nested Provided and Responsibilities
+// entries (and their ResponsibleRoles/parties), then the Export itself. Shared
+// by deleteByComponentExport and deleteByComponentCascade so the two paths
+// can't drift apart. export.Provided and export.Responsibilities (with their
+// ResponsibleRoles.Parties) must already be preloaded by the caller.
+func deleteExportCascade(tx *gorm.DB, export *relational.Export) error {
+	for _, provided := range export.Provided {
+		if err := deleteResponsibleRoles(tx, provided.ResponsibleRoles); err != nil {
+			return err
+		}
+	}
+	for _, resp := range export.Responsibilities {
+		if err := deleteResponsibleRoles(tx, resp.ResponsibleRoles); err != nil {
+			return err
+		}
+	}
+	if err := tx.Where("export_id = ?", export.ID).Delete(&relational.ProvidedControlImplementation{}).Error; err != nil {
+		return err
+	}
+	if err := tx.Where("export_id = ?", export.ID).Delete(&relational.ControlImplementationResponsibility{}).Error; err != nil {
+		return err
+	}
+	return tx.Delete(export).Error
 }
 
 // deleteResponsibleRoles removes the given ResponsibleRoles along with their
@@ -5010,23 +5019,7 @@ func deleteByComponentCascade(tx *gorm.DB, byComponentID uuid.UUID) error {
 	}
 
 	if bc.Export != nil {
-		for _, provided := range bc.Export.Provided {
-			if err := deleteResponsibleRoles(tx, provided.ResponsibleRoles); err != nil {
-				return err
-			}
-		}
-		for _, resp := range bc.Export.Responsibilities {
-			if err := deleteResponsibleRoles(tx, resp.ResponsibleRoles); err != nil {
-				return err
-			}
-		}
-		if err := tx.Where("export_id = ?", bc.Export.ID).Delete(&relational.ProvidedControlImplementation{}).Error; err != nil {
-			return err
-		}
-		if err := tx.Where("export_id = ?", bc.Export.ID).Delete(&relational.ControlImplementationResponsibility{}).Error; err != nil {
-			return err
-		}
-		if err := tx.Delete(bc.Export).Error; err != nil {
+		if err := deleteExportCascade(tx, bc.Export); err != nil {
 			return err
 		}
 	}
