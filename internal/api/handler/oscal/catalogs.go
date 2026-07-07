@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/compliance-framework/api/internal/api"
@@ -38,6 +39,7 @@ func (h *CatalogHandler) Register(api *echo.Group, guard middleware.ResourceGuar
 	api.GET("/:id", h.Get, guard.Read())
 	api.PUT("/:id", h.Update, guard.Update())
 	api.DELETE("/:id", h.Delete, guard.Delete())
+	api.PUT("/:id/active", h.SetActive, guard.Update())
 	api.GET("/:id/full", h.Full, guard.Read())
 	api.GET("/:id/back-matter", h.GetBackMatter, guard.Read())
 	api.GET("/:id/groups", h.GetGroups, guard.Read())
@@ -78,7 +80,7 @@ func (h *CatalogHandler) List(ctx echo.Context) error {
 
 	if catalogType := ctx.QueryParam("type"); catalogType != "" {
 		if !relational.IsValidCatalogType(catalogType) {
-			return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("invalid catalog type %q: must be one of standard|policy|procedure", catalogType)))
+			return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("invalid catalog type %q: must be one of %s", catalogType, strings.Join(relational.AllCatalogTypes, "|"))))
 		}
 		query = query.Where("catalog_type = ?", catalogType)
 	}
@@ -480,7 +482,7 @@ func (h *CatalogHandler) Create(ctx echo.Context) error {
 	// carried (UnmarshalOscal already defaulted it to standard when absent).
 	if catalogType := ctx.QueryParam("type"); catalogType != "" {
 		if !relational.IsValidCatalogType(catalogType) {
-			return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("invalid catalog type %q: must be one of standard|policy|procedure", catalogType)))
+			return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("invalid catalog type %q: must be one of %s", catalogType, strings.Join(relational.AllCatalogTypes, "|"))))
 		}
 		relCat.CatalogType = catalogType
 	}
@@ -536,6 +538,60 @@ func (h *CatalogHandler) Update(ctx echo.Context) error {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[oscalTypes_1_1_3.Catalog]{Data: *relCat.MarshalOscal()})
+}
+
+// SetActive godoc
+//
+//	@Summary		Set a Catalog's active state
+//	@Description	Marks a catalog active or inactive. Inactive catalogs are hidden from the lineage /roots listing but remain reachable as control-link children. This is the reliable way to toggle the flag (a struct-based Update leaves it untouched).
+//	@Tags			Catalog
+//	@Accept			json
+//	@Produce		json
+//	@Param			id		path		string							true	"Catalog ID"
+//	@Param			body	body		handler.SetCatalogActiveRequest	true	"Active state"
+//	@Success		200		{object}	handler.GenericDataResponse[oscalTypes_1_1_3.Catalog]
+//	@Failure		400		{object}	api.Error
+//	@Failure		404		{object}	api.Error
+//	@Failure		500		{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/oscal/catalogs/{id}/active [put]
+func (h *CatalogHandler) SetActive(ctx echo.Context) error {
+	idParam := ctx.Param("id")
+	catalogID, err := uuid.Parse(idParam)
+	if err != nil {
+		h.sugar.Warnw("Invalid catalog id", "id", idParam, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.InvalidUUID())
+	}
+
+	var body handler.SetCatalogActiveRequest
+	if err := ctx.Bind(&body); err != nil {
+		h.sugar.Warnw("Invalid set-active request", "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	if body.Active == nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(errors.New("active is required")))
+	}
+
+	// Explicit column Update writes false reliably — a struct-based update would
+	// treat the bool zero value as "unset" and skip it.
+	res := h.db.Model(&relational.Catalog{}).Where("id = ?", catalogID).Update("active", *body.Active)
+	if res.Error != nil {
+		h.sugar.Errorf("Failed to set catalog active state: %v", res.Error)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(res.Error))
+	}
+	if res.RowsAffected == 0 {
+		return ctx.JSON(http.StatusNotFound, api.NotFoundCustomMsg("catalog not found"))
+	}
+
+	var catalog relational.Catalog
+	if err := h.db.
+		Preload("Metadata").
+		Preload("Metadata.Revisions").
+		First(&catalog, "id = ?", catalogID).Error; err != nil {
+		h.sugar.Warnw("Failed to reload catalog after set-active", "id", idParam, "error", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[oscalTypes_1_1_3.Catalog]{Data: *catalog.MarshalOscal()})
 }
 
 // GetBackMatter godoc

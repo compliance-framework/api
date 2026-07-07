@@ -69,6 +69,43 @@ func (suite *FilterApiIntegrationSuite) TestCreate() {
 		assert.Equal(suite.T(), http.StatusCreated, rec.Code)
 	})
 
+	suite.Run("With SSP", func() {
+		err := suite.Migrator.Refresh()
+		suite.Require().NoError(err)
+
+		logger, _ := zap.NewDevelopment()
+		metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
+		server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
+		services := &APIServices{}
+		RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, services)
+
+		// Mirror the UI wire format for the "Add a New Dashboard" flow: a camelCase
+		// JSON body carrying "sspId" (the control-implementations call no longer
+		// decamelizes to kebab). It must bind to createFilterRequest.SSPID and
+		// persist as ssp_id, so the dashboard filter is scoped to that plan rather
+		// than created global.
+		sspID := uuid.New()
+		suite.Require().NoError(suite.DB.Create(&relational.SystemSecurityPlan{
+			UUIDModel: relational.UUIDModel{ID: &sspID},
+			Metadata:  relational.Metadata{Title: "Plan", Version: "1.0.0", OscalVersion: "1.1.3"},
+		}).Error)
+		body := fmt.Sprintf(
+			`{"name":"SSP Scoped","sspId":%q,"filter":{"scope":{"condition":{"label":"provider","operator":"=","value":"aws"}}}}`,
+			sspID.String(),
+		)
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodPost, "/api/filters", bytes.NewReader([]byte(body)))
+		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+		suite.authorize(req)
+		server.E().ServeHTTP(rec, req)
+		suite.Require().Equal(http.StatusCreated, rec.Code, rec.Body.String())
+
+		var saved relational.Filter
+		suite.Require().NoError(suite.DB.First(&saved, "name = ?", "SSP Scoped").Error)
+		suite.Require().NotNil(saved.SSPID, "filter must be scoped to the SSP, not global")
+		suite.Equal(sspID, *saved.SSPID)
+	})
+
 	suite.Run("With Controls", func() {
 		err := suite.Migrator.Refresh()
 		suite.Require().NoError(err)

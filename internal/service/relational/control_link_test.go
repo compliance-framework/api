@@ -42,6 +42,13 @@ func TestValidateRelationshipMatrix(t *testing.T) {
 		{"policy implements standard", RelationshipImplements, CatalogTypePolicy, CatalogTypeStandard, false},
 		{"operational implements policy", RelationshipImplements, CatalogTypeStandard, CatalogTypePolicy, false},
 		{"operational implements standard (escape hatch)", RelationshipImplements, CatalogTypeStandard, CatalogTypeStandard, false},
+		// implements — internal/other collapse to the standard/operational slot
+		{"policy implements internal", RelationshipImplements, CatalogTypePolicy, CatalogTypeInternal, false},
+		{"policy implements other", RelationshipImplements, CatalogTypePolicy, CatalogTypeOther, false},
+		{"internal implements policy", RelationshipImplements, CatalogTypeInternal, CatalogTypePolicy, false},
+		{"other implements policy", RelationshipImplements, CatalogTypeOther, CatalogTypePolicy, false},
+		{"internal implements other (escape hatch)", RelationshipImplements, CatalogTypeInternal, CatalogTypeOther, false},
+		{"internal implements standard (escape hatch)", RelationshipImplements, CatalogTypeInternal, CatalogTypeStandard, false},
 		// implements — invalid rows
 		{"procedure implements policy", RelationshipImplements, CatalogTypeProcedure, CatalogTypePolicy, true},
 		{"policy implements policy", RelationshipImplements, CatalogTypePolicy, CatalogTypePolicy, true},
@@ -53,6 +60,8 @@ func TestValidateRelationshipMatrix(t *testing.T) {
 		{"policy documents standard", RelationshipDocuments, CatalogTypePolicy, CatalogTypeStandard, true},
 		{"standard documents policy", RelationshipDocuments, CatalogTypeStandard, CatalogTypePolicy, true},
 		{"procedure documents standard", RelationshipDocuments, CatalogTypeProcedure, CatalogTypeStandard, true},
+		{"procedure documents internal", RelationshipDocuments, CatalogTypeProcedure, CatalogTypeInternal, true},
+		{"internal documents policy", RelationshipDocuments, CatalogTypeInternal, CatalogTypePolicy, true},
 		// reserved vocabulary — always rejected
 		{"related reserved", RelationshipRelated, CatalogTypePolicy, CatalogTypeStandard, true},
 		{"supersedes reserved", RelationshipSupersedes, CatalogTypeStandard, CatalogTypeStandard, true},

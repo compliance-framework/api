@@ -3151,6 +3151,205 @@ const docTemplate = `{
                 ]
             }
         },
+        "/control-links/catalog": {
+            "get": {
+                "description": "Aggregates control_links into catalog-level links: one entry per (source catalog, target control, relationship) with the number of underlying control rows. Filterable by source/target catalog.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "ControlLink"
+                ],
+                "summary": "List catalog-level control links",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Filter by source catalog id",
+                        "name": "sourceCatalogId",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by target catalog id",
+                        "name": "targetCatalogId",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-array_handler_catalogLinkSummary"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            },
+            "put": {
+                "description": "Idempotently refreshes a catalog-level link to the source catalog's CURRENT controls: deletes the existing fan-out set for (source catalog, target control, relationship) and recreates it over every current control. Use after adding/removing controls in the source catalog.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "ControlLink"
+                ],
+                "summary": "Re-sync a catalog-level control link",
+                "parameters": [
+                    {
+                        "description": "Catalog-level link",
+                        "name": "link",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.catalogLinkRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-handler_catalogLinkResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            },
+            "post": {
+                "description": "Fans a source catalog out to a single target control: creates one control_links row per control in the source catalog (implements/documents). Validates the relationship vocabulary against the catalog types once; skips cycles and existing rows (idempotent). 422 on a vocabulary/existence violation.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "ControlLink"
+                ],
+                "summary": "Create a catalog-level control link",
+                "parameters": [
+                    {
+                        "description": "Catalog-level link",
+                        "name": "link",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.catalogLinkRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-handler_catalogLinkResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            },
+            "delete": {
+                "description": "Deletes the whole fan-out set for a catalog-level link: every control_links row matching (source catalog, target control, relationship). All query params required.",
+                "tags": [
+                    "ControlLink"
+                ],
+                "summary": "Delete a catalog-level control link",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Source catalog id",
+                        "name": "sourceCatalogId",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Target catalog id",
+                        "name": "targetCatalogId",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Target control id",
+                        "name": "targetControlId",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Relationship type",
+                        "name": "relationshipType",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-handler_catalogLinkResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
         "/dashboard-suggestions/config": {
             "get": {
                 "description": "Returns whether AI dashboard suggestions are enabled.",
@@ -4134,7 +4333,7 @@ const docTemplate = `{
         },
         "/lineage/nodes/{key}/children": {
             "get": {
-                "description": "Returns one level of children for a node. Key is a composite like catalog:\u003cuuid\u003e, group:\u003ccatalogId\u003e/\u003cgroupId\u003e, control:\u003ccatalogId\u003e/\u003ccontrolId\u003e, risk:\u003criskId\u003e, evidence:\u003cstreamUuid\u003e. A control expands to its implementing/documenting controls plus its directly-linked risks; a risk expands to its latest evidence per linked stream; evidence is a leaf.",
+                "description": "Returns one level of children for a node. Key is a composite like catalog:\u003cuuid\u003e, group:\u003ccatalogId\u003e/\u003cgroupId\u003e, control:\u003ccatalogId\u003e/\u003ccontrolId\u003e, linkcat:\u003cchildCatalogId\u003e/\u003crelationship\u003e/\u003cparentCatalogId\u003e/\u003cparentControlId\u003e, risk:\u003criskId\u003e, evidence:\u003cstreamUuid\u003e. A control expands to synthetic linkcat catalog nodes (its implementing/documenting controls grouped by their catalog) plus its directly-linked risks; a linkcat node expands to that group's controls; a risk expands to its latest evidence per linked stream; evidence is a leaf.",
                 "produces": [
                     "application/json"
                 ],
@@ -4208,9 +4407,67 @@ const docTemplate = `{
                 ]
             }
         },
+        "/lineage/nodes/{key}/ssps": {
+            "get": {
+                "description": "Returns, for a control node, one row per System Security Plan: whether the control is in that plan's profile and its rolled-up posture, evidence status and declared implementation status there. Powers the drawer's plan-by-plan table. Only control keys (control:\u003ccatalogId\u003e/\u003ccontrolId\u003e) are supported; other node kinds return 400.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Lineage"
+                ],
+                "summary": "Per-SSP status for a control node",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "URL-encoded control node key",
+                        "name": "key",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Scope evidence to a system component",
+                        "name": "componentId",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/service.ListResponse-handler_LineageSSPRow"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
         "/lineage/roots": {
             "get": {
-                "description": "Returns catalog roots (standard/policy/procedure) with full-subtree compliance and risk rollups. Rootness is catalog_type, never link presence.",
+                "description": "Returns active catalog roots (standard/policy/procedure) with full-subtree compliance and risk rollups. Rootness is catalog_type, never link presence; inactive catalogs are omitted from roots but still appear as children when a control-link points into them.",
                 "produces": [
                     "application/json"
                 ],
@@ -4233,7 +4490,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Comma-separated catalog types to include (standard,policy,procedure)",
+                        "description": "Comma-separated catalog types to include (standard,policy,procedure,internal,other)",
                         "name": "types",
                         "in": "query"
                     }
@@ -9451,6 +9708,70 @@ const docTemplate = `{
                 "responses": {
                     "204": {
                         "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/oscal/catalogs/{id}/active": {
+            "put": {
+                "description": "Marks a catalog active or inactive. Inactive catalogs are hidden from the lineage /roots listing but remain reachable as control-link children. This is the reliable way to toggle the flag (a struct-based Update leaves it untouched).",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Catalog"
+                ],
+                "summary": "Set a Catalog's active state",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Catalog ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Active state",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.SetCatalogActiveRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_Catalog"
+                        }
                     },
                     "400": {
                         "description": "Bad Request",
@@ -31035,6 +31356,18 @@ const docTemplate = `{
                 "meta": {}
             }
         },
+        "handler.GenericDataResponse-array_handler_catalogLinkSummary": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Wrapped response data",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handler.catalogLinkSummary"
+                    }
+                }
+            }
+        },
         "handler.GenericDataResponse-array_oscalTypes_1_1_3_AssessmentAssets": {
             "type": "object",
             "properties": {
@@ -31170,6 +31503,19 @@ const docTemplate = `{
                     "allOf": [
                         {
                             "$ref": "#/definitions/handler.bulkControlLinkResponse"
+                        }
+                    ]
+                }
+            }
+        },
+        "handler.GenericDataResponse-handler_catalogLinkResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Wrapped response data",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/handler.catalogLinkResponse"
                         }
                     ]
                 }
@@ -32459,6 +32805,9 @@ const docTemplate = `{
                 "nodeType": {
                     "type": "string"
                 },
+                "postureCounts": {
+                    "$ref": "#/definitions/handler.LineagePostureCounts"
+                },
                 "reason": {
                     "description": "Evidence-node detail.",
                     "type": "string"
@@ -32483,11 +32832,49 @@ const docTemplate = `{
                     "description": "Risk-node detail.",
                     "type": "string"
                 },
+                "ssp": {
+                    "description": "SSP-scoped posture (sspId set): SSP on operational control nodes, and\nPostureCounts on structural nodes tallying their controls' postures.\nSSPBreakdown replaces both in the global (no sspId) view on control nodes.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/handler.LineageSSPStatus"
+                        }
+                    ]
+                },
+                "sspBreakdown": {
+                    "$ref": "#/definitions/handler.LineageSSPBreakdown"
+                },
+                "statement": {
+                    "description": "Statement is the control's requirement prose (OSCAL \"statement\" part),\nsurfaced for hover/tooltip in the lineage tree \u0026 graph. Control nodes only.",
+                    "type": "string"
+                },
                 "status": {
                     "type": "string"
                 },
                 "title": {
                     "type": "string"
+                }
+            }
+        },
+        "handler.LineagePostureCounts": {
+            "type": "object",
+            "properties": {
+                "attention": {
+                    "type": "integer"
+                },
+                "notApplicable": {
+                    "type": "integer"
+                },
+                "notSatisfied": {
+                    "type": "integer"
+                },
+                "outOfScope": {
+                    "type": "integer"
+                },
+                "planned": {
+                    "type": "integer"
+                },
+                "satisfied": {
+                    "type": "integer"
                 }
             }
         },
@@ -32522,6 +32909,72 @@ const docTemplate = `{
                 },
                 "riskAccepted": {
                     "type": "integer"
+                }
+            }
+        },
+        "handler.LineageSSPBreakdown": {
+            "type": "object",
+            "properties": {
+                "attention": {
+                    "type": "integer"
+                },
+                "notApplicable": {
+                    "type": "integer"
+                },
+                "notSatisfied": {
+                    "type": "integer"
+                },
+                "outOfScope": {
+                    "type": "integer"
+                },
+                "planned": {
+                    "type": "integer"
+                },
+                "satisfied": {
+                    "type": "integer"
+                },
+                "totalSsps": {
+                    "type": "integer"
+                }
+            }
+        },
+        "handler.LineageSSPRow": {
+            "type": "object",
+            "properties": {
+                "evidenceStatus": {
+                    "type": "string"
+                },
+                "implementationStatus": {
+                    "type": "string"
+                },
+                "inProfile": {
+                    "type": "boolean"
+                },
+                "posture": {
+                    "type": "string"
+                },
+                "sspId": {
+                    "type": "string"
+                },
+                "sspTitle": {
+                    "type": "string"
+                }
+            }
+        },
+        "handler.LineageSSPStatus": {
+            "type": "object",
+            "properties": {
+                "evidenceStatus": {
+                    "type": "string"
+                },
+                "implementationStatus": {
+                    "type": "string"
+                },
+                "inProfile": {
+                    "type": "boolean"
+                },
+                "posture": {
+                    "type": "string"
                 }
             }
         },
@@ -32616,6 +33069,17 @@ const docTemplate = `{
                 },
                 "uuid": {
                     "type": "string"
+                }
+            }
+        },
+        "handler.SetCatalogActiveRequest": {
+            "type": "object",
+            "required": [
+                "active"
+            ],
+            "properties": {
+                "active": {
+                    "type": "boolean"
                 }
             }
         },
@@ -32768,6 +33232,54 @@ const docTemplate = `{
                 },
                 "skipped": {
                     "type": "integer"
+                }
+            }
+        },
+        "handler.catalogLinkRequest": {
+            "type": "object",
+            "properties": {
+                "relationshipType": {
+                    "type": "string"
+                },
+                "sourceCatalogId": {
+                    "type": "string"
+                },
+                "target": {
+                    "$ref": "#/definitions/handler.controlRefRequest"
+                }
+            }
+        },
+        "handler.catalogLinkResponse": {
+            "type": "object",
+            "properties": {
+                "created": {
+                    "type": "integer"
+                },
+                "deleted": {
+                    "type": "integer"
+                },
+                "skipped": {
+                    "type": "integer"
+                }
+            }
+        },
+        "handler.catalogLinkSummary": {
+            "type": "object",
+            "properties": {
+                "controlCount": {
+                    "type": "integer"
+                },
+                "relationshipType": {
+                    "type": "string"
+                },
+                "sourceCatalogId": {
+                    "type": "string"
+                },
+                "targetCatalogId": {
+                    "type": "string"
+                },
+                "targetControlId": {
+                    "type": "string"
                 }
             }
         },
@@ -43341,6 +43853,29 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/handler.LineageNode"
+                    }
+                },
+                "limit": {
+                    "type": "integer"
+                },
+                "page": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
+                },
+                "totalPages": {
+                    "type": "integer"
+                }
+            }
+        },
+        "service.ListResponse-handler_LineageSSPRow": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handler.LineageSSPRow"
                     }
                 },
                 "limit": {

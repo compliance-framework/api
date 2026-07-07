@@ -455,3 +455,65 @@ func TestCatalog_CatalogTypePropNotDuplicatedOnRoundTrip(t *testing.T) {
 		t.Errorf("round-trip catalog type = %q, want %q", back.CatalogType, CatalogTypePolicy)
 	}
 }
+
+func TestCatalog_InactiveOscalRoundTrip(t *testing.T) {
+	id := uuid.New()
+	inactive := false
+
+	// An inactive catalog marshals its active state as a ccf metadata prop...
+	cat := Catalog{
+		UUIDModel: UUIDModel{ID: &id},
+		Active:    &inactive,
+		Metadata:  Metadata{Title: "Draft Catalog", Version: "1.0.0", OscalVersion: "1.1.3"},
+	}
+	oscal := cat.MarshalOscal()
+	if oscal.Metadata.Props == nil {
+		t.Fatal("expected catalog-active prop to be emitted for an inactive catalog")
+	}
+	found := false
+	for _, p := range *oscal.Metadata.Props {
+		if p.Name == catalogActivePropName && p.Ns == CCFPropNamespace && p.Value == "false" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("catalog-active prop not present in marshalled metadata: %+v", oscal.Metadata.Props)
+	}
+
+	// ...and unmarshalling reads it straight back into an explicit &false.
+	var back Catalog
+	back.UnmarshalOscal(*oscal)
+	if back.Active == nil || *back.Active {
+		t.Errorf("round-trip active = %v, want explicit false", back.Active)
+	}
+}
+
+func TestCatalog_ActiveOmitsProp(t *testing.T) {
+	id := uuid.New()
+	active := true
+
+	// An active (or unset) catalog emits no catalog-active prop, so active catalogs
+	// round-trip byte-identically.
+	for _, a := range []*bool{&active, nil} {
+		cat := Catalog{
+			UUIDModel: UUIDModel{ID: &id},
+			Active:    a,
+			Metadata:  Metadata{Title: "Live Catalog", Version: "1.0.0", OscalVersion: "1.1.3"},
+		}
+		oscal := cat.MarshalOscal()
+		if oscal.Metadata.Props != nil {
+			for _, p := range *oscal.Metadata.Props {
+				if p.Name == catalogActivePropName {
+					t.Errorf("active/unset catalog must not emit a catalog-active prop (Active=%v)", a)
+				}
+			}
+		}
+		// An absent prop unmarshals to nil so a struct-based Update never clobbers
+		// the column and the DB default (true) governs on insert.
+		var back Catalog
+		back.UnmarshalOscal(*oscal)
+		if back.Active != nil {
+			t.Errorf("absent catalog-active prop should unmarshal to nil, got %v", *back.Active)
+		}
+	}
+}

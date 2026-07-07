@@ -8,21 +8,48 @@ import (
 
 // Catalog type vocabulary. Catalogs default to "standard"; policy/procedure
 // catalogs model organizational Policies & Procedures (see Compliance Lineage).
+// internal/other are additional operational catalog types that behave exactly
+// like "standard" in the lineage & relationship model.
 const (
 	CatalogTypeStandard  = "standard"
 	CatalogTypePolicy    = "policy"
 	CatalogTypeProcedure = "procedure"
+	CatalogTypeInternal  = "internal"
+	CatalogTypeOther     = "other"
 
-	// catalogTypePropName / CCFPropNamespace are how catalog_type survives an
-	// OSCAL round-trip: it rides as a metadata prop since OSCAL has no native slot.
-	catalogTypePropName = "catalog-type"
-	CCFPropNamespace    = "https://compliance-framework.github.io/ns"
+	// catalogTypePropName / catalogActivePropName / CCFPropNamespace are how the
+	// ccf-specific catalog_type and active flag survive an OSCAL round-trip: they
+	// ride as metadata props since OSCAL has no native slot for either.
+	catalogTypePropName   = "catalog-type"
+	catalogActivePropName = "catalog-active"
+	CCFPropNamespace      = "https://compliance-framework.github.io/ns"
 )
+
+// AllCatalogTypes lists every known catalog type, in canonical order.
+var AllCatalogTypes = []string{
+	CatalogTypeStandard,
+	CatalogTypePolicy,
+	CatalogTypeProcedure,
+	CatalogTypeInternal,
+	CatalogTypeOther,
+}
 
 // IsValidCatalogType reports whether t is one of the known catalog types.
 func IsValidCatalogType(t string) bool {
 	switch t {
-	case CatalogTypeStandard, CatalogTypePolicy, CatalogTypeProcedure:
+	case CatalogTypeStandard, CatalogTypePolicy, CatalogTypeProcedure, CatalogTypeInternal, CatalogTypeOther:
+		return true
+	}
+	return false
+}
+
+// IsOperationalCatalogType reports whether t behaves as a standard/operational
+// endpoint in the lineage & relationship model. standard, internal and other all
+// carry operational controls, act as lineage roots, and share the same slot in
+// the relationship matrix. policy/procedure catalogs do NOT.
+func IsOperationalCatalogType(t string) bool {
+	switch t {
+	case CatalogTypeStandard, CatalogTypeInternal, CatalogTypeOther:
 		return true
 	}
 	return false
@@ -33,11 +60,17 @@ type Catalog struct {
 	Metadata Metadata `json:"metadata" gorm:"polymorphic:Parent;"`
 	// CatalogType is one of standard|policy|procedure. It is the canonical source
 	// of truth for rootness in the lineage API and is never derived from links.
-	CatalogType string                         `json:"catalogType" gorm:"type:text;not null;default:'standard';index"`
-	Params      datatypes.JSONSlice[Parameter] `json:"params"`
-	Groups      []Group                        `json:"groups"`
-	Controls    []Control                      `json:"controls"`
-	BackMatter  *BackMatter                    `json:"back-matter,omitempty" gorm:"polymorphic:Parent;"`
+	CatalogType string `json:"catalogType" gorm:"type:text;not null;default:'standard';index"`
+	// Active marks whether the catalog is live. Inactive catalogs (e.g. still in
+	// development) are hidden from the lineage /roots listing but remain visible
+	// when reached through a control-link. It is a pointer so a zero value does not
+	// clobber the column on struct-based Create/Update: nil means "unset" (DB default
+	// true applies on insert, no write on update), &false / &true are explicit.
+	Active     *bool                          `json:"active,omitempty" gorm:"type:boolean;not null;default:true;index"`
+	Params     datatypes.JSONSlice[Parameter] `json:"params"`
+	Groups     []Group                        `json:"groups"`
+	Controls   []Control                      `json:"controls"`
+	BackMatter *BackMatter                    `json:"back-matter,omitempty" gorm:"polymorphic:Parent;"`
 	/**
 	"required": [
 		"uuid",
@@ -57,6 +90,7 @@ func (c *Catalog) UnmarshalOscal(ocatalog oscalTypes_1_1_3.Catalog) *Catalog {
 		},
 		Metadata:    *metadata,
 		CatalogType: catalogTypeFromOscalProps(ocatalog.Metadata.Props),
+		Active:      catalogActiveFromOscalProps(ocatalog.Metadata.Props),
 	}
 
 	if ocatalog.BackMatter != nil {
@@ -98,26 +132,15 @@ func (c *Catalog) MarshalOscal() *oscalTypes_1_1_3.Catalog {
 		UUID:     c.ID.String(),
 		Metadata: *c.Metadata.MarshalOscal(),
 	}
-	// Emit catalog-type as a metadata prop only when it deviates from the default,
-	// so standard catalogs round-trip byte-identically to how they arrived. Strip
-	// any pre-existing catalog-type prop first: a catalog imported WITH the prop in
-	// its body carries it in Metadata.Props, and re-emitting would duplicate it.
+	// Emit the ccf-specific props only when they deviate from their defaults, so
+	// standard/active catalogs round-trip byte-identically to how they arrived.
+	// upsertCCFProp strips any pre-existing copy first so an imported catalog that
+	// already carried the prop in its body does not end up with a duplicate.
 	if c.CatalogType != "" && c.CatalogType != CatalogTypeStandard {
-		props := []oscalTypes_1_1_3.Property{}
-		if cat.Metadata.Props != nil {
-			for _, p := range *cat.Metadata.Props {
-				if p.Name == catalogTypePropName && p.Ns == CCFPropNamespace {
-					continue
-				}
-				props = append(props, p)
-			}
-		}
-		props = append(props, oscalTypes_1_1_3.Property{
-			Name:  catalogTypePropName,
-			Ns:    CCFPropNamespace,
-			Value: c.CatalogType,
-		})
-		cat.Metadata.Props = &props
+		upsertCCFProp(&cat.Metadata, catalogTypePropName, c.CatalogType)
+	}
+	if c.Active != nil && !*c.Active {
+		upsertCCFProp(&cat.Metadata, catalogActivePropName, "false")
 	}
 	if len(c.Params) > 0 {
 		params := make([]oscalTypes_1_1_3.Parameter, len(c.Params))
@@ -157,6 +180,38 @@ func catalogTypeFromOscalProps(props *[]oscalTypes_1_1_3.Property) string {
 		}
 	}
 	return CatalogTypeStandard
+}
+
+// catalogActiveFromOscalProps extracts the ccf catalog-active prop. It returns a
+// pointer so an absent prop yields nil (leave the Active column untouched — DB
+// default true applies on insert), while a present prop yields an explicit value:
+// only the literal "false" deactivates, anything else is active.
+func catalogActiveFromOscalProps(props *[]oscalTypes_1_1_3.Property) *bool {
+	if props != nil {
+		for _, p := range *props {
+			if p.Name == catalogActivePropName && p.Ns == CCFPropNamespace {
+				v := p.Value != "false"
+				return &v
+			}
+		}
+	}
+	return nil
+}
+
+// upsertCCFProp sets a ccf-namespaced metadata prop, replacing any existing prop
+// of the same name+namespace so re-marshalling never duplicates it.
+func upsertCCFProp(md *oscalTypes_1_1_3.Metadata, name, value string) {
+	props := []oscalTypes_1_1_3.Property{}
+	if md.Props != nil {
+		for _, p := range *md.Props {
+			if p.Name == name && p.Ns == CCFPropNamespace {
+				continue
+			}
+			props = append(props, p)
+		}
+	}
+	props = append(props, oscalTypes_1_1_3.Property{Name: name, Ns: CCFPropNamespace, Value: value})
+	md.Props = &props
 }
 
 type Group struct {

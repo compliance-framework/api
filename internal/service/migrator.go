@@ -227,6 +227,9 @@ func MigrateUpWithConfig(db *gorm.DB, cfg *config.Config) error {
 	if err := migrateBackfillCatalogType(db); err != nil {
 		return err
 	}
+	if err := migrateBackfillCatalogActive(db); err != nil {
+		return err
+	}
 
 	// Create functional index for case-insensitive control_id lookups in filter_controls join table
 	// This improves performance of UPPER(control_id) queries in the suggestion service
@@ -632,6 +635,19 @@ func migrateBackfillCatalogType(db *gorm.DB) error {
 	return db.Model(&relational.Catalog{}).
 		Where("catalog_type IS NULL OR catalog_type = ''").
 		Update("catalog_type", relational.CatalogTypeStandard).Error
+}
+
+// migrateBackfillCatalogActive ensures every existing catalog row is marked active.
+// AutoMigrate adds the column with a 'true' default (Postgres backfills existing
+// rows on ADD COLUMN), but this keeps the invariant explicit and idempotent across
+// drivers so catalogs pre-dating the column are never hidden from the lineage roots.
+func migrateBackfillCatalogActive(db *gorm.DB) error {
+	if !db.Migrator().HasColumn(&relational.Catalog{}, "active") {
+		return nil
+	}
+	return db.Model(&relational.Catalog{}).
+		Where("active IS NULL").
+		Update("active", true).Error
 }
 
 // migrateSSPProfileIDToJoinTable copies the legacy single profile_id FK from

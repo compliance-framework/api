@@ -55,14 +55,14 @@ type ControlRef struct {
 // ValidateRelationship enforces the closed-set vocabulary matrix against the
 // catalog types of the two endpoints. Direction is concrete -> abstract.
 //
-// An "operational-control" is any control in a standard-type catalog (or any
-// control not living in a policy/procedure catalog) acting as an implementer,
-// so operationally it collapses to sourceType == standard here.
+// An "operational-control" is any control in an operational-type catalog
+// (standard, internal or other) acting as an implementer — see
+// IsOperationalCatalogType. All three collapse to the same "standard" slot here.
 //
-//	implements: policy   -> standard  (policy-control implements standard-control)
-//	            standard -> policy    (operational-control implements policy-control)
-//	            standard -> standard  (operational-control -> standard-control, escape hatch)
-//	documents:  procedure -> policy   (procedure-control documents policy-control)
+//	implements: policy      -> operational  (policy-control implements standard-control)
+//	            operational -> policy        (operational-control implements policy-control)
+//	            operational -> operational   (operational-control -> standard-control, escape hatch)
+//	documents:  procedure   -> policy        (procedure-control documents policy-control)
 //
 // Any other combination — including the reserved relationship types — is rejected.
 // A non-nil error here maps to HTTP 422.
@@ -70,11 +70,11 @@ func ValidateRelationship(relationshipType, sourceType, targetType string) error
 	switch relationshipType {
 	case RelationshipImplements:
 		switch {
-		case sourceType == CatalogTypePolicy && targetType == CatalogTypeStandard:
+		case sourceType == CatalogTypePolicy && IsOperationalCatalogType(targetType):
 			return nil
-		case sourceType == CatalogTypeStandard && targetType == CatalogTypePolicy:
+		case IsOperationalCatalogType(sourceType) && targetType == CatalogTypePolicy:
 			return nil
-		case sourceType == CatalogTypeStandard && targetType == CatalogTypeStandard:
+		case IsOperationalCatalogType(sourceType) && IsOperationalCatalogType(targetType):
 			return nil
 		}
 		return fmt.Errorf("relationship %q not permitted from %s-control to %s-control", relationshipType, sourceType, targetType)

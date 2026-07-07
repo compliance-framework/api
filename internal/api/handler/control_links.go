@@ -37,6 +37,13 @@ func (h *ControlLinkHandler) Register(api *echo.Group, guard middleware.Resource
 	api.POST("", h.Create, guard.Create())
 	api.POST("/bulk", h.BulkCreate, guard.Create())
 	api.DELETE("", h.Delete, guard.Delete())
+
+	// Catalog-level convenience API: link a whole source catalog to a single
+	// target control, fanning out to one control_links row per source control.
+	api.GET("/catalog", h.ListCatalogLinks, guard.Read())
+	api.POST("/catalog", h.CreateCatalogLink, guard.Create())
+	api.PUT("/catalog", h.SyncCatalogLink, guard.Update())
+	api.DELETE("/catalog", h.DeleteCatalogLink, guard.Delete())
 }
 
 type controlRefRequest struct {
@@ -61,6 +68,31 @@ type bulkControlLinkRequest struct {
 type bulkControlLinkResponse struct {
 	Created int `json:"created"`
 	Skipped int `json:"skipped"`
+}
+
+// catalogLinkRequest links a whole source catalog to a single target control.
+// Direction is always source-catalog -> target-control, matching the relationship
+// matrix (the catalog is always the concrete source: policy/procedure/standard).
+type catalogLinkRequest struct {
+	SourceCatalogID  uuid.UUID         `json:"sourceCatalogId"`
+	Target           controlRefRequest `json:"target"`
+	RelationshipType string            `json:"relationshipType"`
+}
+
+type catalogLinkResponse struct {
+	Created int `json:"created"`
+	Skipped int `json:"skipped"`
+	Deleted int `json:"deleted,omitempty"`
+}
+
+// catalogLinkSummary is one aggregated catalog-level link: a group of control_links
+// sharing the same (source catalog, target control, relationship) with a row count.
+type catalogLinkSummary struct {
+	SourceCatalogID  uuid.UUID `json:"sourceCatalogId"`
+	TargetCatalogID  uuid.UUID `json:"targetCatalogId"`
+	TargetControlID  string    `json:"targetControlId"`
+	RelationshipType string    `json:"relationshipType"`
+	ControlCount     int       `json:"controlCount"`
 }
 
 // List godoc
@@ -309,6 +341,279 @@ func (h *ControlLinkHandler) Delete(ctx echo.Context) error {
 		return ctx.JSON(http.StatusNotFound, api.NewError(errors.New("control link not found")))
 	}
 	return ctx.NoContent(http.StatusNoContent)
+}
+
+// ListCatalogLinks godoc
+
+// @Summary		List catalog-level control links
+// @Description	Aggregates control_links into catalog-level links: one entry per (source catalog, target control, relationship) with the number of underlying control rows. Filterable by source/target catalog.
+// @Tags			ControlLink
+// @Produce		json
+// @Param			sourceCatalogId	query		string	false	"Filter by source catalog id"
+// @Param			targetCatalogId	query		string	false	"Filter by target catalog id"
+// @Success		200				{object}	handler.GenericDataResponse[[]catalogLinkSummary]
+// @Failure		400				{object}	api.Error
+// @Failure		500				{object}	api.Error
+// @Security		OAuth2Password
+// @Router			/control-links/catalog [get]
+func (h *ControlLinkHandler) ListCatalogLinks(ctx echo.Context) error {
+	query := h.db.Model(&relational.ControlLink{}).
+		Select("source_catalog_id, target_catalog_id, target_control_id, relationship_type, count(*) AS control_count").
+		Group("source_catalog_id, target_catalog_id, target_control_id, relationship_type").
+		Order("source_catalog_id, target_catalog_id, target_control_id, relationship_type")
+	if v := ctx.QueryParam("sourceCatalogId"); v != "" {
+		id, err := uuid.Parse(v)
+		if err != nil {
+			return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+		}
+		query = query.Where("source_catalog_id = ?", id)
+	}
+	if v := ctx.QueryParam("targetCatalogId"); v != "" {
+		id, err := uuid.Parse(v)
+		if err != nil {
+			return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+		}
+		query = query.Where("target_catalog_id = ?", id)
+	}
+
+	summaries := []catalogLinkSummary{}
+	if err := query.Scan(&summaries).Error; err != nil {
+		h.sugar.Errorw("failed to list catalog links", "error", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+	return ctx.JSON(http.StatusOK, GenericDataResponse[[]catalogLinkSummary]{Data: summaries})
+}
+
+// CreateCatalogLink godoc
+
+// @Summary		Create a catalog-level control link
+// @Description	Fans a source catalog out to a single target control: creates one control_links row per control in the source catalog (implements/documents). Validates the relationship vocabulary against the catalog types once; skips cycles and existing rows (idempotent). 422 on a vocabulary/existence violation.
+// @Tags			ControlLink
+// @Accept			json
+// @Produce		json
+// @Param			link	body		catalogLinkRequest	true	"Catalog-level link"
+// @Success		200		{object}	handler.GenericDataResponse[catalogLinkResponse]
+// @Failure		422		{object}	api.Error
+// @Security		OAuth2Password
+// @Router			/control-links/catalog [post]
+func (h *ControlLinkHandler) CreateCatalogLink(ctx echo.Context) error {
+	var req catalogLinkRequest
+	if err := ctx.Bind(&req); err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	sourceControls, err := h.validateCatalogLink(req)
+	if err != nil {
+		return ctx.JSON(http.StatusUnprocessableEntity, api.NewError(err))
+	}
+
+	created, skipped, err := h.fanOutCatalogLink(req, sourceControls, actorUserID(ctx))
+	if err != nil {
+		h.sugar.Errorw("failed to create catalog link", "error", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+	return ctx.JSON(http.StatusOK, GenericDataResponse[catalogLinkResponse]{
+		Data: catalogLinkResponse{Created: created, Skipped: skipped},
+	})
+}
+
+// SyncCatalogLink godoc
+
+// @Summary		Re-sync a catalog-level control link
+// @Description	Idempotently refreshes a catalog-level link to the source catalog's CURRENT controls: deletes the existing fan-out set for (source catalog, target control, relationship) and recreates it over every current control. Use after adding/removing controls in the source catalog.
+// @Tags			ControlLink
+// @Accept			json
+// @Produce		json
+// @Param			link	body		catalogLinkRequest	true	"Catalog-level link"
+// @Success		200		{object}	handler.GenericDataResponse[catalogLinkResponse]
+// @Failure		422		{object}	api.Error
+// @Security		OAuth2Password
+// @Router			/control-links/catalog [put]
+func (h *ControlLinkHandler) SyncCatalogLink(ctx echo.Context) error {
+	var req catalogLinkRequest
+	if err := ctx.Bind(&req); err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	sourceControls, err := h.validateCatalogLink(req)
+	if err != nil {
+		return ctx.JSON(http.StatusUnprocessableEntity, api.NewError(err))
+	}
+
+	var created, skipped int
+	var deleted int64
+	err = h.db.Transaction(func(tx *gorm.DB) error {
+		res := tx.Where(
+			"source_catalog_id = ? AND target_catalog_id = ? AND target_control_id = ? AND relationship_type = ?",
+			req.SourceCatalogID, req.Target.CatalogID, req.Target.ControlID, req.RelationshipType).
+			Delete(&relational.ControlLink{})
+		if res.Error != nil {
+			return res.Error
+		}
+		deleted = res.RowsAffected
+		c, s, ferr := h.fanOutCatalogLinkTx(tx, req, sourceControls, actorUserID(ctx))
+		if ferr != nil {
+			return ferr
+		}
+		created, skipped = c, s
+		return nil
+	})
+	if err != nil {
+		h.sugar.Errorw("failed to sync catalog link", "error", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+	return ctx.JSON(http.StatusOK, GenericDataResponse[catalogLinkResponse]{
+		Data: catalogLinkResponse{Created: created, Skipped: skipped, Deleted: int(deleted)},
+	})
+}
+
+// DeleteCatalogLink godoc
+
+// @Summary		Delete a catalog-level control link
+// @Description	Deletes the whole fan-out set for a catalog-level link: every control_links row matching (source catalog, target control, relationship). All query params required.
+// @Tags			ControlLink
+// @Param			sourceCatalogId		query		string	true	"Source catalog id"
+// @Param			targetCatalogId		query		string	true	"Target catalog id"
+// @Param			targetControlId		query		string	true	"Target control id"
+// @Param			relationshipType	query		string	true	"Relationship type"
+// @Success		200					{object}	handler.GenericDataResponse[catalogLinkResponse]
+// @Failure		400					{object}	api.Error
+// @Failure		404					{object}	api.Error
+// @Security		OAuth2Password
+// @Router			/control-links/catalog [delete]
+func (h *ControlLinkHandler) DeleteCatalogLink(ctx echo.Context) error {
+	sourceCatalogID, err := uuid.Parse(ctx.QueryParam("sourceCatalogId"))
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(errors.New("valid sourceCatalogId is required")))
+	}
+	targetCatalogID, err := uuid.Parse(ctx.QueryParam("targetCatalogId"))
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(errors.New("valid targetCatalogId is required")))
+	}
+	targetControlID := ctx.QueryParam("targetControlId")
+	relationshipType := ctx.QueryParam("relationshipType")
+	if targetControlID == "" || relationshipType == "" {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(errors.New("targetControlId and relationshipType are required")))
+	}
+
+	res := h.db.
+		Where("source_catalog_id = ? AND target_catalog_id = ? AND target_control_id = ? AND relationship_type = ?",
+			sourceCatalogID, targetCatalogID, targetControlID, relationshipType).
+		Delete(&relational.ControlLink{})
+	if res.Error != nil {
+		h.sugar.Errorw("failed to delete catalog link", "error", res.Error)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(res.Error))
+	}
+	if res.RowsAffected == 0 {
+		return ctx.JSON(http.StatusNotFound, api.NewError(errors.New("catalog link not found")))
+	}
+	return ctx.JSON(http.StatusOK, GenericDataResponse[catalogLinkResponse]{
+		Data: catalogLinkResponse{Deleted: int(res.RowsAffected)},
+	})
+}
+
+// validateCatalogLink checks the source catalog and target control exist and that
+// the relationship is permitted between their catalog types, then returns the
+// source catalog's control ids (the fan-out set). A returned error maps to 422.
+func (h *ControlLinkHandler) validateCatalogLink(req catalogLinkRequest) ([]string, error) {
+	sourceType, err := h.resolveCatalogType(req.SourceCatalogID)
+	if err != nil {
+		return nil, err
+	}
+	targetType, err := h.resolveControlType(req.Target.ref())
+	if err != nil {
+		return nil, err
+	}
+	if err := relational.ValidateRelationship(req.RelationshipType, sourceType, targetType); err != nil {
+		return nil, err
+	}
+	ids, err := h.catalogControlIDs(req.SourceCatalogID)
+	if err != nil {
+		return nil, err
+	}
+	if len(ids) == 0 {
+		return nil, errors.New("source catalog " + req.SourceCatalogID.String() + " has no controls to link")
+	}
+	return ids, nil
+}
+
+// fanOutCatalogLink creates one control_links row per source control on the default
+// connection. Cycles are skipped and existing rows are left intact (ON CONFLICT DO
+// NOTHING), mirroring BulkCreate. Returns (created, skipped).
+func (h *ControlLinkHandler) fanOutCatalogLink(req catalogLinkRequest, sourceControls []string, actor *uuid.UUID) (int, int, error) {
+	return h.fanOutCatalogLinkTx(h.db, req, sourceControls, actor)
+}
+
+// fanOutCatalogLinkTx is fanOutCatalogLink parameterised by connection so it can run
+// inside a transaction (used by SyncCatalogLink).
+func (h *ControlLinkHandler) fanOutCatalogLinkTx(tx *gorm.DB, req catalogLinkRequest, sourceControls []string, actor *uuid.UUID) (int, int, error) {
+	edges := []relational.ControlLink{}
+	if err := tx.Find(&edges).Error; err != nil {
+		return 0, 0, err
+	}
+
+	target := req.Target.ref()
+	skipped := 0
+	accepted := make([]relational.ControlLink, 0, len(sourceControls))
+	working := append([]relational.ControlLink(nil), edges...)
+	for _, controlID := range sourceControls {
+		source := relational.ControlRef{CatalogID: req.SourceCatalogID, ControlID: controlID}
+		// Cycle check against existing edges plus everything accepted so far.
+		if relational.NewControlLinkGraph(working).WouldCreateCycle(source, target) {
+			skipped++
+			continue
+		}
+		link := relational.ControlLink{
+			SourceCatalogID:  source.CatalogID,
+			SourceControlID:  source.ControlID,
+			TargetCatalogID:  target.CatalogID,
+			TargetControlID:  target.ControlID,
+			RelationshipType: req.RelationshipType,
+			CreatedByID:      actor,
+		}
+		accepted = append(accepted, link)
+		working = append(working, link)
+	}
+
+	created := 0
+	if len(accepted) > 0 {
+		res := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&accepted)
+		if res.Error != nil {
+			return 0, 0, res.Error
+		}
+		created = int(res.RowsAffected)
+	}
+	// Anything accepted but not newly inserted was an existing duplicate.
+	skipped += len(accepted) - created
+	return created, skipped, nil
+}
+
+// resolveCatalogType verifies the catalog exists and returns its type (defaulting
+// to standard when unset). A returned error is a validation failure mapped to 422.
+func (h *ControlLinkHandler) resolveCatalogType(catalogID uuid.UUID) (string, error) {
+	var cat relational.Catalog
+	if err := h.db.Select("id", "catalog_type").First(&cat, "id = ?", catalogID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return "", errors.New("catalog " + catalogID.String() + " does not exist")
+		}
+		return "", err
+	}
+	if cat.CatalogType == "" {
+		return relational.CatalogTypeStandard, nil
+	}
+	return cat.CatalogType, nil
+}
+
+// catalogControlIDs returns every control id in the catalog (top-level, grouped and
+// nested), since every controls row carries catalog_id regardless of nesting.
+func (h *ControlLinkHandler) catalogControlIDs(catalogID uuid.UUID) ([]string, error) {
+	ids := []string{}
+	if err := h.db.Model(&relational.Control{}).
+		Where("catalog_id = ?", catalogID).
+		Pluck("id", &ids).Error; err != nil {
+		return nil, err
+	}
+	return ids, nil
 }
 
 // validateLink checks endpoint existence and the vocabulary matrix. A returned
