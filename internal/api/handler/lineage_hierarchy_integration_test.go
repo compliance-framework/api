@@ -42,6 +42,20 @@ func (suite *LineageHierarchySuite) children(key string) []LineageNode {
 	return resp.Data
 }
 
+func (suite *LineageHierarchySuite) roots() []LineageNode {
+	e := echo.New()
+	req := httptest.NewRequest(http.MethodGet, "/api/lineage/roots", nil)
+	rec := httptest.NewRecorder()
+	ctx := e.NewContext(req, rec)
+	suite.Require().NoError(NewLineageHandler(zap.NewNop().Sugar(), suite.DB).Roots(ctx))
+	suite.Require().Equal(http.StatusOK, rec.Code, rec.Body.String())
+	var resp struct {
+		Data []LineageNode `json:"data"`
+	}
+	suite.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &resp))
+	return resp.Data
+}
+
 // keys returns the sorted node keys, asserting none are duplicated.
 func (suite *LineageHierarchySuite) keys(nodes []LineageNode) []string {
 	seen := map[string]int{}
@@ -144,6 +158,15 @@ func (suite *LineageHierarchySuite) TestFlatControlsWithSubControls() {
 		suite.keys(suite.children("catalog:"+catID.String())),
 		"sub-controls must not appear as catalog children",
 	)
+
+	// The catalog rollup must reconcile with the reachable tree. The 2 sub-controls
+	// (V4.1.1-a, V4.1.2-a) have no node and belong to no group, so counting them in
+	// the catalog's compliance would inflate totalControls past its 2 visible parent
+	// controls — the bug this guards against.
+	roots := suite.roots()
+	suite.Require().Len(roots, 1)
+	suite.Equal(2, roots[0].Compliance.TotalControls,
+		"sub-controls must not be counted in the catalog rollup")
 }
 
 // seedASVS creates a catalog with the SHARED ASVS group/control ID scheme:

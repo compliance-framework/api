@@ -132,6 +132,23 @@ func NewControlLinkGraph(links []ControlLink) *ControlLinkGraph {
 	return g
 }
 
+// AddEdge indexes one more edge into the adjacency maps, identically to the
+// constructor's per-link handling. It lets a caller build the graph once and
+// accumulate accepted edges in a loop (e.g. a catalog fan-out that must cycle-check
+// each new edge against the ones already accepted) without rebuilding from scratch.
+func (g *ControlLinkGraph) AddEdge(l ControlLink) {
+	s := l.Source()
+	t := l.Target()
+	g.forward[s] = append(g.forward[s], t)
+	switch l.RelationshipType {
+	case RelationshipImplements:
+		g.implementedBy[t] = append(g.implementedBy[t], s)
+		g.outgoingImplements[s] = append(g.outgoingImplements[s], t)
+	case RelationshipDocuments:
+		g.documentedBy[t] = append(g.documentedBy[t], s)
+	}
+}
+
 // Children returns the direct lineage children of node: everything that
 // `implements` it plus everything that `documents` it, in a stable order
 // (implements first, then documents), de-duplicated.

@@ -555,11 +555,14 @@ func (h *ControlLinkHandler) fanOutCatalogLinkTx(tx *gorm.DB, req catalogLinkReq
 	target := req.Target.ref()
 	skipped := 0
 	accepted := make([]relational.ControlLink, 0, len(sourceControls))
-	working := append([]relational.ControlLink(nil), edges...)
+	// Build the graph once, then fold each accepted edge in incrementally, so the
+	// cycle check still sees "existing edges plus everything accepted so far" without
+	// rebuilding the whole graph per source (which was O(sources x edges)).
+	graph := relational.NewControlLinkGraph(edges)
 	for _, controlID := range sourceControls {
 		source := relational.ControlRef{CatalogID: req.SourceCatalogID, ControlID: controlID}
 		// Cycle check against existing edges plus everything accepted so far.
-		if relational.NewControlLinkGraph(working).WouldCreateCycle(source, target) {
+		if graph.WouldCreateCycle(source, target) {
 			skipped++
 			continue
 		}
@@ -572,7 +575,7 @@ func (h *ControlLinkHandler) fanOutCatalogLinkTx(tx *gorm.DB, req catalogLinkReq
 			CreatedByID:      actor,
 		}
 		accepted = append(accepted, link)
-		working = append(working, link)
+		graph.AddEdge(link)
 	}
 
 	created := 0

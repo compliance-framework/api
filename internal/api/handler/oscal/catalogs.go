@@ -583,10 +583,20 @@ func (h *CatalogHandler) SetActive(ctx echo.Context) error {
 		return ctx.JSON(http.StatusNotFound, api.NotFoundCustomMsg("catalog not found"))
 	}
 
+	// Reload the FULL body (not just metadata) so MarshalOscal emits a complete
+	// catalog — same shape the Get/Delete/Update endpoints return, so a consumer
+	// reusing this response as "the catalog" isn't handed an empty one.
 	var catalog relational.Catalog
 	if err := h.db.
 		Preload("Metadata").
 		Preload("Metadata.Revisions").
+		Preload("BackMatter").
+		Preload("BackMatter.Resources").
+		Preload("Groups").
+		Preload("Groups.Groups").
+		Preload("Groups.Controls").
+		Preload("Controls").
+		Preload("Controls.Controls").
 		First(&catalog, "id = ?", catalogID).Error; err != nil {
 		h.sugar.Warnw("Failed to reload catalog after set-active", "id", idParam, "error", err)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))

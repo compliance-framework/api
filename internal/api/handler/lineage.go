@@ -46,6 +46,15 @@ func (h *LineageHandler) Register(api *echo.Group, guard middleware.ResourceGuar
 
 // ── Response shapes ────────────────────────────────────────────────────────────
 
+// LineageCompliance is a node's compliance rollup.
+//
+// NOTE on TotalControls (and the two percentages, which share its denominator):
+// its unit depends on scope. In single-SSP scope, or globally with no SSPs, it is
+// a count of distinct in-scope controls. In the global (no sspId) view WITH SSPs
+// present it is a count of in-scope (control × SSP) cells — a control tracked by N
+// SSPs contributes up to N — so a control failing in one plan and N/A in another
+// is not collapsed. Consumers must not render it as a raw control count in that
+// scope. (Satisfied/NotSatisfied/Unknown follow the same unit.)
 type LineageCompliance struct {
 	TotalControls     int     `json:"totalControls"`
 	Satisfied         int     `json:"satisfied"`
@@ -196,7 +205,7 @@ type LineageNode struct {
 // Roots godoc
 
 // @Summary		List lineage roots
-// @Description	Returns active catalog roots (standard/policy/procedure) with full-subtree compliance and risk rollups. Rootness is catalog_type, never link presence; inactive catalogs are omitted from roots but still appear as children when a control-link points into them.
+// @Description	Returns active catalog roots (standard/policy/procedure) with full-subtree compliance and risk rollups. Rootness is catalog_type, never link presence; inactive catalogs are omitted from roots but still appear as children when a control-link points into them. NOTE: with sspId omitted but SSPs present, compliance.totalControls counts in-scope (control x SSP) cells, not distinct controls (a control tracked by N SSPs counts up to N).
 // @Tags			Lineage
 // @Produce		json
 // @Param			sspId		query		string	false	"Scope metrics to a System Security Plan"
@@ -415,6 +424,10 @@ type lineageEngine struct {
 	controlCatalogType map[relational.ControlRef]string
 	standardCatalogs   map[uuid.UUID]struct{}
 
+	// catalogAllControls is the catalog's metric-rollup seed set: every control that
+	// renders as a tree node (top-level + group-held). Sub-controls (enhancements
+	// parented to another control) are excluded — they have no node, so counting them
+	// would break the "parent totals == sum of visible children" invariant.
 	catalogAllControls map[uuid.UUID][]relational.ControlRef
 	catalogTopControls map[uuid.UUID][]relational.ControlRef
 	catalogTopGroups   map[uuid.UUID][]groupMeta
@@ -455,6 +468,12 @@ type lineageEngine struct {
 	// implements it) so posture can roll up through control-links like compliance
 	// and risk do, without re-walking the graph per SSP.
 	closureCache map[relational.ControlRef][]relational.ControlRef
+	// assessCache memoizes assessSSP per (control, SSP). The global /roots view sums
+	// a control's posture across every SSP for every ancestor node it rolls into, so
+	// the same (control, SSP) assessment (and its closureStreamsForSSP walk) is asked
+	// for many times over. The membership arg is a deterministic function of sspID
+	// within one engine build, so keying on (ref, sspID) alone is sound.
+	assessCache map[assessKey]sspAssessment
 	// latestStreams holds every latest-per-stream evidence (loaded once); the
 	// per-control indices into it are the control's own compliance evidence.
 	latestStreams            []relational.LatestEvidenceStream
@@ -492,6 +511,7 @@ func (h *LineageHandler) buildEngine(sspID, componentID *uuid.UUID) (*lineageEng
 		sspTitles:                map[uuid.UUID]string{},
 		profileControlsBySSP:     map[uuid.UUID]map[string]struct{}{},
 		closureCache:             map[relational.ControlRef][]relational.ControlRef{},
+		assessCache:              map[assessKey]sspAssessment{},
 	}
 
 	if err := e.loadCatalogs(h.db); err != nil {
@@ -585,23 +605,30 @@ func (e *lineageEngine) loadCatalogs(db *gorm.DB) error {
 		}
 
 		// Classify and register every control. A control's parent is a group (direct
-		// group control), another control (sub-control, reached via its parent) or the
-		// catalog itself (top-level control). allControls is the full catalog subtree.
-		allControls := make([]relational.ControlRef, 0, len(cat.Controls))
+		// group control), another control (a sub-control / enhancement) or the catalog
+		// itself (top-level control). Every control is registered so it stays reachable
+		// as a control-link endpoint, but only controls that render as a tree node —
+		// top-level and group-held — seed the rollups. A sub-control (parent is another
+		// control) has no node of its own and is counted in no group beneath the
+		// catalog, so counting it in catalogAllControls would inflate the catalog's
+		// totals past the sum of its visible children. It is therefore excluded from
+		// the rollup seeds until enhancements are rendered under their parent control.
+		rollupControls := make([]relational.ControlRef, 0, len(cat.Controls))
 		topControls := []relational.ControlRef{}
 		for _, ctl := range cat.Controls {
 			ref := relational.ControlRef{CatalogID: catID, ControlID: ctl.ID}
 			register(ref, ctl)
-			allControls = append(allControls, ref)
 			if ctl.ParentID == nil {
 				topControls = append(topControls, ref)
+				rollupControls = append(rollupControls, ref)
 			} else if _, isGroup := groupIDs[*ctl.ParentID]; isGroup {
 				pkey := groupKey(catID, *ctl.ParentID)
 				e.groupDirectControls[pkey] = append(e.groupDirectControls[pkey], ref)
+				rollupControls = append(rollupControls, ref)
 			}
 		}
 		e.catalogTopControls[catID] = topControls
-		e.catalogAllControls[catID] = allControls
+		e.catalogAllControls[catID] = rollupControls
 
 		// A group's full subtree = its direct controls plus every descendant group's,
 		// walked over the direct-child maps (depth-independent, cycle-tolerant). Used
@@ -952,6 +979,13 @@ type sspAssessment struct {
 	impl     string // uniform declared status across in-scope implementers, or ""
 }
 
+// assessKey memoizes assessSSP. Comparable (ControlRef + uuid.UUID are both
+// comparable), so it keys assessCache directly.
+type assessKey struct {
+	ref   relational.ControlRef
+	sspID uuid.UUID
+}
+
 // assessSSP rolls a control's posture up through its implements-closure for one
 // SSP. A control is in scope when it — or ANY operational control implementing it
 // — sits in the SSP's profile; its evidence is the closure's combined evidence for
@@ -960,6 +994,10 @@ type sspAssessment struct {
 // a standard control implemented indirectly (internal control -> policy ->
 // standard) inherits that SSP's coverage instead of reading as out-of-scope.
 func (e *lineageEngine) assessSSP(ref relational.ControlRef, sspID uuid.UUID, membership map[string]struct{}) sspAssessment {
+	key := assessKey{ref: ref, sspID: sspID}
+	if cached, ok := e.assessCache[key]; ok {
+		return cached
+	}
 	closure := e.closureOf(ref)
 
 	// In scope when the control — or anything implementing it — sits in the SSP's
@@ -977,12 +1015,14 @@ func (e *lineageEngine) assessSSP(ref relational.ControlRef, sspID uuid.UUID, me
 
 	evidence := e.statusFromStreams(e.closureStreamsForSSP(closure, sspID))
 	impl := collapseUniformStatus(implStates)
-	return sspAssessment{
+	a := sspAssessment{
 		posture:  derivePosture(inScope, evidence, impl),
 		inScope:  inScope,
 		evidence: evidence,
 		impl:     impl,
 	}
+	e.assessCache[key] = a
+	return a
 }
 
 // inAnySSPProfile reports whether a control is directly resolved by at least one

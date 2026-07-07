@@ -4467,7 +4467,7 @@ const docTemplate = `{
         },
         "/lineage/roots": {
             "get": {
-                "description": "Returns active catalog roots (standard/policy/procedure) with full-subtree compliance and risk rollups. Rootness is catalog_type, never link presence; inactive catalogs are omitted from roots but still appear as children when a control-link points into them.",
+                "description": "Returns active catalog roots (standard/policy/procedure) with full-subtree compliance and risk rollups. Rootness is catalog_type, never link presence; inactive catalogs are omitted from roots but still appear as children when a control-link points into them. NOTE: with sspId omitted but SSPs present, compliance.totalControls counts in-scope (control x SSP) cells, not distinct controls (a control tracked by N SSPs counts up to N).",
                 "produces": [
                     "application/json"
                 ],
