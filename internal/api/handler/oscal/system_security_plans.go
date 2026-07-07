@@ -3853,14 +3853,47 @@ func (h *SystemSecurityPlanHandler) DeleteImplementedRequirement(ctx echo.Contex
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
-	result := h.db.Where("id = ? AND control_implementation_id = ?", reqID, ssp.ControlImplementation.ID).Delete(&relational.ImplementedRequirement{})
-	if result.Error != nil {
-		h.sugar.Errorf("Failed to delete implemented requirement: %v", result.Error)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(result.Error))
+	var req relational.ImplementedRequirement
+	if err := h.db.
+		Preload("ResponsibleRoles.Parties").
+		Preload("ByComponents").
+		Preload("Statements.ResponsibleRoles.Parties").
+		Preload("Statements.ByComponents").
+		Where("id = ? AND control_implementation_id = ?", reqID, ssp.ControlImplementation.ID).
+		First(&req).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("implemented requirement not found")))
+		}
+		h.sugar.Errorf("Failed to find implemented requirement: %v", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
-	if result.RowsAffected == 0 {
-		return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("implemented requirement not found")))
+	if err := h.db.Transaction(func(tx *gorm.DB) error {
+		for _, bc := range req.ByComponents {
+			if err := deleteByComponentCascade(tx, *bc.ID); err != nil {
+				return err
+			}
+		}
+		for _, stmt := range req.Statements {
+			for _, bc := range stmt.ByComponents {
+				if err := deleteByComponentCascade(tx, *bc.ID); err != nil {
+					return err
+				}
+			}
+			if err := deleteResponsibleRoles(tx, stmt.ResponsibleRoles); err != nil {
+				return err
+			}
+		}
+		if err := deleteResponsibleRoles(tx, req.ResponsibleRoles); err != nil {
+			return err
+		}
+		if err := tx.Where("implemented_requirement_id = ?", req.ID).Delete(&relational.Statement{}).Error; err != nil {
+			return err
+		}
+		return tx.Delete(&req).Error
+	}); err != nil {
+		h.sugar.Errorf("Failed to delete implemented requirement: %v", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
 	return ctx.NoContent(http.StatusNoContent)
@@ -4522,10 +4555,11 @@ func (h *SystemSecurityPlanHandler) DeleteImplementedRequirementStatementByCompo
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
-	if err := h.db.Delete(&existing).Error; err != nil {
+	if err := h.db.Transaction(func(tx *gorm.DB) error {
+		return deleteByComponentCascade(tx, *existing.ID)
+	}); err != nil {
 		h.sugar.Errorf("Failed to delete by-component: %v", err)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
-
 	}
 	return ctx.NoContent(http.StatusNoContent)
 }
@@ -4878,11 +4912,15 @@ func (h *SystemSecurityPlanHandler) updateByComponentExport(ctx echo.Context, bc
 }
 
 // deleteByComponentExport deletes an existing Export and its nested Provided and
-// Responsibilities entries. Children are deleted explicitly rather than relying on a
-// DB-level cascade, since this ticket makes no schema change.
+// Responsibilities entries, including their ResponsibleRoles and responsible_role_parties
+// join rows. Children are deleted explicitly rather than relying on a DB-level cascade,
+// since this ticket makes no schema change.
 func (h *SystemSecurityPlanHandler) deleteByComponentExport(ctx echo.Context, bc *relational.ByComponent) error {
 	var existing relational.Export
-	if err := h.db.Where("by_component_id = ?", bc.ID).First(&existing).Error; err != nil {
+	if err := h.db.
+		Preload("Provided.ResponsibleRoles.Parties").
+		Preload("Responsibilities.ResponsibleRoles.Parties").
+		Where("by_component_id = ?", bc.ID).First(&existing).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("export not found")))
 		}
@@ -4890,18 +4928,103 @@ func (h *SystemSecurityPlanHandler) deleteByComponentExport(ctx echo.Context, bc
 	}
 
 	if err := h.db.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Where("export_id = ?", existing.ID).Delete(&relational.ProvidedControlImplementation{}).Error; err != nil {
-			return err
-		}
-		if err := tx.Where("export_id = ?", existing.ID).Delete(&relational.ControlImplementationResponsibility{}).Error; err != nil {
-			return err
-		}
-		return tx.Delete(&existing).Error
+		return deleteExportCascade(tx, &existing)
 	}); err != nil {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
 	return ctx.NoContent(http.StatusNoContent)
+}
+
+// deleteExportCascade deletes an Export's nested Provided and Responsibilities
+// entries (and their ResponsibleRoles/parties), then the Export itself. Shared
+// by deleteByComponentExport and deleteByComponentCascade so the two paths
+// can't drift apart. export.Provided and export.Responsibilities (with their
+// ResponsibleRoles.Parties) must already be preloaded by the caller.
+func deleteExportCascade(tx *gorm.DB, export *relational.Export) error {
+	for _, provided := range export.Provided {
+		if err := deleteResponsibleRoles(tx, provided.ResponsibleRoles); err != nil {
+			return err
+		}
+	}
+	for _, resp := range export.Responsibilities {
+		if err := deleteResponsibleRoles(tx, resp.ResponsibleRoles); err != nil {
+			return err
+		}
+	}
+	if err := tx.Where("export_id = ?", export.ID).Delete(&relational.ProvidedControlImplementation{}).Error; err != nil {
+		return err
+	}
+	if err := tx.Where("export_id = ?", export.ID).Delete(&relational.ControlImplementationResponsibility{}).Error; err != nil {
+		return err
+	}
+	return tx.Delete(export).Error
+}
+
+// deleteResponsibleRoles removes the given ResponsibleRoles along with their
+// many2many Party join rows. The join rows are cleared explicitly first since
+// deleting a ResponsibleRole directly would leave its responsible_role_parties
+// rows behind (Party records themselves are shared and must not be deleted).
+func deleteResponsibleRoles(tx *gorm.DB, roles []relational.ResponsibleRole) error {
+	for i := range roles {
+		role := &roles[i]
+		if err := tx.Model(role).Association("Parties").Clear(); err != nil {
+			return err
+		}
+		if err := tx.Delete(role).Error; err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// deleteByComponentCascade deletes a ByComponent and every record that hangs off
+// it: its own ResponsibleRoles, its Inherited and Satisfied entries (each with
+// their own ResponsibleRoles), and its Export with nested Provided and
+// Responsibilities entries (each with their own ResponsibleRoles). None of this
+// cascades at the DB level, so it is deleted explicitly, leaves-first, inside
+// the caller's transaction.
+func deleteByComponentCascade(tx *gorm.DB, byComponentID uuid.UUID) error {
+	var bc relational.ByComponent
+	if err := tx.
+		Preload("ResponsibleRoles.Parties").
+		Preload("Inherited.ResponsibleRoles.Parties").
+		Preload("Satisfied.ResponsibleRoles.Parties").
+		Preload("Export.Provided.ResponsibleRoles.Parties").
+		Preload("Export.Responsibilities.ResponsibleRoles.Parties").
+		First(&bc, "id = ?", byComponentID).Error; err != nil {
+		return err
+	}
+
+	if err := deleteResponsibleRoles(tx, bc.ResponsibleRoles); err != nil {
+		return err
+	}
+
+	for _, inherited := range bc.Inherited {
+		if err := deleteResponsibleRoles(tx, inherited.ResponsibleRoles); err != nil {
+			return err
+		}
+	}
+	if err := tx.Where("by_component_id = ?", bc.ID).Delete(&relational.InheritedControlImplementation{}).Error; err != nil {
+		return err
+	}
+
+	for _, satisfied := range bc.Satisfied {
+		if err := deleteResponsibleRoles(tx, satisfied.ResponsibleRoles); err != nil {
+			return err
+		}
+	}
+	if err := tx.Where("by_component_id = ?", bc.ID).Delete(&relational.SatisfiedControlImplementationResponsibility{}).Error; err != nil {
+		return err
+	}
+
+	if bc.Export != nil {
+		if err := deleteExportCascade(tx, bc.Export); err != nil {
+			return err
+		}
+	}
+
+	return tx.Delete(&bc).Error
 }
 
 // GetImplementedRequirementByComponentExport godoc
