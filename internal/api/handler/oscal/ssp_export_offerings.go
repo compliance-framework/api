@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"net/http"
 	"sort"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -112,6 +114,18 @@ func SyncExportOffering(db *gorm.DB, offeringID uuid.UUID) error {
 		current.Version++
 		return tx.Save(&current).Error
 	})
+}
+
+// touchOfferingUpdatedAt bumps an offering's own UpdatedAt without touching any other
+// column. Item mutations (CreateItem/UpdateItem/DeleteItem) call this after writing to
+// ssp_export_offering_items: SyncExportOffering's staleness guard only compares the
+// offering row's own UpdatedAt, and an item change doesn't otherwise touch that row, so
+// without this a concurrent item edit racing a publish could go undetected and get
+// silently overwritten by a hash computed from the pre-edit item snapshot.
+func touchOfferingUpdatedAt(tx *gorm.DB, offeringID uuid.UUID) error {
+	return tx.Model(&relational.SSPExportOffering{}).
+		Where("id = ?", offeringID).
+		Update("updated_at", time.Now()).Error
 }
 
 // SSPExportOfferingHandler serves both the SSP-nested curation surface (create/edit/
@@ -445,7 +459,12 @@ func (h *SSPExportOfferingHandler) CreateItem(ctx echo.Context) error {
 		ComponentUUID: uuid.MustParse(req.ComponentUUID),
 		ProvidedUUID:  uuid.MustParse(req.ProvidedUUID),
 	}
-	if err := h.db.Create(&item).Error; err != nil {
+	if err := h.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(&item).Error; err != nil {
+			return err
+		}
+		return touchOfferingUpdatedAt(tx, *offering.ID)
+	}); err != nil {
 		h.sugar.Errorf("Failed to create export offering item: %v", err)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
@@ -494,19 +513,29 @@ func (h *SSPExportOfferingHandler) UpdateItem(ctx echo.Context) error {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 
-	result := h.db.Model(&relational.SSPExportOfferingItem{}).
-		Where("id = ? AND offering_id = ?", itemID, offering.ID).
-		Updates(map[string]any{
-			"control_id":     req.ControlID,
-			"statement_id":   req.StatementID,
-			"component_uuid": uuid.MustParse(req.ComponentUUID),
-			"provided_uuid":  uuid.MustParse(req.ProvidedUUID),
-		})
-	if result.Error != nil {
-		h.sugar.Errorf("Failed to update export offering item: %v", result.Error)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(result.Error))
+	var rowsAffected int64
+	if err := h.db.Transaction(func(tx *gorm.DB) error {
+		result := tx.Model(&relational.SSPExportOfferingItem{}).
+			Where("id = ? AND offering_id = ?", itemID, offering.ID).
+			Updates(map[string]any{
+				"control_id":     req.ControlID,
+				"statement_id":   req.StatementID,
+				"component_uuid": uuid.MustParse(req.ComponentUUID),
+				"provided_uuid":  uuid.MustParse(req.ProvidedUUID),
+			})
+		if result.Error != nil {
+			return result.Error
+		}
+		rowsAffected = result.RowsAffected
+		if rowsAffected == 0 {
+			return nil
+		}
+		return touchOfferingUpdatedAt(tx, *offering.ID)
+	}); err != nil {
+		h.sugar.Errorf("Failed to update export offering item: %v", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
-	if result.RowsAffected == 0 {
+	if rowsAffected == 0 {
 		return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("export offering item not found")))
 	}
 
@@ -548,12 +577,22 @@ func (h *SSPExportOfferingHandler) DeleteItem(ctx echo.Context) error {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 
-	result := h.db.Where("id = ? AND offering_id = ?", itemID, offering.ID).Delete(&relational.SSPExportOfferingItem{})
-	if result.Error != nil {
-		h.sugar.Errorf("Failed to delete export offering item: %v", result.Error)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(result.Error))
+	var rowsAffected int64
+	if err := h.db.Transaction(func(tx *gorm.DB) error {
+		result := tx.Where("id = ? AND offering_id = ?", itemID, offering.ID).Delete(&relational.SSPExportOfferingItem{})
+		if result.Error != nil {
+			return result.Error
+		}
+		rowsAffected = result.RowsAffected
+		if rowsAffected == 0 {
+			return nil
+		}
+		return touchOfferingUpdatedAt(tx, *offering.ID)
+	}); err != nil {
+		h.sugar.Errorf("Failed to delete export offering item: %v", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
-	if result.RowsAffected == 0 {
+	if rowsAffected == 0 {
 		return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("export offering item not found")))
 	}
 
@@ -586,16 +625,16 @@ func (h *SSPExportOfferingHandler) Publish(ctx echo.Context) error {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("cannot publish an offering with status %q", offering.Status)))
 	}
 
-	if err := SyncExportOffering(h.db, *offering.ID); err != nil {
-		h.sugar.Errorf("Failed to sync export offering: %v", err)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
-	}
-
 	now := time.Now()
-	if err := h.db.Model(&relational.SSPExportOffering{}).
-		Where("id = ?", offering.ID).
-		Updates(map[string]any{"status": relational.SSPExportOfferingStatusPublished, "published_at": &now}).Error; err != nil {
-		h.sugar.Errorf("Failed to mark export offering published: %v", err)
+	if err := h.db.Transaction(func(tx *gorm.DB) error {
+		if err := SyncExportOffering(tx, *offering.ID); err != nil {
+			return err
+		}
+		return tx.Model(&relational.SSPExportOffering{}).
+			Where("id = ?", offering.ID).
+			Updates(map[string]any{"status": relational.SSPExportOfferingStatusPublished, "published_at": &now}).Error
+	}); err != nil {
+		h.sugar.Errorf("Failed to publish export offering: %v", err)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
@@ -607,19 +646,52 @@ func (h *SSPExportOfferingHandler) Publish(ctx echo.Context) error {
 	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[relational.SSPExportOffering]{Data: published})
 }
 
+const (
+	defaultExportOfferingCatalogLimit = 100
+	maxExportOfferingCatalogLimit     = 1000
+)
+
 // ListAll godoc
 //
 //	@Summary		List export offerings
-//	@Description	Retrieves every export offering across all system security plans.
+//	@Description	Retrieves published export offerings across all system security plans. Draft/deprecated/revoked offerings are only visible via the SSP-nested curation routes.
 //	@Tags			SSP Export Offerings
 //	@Produce		json
-//	@Success		200	{object}	handler.GenericDataListResponse[relational.SSPExportOffering]
-//	@Failure		500	{object}	api.Error
+//	@Param			limit	query		int	false	"Max number of offerings to return (default 100, max 1000)"
+//	@Param			offset	query		int	false	"Number of offerings to skip"
+//	@Success		200		{object}	handler.GenericDataListResponse[relational.SSPExportOffering]
+//	@Failure		400		{object}	api.Error
+//	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/ssp-export-offerings [get]
 func (h *SSPExportOfferingHandler) ListAll(ctx echo.Context) error {
+	limit := defaultExportOfferingCatalogLimit
+	if raw := strings.TrimSpace(ctx.QueryParam("limit")); raw != "" {
+		parsed, err := strconv.Atoi(raw)
+		if err != nil || parsed < 1 {
+			return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("invalid limit parameter")))
+		}
+		if parsed > maxExportOfferingCatalogLimit {
+			parsed = maxExportOfferingCatalogLimit
+		}
+		limit = parsed
+	}
+
+	offset := 0
+	if raw := strings.TrimSpace(ctx.QueryParam("offset")); raw != "" {
+		parsed, err := strconv.Atoi(raw)
+		if err != nil || parsed < 0 {
+			return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("invalid offset parameter")))
+		}
+		offset = parsed
+	}
+
 	var offerings []relational.SSPExportOffering
-	if err := h.db.Preload("Items").Find(&offerings).Error; err != nil {
+	if err := h.db.Preload("Items").
+		Where("status = ?", relational.SSPExportOfferingStatusPublished).
+		Order("published_at DESC, id ASC").
+		Limit(limit).Offset(offset).
+		Find(&offerings).Error; err != nil {
 		h.sugar.Errorf("Failed to list export offerings: %v", err)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
@@ -629,7 +701,7 @@ func (h *SSPExportOfferingHandler) ListAll(ctx echo.Context) error {
 // GetByID godoc
 //
 //	@Summary		Get an export offering
-//	@Description	Retrieves a single export offering by its own ID (no parent SSP scoping).
+//	@Description	Retrieves a single published export offering by its own ID (no parent SSP scoping). Draft/deprecated/revoked offerings are only visible via the SSP-nested curation routes.
 //	@Tags			SSP Export Offerings
 //	@Produce		json
 //	@Param			id	path		string	true	"Offering ID"
@@ -648,7 +720,9 @@ func (h *SSPExportOfferingHandler) GetByID(ctx echo.Context) error {
 	}
 
 	var offering relational.SSPExportOffering
-	if err := h.db.Preload("Items").First(&offering, "id = ?", id).Error; err != nil {
+	if err := h.db.Preload("Items").
+		Where("status = ?", relational.SSPExportOfferingStatusPublished).
+		First(&offering, "id = ?", id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("export offering not found")))
 		}

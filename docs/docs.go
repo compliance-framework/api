@@ -15407,7 +15407,7 @@ const docTemplate = `{
         },
         "/oscal/ssp-export-offerings": {
             "get": {
-                "description": "Retrieves every export offering across all system security plans.",
+                "description": "Retrieves published export offerings across all system security plans. Draft/deprecated/revoked offerings are only visible via the SSP-nested curation routes.",
                 "produces": [
                     "application/json"
                 ],
@@ -15415,11 +15415,31 @@ const docTemplate = `{
                     "SSP Export Offerings"
                 ],
                 "summary": "List export offerings",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Max number of offerings to return (default 100, max 1000)",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Number of offerings to skip",
+                        "name": "offset",
+                        "in": "query"
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/handler.GenericDataListResponse-relational_SSPExportOffering"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
                         }
                     },
                     "500": {
@@ -15438,7 +15458,7 @@ const docTemplate = `{
         },
         "/oscal/ssp-export-offerings/{id}": {
             "get": {
-                "description": "Retrieves a single export offering by its own ID (no parent SSP scoping).",
+                "description": "Retrieves a single published export offering by its own ID (no parent SSP scoping). Draft/deprecated/revoked offerings are only visible via the SSP-nested curation routes.",
                 "produces": [
                     "application/json"
                 ],

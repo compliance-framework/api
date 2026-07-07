@@ -20865,7 +20865,18 @@ paths:
       - Oscal
   /oscal/ssp-export-offerings:
     get:
-      description: Retrieves every export offering across all system security plans.
+      description: Retrieves published export offerings across all system security
+        plans. Draft/deprecated/revoked offerings are only visible via the SSP-nested
+        curation routes.
+      parameters:
+      - description: Max number of offerings to return (default 100, max 1000)
+        in: query
+        name: limit
+        type: integer
+      - description: Number of offerings to skip
+        in: query
+        name: offset
+        type: integer
       produces:
       - application/json
       responses:
@@ -20873,6 +20884,10 @@ paths:
           description: OK
           schema:
             $ref: '#/definitions/handler.GenericDataListResponse-relational_SSPExportOffering'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
         "500":
           description: Internal Server Error
           schema:
@@ -20884,8 +20899,9 @@ paths:
       - SSP Export Offerings
   /oscal/ssp-export-offerings/{id}:
     get:
-      description: Retrieves a single export offering by its own ID (no parent SSP
-        scoping).
+      description: Retrieves a single published export offering by its own ID (no
+        parent SSP scoping). Draft/deprecated/revoked offerings are only visible via
+        the SSP-nested curation routes.
       parameters:
       - description: Offering ID
         in: path

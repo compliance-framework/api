@@ -2,6 +2,7 @@ package oscal
 
 import (
 	"testing"
+	"time"
 
 	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/google/uuid"
@@ -84,4 +85,38 @@ func TestSyncExportOfferingBumpsVersionOnlyWhenContentChanges(t *testing.T) {
 	require.NoError(t, db.First(&afterChange, "id = ?", offering.ID).Error)
 	require.Equal(t, 2, afterChange.Version)
 	require.NotEqual(t, afterFirst.ContentHash, afterChange.ContentHash)
+}
+
+// TestSyncExportOfferingAbortsOnConcurrentModification: SyncExportOffering reads the
+// offering once to snapshot UpdatedAt before recomputing the hash, then again inside its
+// write transaction. If another write lands in between those two reads, it must abort
+// rather than commit a hash computed from data that's already stale. A query callback
+// deterministically injects that concurrent write right after the first read completes
+// and before the transactional re-read runs, rather than relying on goroutine timing.
+func TestSyncExportOfferingAbortsOnConcurrentModification(t *testing.T) {
+	db := newSyncExportOfferingTestDB(t)
+
+	offering := relational.SSPExportOffering{SSPID: uuid.New(), Title: "Offering", Status: relational.SSPExportOfferingStatusDraft}
+	require.NoError(t, db.Create(&offering).Error)
+
+	var queryCount int
+	require.NoError(t, db.Callback().Query().After("gorm:query").
+		Register("test:simulate-concurrent-write", func(*gorm.DB) {
+			queryCount++
+			if queryCount == 1 {
+				require.NoError(t, db.Exec(
+					"UPDATE ssp_export_offerings SET updated_at = ? WHERE id = ?",
+					time.Now().Add(time.Hour), offering.ID.String(),
+				).Error)
+			}
+		}))
+	t.Cleanup(func() { _ = db.Callback().Query().Remove("test:simulate-concurrent-write") })
+
+	err := SyncExportOffering(db, *offering.ID)
+	require.Error(t, err)
+
+	var reloaded relational.SSPExportOffering
+	require.NoError(t, db.First(&reloaded, "id = ?", offering.ID).Error)
+	require.Equal(t, 0, reloaded.Version)
+	require.Empty(t, reloaded.ContentHash)
 }
