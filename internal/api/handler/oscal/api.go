@@ -42,8 +42,15 @@ func RegisterHandlers(server *api.Server, logger *zap.SugaredLogger, db *gorm.DB
 	profileHandler := NewProfileHandler(logger, db)
 	profileHandler.Register(oscalGroup.Group("/profiles"), pep.For(authz.ResourceProfile))
 
+	sspGroup := oscalGroup.Group("/system-security-plans")
+	sspGuard := pep.For(authz.ResourceSSP)
 	sspHandler := NewSystemSecurityPlanHandler(logger, db, evidenceSvc, jobEnqueuer)
-	sspHandler.Register(oscalGroup.Group("/system-security-plans"), pep.For(authz.ResourceSSP))
+	sspHandler.Register(sspGroup, sspGuard)
+
+	exportOfferingHandler := NewSSPExportOfferingHandler(logger, db)
+	exportOfferingHandler.RegisterNested(sspGroup, sspGuard)
+	exportOfferingHandler.Register(oscalGroup.Group("/ssp-export-offerings"), pep.For(authz.ResourceSSPExportOffering))
+
 	if config.AI != nil && config.AI.Enabled {
 		dashboardSuggestionHandler.Register(oscalGroup.Group("/system-security-plans"), jwtMiddleware, dashboardGuard)
 
