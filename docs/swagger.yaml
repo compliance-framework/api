@@ -1479,6 +1479,13 @@ definitions:
         - $ref: '#/definitions/oscalTypes_1_1_3.ControlImplementation'
         description: Wrapped response data
     type: object
+  handler.GenericDataResponse-oscalTypes_1_1_3_ControlImplementationResponsibility:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/oscalTypes_1_1_3.ControlImplementationResponsibility'
+        description: Wrapped response data
+    type: object
   handler.GenericDataResponse-oscalTypes_1_1_3_ControlImplementationSet:
     properties:
       data:
@@ -1505,6 +1512,13 @@ definitions:
       data:
         allOf:
         - $ref: '#/definitions/oscalTypes_1_1_3.Diagram'
+        description: Wrapped response data
+    type: object
+  handler.GenericDataResponse-oscalTypes_1_1_3_Export:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/oscalTypes_1_1_3.Export'
         description: Wrapped response data
     type: object
   handler.GenericDataResponse-oscalTypes_1_1_3_Finding:
@@ -1645,6 +1659,13 @@ definitions:
       data:
         allOf:
         - $ref: '#/definitions/oscalTypes_1_1_3.Profile'
+        description: Wrapped response data
+    type: object
+  handler.GenericDataResponse-oscalTypes_1_1_3_ProvidedControlImplementation:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/oscalTypes_1_1_3.ProvidedControlImplementation'
         description: Wrapped response data
     type: object
   handler.GenericDataResponse-oscalTypes_1_1_3_Resource:
@@ -22301,6 +22322,502 @@ paths:
       summary: Update a by-component within an implemented requirement
       tags:
       - System Security Plans
+  /oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/by-components/{byComponentId}/export:
+    delete:
+      description: Deletes the Export (and its Provided/Responsibilities entries)
+        for a by-component within an implemented requirement.
+      parameters:
+      - description: SSP ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Requirement ID
+        in: path
+        name: reqId
+        required: true
+        type: string
+      - description: By-Component ID
+        in: path
+        name: byComponentId
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Delete the export for a control-level by-component
+      tags:
+      - System Security Plans
+    get:
+      description: Retrieves the Export (with nested Provided and Responsibilities)
+        for a by-component within an implemented requirement.
+      parameters:
+      - description: SSP ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Requirement ID
+        in: path
+        name: reqId
+        required: true
+        type: string
+      - description: By-Component ID
+        in: path
+        name: byComponentId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_Export'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Get the export for a control-level by-component
+      tags:
+      - System Security Plans
+    post:
+      consumes:
+      - application/json
+      description: Creates the Export for a by-component within an implemented requirement.
+        A by-component may have at most one Export.
+      parameters:
+      - description: SSP ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Requirement ID
+        in: path
+        name: reqId
+        required: true
+        type: string
+      - description: By-Component ID
+        in: path
+        name: byComponentId
+        required: true
+        type: string
+      - description: Export data
+        in: body
+        name: export
+        required: true
+        schema:
+          $ref: '#/definitions/oscalTypes_1_1_3.Export'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_Export'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Create the export for a control-level by-component
+      tags:
+      - System Security Plans
+    put:
+      consumes:
+      - application/json
+      description: Updates the scalar fields of an existing Export for a by-component
+        within an implemented requirement. Provided and Responsibilities entries are
+        managed via their own routes.
+      parameters:
+      - description: SSP ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Requirement ID
+        in: path
+        name: reqId
+        required: true
+        type: string
+      - description: By-Component ID
+        in: path
+        name: byComponentId
+        required: true
+        type: string
+      - description: Export data
+        in: body
+        name: export
+        required: true
+        schema:
+          $ref: '#/definitions/oscalTypes_1_1_3.Export'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_Export'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Update the export for a control-level by-component
+      tags:
+      - System Security Plans
+  ? /oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/by-components/{byComponentId}/export/provided
+  : post:
+      consumes:
+      - application/json
+      description: Creates a ProvidedControlImplementation entry under the Export
+        of a by-component within an implemented requirement.
+      parameters:
+      - description: SSP ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Requirement ID
+        in: path
+        name: reqId
+        required: true
+        type: string
+      - description: By-Component ID
+        in: path
+        name: byComponentId
+        required: true
+        type: string
+      - description: Provided data
+        in: body
+        name: provided
+        required: true
+        schema:
+          $ref: '#/definitions/oscalTypes_1_1_3.ProvidedControlImplementation'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_ProvidedControlImplementation'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Create a provided entry on a control-level by-component's export
+      tags:
+      - System Security Plans
+  ? /oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/by-components/{byComponentId}/export/provided/{providedId}
+  : delete:
+      description: Deletes an existing ProvidedControlImplementation entry under the
+        Export of a by-component within an implemented requirement.
+      parameters:
+      - description: SSP ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Requirement ID
+        in: path
+        name: reqId
+        required: true
+        type: string
+      - description: By-Component ID
+        in: path
+        name: byComponentId
+        required: true
+        type: string
+      - description: Provided entry ID
+        in: path
+        name: providedId
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Delete a provided entry on a control-level by-component's export
+      tags:
+      - System Security Plans
+    put:
+      consumes:
+      - application/json
+      description: Replaces an existing ProvidedControlImplementation entry under
+        the Export of a by-component within an implemented requirement.
+      parameters:
+      - description: SSP ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Requirement ID
+        in: path
+        name: reqId
+        required: true
+        type: string
+      - description: By-Component ID
+        in: path
+        name: byComponentId
+        required: true
+        type: string
+      - description: Provided entry ID
+        in: path
+        name: providedId
+        required: true
+        type: string
+      - description: Provided data
+        in: body
+        name: provided
+        required: true
+        schema:
+          $ref: '#/definitions/oscalTypes_1_1_3.ProvidedControlImplementation'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_ProvidedControlImplementation'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Update a provided entry on a control-level by-component's export
+      tags:
+      - System Security Plans
+  ? /oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/by-components/{byComponentId}/export/responsibilities
+  : post:
+      consumes:
+      - application/json
+      description: Creates a ControlImplementationResponsibility entry under the Export
+        of a by-component within an implemented requirement.
+      parameters:
+      - description: SSP ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Requirement ID
+        in: path
+        name: reqId
+        required: true
+        type: string
+      - description: By-Component ID
+        in: path
+        name: byComponentId
+        required: true
+        type: string
+      - description: Responsibility data
+        in: body
+        name: responsibility
+        required: true
+        schema:
+          $ref: '#/definitions/oscalTypes_1_1_3.ControlImplementationResponsibility'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_ControlImplementationResponsibility'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Create a responsibility entry on a control-level by-component's export
+      tags:
+      - System Security Plans
+  ? /oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/by-components/{byComponentId}/export/responsibilities/{responsibilityId}
+  : delete:
+      description: Deletes an existing ControlImplementationResponsibility entry under
+        the Export of a by-component within an implemented requirement.
+      parameters:
+      - description: SSP ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Requirement ID
+        in: path
+        name: reqId
+        required: true
+        type: string
+      - description: By-Component ID
+        in: path
+        name: byComponentId
+        required: true
+        type: string
+      - description: Responsibility entry ID
+        in: path
+        name: responsibilityId
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Delete a responsibility entry on a control-level by-component's export
+      tags:
+      - System Security Plans
+    put:
+      consumes:
+      - application/json
+      description: Replaces an existing ControlImplementationResponsibility entry
+        under the Export of a by-component within an implemented requirement.
+      parameters:
+      - description: SSP ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Requirement ID
+        in: path
+        name: reqId
+        required: true
+        type: string
+      - description: By-Component ID
+        in: path
+        name: byComponentId
+        required: true
+        type: string
+      - description: Responsibility entry ID
+        in: path
+        name: responsibilityId
+        required: true
+        type: string
+      - description: Responsibility data
+        in: body
+        name: responsibility
+        required: true
+        schema:
+          $ref: '#/definitions/oscalTypes_1_1_3.ControlImplementationResponsibility'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_ControlImplementationResponsibility'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Update a responsibility entry on a control-level by-component's export
+      tags:
+      - System Security Plans
   /oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/statements:
     post:
       consumes:
@@ -22515,8 +23032,8 @@ paths:
       produces:
       - application/json
       responses:
-        "200":
-          description: OK
+        "201":
+          description: Created
           schema:
             $ref: '#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_ByComponent'
         "400":
@@ -22635,6 +23152,552 @@ paths:
           schema:
             $ref: '#/definitions/api.Error'
       summary: Update a by-component within a statement (within an implemented requirement)
+      tags:
+      - System Security Plans
+  ? /oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/statements/{stmtId}/by-components/{byComponentId}/export
+  : delete:
+      description: Deletes the Export (and its Provided/Responsibilities entries)
+        for a by-component within a statement.
+      parameters:
+      - description: SSP ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Requirement ID
+        in: path
+        name: reqId
+        required: true
+        type: string
+      - description: Statement ID
+        in: path
+        name: stmtId
+        required: true
+        type: string
+      - description: By-Component ID
+        in: path
+        name: byComponentId
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Delete the export for a statement-level by-component
+      tags:
+      - System Security Plans
+    get:
+      description: Retrieves the Export (with nested Provided and Responsibilities)
+        for a by-component within a statement.
+      parameters:
+      - description: SSP ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Requirement ID
+        in: path
+        name: reqId
+        required: true
+        type: string
+      - description: Statement ID
+        in: path
+        name: stmtId
+        required: true
+        type: string
+      - description: By-Component ID
+        in: path
+        name: byComponentId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_Export'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Get the export for a statement-level by-component
+      tags:
+      - System Security Plans
+    post:
+      consumes:
+      - application/json
+      description: Creates the Export for a by-component within a statement. A by-component
+        may have at most one Export.
+      parameters:
+      - description: SSP ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Requirement ID
+        in: path
+        name: reqId
+        required: true
+        type: string
+      - description: Statement ID
+        in: path
+        name: stmtId
+        required: true
+        type: string
+      - description: By-Component ID
+        in: path
+        name: byComponentId
+        required: true
+        type: string
+      - description: Export data
+        in: body
+        name: export
+        required: true
+        schema:
+          $ref: '#/definitions/oscalTypes_1_1_3.Export'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_Export'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Create the export for a statement-level by-component
+      tags:
+      - System Security Plans
+    put:
+      consumes:
+      - application/json
+      description: Updates the scalar fields of an existing Export for a by-component
+        within a statement. Provided and Responsibilities entries are managed via
+        their own routes.
+      parameters:
+      - description: SSP ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Requirement ID
+        in: path
+        name: reqId
+        required: true
+        type: string
+      - description: Statement ID
+        in: path
+        name: stmtId
+        required: true
+        type: string
+      - description: By-Component ID
+        in: path
+        name: byComponentId
+        required: true
+        type: string
+      - description: Export data
+        in: body
+        name: export
+        required: true
+        schema:
+          $ref: '#/definitions/oscalTypes_1_1_3.Export'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_Export'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Update the export for a statement-level by-component
+      tags:
+      - System Security Plans
+  ? /oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/statements/{stmtId}/by-components/{byComponentId}/export/provided
+  : post:
+      consumes:
+      - application/json
+      description: Creates a ProvidedControlImplementation entry under the Export
+        of a by-component within a statement.
+      parameters:
+      - description: SSP ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Requirement ID
+        in: path
+        name: reqId
+        required: true
+        type: string
+      - description: Statement ID
+        in: path
+        name: stmtId
+        required: true
+        type: string
+      - description: By-Component ID
+        in: path
+        name: byComponentId
+        required: true
+        type: string
+      - description: Provided data
+        in: body
+        name: provided
+        required: true
+        schema:
+          $ref: '#/definitions/oscalTypes_1_1_3.ProvidedControlImplementation'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_ProvidedControlImplementation'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Create a provided entry on a statement-level by-component's export
+      tags:
+      - System Security Plans
+  ? /oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/statements/{stmtId}/by-components/{byComponentId}/export/provided/{providedId}
+  : delete:
+      description: Deletes an existing ProvidedControlImplementation entry under the
+        Export of a by-component within a statement.
+      parameters:
+      - description: SSP ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Requirement ID
+        in: path
+        name: reqId
+        required: true
+        type: string
+      - description: Statement ID
+        in: path
+        name: stmtId
+        required: true
+        type: string
+      - description: By-Component ID
+        in: path
+        name: byComponentId
+        required: true
+        type: string
+      - description: Provided entry ID
+        in: path
+        name: providedId
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Delete a provided entry on a statement-level by-component's export
+      tags:
+      - System Security Plans
+    put:
+      consumes:
+      - application/json
+      description: Replaces an existing ProvidedControlImplementation entry under
+        the Export of a by-component within a statement.
+      parameters:
+      - description: SSP ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Requirement ID
+        in: path
+        name: reqId
+        required: true
+        type: string
+      - description: Statement ID
+        in: path
+        name: stmtId
+        required: true
+        type: string
+      - description: By-Component ID
+        in: path
+        name: byComponentId
+        required: true
+        type: string
+      - description: Provided entry ID
+        in: path
+        name: providedId
+        required: true
+        type: string
+      - description: Provided data
+        in: body
+        name: provided
+        required: true
+        schema:
+          $ref: '#/definitions/oscalTypes_1_1_3.ProvidedControlImplementation'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_ProvidedControlImplementation'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Update a provided entry on a statement-level by-component's export
+      tags:
+      - System Security Plans
+  ? /oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/statements/{stmtId}/by-components/{byComponentId}/export/responsibilities
+  : post:
+      consumes:
+      - application/json
+      description: Creates a ControlImplementationResponsibility entry under the Export
+        of a by-component within a statement.
+      parameters:
+      - description: SSP ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Requirement ID
+        in: path
+        name: reqId
+        required: true
+        type: string
+      - description: Statement ID
+        in: path
+        name: stmtId
+        required: true
+        type: string
+      - description: By-Component ID
+        in: path
+        name: byComponentId
+        required: true
+        type: string
+      - description: Responsibility data
+        in: body
+        name: responsibility
+        required: true
+        schema:
+          $ref: '#/definitions/oscalTypes_1_1_3.ControlImplementationResponsibility'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_ControlImplementationResponsibility'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Create a responsibility entry on a statement-level by-component's export
+      tags:
+      - System Security Plans
+  ? /oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/statements/{stmtId}/by-components/{byComponentId}/export/responsibilities/{responsibilityId}
+  : delete:
+      description: Deletes an existing ControlImplementationResponsibility entry under
+        the Export of a by-component within a statement.
+      parameters:
+      - description: SSP ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Requirement ID
+        in: path
+        name: reqId
+        required: true
+        type: string
+      - description: Statement ID
+        in: path
+        name: stmtId
+        required: true
+        type: string
+      - description: By-Component ID
+        in: path
+        name: byComponentId
+        required: true
+        type: string
+      - description: Responsibility entry ID
+        in: path
+        name: responsibilityId
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Delete a responsibility entry on a statement-level by-component's export
+      tags:
+      - System Security Plans
+    put:
+      consumes:
+      - application/json
+      description: Replaces an existing ControlImplementationResponsibility entry
+        under the Export of a by-component within a statement.
+      parameters:
+      - description: SSP ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Requirement ID
+        in: path
+        name: reqId
+        required: true
+        type: string
+      - description: Statement ID
+        in: path
+        name: stmtId
+        required: true
+        type: string
+      - description: By-Component ID
+        in: path
+        name: byComponentId
+        required: true
+        type: string
+      - description: Responsibility entry ID
+        in: path
+        name: responsibilityId
+        required: true
+        type: string
+      - description: Responsibility data
+        in: body
+        name: responsibility
+        required: true
+        schema:
+          $ref: '#/definitions/oscalTypes_1_1_3.ControlImplementationResponsibility'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_ControlImplementationResponsibility'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Update a responsibility entry on a statement-level by-component's export
       tags:
       - System Security Plans
   /oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/statements/{stmtId}/suggest-components:
