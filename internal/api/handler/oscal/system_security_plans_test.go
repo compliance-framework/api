@@ -978,6 +978,272 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) TestDeleteImplementedRequire
 	suite.Equal(http.StatusNotFound, resp.Code)
 }
 
+// byComponentSubtreeIDs captures the UUIDs of every nested entity created by
+// buildFullByComponentFixture, so cascade-delete tests can look each one up in
+// the DB directly (OSCAL ResponsibleRole values have no UUID of their own).
+type byComponentSubtreeIDs struct {
+	ByComponent    string
+	Inherited      string
+	Satisfied      string
+	Provided       string
+	Responsibility string
+}
+
+// buildFullByComponentFixture builds a ByComponent payload populated at every
+// nested level (ResponsibleRoles, Inherited, Satisfied, Export/Provided/
+// Responsibilities), each carrying its own ResponsibleRole+party, so a cascade
+// delete test can confirm the whole subtree is cleaned up and not just the
+// ByComponent row itself.
+func buildFullByComponentFixture(componentUuid, partyUuid string) (oscalTypes_1_1_3.ByComponent, byComponentSubtreeIDs) {
+	ids := byComponentSubtreeIDs{
+		ByComponent:    uuid.New().String(),
+		Inherited:      uuid.New().String(),
+		Satisfied:      uuid.New().String(),
+		Provided:       uuid.New().String(),
+		Responsibility: uuid.New().String(),
+	}
+
+	role := func(roleID string) oscalTypes_1_1_3.ResponsibleRole {
+		return oscalTypes_1_1_3.ResponsibleRole{
+			RoleId:     roleID,
+			PartyUuids: &[]string{partyUuid},
+		}
+	}
+
+	bc := oscalTypes_1_1_3.ByComponent{
+		UUID:             ids.ByComponent,
+		ComponentUuid:    componentUuid,
+		Description:      "Full subtree by-component",
+		ResponsibleRoles: &[]oscalTypes_1_1_3.ResponsibleRole{role("bc-role")},
+		Inherited: &[]oscalTypes_1_1_3.InheritedControlImplementation{
+			{
+				UUID:             ids.Inherited,
+				Description:      "Inherited item",
+				ResponsibleRoles: &[]oscalTypes_1_1_3.ResponsibleRole{role("inherited-role")},
+			},
+		},
+		Satisfied: &[]oscalTypes_1_1_3.SatisfiedControlImplementationResponsibility{
+			{
+				UUID:             ids.Satisfied,
+				Description:      "Satisfied item",
+				ResponsibleRoles: &[]oscalTypes_1_1_3.ResponsibleRole{role("satisfied-role")},
+			},
+		},
+		Export: &oscalTypes_1_1_3.Export{
+			Description: "Export subtree",
+			Provided: &[]oscalTypes_1_1_3.ProvidedControlImplementation{
+				{
+					UUID:             ids.Provided,
+					Description:      "Provided item",
+					ResponsibleRoles: &[]oscalTypes_1_1_3.ResponsibleRole{role("provided-role")},
+				},
+			},
+			Responsibilities: &[]oscalTypes_1_1_3.ControlImplementationResponsibility{
+				{
+					UUID:             ids.Responsibility,
+					Description:      "Responsibility item",
+					ProvidedUuid:     ids.Provided,
+					ResponsibleRoles: &[]oscalTypes_1_1_3.ResponsibleRole{role("responsibility-role")},
+				},
+			},
+		},
+	}
+
+	return bc, ids
+}
+
+// byComponentSubtreeRowCounts reports the row count for every table in a
+// by-component's cascade subtree, so a test can assert everything landed on
+// create (non-zero) and everything vanished on delete (all zero).
+func (suite *SystemSecurityPlanApiIntegrationSuite) byComponentSubtreeRowCounts(ids byComponentSubtreeIDs) map[string]int64 {
+	var byComponent, inherited, satisfied, export, provided, responsibility, responsibleRoles, responsibleRoleParties int64
+
+	suite.DB.Model(&relational.ByComponent{}).Where("id = ?", ids.ByComponent).Count(&byComponent)
+	suite.DB.Model(&relational.InheritedControlImplementation{}).Where("by_component_id = ?", ids.ByComponent).Count(&inherited)
+	suite.DB.Model(&relational.SatisfiedControlImplementationResponsibility{}).Where("by_component_id = ?", ids.ByComponent).Count(&satisfied)
+	suite.DB.Model(&relational.Export{}).Where("by_component_id = ?", ids.ByComponent).Count(&export)
+	suite.DB.Model(&relational.ProvidedControlImplementation{}).Where("id = ?", ids.Provided).Count(&provided)
+	suite.DB.Model(&relational.ControlImplementationResponsibility{}).Where("id = ?", ids.Responsibility).Count(&responsibility)
+
+	parentIDs := []string{ids.ByComponent, ids.Inherited, ids.Satisfied, ids.Provided, ids.Responsibility}
+	suite.DB.Model(&relational.ResponsibleRole{}).Where("parent_id IN ?", parentIDs).Count(&responsibleRoles)
+	suite.DB.Table("responsible_role_parties").
+		Joins("JOIN responsible_roles ON responsible_roles.id = responsible_role_parties.responsible_role_id").
+		Where("responsible_roles.parent_id IN ?", parentIDs).
+		Count(&responsibleRoleParties)
+
+	return map[string]int64{
+		"by_component":             byComponent,
+		"inherited":                inherited,
+		"satisfied":                satisfied,
+		"export":                   export,
+		"provided":                 provided,
+		"responsibility":           responsibility,
+		"responsible_roles":        responsibleRoles,
+		"responsible_role_parties": responsibleRoleParties,
+	}
+}
+
+// TestDeleteImplementedRequirementStatementByComponent_CascadesOrphanedRecords
+// captures BCH-1356: deleting a statement-level by-component only removed the
+// by-component row itself, leaving its Inherited, Satisfied, Export (with
+// nested Provided/Responsibilities), and every level's ResponsibleRoles (plus
+// the responsible_role_parties join rows) orphaned in the database.
+func (suite *SystemSecurityPlanApiIntegrationSuite) TestDeleteImplementedRequirementStatementByComponent_CascadesOrphanedRecords() {
+	logConf := zap.NewDevelopmentConfig()
+	logConf.Level = zap.NewAtomicLevelAt(zap.ErrorLevel)
+	logger, _ := logConf.Build()
+
+	err := suite.Migrator.Refresh()
+	suite.Require().NoError(err)
+
+	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
+	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
+	evidenceSvc := evidencesvc.NewEvidenceService(suite.DB, logger.Sugar(), suite.Config, nil)
+	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, evidenceSvc, nil, nil)
+
+	ssp := suite.createBasicSSP()
+	componentUuid := ssp.SystemImplementation.Components[0].UUID
+	partyUuid := (*ssp.Metadata.Parties)[0].UUID
+	ssp.ControlImplementation.ImplementedRequirements[0].Statements = nil
+
+	req := suite.createRequest("POST", "/api/oscal/system-security-plans", ssp)
+	resp := httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Require().Equal(http.StatusCreated, resp.Code)
+
+	fullBC, ids := buildFullByComponentFixture(componentUuid, partyUuid)
+
+	implementedReq := oscalTypes_1_1_3.ImplementedRequirement{
+		UUID:      uuid.New().String(),
+		ControlId: "ac-1",
+		Statements: &[]oscalTypes_1_1_3.Statement{
+			{
+				UUID:         uuid.New().String(),
+				StatementId:  "ac-1_stmt.a",
+				ByComponents: &[]oscalTypes_1_1_3.ByComponent{fullBC},
+			},
+		},
+	}
+
+	req = suite.createRequest("POST", fmt.Sprintf("/api/oscal/system-security-plans/%s/control-implementation/implemented-requirements", ssp.UUID), implementedReq)
+	resp = httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Require().Equal(http.StatusCreated, resp.Code)
+
+	var createResponse handler.GenericDataResponse[oscalTypes_1_1_3.ImplementedRequirement]
+	suite.Require().NoError(json.Unmarshal(resp.Body.Bytes(), &createResponse))
+	requirement := createResponse.Data
+	suite.Require().NotNil(requirement.Statements)
+	suite.Require().NotEmpty(*requirement.Statements)
+	statement := (*requirement.Statements)[0]
+
+	// Sanity check: the full subtree actually landed in the DB before we try to delete it.
+	before := suite.byComponentSubtreeRowCounts(ids)
+	for table, count := range before {
+		suite.Require().Greaterf(count, int64(0), "expected fixture to create at least one %s row before delete", table)
+	}
+
+	req = suite.createRequest("DELETE", fmt.Sprintf("/api/oscal/system-security-plans/%s/control-implementation/implemented-requirements/%s/statements/%s/by-components/%s",
+		ssp.UUID, requirement.UUID, statement.UUID, ids.ByComponent), nil)
+	resp = httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Require().Equal(http.StatusNoContent, resp.Code)
+
+	after := suite.byComponentSubtreeRowCounts(ids)
+	for table, count := range after {
+		suite.Equalf(int64(0), count, "expected %s rows to be cascade-deleted with the by-component, found %d", table, count)
+	}
+}
+
+// TestDeleteImplementedRequirement_CascadesOrphanedRecords captures BCH-1356 for
+// the requirement-level delete path: it must cascade to the requirement's own
+// ResponsibleRoles(+parties), its Statements, and every by-component subtree
+// hanging off either the requirement directly (control-level) or one of its
+// statements (statement-level) — including each subtree's Inherited, Satisfied,
+// and Export/Provided/Responsibilities records.
+func (suite *SystemSecurityPlanApiIntegrationSuite) TestDeleteImplementedRequirement_CascadesOrphanedRecords() {
+	logConf := zap.NewDevelopmentConfig()
+	logConf.Level = zap.NewAtomicLevelAt(zap.ErrorLevel)
+	logger, _ := logConf.Build()
+
+	err := suite.Migrator.Refresh()
+	suite.Require().NoError(err)
+
+	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
+	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
+	evidenceSvc := evidencesvc.NewEvidenceService(suite.DB, logger.Sugar(), suite.Config, nil)
+	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, evidenceSvc, nil, nil)
+
+	ssp := suite.createBasicSSP()
+	componentUuid := ssp.SystemImplementation.Components[0].UUID
+	partyUuid := (*ssp.Metadata.Parties)[0].UUID
+	ssp.ControlImplementation.ImplementedRequirements[0].Statements = nil
+
+	req := suite.createRequest("POST", "/api/oscal/system-security-plans", ssp)
+	resp := httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Require().Equal(http.StatusCreated, resp.Code)
+
+	controlBC, controlIDs := buildFullByComponentFixture(componentUuid, partyUuid)
+	stmtBC, stmtIDs := buildFullByComponentFixture(componentUuid, partyUuid)
+	stmtUUID := uuid.New().String()
+
+	implementedReq := oscalTypes_1_1_3.ImplementedRequirement{
+		UUID:             uuid.New().String(),
+		ControlId:        "ac-1",
+		ByComponents:     &[]oscalTypes_1_1_3.ByComponent{controlBC},
+		ResponsibleRoles: &[]oscalTypes_1_1_3.ResponsibleRole{{RoleId: "ir-role", PartyUuids: &[]string{partyUuid}}},
+		Statements: &[]oscalTypes_1_1_3.Statement{
+			{
+				UUID:         stmtUUID,
+				StatementId:  "ac-1_stmt.a",
+				ByComponents: &[]oscalTypes_1_1_3.ByComponent{stmtBC},
+			},
+		},
+	}
+
+	req = suite.createRequest("POST", fmt.Sprintf("/api/oscal/system-security-plans/%s/control-implementation/implemented-requirements", ssp.UUID), implementedReq)
+	resp = httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Require().Equal(http.StatusCreated, resp.Code)
+
+	var createResponse handler.GenericDataResponse[oscalTypes_1_1_3.ImplementedRequirement]
+	suite.Require().NoError(json.Unmarshal(resp.Body.Bytes(), &createResponse))
+	requirement := createResponse.Data
+
+	// Sanity check: everything actually landed before we try to delete it.
+	for _, ids := range []byComponentSubtreeIDs{controlIDs, stmtIDs} {
+		counts := suite.byComponentSubtreeRowCounts(ids)
+		for table, count := range counts {
+			suite.Require().Greaterf(count, int64(0), "expected fixture to create at least one %s row before delete", table)
+		}
+	}
+	var irRoleCountBefore, stmtCountBefore int64
+	suite.DB.Model(&relational.ResponsibleRole{}).Where("parent_id = ?", requirement.UUID).Count(&irRoleCountBefore)
+	suite.DB.Model(&relational.Statement{}).Where("id = ?", stmtUUID).Count(&stmtCountBefore)
+	suite.Require().Greater(irRoleCountBefore, int64(0))
+	suite.Require().Greater(stmtCountBefore, int64(0))
+
+	req = suite.createRequest("DELETE", fmt.Sprintf("/api/oscal/system-security-plans/%s/control-implementation/implemented-requirements/%s",
+		ssp.UUID, requirement.UUID), nil)
+	resp = httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Require().Equal(http.StatusNoContent, resp.Code)
+
+	for _, ids := range []byComponentSubtreeIDs{controlIDs, stmtIDs} {
+		counts := suite.byComponentSubtreeRowCounts(ids)
+		for table, count := range counts {
+			suite.Equalf(int64(0), count, "expected %s rows to be cascade-deleted with the requirement, found %d", table, count)
+		}
+	}
+	var irRoleCountAfter, stmtCountAfter int64
+	suite.DB.Model(&relational.ResponsibleRole{}).Where("parent_id = ?", requirement.UUID).Count(&irRoleCountAfter)
+	suite.DB.Model(&relational.Statement{}).Where("id = ?", stmtUUID).Count(&stmtCountAfter)
+	suite.Equal(int64(0), irRoleCountAfter)
+	suite.Equal(int64(0), stmtCountAfter)
+}
+
 // Test creating a by-component within a statement within an implemented requirement
 func (suite *SystemSecurityPlanApiIntegrationSuite) TestCreateImplementedRequirementStatementByComponent() {
 	logConf := zap.NewDevelopmentConfig()
