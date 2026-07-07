@@ -2,6 +2,8 @@ package oscal
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"net/http"
@@ -468,6 +470,26 @@ func (h *SystemSecurityPlanHandler) Register(api *echo.Group, guard middleware.R
 	api.PUT("/:id/control-implementation/implemented-requirements/:reqId/statements/:stmtId/by-components/:byComponentId", h.UpdateImplementedRequirementStatementByComponent, guard.Update())
 	api.DELETE("/:id/control-implementation/implemented-requirements/:reqId/statements/:stmtId/by-components/:byComponentId", h.DeleteImplementedRequirementStatementByComponent, guard.Delete())
 	api.POST("/:id/control-implementation/implemented-requirements/:reqId/statements/:stmtId/by-components", h.CreateImplementedRequirementStatementByComponent, guard.Create())
+	api.GET("/:id/control-implementation/implemented-requirements/:reqId/by-components/:byComponentId/export", h.GetImplementedRequirementByComponentExport, guard.Read())
+	api.POST("/:id/control-implementation/implemented-requirements/:reqId/by-components/:byComponentId/export", h.CreateImplementedRequirementByComponentExport, guard.Create())
+	api.PUT("/:id/control-implementation/implemented-requirements/:reqId/by-components/:byComponentId/export", h.UpdateImplementedRequirementByComponentExport, guard.Update())
+	api.DELETE("/:id/control-implementation/implemented-requirements/:reqId/by-components/:byComponentId/export", h.DeleteImplementedRequirementByComponentExport, guard.Delete())
+	api.POST("/:id/control-implementation/implemented-requirements/:reqId/by-components/:byComponentId/export/provided", h.CreateImplementedRequirementByComponentExportProvided, guard.Create())
+	api.PUT("/:id/control-implementation/implemented-requirements/:reqId/by-components/:byComponentId/export/provided/:providedId", h.UpdateImplementedRequirementByComponentExportProvided, guard.Update())
+	api.DELETE("/:id/control-implementation/implemented-requirements/:reqId/by-components/:byComponentId/export/provided/:providedId", h.DeleteImplementedRequirementByComponentExportProvided, guard.Delete())
+	api.POST("/:id/control-implementation/implemented-requirements/:reqId/by-components/:byComponentId/export/responsibilities", h.CreateImplementedRequirementByComponentExportResponsibility, guard.Create())
+	api.PUT("/:id/control-implementation/implemented-requirements/:reqId/by-components/:byComponentId/export/responsibilities/:responsibilityId", h.UpdateImplementedRequirementByComponentExportResponsibility, guard.Update())
+	api.DELETE("/:id/control-implementation/implemented-requirements/:reqId/by-components/:byComponentId/export/responsibilities/:responsibilityId", h.DeleteImplementedRequirementByComponentExportResponsibility, guard.Delete())
+	api.GET("/:id/control-implementation/implemented-requirements/:reqId/statements/:stmtId/by-components/:byComponentId/export", h.GetImplementedRequirementStatementByComponentExport, guard.Read())
+	api.POST("/:id/control-implementation/implemented-requirements/:reqId/statements/:stmtId/by-components/:byComponentId/export", h.CreateImplementedRequirementStatementByComponentExport, guard.Create())
+	api.PUT("/:id/control-implementation/implemented-requirements/:reqId/statements/:stmtId/by-components/:byComponentId/export", h.UpdateImplementedRequirementStatementByComponentExport, guard.Update())
+	api.DELETE("/:id/control-implementation/implemented-requirements/:reqId/statements/:stmtId/by-components/:byComponentId/export", h.DeleteImplementedRequirementStatementByComponentExport, guard.Delete())
+	api.POST("/:id/control-implementation/implemented-requirements/:reqId/statements/:stmtId/by-components/:byComponentId/export/provided", h.CreateImplementedRequirementStatementByComponentExportProvided, guard.Create())
+	api.PUT("/:id/control-implementation/implemented-requirements/:reqId/statements/:stmtId/by-components/:byComponentId/export/provided/:providedId", h.UpdateImplementedRequirementStatementByComponentExportProvided, guard.Update())
+	api.DELETE("/:id/control-implementation/implemented-requirements/:reqId/statements/:stmtId/by-components/:byComponentId/export/provided/:providedId", h.DeleteImplementedRequirementStatementByComponentExportProvided, guard.Delete())
+	api.POST("/:id/control-implementation/implemented-requirements/:reqId/statements/:stmtId/by-components/:byComponentId/export/responsibilities", h.CreateImplementedRequirementStatementByComponentExportResponsibility, guard.Create())
+	api.PUT("/:id/control-implementation/implemented-requirements/:reqId/statements/:stmtId/by-components/:byComponentId/export/responsibilities/:responsibilityId", h.UpdateImplementedRequirementStatementByComponentExportResponsibility, guard.Update())
+	api.DELETE("/:id/control-implementation/implemented-requirements/:reqId/statements/:stmtId/by-components/:byComponentId/export/responsibilities/:responsibilityId", h.DeleteImplementedRequirementStatementByComponentExportResponsibility, guard.Delete())
 	api.DELETE("/:id/control-implementation/implemented-requirements/:reqId", h.DeleteImplementedRequirement, guard.Delete())
 	api.POST("/:id/control-implementation/implemented-requirements/:reqId/suggest-components", h.SuggestComponents, guard.Read())
 	api.POST("/:id/control-implementation/implemented-requirements/:reqId/apply-suggestion", h.ApplySuggestion, guard.Update())
@@ -4519,7 +4541,7 @@ func (h *SystemSecurityPlanHandler) DeleteImplementedRequirementStatementByCompo
 //	@Param			reqId			path		string							true	"Requirement ID"
 //	@Param			stmtId			path		string							true	"Statement ID"
 //	@Param			by-component	body		oscalTypes_1_1_3.ByComponent	true	"By-Component data"
-//	@Success		200				{object}	handler.GenericDataResponse[oscalTypes_1_1_3.ByComponent]
+//	@Success		201				{object}	handler.GenericDataResponse[oscalTypes_1_1_3.ByComponent]
 //	@Failure		400				{object}	api.Error
 //	@Failure		404				{object}	api.Error
 //	@Failure		500				{object}	api.Error
@@ -4600,6 +4622,979 @@ func (h *SystemSecurityPlanHandler) CreateImplementedRequirementStatementByCompo
 
 	// Step 7: Return created
 	return ctx.JSON(http.StatusCreated, handler.GenericDataResponse[oscalTypes_1_1_3.ByComponent]{Data: *relBC.MarshalOscal()})
+}
+
+// resolveByComponentForRequirement parses and verifies a by-component that belongs
+// directly to an implemented requirement (control-level). On any failure it writes
+// the appropriate JSON error response to ctx and returns ok=false; callers should
+// return nil immediately when ok is false.
+func (h *SystemSecurityPlanHandler) resolveByComponentForRequirement(ctx echo.Context) (bc *relational.ByComponent, ok bool) {
+	sspID, reqID, err := parseSSPReqIDs(ctx)
+	if err != nil {
+		h.sugar.Warnw("Invalid by-component path params", "error", err)
+		_ = ctx.JSON(http.StatusBadRequest, api.NewError(err))
+		return nil, false
+	}
+
+	byComponentIdParam := ctx.Param("byComponentId")
+	byComponentID, err := uuid.Parse(byComponentIdParam)
+	if err != nil {
+		h.sugar.Warnw("Invalid component id", "byComponentId", byComponentIdParam, "error", err)
+		_ = ctx.JSON(http.StatusBadRequest, api.NewError(err))
+		return nil, false
+	}
+
+	var ssp relational.SystemSecurityPlan
+	if err := h.db.Preload("ControlImplementation").First(&ssp, "id = ?", sspID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			_ = ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("SSP not found")))
+			return nil, false
+		}
+		_ = ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		return nil, false
+	}
+
+	var req relational.ImplementedRequirement
+	if err := h.db.Where("id = ? AND control_implementation_id = ?", reqID, ssp.ControlImplementation.ID).
+		First(&req).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			_ = ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("requirement not found")))
+			return nil, false
+		}
+		_ = ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		return nil, false
+	}
+
+	var found relational.ByComponent
+	if err := h.db.Where("id = ? AND parent_id = ? AND parent_type = ?",
+		byComponentID, req.ID, "implemented_requirements").
+		First(&found).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			_ = ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("by-component not found")))
+			return nil, false
+		}
+		_ = ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		return nil, false
+	}
+
+	return &found, true
+}
+
+// resolveByComponentForStatement parses and verifies a by-component that belongs to
+// a statement within an implemented requirement (statement-level). Same contract as
+// resolveByComponentForRequirement.
+func (h *SystemSecurityPlanHandler) resolveByComponentForStatement(ctx echo.Context) (bc *relational.ByComponent, ok bool) {
+	sspID, reqID, stmtID, err := parseSSPReqStmtIDs(ctx)
+	if err != nil {
+		h.sugar.Warnw("Invalid by-component path params", "error", err)
+		_ = ctx.JSON(http.StatusBadRequest, api.NewError(err))
+		return nil, false
+	}
+
+	byComponentIdParam := ctx.Param("byComponentId")
+	byComponentID, err := uuid.Parse(byComponentIdParam)
+	if err != nil {
+		h.sugar.Warnw("Invalid component id", "byComponentId", byComponentIdParam, "error", err)
+		_ = ctx.JSON(http.StatusBadRequest, api.NewError(err))
+		return nil, false
+	}
+
+	var ssp relational.SystemSecurityPlan
+	if err := h.db.Preload("ControlImplementation").First(&ssp, "id = ?", sspID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			_ = ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("SSP not found")))
+			return nil, false
+		}
+		_ = ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		return nil, false
+	}
+
+	var req relational.ImplementedRequirement
+	if err := h.db.Where("id = ? AND control_implementation_id = ?", reqID, ssp.ControlImplementation.ID).
+		First(&req).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			_ = ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("requirement not found")))
+			return nil, false
+		}
+		_ = ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		return nil, false
+	}
+
+	var stmt relational.Statement
+	if err := h.db.Where("id = ? AND implemented_requirement_id = ?", stmtID, req.ID).
+		First(&stmt).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			_ = ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("statement not found")))
+			return nil, false
+		}
+		_ = ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		return nil, false
+	}
+
+	var found relational.ByComponent
+	if err := h.db.Where("id = ? AND parent_id = ? AND parent_type = ?",
+		byComponentID, stmt.ID, "statements").
+		First(&found).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			_ = ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("by-component not found")))
+			return nil, false
+		}
+		_ = ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		return nil, false
+	}
+
+	return &found, true
+}
+
+// reloadByComponentExport re-fetches a by-component's Export with its nested Provided
+// and Responsibilities (and their responsible roles) fully preloaded, for use in
+// responses after a create/update.
+func (h *SystemSecurityPlanHandler) reloadByComponentExport(byComponentID uuid.UUID) (*relational.Export, error) {
+	var export relational.Export
+	err := h.db.
+		Preload("Provided").
+		Preload("Provided.ResponsibleRoles").
+		Preload("Provided.ResponsibleRoles.Parties").
+		Preload("Responsibilities").
+		Preload("Responsibilities.ResponsibleRoles").
+		Preload("Responsibilities.ResponsibleRoles.Parties").
+		Where("by_component_id = ?", byComponentID).
+		First(&export).Error
+	return &export, err
+}
+
+// getByComponentExport reads the Export sub-resource for an already-resolved by-component.
+func (h *SystemSecurityPlanHandler) getByComponentExport(ctx echo.Context, bc *relational.ByComponent) error {
+	export, err := h.reloadByComponentExport(*bc.ID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("export not found")))
+		}
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[oscalTypes_1_1_3.Export]{Data: *export.MarshalOscal()})
+}
+
+// createByComponentExport creates the (singleton) Export sub-resource for an
+// already-resolved by-component. A by-component may have at most one Export.
+func (h *SystemSecurityPlanHandler) createByComponentExport(ctx echo.Context, bc *relational.ByComponent) error {
+	var oscalExport oscalTypes_1_1_3.Export
+	if err := ctx.Bind(&oscalExport); err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	relExport := &relational.Export{}
+	relExport.UnmarshalOscal(oscalExport)
+	relExport.ByComponentId = *bc.ID
+
+	conflict := false
+	if err := h.db.Transaction(func(tx *gorm.DB) error {
+		// Export.ByComponentId has no unique DB constraint (this ticket makes no
+		// schema change), so an advisory lock keyed on the by-component closes the
+		// race between the existence check and the insert for concurrent creates.
+		if err := lockByComponentExportCreate(tx, *bc.ID); err != nil {
+			return err
+		}
+
+		var existing relational.Export
+		err := tx.Where("by_component_id = ?", bc.ID).First(&existing).Error
+		if err == nil {
+			conflict = true
+			return nil
+		}
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return err
+		}
+
+		return tx.Create(relExport).Error
+	}); err != nil {
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+	if conflict {
+		return ctx.JSON(http.StatusConflict, api.NewError(fmt.Errorf("export already exists for this by-component")))
+	}
+
+	created, err := h.reloadByComponentExport(*bc.ID)
+	if err != nil {
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+	return ctx.JSON(http.StatusCreated, handler.GenericDataResponse[oscalTypes_1_1_3.Export]{Data: *created.MarshalOscal()})
+}
+
+// lockByComponentExportCreate serializes concurrent Export creation for the same
+// by-component using a transaction-scoped Postgres advisory lock keyed on the
+// by-component's UUID. It is a no-op against non-Postgres test drivers.
+func lockByComponentExportCreate(tx *gorm.DB, byComponentID uuid.UUID) error {
+	if tx.Name() != "postgres" {
+		return nil
+	}
+	sum := sha256.Sum256([]byte("export-create:" + byComponentID.String()))
+	key1 := int32(binary.BigEndian.Uint32(sum[0:4]))
+	key2 := int32(binary.BigEndian.Uint32(sum[4:8]))
+	return tx.Exec("SELECT pg_advisory_xact_lock(?, ?)", key1, key2).Error
+}
+
+// updateByComponentExport updates the scalar fields (description, remarks, props,
+// links) of an existing Export. The Provided and Responsibilities entries are managed
+// individually via their own routes and are left untouched here.
+func (h *SystemSecurityPlanHandler) updateByComponentExport(ctx echo.Context, bc *relational.ByComponent) error {
+	var existing relational.Export
+	if err := h.db.Where("by_component_id = ?", bc.ID).First(&existing).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("export not found")))
+		}
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	var oscalExport oscalTypes_1_1_3.Export
+	if err := ctx.Bind(&oscalExport); err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	if oscalExport.Provided != nil && len(*oscalExport.Provided) > 0 {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("provided entries must be managed via the export/provided routes, not by updating the export directly")))
+	}
+	if oscalExport.Responsibilities != nil && len(*oscalExport.Responsibilities) > 0 {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("responsibility entries must be managed via the export/responsibilities routes, not by updating the export directly")))
+	}
+
+	parsed := &relational.Export{}
+	parsed.UnmarshalOscal(oscalExport)
+
+	existing.Description = parsed.Description
+	existing.Remarks = parsed.Remarks
+	existing.Props = parsed.Props
+	existing.Links = parsed.Links
+
+	if err := h.db.Save(&existing).Error; err != nil {
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	updated, err := h.reloadByComponentExport(*bc.ID)
+	if err != nil {
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[oscalTypes_1_1_3.Export]{Data: *updated.MarshalOscal()})
+}
+
+// deleteByComponentExport deletes an existing Export and its nested Provided and
+// Responsibilities entries. Children are deleted explicitly rather than relying on a
+// DB-level cascade, since this ticket makes no schema change.
+func (h *SystemSecurityPlanHandler) deleteByComponentExport(ctx echo.Context, bc *relational.ByComponent) error {
+	var existing relational.Export
+	if err := h.db.Where("by_component_id = ?", bc.ID).First(&existing).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("export not found")))
+		}
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	if err := h.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("export_id = ?", existing.ID).Delete(&relational.ProvidedControlImplementation{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("export_id = ?", existing.ID).Delete(&relational.ControlImplementationResponsibility{}).Error; err != nil {
+			return err
+		}
+		return tx.Delete(&existing).Error
+	}); err != nil {
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	return ctx.NoContent(http.StatusNoContent)
+}
+
+// GetImplementedRequirementByComponentExport godoc
+//
+//	@Summary		Get the export for a control-level by-component
+//	@Description	Retrieves the Export (with nested Provided and Responsibilities) for a by-component within an implemented requirement.
+//	@Tags			System Security Plans
+//	@Produce		json
+//	@Param			id				path		string	true	"SSP ID"
+//	@Param			reqId			path		string	true	"Requirement ID"
+//	@Param			byComponentId	path		string	true	"By-Component ID"
+//	@Success		200				{object}	handler.GenericDataResponse[oscalTypes_1_1_3.Export]
+//	@Failure		400				{object}	api.Error
+//	@Failure		404				{object}	api.Error
+//	@Failure		500				{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/by-components/{byComponentId}/export [get]
+func (h *SystemSecurityPlanHandler) GetImplementedRequirementByComponentExport(ctx echo.Context) error {
+	bc, ok := h.resolveByComponentForRequirement(ctx)
+	if !ok {
+		return nil
+	}
+	return h.getByComponentExport(ctx, bc)
+}
+
+// CreateImplementedRequirementByComponentExport godoc
+//
+//	@Summary		Create the export for a control-level by-component
+//	@Description	Creates the Export for a by-component within an implemented requirement. A by-component may have at most one Export.
+//	@Tags			System Security Plans
+//	@Accept			json
+//	@Produce		json
+//	@Param			id				path		string					true	"SSP ID"
+//	@Param			reqId			path		string					true	"Requirement ID"
+//	@Param			byComponentId	path		string					true	"By-Component ID"
+//	@Param			export			body		oscalTypes_1_1_3.Export	true	"Export data"
+//	@Success		201				{object}	handler.GenericDataResponse[oscalTypes_1_1_3.Export]
+//	@Failure		400				{object}	api.Error
+//	@Failure		404				{object}	api.Error
+//	@Failure		409				{object}	api.Error
+//	@Failure		500				{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/by-components/{byComponentId}/export [post]
+func (h *SystemSecurityPlanHandler) CreateImplementedRequirementByComponentExport(ctx echo.Context) error {
+	bc, ok := h.resolveByComponentForRequirement(ctx)
+	if !ok {
+		return nil
+	}
+	return h.createByComponentExport(ctx, bc)
+}
+
+// UpdateImplementedRequirementByComponentExport godoc
+//
+//	@Summary		Update the export for a control-level by-component
+//	@Description	Updates the scalar fields of an existing Export for a by-component within an implemented requirement. Provided and Responsibilities entries are managed via their own routes.
+//	@Tags			System Security Plans
+//	@Accept			json
+//	@Produce		json
+//	@Param			id				path		string					true	"SSP ID"
+//	@Param			reqId			path		string					true	"Requirement ID"
+//	@Param			byComponentId	path		string					true	"By-Component ID"
+//	@Param			export			body		oscalTypes_1_1_3.Export	true	"Export data"
+//	@Success		200				{object}	handler.GenericDataResponse[oscalTypes_1_1_3.Export]
+//	@Failure		400				{object}	api.Error
+//	@Failure		404				{object}	api.Error
+//	@Failure		500				{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/by-components/{byComponentId}/export [put]
+func (h *SystemSecurityPlanHandler) UpdateImplementedRequirementByComponentExport(ctx echo.Context) error {
+	bc, ok := h.resolveByComponentForRequirement(ctx)
+	if !ok {
+		return nil
+	}
+	return h.updateByComponentExport(ctx, bc)
+}
+
+// DeleteImplementedRequirementByComponentExport godoc
+//
+//	@Summary		Delete the export for a control-level by-component
+//	@Description	Deletes the Export (and its Provided/Responsibilities entries) for a by-component within an implemented requirement.
+//	@Tags			System Security Plans
+//	@Param			id				path	string	true	"SSP ID"
+//	@Param			reqId			path	string	true	"Requirement ID"
+//	@Param			byComponentId	path	string	true	"By-Component ID"
+//	@Success		204				"No Content"
+//	@Failure		400				{object}	api.Error
+//	@Failure		404				{object}	api.Error
+//	@Failure		500				{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/by-components/{byComponentId}/export [delete]
+func (h *SystemSecurityPlanHandler) DeleteImplementedRequirementByComponentExport(ctx echo.Context) error {
+	bc, ok := h.resolveByComponentForRequirement(ctx)
+	if !ok {
+		return nil
+	}
+	return h.deleteByComponentExport(ctx, bc)
+}
+
+// GetImplementedRequirementStatementByComponentExport godoc
+//
+//	@Summary		Get the export for a statement-level by-component
+//	@Description	Retrieves the Export (with nested Provided and Responsibilities) for a by-component within a statement.
+//	@Tags			System Security Plans
+//	@Produce		json
+//	@Param			id				path		string	true	"SSP ID"
+//	@Param			reqId			path		string	true	"Requirement ID"
+//	@Param			stmtId			path		string	true	"Statement ID"
+//	@Param			byComponentId	path		string	true	"By-Component ID"
+//	@Success		200				{object}	handler.GenericDataResponse[oscalTypes_1_1_3.Export]
+//	@Failure		400				{object}	api.Error
+//	@Failure		404				{object}	api.Error
+//	@Failure		500				{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/statements/{stmtId}/by-components/{byComponentId}/export [get]
+func (h *SystemSecurityPlanHandler) GetImplementedRequirementStatementByComponentExport(ctx echo.Context) error {
+	bc, ok := h.resolveByComponentForStatement(ctx)
+	if !ok {
+		return nil
+	}
+	return h.getByComponentExport(ctx, bc)
+}
+
+// CreateImplementedRequirementStatementByComponentExport godoc
+//
+//	@Summary		Create the export for a statement-level by-component
+//	@Description	Creates the Export for a by-component within a statement. A by-component may have at most one Export.
+//	@Tags			System Security Plans
+//	@Accept			json
+//	@Produce		json
+//	@Param			id				path		string					true	"SSP ID"
+//	@Param			reqId			path		string					true	"Requirement ID"
+//	@Param			stmtId			path		string					true	"Statement ID"
+//	@Param			byComponentId	path		string					true	"By-Component ID"
+//	@Param			export			body		oscalTypes_1_1_3.Export	true	"Export data"
+//	@Success		201				{object}	handler.GenericDataResponse[oscalTypes_1_1_3.Export]
+//	@Failure		400				{object}	api.Error
+//	@Failure		404				{object}	api.Error
+//	@Failure		409				{object}	api.Error
+//	@Failure		500				{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/statements/{stmtId}/by-components/{byComponentId}/export [post]
+func (h *SystemSecurityPlanHandler) CreateImplementedRequirementStatementByComponentExport(ctx echo.Context) error {
+	bc, ok := h.resolveByComponentForStatement(ctx)
+	if !ok {
+		return nil
+	}
+	return h.createByComponentExport(ctx, bc)
+}
+
+// UpdateImplementedRequirementStatementByComponentExport godoc
+//
+//	@Summary		Update the export for a statement-level by-component
+//	@Description	Updates the scalar fields of an existing Export for a by-component within a statement. Provided and Responsibilities entries are managed via their own routes.
+//	@Tags			System Security Plans
+//	@Accept			json
+//	@Produce		json
+//	@Param			id				path		string					true	"SSP ID"
+//	@Param			reqId			path		string					true	"Requirement ID"
+//	@Param			stmtId			path		string					true	"Statement ID"
+//	@Param			byComponentId	path		string					true	"By-Component ID"
+//	@Param			export			body		oscalTypes_1_1_3.Export	true	"Export data"
+//	@Success		200				{object}	handler.GenericDataResponse[oscalTypes_1_1_3.Export]
+//	@Failure		400				{object}	api.Error
+//	@Failure		404				{object}	api.Error
+//	@Failure		500				{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/statements/{stmtId}/by-components/{byComponentId}/export [put]
+func (h *SystemSecurityPlanHandler) UpdateImplementedRequirementStatementByComponentExport(ctx echo.Context) error {
+	bc, ok := h.resolveByComponentForStatement(ctx)
+	if !ok {
+		return nil
+	}
+	return h.updateByComponentExport(ctx, bc)
+}
+
+// DeleteImplementedRequirementStatementByComponentExport godoc
+//
+//	@Summary		Delete the export for a statement-level by-component
+//	@Description	Deletes the Export (and its Provided/Responsibilities entries) for a by-component within a statement.
+//	@Tags			System Security Plans
+//	@Param			id				path	string	true	"SSP ID"
+//	@Param			reqId			path	string	true	"Requirement ID"
+//	@Param			stmtId			path	string	true	"Statement ID"
+//	@Param			byComponentId	path	string	true	"By-Component ID"
+//	@Success		204				"No Content"
+//	@Failure		400				{object}	api.Error
+//	@Failure		404				{object}	api.Error
+//	@Failure		500				{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/statements/{stmtId}/by-components/{byComponentId}/export [delete]
+func (h *SystemSecurityPlanHandler) DeleteImplementedRequirementStatementByComponentExport(ctx echo.Context) error {
+	bc, ok := h.resolveByComponentForStatement(ctx)
+	if !ok {
+		return nil
+	}
+	return h.deleteByComponentExport(ctx, bc)
+}
+
+// findExportForByComponent looks up the (singleton) Export belonging to an
+// already-resolved by-component, writing a 404 if none exists.
+func (h *SystemSecurityPlanHandler) findExportForByComponent(ctx echo.Context, bc *relational.ByComponent) (*relational.Export, bool) {
+	var export relational.Export
+	if err := h.db.Where("by_component_id = ?", bc.ID).First(&export).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			_ = ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("export not found")))
+			return nil, false
+		}
+		_ = ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		return nil, false
+	}
+	return &export, true
+}
+
+// createByComponentExportProvided creates a Provided entry under an already-resolved
+// by-component's Export.
+func (h *SystemSecurityPlanHandler) createByComponentExportProvided(ctx echo.Context, bc *relational.ByComponent) error {
+	export, ok := h.findExportForByComponent(ctx, bc)
+	if !ok {
+		return nil
+	}
+
+	var oscalProvided oscalTypes_1_1_3.ProvidedControlImplementation
+	if err := ctx.Bind(&oscalProvided); err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	relProvided := &relational.ProvidedControlImplementation{}
+	relProvided.UnmarshalOscal(oscalProvided)
+	relProvided.ExportId = *export.ID
+
+	if err := h.db.Create(relProvided).Error; err != nil {
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	return ctx.JSON(http.StatusCreated, handler.GenericDataResponse[oscalTypes_1_1_3.ProvidedControlImplementation]{Data: *relProvided.MarshalOscal()})
+}
+
+// updateByComponentExportProvided replaces an existing Provided entry under an
+// already-resolved by-component's Export.
+func (h *SystemSecurityPlanHandler) updateByComponentExportProvided(ctx echo.Context, bc *relational.ByComponent) error {
+	export, ok := h.findExportForByComponent(ctx, bc)
+	if !ok {
+		return nil
+	}
+
+	providedIdParam := ctx.Param("providedId")
+	providedID, err := uuid.Parse(providedIdParam)
+	if err != nil {
+		h.sugar.Warnw("Invalid provided id", "providedId", providedIdParam, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	var existing relational.ProvidedControlImplementation
+	if err := h.db.Where("id = ? AND export_id = ?", providedID, export.ID).First(&existing).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("provided entry not found")))
+		}
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	var oscalProvided oscalTypes_1_1_3.ProvidedControlImplementation
+	if err := ctx.Bind(&oscalProvided); err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	relProvided := &relational.ProvidedControlImplementation{}
+	relProvided.UnmarshalOscal(oscalProvided)
+	relProvided.ID = &providedID
+	relProvided.ExportId = *export.ID
+
+	if err := h.db.Save(relProvided).Error; err != nil {
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[oscalTypes_1_1_3.ProvidedControlImplementation]{Data: *relProvided.MarshalOscal()})
+}
+
+// deleteByComponentExportProvided deletes an existing Provided entry under an
+// already-resolved by-component's Export.
+func (h *SystemSecurityPlanHandler) deleteByComponentExportProvided(ctx echo.Context, bc *relational.ByComponent) error {
+	export, ok := h.findExportForByComponent(ctx, bc)
+	if !ok {
+		return nil
+	}
+
+	providedIdParam := ctx.Param("providedId")
+	providedID, err := uuid.Parse(providedIdParam)
+	if err != nil {
+		h.sugar.Warnw("Invalid provided id", "providedId", providedIdParam, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	result := h.db.Where("id = ? AND export_id = ?", providedID, export.ID).Delete(&relational.ProvidedControlImplementation{})
+	if result.Error != nil {
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(result.Error))
+	}
+	if result.RowsAffected == 0 {
+		return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("provided entry not found")))
+	}
+
+	return ctx.NoContent(http.StatusNoContent)
+}
+
+// CreateImplementedRequirementByComponentExportProvided godoc
+//
+//	@Summary		Create a provided entry on a control-level by-component's export
+//	@Description	Creates a ProvidedControlImplementation entry under the Export of a by-component within an implemented requirement.
+//	@Tags			System Security Plans
+//	@Accept			json
+//	@Produce		json
+//	@Param			id				path		string											true	"SSP ID"
+//	@Param			reqId			path		string											true	"Requirement ID"
+//	@Param			byComponentId	path		string											true	"By-Component ID"
+//	@Param			provided		body		oscalTypes_1_1_3.ProvidedControlImplementation	true	"Provided data"
+//	@Success		201				{object}	handler.GenericDataResponse[oscalTypes_1_1_3.ProvidedControlImplementation]
+//	@Failure		400				{object}	api.Error
+//	@Failure		404				{object}	api.Error
+//	@Failure		500				{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/by-components/{byComponentId}/export/provided [post]
+func (h *SystemSecurityPlanHandler) CreateImplementedRequirementByComponentExportProvided(ctx echo.Context) error {
+	bc, ok := h.resolveByComponentForRequirement(ctx)
+	if !ok {
+		return nil
+	}
+	return h.createByComponentExportProvided(ctx, bc)
+}
+
+// UpdateImplementedRequirementByComponentExportProvided godoc
+//
+//	@Summary		Update a provided entry on a control-level by-component's export
+//	@Description	Replaces an existing ProvidedControlImplementation entry under the Export of a by-component within an implemented requirement.
+//	@Tags			System Security Plans
+//	@Accept			json
+//	@Produce		json
+//	@Param			id				path		string											true	"SSP ID"
+//	@Param			reqId			path		string											true	"Requirement ID"
+//	@Param			byComponentId	path		string											true	"By-Component ID"
+//	@Param			providedId		path		string											true	"Provided entry ID"
+//	@Param			provided		body		oscalTypes_1_1_3.ProvidedControlImplementation	true	"Provided data"
+//	@Success		200				{object}	handler.GenericDataResponse[oscalTypes_1_1_3.ProvidedControlImplementation]
+//	@Failure		400				{object}	api.Error
+//	@Failure		404				{object}	api.Error
+//	@Failure		500				{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/by-components/{byComponentId}/export/provided/{providedId} [put]
+func (h *SystemSecurityPlanHandler) UpdateImplementedRequirementByComponentExportProvided(ctx echo.Context) error {
+	bc, ok := h.resolveByComponentForRequirement(ctx)
+	if !ok {
+		return nil
+	}
+	return h.updateByComponentExportProvided(ctx, bc)
+}
+
+// DeleteImplementedRequirementByComponentExportProvided godoc
+//
+//	@Summary		Delete a provided entry on a control-level by-component's export
+//	@Description	Deletes an existing ProvidedControlImplementation entry under the Export of a by-component within an implemented requirement.
+//	@Tags			System Security Plans
+//	@Param			id				path	string	true	"SSP ID"
+//	@Param			reqId			path	string	true	"Requirement ID"
+//	@Param			byComponentId	path	string	true	"By-Component ID"
+//	@Param			providedId		path	string	true	"Provided entry ID"
+//	@Success		204				"No Content"
+//	@Failure		400				{object}	api.Error
+//	@Failure		404				{object}	api.Error
+//	@Failure		500				{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/by-components/{byComponentId}/export/provided/{providedId} [delete]
+func (h *SystemSecurityPlanHandler) DeleteImplementedRequirementByComponentExportProvided(ctx echo.Context) error {
+	bc, ok := h.resolveByComponentForRequirement(ctx)
+	if !ok {
+		return nil
+	}
+	return h.deleteByComponentExportProvided(ctx, bc)
+}
+
+// CreateImplementedRequirementStatementByComponentExportProvided godoc
+//
+//	@Summary		Create a provided entry on a statement-level by-component's export
+//	@Description	Creates a ProvidedControlImplementation entry under the Export of a by-component within a statement.
+//	@Tags			System Security Plans
+//	@Accept			json
+//	@Produce		json
+//	@Param			id				path		string											true	"SSP ID"
+//	@Param			reqId			path		string											true	"Requirement ID"
+//	@Param			stmtId			path		string											true	"Statement ID"
+//	@Param			byComponentId	path		string											true	"By-Component ID"
+//	@Param			provided		body		oscalTypes_1_1_3.ProvidedControlImplementation	true	"Provided data"
+//	@Success		201				{object}	handler.GenericDataResponse[oscalTypes_1_1_3.ProvidedControlImplementation]
+//	@Failure		400				{object}	api.Error
+//	@Failure		404				{object}	api.Error
+//	@Failure		500				{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/statements/{stmtId}/by-components/{byComponentId}/export/provided [post]
+func (h *SystemSecurityPlanHandler) CreateImplementedRequirementStatementByComponentExportProvided(ctx echo.Context) error {
+	bc, ok := h.resolveByComponentForStatement(ctx)
+	if !ok {
+		return nil
+	}
+	return h.createByComponentExportProvided(ctx, bc)
+}
+
+// UpdateImplementedRequirementStatementByComponentExportProvided godoc
+//
+//	@Summary		Update a provided entry on a statement-level by-component's export
+//	@Description	Replaces an existing ProvidedControlImplementation entry under the Export of a by-component within a statement.
+//	@Tags			System Security Plans
+//	@Accept			json
+//	@Produce		json
+//	@Param			id				path		string											true	"SSP ID"
+//	@Param			reqId			path		string											true	"Requirement ID"
+//	@Param			stmtId			path		string											true	"Statement ID"
+//	@Param			byComponentId	path		string											true	"By-Component ID"
+//	@Param			providedId		path		string											true	"Provided entry ID"
+//	@Param			provided		body		oscalTypes_1_1_3.ProvidedControlImplementation	true	"Provided data"
+//	@Success		200				{object}	handler.GenericDataResponse[oscalTypes_1_1_3.ProvidedControlImplementation]
+//	@Failure		400				{object}	api.Error
+//	@Failure		404				{object}	api.Error
+//	@Failure		500				{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/statements/{stmtId}/by-components/{byComponentId}/export/provided/{providedId} [put]
+func (h *SystemSecurityPlanHandler) UpdateImplementedRequirementStatementByComponentExportProvided(ctx echo.Context) error {
+	bc, ok := h.resolveByComponentForStatement(ctx)
+	if !ok {
+		return nil
+	}
+	return h.updateByComponentExportProvided(ctx, bc)
+}
+
+// DeleteImplementedRequirementStatementByComponentExportProvided godoc
+//
+//	@Summary		Delete a provided entry on a statement-level by-component's export
+//	@Description	Deletes an existing ProvidedControlImplementation entry under the Export of a by-component within a statement.
+//	@Tags			System Security Plans
+//	@Param			id				path	string	true	"SSP ID"
+//	@Param			reqId			path	string	true	"Requirement ID"
+//	@Param			stmtId			path	string	true	"Statement ID"
+//	@Param			byComponentId	path	string	true	"By-Component ID"
+//	@Param			providedId		path	string	true	"Provided entry ID"
+//	@Success		204				"No Content"
+//	@Failure		400				{object}	api.Error
+//	@Failure		404				{object}	api.Error
+//	@Failure		500				{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/statements/{stmtId}/by-components/{byComponentId}/export/provided/{providedId} [delete]
+func (h *SystemSecurityPlanHandler) DeleteImplementedRequirementStatementByComponentExportProvided(ctx echo.Context) error {
+	bc, ok := h.resolveByComponentForStatement(ctx)
+	if !ok {
+		return nil
+	}
+	return h.deleteByComponentExportProvided(ctx, bc)
+}
+
+// createByComponentExportResponsibility creates a Responsibility entry under an
+// already-resolved by-component's Export.
+func (h *SystemSecurityPlanHandler) createByComponentExportResponsibility(ctx echo.Context, bc *relational.ByComponent) error {
+	export, ok := h.findExportForByComponent(ctx, bc)
+	if !ok {
+		return nil
+	}
+
+	var oscalResponsibility oscalTypes_1_1_3.ControlImplementationResponsibility
+	if err := ctx.Bind(&oscalResponsibility); err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	relResponsibility := &relational.ControlImplementationResponsibility{}
+	relResponsibility.UnmarshalOscal(oscalResponsibility)
+	relResponsibility.ExportId = *export.ID
+
+	if err := h.db.Create(relResponsibility).Error; err != nil {
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	return ctx.JSON(http.StatusCreated, handler.GenericDataResponse[oscalTypes_1_1_3.ControlImplementationResponsibility]{Data: *relResponsibility.MarshalOscal()})
+}
+
+// updateByComponentExportResponsibility replaces an existing Responsibility entry
+// under an already-resolved by-component's Export.
+func (h *SystemSecurityPlanHandler) updateByComponentExportResponsibility(ctx echo.Context, bc *relational.ByComponent) error {
+	export, ok := h.findExportForByComponent(ctx, bc)
+	if !ok {
+		return nil
+	}
+
+	responsibilityIdParam := ctx.Param("responsibilityId")
+	responsibilityID, err := uuid.Parse(responsibilityIdParam)
+	if err != nil {
+		h.sugar.Warnw("Invalid responsibility id", "responsibilityId", responsibilityIdParam, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	var existing relational.ControlImplementationResponsibility
+	if err := h.db.Where("id = ? AND export_id = ?", responsibilityID, export.ID).First(&existing).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("responsibility entry not found")))
+		}
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	var oscalResponsibility oscalTypes_1_1_3.ControlImplementationResponsibility
+	if err := ctx.Bind(&oscalResponsibility); err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	relResponsibility := &relational.ControlImplementationResponsibility{}
+	relResponsibility.UnmarshalOscal(oscalResponsibility)
+	relResponsibility.ID = &responsibilityID
+	relResponsibility.ExportId = *export.ID
+
+	if err := h.db.Save(relResponsibility).Error; err != nil {
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[oscalTypes_1_1_3.ControlImplementationResponsibility]{Data: *relResponsibility.MarshalOscal()})
+}
+
+// deleteByComponentExportResponsibility deletes an existing Responsibility entry
+// under an already-resolved by-component's Export.
+func (h *SystemSecurityPlanHandler) deleteByComponentExportResponsibility(ctx echo.Context, bc *relational.ByComponent) error {
+	export, ok := h.findExportForByComponent(ctx, bc)
+	if !ok {
+		return nil
+	}
+
+	responsibilityIdParam := ctx.Param("responsibilityId")
+	responsibilityID, err := uuid.Parse(responsibilityIdParam)
+	if err != nil {
+		h.sugar.Warnw("Invalid responsibility id", "responsibilityId", responsibilityIdParam, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	result := h.db.Where("id = ? AND export_id = ?", responsibilityID, export.ID).Delete(&relational.ControlImplementationResponsibility{})
+	if result.Error != nil {
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(result.Error))
+	}
+	if result.RowsAffected == 0 {
+		return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("responsibility entry not found")))
+	}
+
+	return ctx.NoContent(http.StatusNoContent)
+}
+
+// CreateImplementedRequirementByComponentExportResponsibility godoc
+//
+//	@Summary		Create a responsibility entry on a control-level by-component's export
+//	@Description	Creates a ControlImplementationResponsibility entry under the Export of a by-component within an implemented requirement.
+//	@Tags			System Security Plans
+//	@Accept			json
+//	@Produce		json
+//	@Param			id				path		string													true	"SSP ID"
+//	@Param			reqId			path		string													true	"Requirement ID"
+//	@Param			byComponentId	path		string													true	"By-Component ID"
+//	@Param			responsibility	body		oscalTypes_1_1_3.ControlImplementationResponsibility	true	"Responsibility data"
+//	@Success		201				{object}	handler.GenericDataResponse[oscalTypes_1_1_3.ControlImplementationResponsibility]
+//	@Failure		400				{object}	api.Error
+//	@Failure		404				{object}	api.Error
+//	@Failure		500				{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/by-components/{byComponentId}/export/responsibilities [post]
+func (h *SystemSecurityPlanHandler) CreateImplementedRequirementByComponentExportResponsibility(ctx echo.Context) error {
+	bc, ok := h.resolveByComponentForRequirement(ctx)
+	if !ok {
+		return nil
+	}
+	return h.createByComponentExportResponsibility(ctx, bc)
+}
+
+// UpdateImplementedRequirementByComponentExportResponsibility godoc
+//
+//	@Summary		Update a responsibility entry on a control-level by-component's export
+//	@Description	Replaces an existing ControlImplementationResponsibility entry under the Export of a by-component within an implemented requirement.
+//	@Tags			System Security Plans
+//	@Accept			json
+//	@Produce		json
+//	@Param			id					path		string													true	"SSP ID"
+//	@Param			reqId				path		string													true	"Requirement ID"
+//	@Param			byComponentId		path		string													true	"By-Component ID"
+//	@Param			responsibilityId	path		string													true	"Responsibility entry ID"
+//	@Param			responsibility		body		oscalTypes_1_1_3.ControlImplementationResponsibility	true	"Responsibility data"
+//	@Success		200					{object}	handler.GenericDataResponse[oscalTypes_1_1_3.ControlImplementationResponsibility]
+//	@Failure		400					{object}	api.Error
+//	@Failure		404					{object}	api.Error
+//	@Failure		500					{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/by-components/{byComponentId}/export/responsibilities/{responsibilityId} [put]
+func (h *SystemSecurityPlanHandler) UpdateImplementedRequirementByComponentExportResponsibility(ctx echo.Context) error {
+	bc, ok := h.resolveByComponentForRequirement(ctx)
+	if !ok {
+		return nil
+	}
+	return h.updateByComponentExportResponsibility(ctx, bc)
+}
+
+// DeleteImplementedRequirementByComponentExportResponsibility godoc
+//
+//	@Summary		Delete a responsibility entry on a control-level by-component's export
+//	@Description	Deletes an existing ControlImplementationResponsibility entry under the Export of a by-component within an implemented requirement.
+//	@Tags			System Security Plans
+//	@Param			id					path	string	true	"SSP ID"
+//	@Param			reqId				path	string	true	"Requirement ID"
+//	@Param			byComponentId		path	string	true	"By-Component ID"
+//	@Param			responsibilityId	path	string	true	"Responsibility entry ID"
+//	@Success		204					"No Content"
+//	@Failure		400					{object}	api.Error
+//	@Failure		404					{object}	api.Error
+//	@Failure		500					{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/by-components/{byComponentId}/export/responsibilities/{responsibilityId} [delete]
+func (h *SystemSecurityPlanHandler) DeleteImplementedRequirementByComponentExportResponsibility(ctx echo.Context) error {
+	bc, ok := h.resolveByComponentForRequirement(ctx)
+	if !ok {
+		return nil
+	}
+	return h.deleteByComponentExportResponsibility(ctx, bc)
+}
+
+// CreateImplementedRequirementStatementByComponentExportResponsibility godoc
+//
+//	@Summary		Create a responsibility entry on a statement-level by-component's export
+//	@Description	Creates a ControlImplementationResponsibility entry under the Export of a by-component within a statement.
+//	@Tags			System Security Plans
+//	@Accept			json
+//	@Produce		json
+//	@Param			id				path		string													true	"SSP ID"
+//	@Param			reqId			path		string													true	"Requirement ID"
+//	@Param			stmtId			path		string													true	"Statement ID"
+//	@Param			byComponentId	path		string													true	"By-Component ID"
+//	@Param			responsibility	body		oscalTypes_1_1_3.ControlImplementationResponsibility	true	"Responsibility data"
+//	@Success		201				{object}	handler.GenericDataResponse[oscalTypes_1_1_3.ControlImplementationResponsibility]
+//	@Failure		400				{object}	api.Error
+//	@Failure		404				{object}	api.Error
+//	@Failure		500				{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/statements/{stmtId}/by-components/{byComponentId}/export/responsibilities [post]
+func (h *SystemSecurityPlanHandler) CreateImplementedRequirementStatementByComponentExportResponsibility(ctx echo.Context) error {
+	bc, ok := h.resolveByComponentForStatement(ctx)
+	if !ok {
+		return nil
+	}
+	return h.createByComponentExportResponsibility(ctx, bc)
+}
+
+// UpdateImplementedRequirementStatementByComponentExportResponsibility godoc
+//
+//	@Summary		Update a responsibility entry on a statement-level by-component's export
+//	@Description	Replaces an existing ControlImplementationResponsibility entry under the Export of a by-component within a statement.
+//	@Tags			System Security Plans
+//	@Accept			json
+//	@Produce		json
+//	@Param			id					path		string													true	"SSP ID"
+//	@Param			reqId				path		string													true	"Requirement ID"
+//	@Param			stmtId				path		string													true	"Statement ID"
+//	@Param			byComponentId		path		string													true	"By-Component ID"
+//	@Param			responsibilityId	path		string													true	"Responsibility entry ID"
+//	@Param			responsibility		body		oscalTypes_1_1_3.ControlImplementationResponsibility	true	"Responsibility data"
+//	@Success		200					{object}	handler.GenericDataResponse[oscalTypes_1_1_3.ControlImplementationResponsibility]
+//	@Failure		400					{object}	api.Error
+//	@Failure		404					{object}	api.Error
+//	@Failure		500					{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/statements/{stmtId}/by-components/{byComponentId}/export/responsibilities/{responsibilityId} [put]
+func (h *SystemSecurityPlanHandler) UpdateImplementedRequirementStatementByComponentExportResponsibility(ctx echo.Context) error {
+	bc, ok := h.resolveByComponentForStatement(ctx)
+	if !ok {
+		return nil
+	}
+	return h.updateByComponentExportResponsibility(ctx, bc)
+}
+
+// DeleteImplementedRequirementStatementByComponentExportResponsibility godoc
+//
+//	@Summary		Delete a responsibility entry on a statement-level by-component's export
+//	@Description	Deletes an existing ControlImplementationResponsibility entry under the Export of a by-component within a statement.
+//	@Tags			System Security Plans
+//	@Param			id					path	string	true	"SSP ID"
+//	@Param			reqId				path	string	true	"Requirement ID"
+//	@Param			stmtId				path	string	true	"Statement ID"
+//	@Param			byComponentId		path	string	true	"By-Component ID"
+//	@Param			responsibilityId	path	string	true	"Responsibility entry ID"
+//	@Success		204					"No Content"
+//	@Failure		400					{object}	api.Error
+//	@Failure		404					{object}	api.Error
+//	@Failure		500					{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/statements/{stmtId}/by-components/{byComponentId}/export/responsibilities/{responsibilityId} [delete]
+func (h *SystemSecurityPlanHandler) DeleteImplementedRequirementStatementByComponentExportResponsibility(ctx echo.Context) error {
+	bc, ok := h.resolveByComponentForStatement(ctx)
+	if !ok {
+		return nil
+	}
+	return h.deleteByComponentExportResponsibility(ctx, bc)
 }
 
 // extractControlIDsFromProfile resolves a profile and extracts all control IDs
