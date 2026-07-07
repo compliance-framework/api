@@ -1,0 +1,12 @@
+lisa-addressed:
+Review pass 1 (self-review threads by gusfcarvalho) — all 5 addressed in commit a1250e0. Build+vet+gofmt+unit+integration (handler/oscal/relational) all green; swagger regenerated.
+
+1. [Medium] lineage.go sub-controls counted-but-unreachable (thread ...31Fu): loadCatalogs now seeds catalogAllControls with only node-rendering controls (top-level + group-held); control-parented sub-controls (enhancements, ParentType=controls) are registered but EXCLUDED from the rollup seeds, so a catalog's compliance.totalControls reconciles with the sum of its visible children. Chose the "exclude" option (not "render enhancements") — matches existing TestFlatControlsWithSubControls intent + lean design. Local var renamed allControls->rollupControls; misleading "reached via its parent" comment rewritten; field comment added. TestFlatControlsWithSubControls extended: catalog root totalControls==2 not 4.
+
+2. [Medium] lineage.go global cross-SSP breakdown perf + blind guard (thread ...31Oc): added assessCache map[assessKey]sspAssessment memo (key = ControlRef+sspID; membership is a deterministic fn of sspID within a build, so sound) wrapping assessSSP — collapses the per-sibling-node recompute of closureStreamsForSSP. Added TestRootsWithSSPBreakdown to lineage_perf_integration_test.go (150 controls x 8 SSPs, each profile resolves every control) so sspBreakdownForSet actually runs under the <5s guard; asserts SSPBreakdown.TotalSSPs and totalControls==cells.
+
+3. [Low] lineage.go totalControls dual meaning (thread ...31V4): documented (NOT a new field — a totalCells field would break lineage_link_compliance's "2 cells" assertion, so the cells meaning is intentional). Godoc on LineageCompliance + swagger @Description on /lineage/roots explain that global-with-SSPs totalControls counts (control x SSP) cells.
+
+4. [Low] control_links.go graph rebuilt per source in fanOutCatalogLinkTx (thread ...31a6): added ControlLinkGraph.AddEdge; build NewControlLinkGraph(edges) ONCE before the loop and AddEdge each accepted edge. WouldCreateCycle only reads forward, so the accumulated-edge cycle guard is identical; O(sources x edges) -> O(sources + edges).
+
+5. [Low/nit] catalogs.go SetActive returned empty body (thread ...31eS): reload now mirrors the canonical full-catalog preload (Groups/Controls/BackMatter + nested) so MarshalOscal emits a complete catalog like Update/Get.
