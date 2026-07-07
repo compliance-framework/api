@@ -204,12 +204,20 @@ func (w *RiskEvidenceWorker) resolveSSPsViaFilters(ctx context.Context, evidence
 		Select("DISTINCT ssp.id AS system_security_plan_id, fc.control_catalog_id, fc.control_id").
 		// fc.control_catalog_id and pc.control_catalog_id are both uuid (filter_controls aligned
 		// by the type migration in MigrateUpWithConfig), so they compare directly.
+		// Direct (uncast) equality: uuid=uuid on Postgres, text=text on the SQLite test
+		// DB. CAST(... AS uuid) would coerce SQLite text uuids to 0 and cross-join.
+		Joins("JOIN filters f ON f.id = fc.filter_id").
 		Joins("JOIN profile_controls pc ON pc.control_catalog_id = fc.control_catalog_id AND UPPER(pc.control_id) = UPPER(fc.control_id)").
 		Joins("JOIN ssp_profiles sp ON CAST(sp.profile_id AS uuid) = CAST(pc.profile_id AS uuid)").
 		Joins("JOIN system_security_plans ssp ON CAST(ssp.id AS uuid) = CAST(sp.system_security_plan_id AS uuid)").
 		Joins("JOIN control_implementations ci ON CAST(ci.system_security_plan_id AS uuid) = CAST(ssp.id AS uuid)").
 		Joins("JOIN implemented_requirements ir ON CAST(ir.control_implementation_id AS uuid) = CAST(ci.id AS uuid) AND UPPER(ir.control_id) = UPPER(fc.control_id)").
 		Where("fc.filter_id IN ?", matchingFilterIDs).
+		// Honour the filter's own scope: a global filter (null ssp_id) may resolve to any
+		// SSP whose profile carries the control, but an SSP-scoped filter only ever
+		// resolves to its own plan — otherwise a filter for one SSP would spawn risks in
+		// another SSP that merely shares the control id in its profile.
+		Where("f.ssp_id IS NULL OR f.ssp_id = ssp.id").
 		Scan(&rows).Error; err != nil {
 		return nil, fmt.Errorf("failed to query SSPs via filter controls: %w", err)
 	}

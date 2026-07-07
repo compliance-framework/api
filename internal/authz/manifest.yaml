@@ -204,6 +204,16 @@ resources:
     actions: [read, create, update, delete]
     attributes:
       parent_id: uuid
+  # Typed edges between controls (Policies & Procedures + Compliance Lineage).
+  control-link:
+    actions: [read, create, delete]
+    attributes:
+      props: set<string>
+  # Read-only lineage rollups walking Standard -> Policy -> Controls -> Evidence.
+  lineage:
+    actions: [read]
+    attributes:
+      props: set<string>
 
   # ── Archetype F: platform / admin ──
   # The Phase-1 `admin` umbrella is retained as the resource the admin enforcement gates on
@@ -292,6 +302,8 @@ roles:
     step-execution: [read, create, update, delete]
     role-assignment: [read, create, update, delete]
     control-relationship: [read, create, update, delete]
+    control-link: [read, create, delete]
+    lineage: [read]
 
   # Service accounts: ingest telemetry and register, and reconcile their own plugin templates
   # (the /agent/{risk,subject}-templates batch upsert — plugin v2). The batch routes enforce the

@@ -82,6 +82,17 @@ func RegisterHandlers(server *api.Server, logger *zap.SugaredLogger, db *gorm.DB
 	filterGroup.Use(middleware.JWTMiddleware(config.JWTPublicKey))
 	filterHandler.Register(filterGroup, pep.For(authz.ResourceFilter))
 
+	// Policies & Procedures + Compliance Lineage.
+	controlLinkHandler := NewControlLinkHandler(logger, db)
+	controlLinkGroup := server.API().Group("/control-links")
+	controlLinkGroup.Use(middleware.JWTMiddleware(config.JWTPublicKey))
+	controlLinkHandler.Register(controlLinkGroup, pep.For(authz.ResourceControlLink))
+
+	lineageHandler := NewLineageHandler(logger, db)
+	lineageGroup := server.API().Group("/lineage")
+	lineageGroup.Use(middleware.JWTMiddleware(config.JWTPublicKey))
+	lineageHandler.Register(lineageGroup, pep.For(authz.ResourceLineage))
+
 	heartbeatHandler := NewHeartbeatHandler(logger, db)
 	heartbeatGuard := pep.For(authz.ResourceHeartbeat)
 	agentIngestMiddleware := middleware.AgentJWTOrPublicMiddleware(db, config.JWTPublicKey, !config.StrictDisablePublicAgentEndpoints)

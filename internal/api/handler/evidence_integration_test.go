@@ -92,6 +92,89 @@ func (suite *EvidenceApiIntegrationSuite) TestForControlWithScopedOutFiltersKeep
 	suite.Empty(data)
 }
 
+// The per-control evidence badge (compliance-by-control) must count only global +
+// same-SSP filters; a filter scoped to another plan is excluded. Without sspId it
+// counts every SSP's filters — which is the bug the UI badge exhibited.
+func (suite *EvidenceApiIntegrationSuite) TestComplianceByControlScopesToSSP() {
+	suite.Require().NoError(suite.Migrator.Refresh())
+	now := time.Now().Add(-time.Hour)
+
+	sspA := uuid.New()
+	sspB := uuid.New()
+	suite.Require().NoError(suite.DB.Create(&relational.SystemSecurityPlan{UUIDModel: relational.UUIDModel{ID: &sspA}}).Error)
+	suite.Require().NoError(suite.DB.Create(&relational.SystemSecurityPlan{UUIDModel: relational.UUIDModel{ID: &sspB}}).Error)
+
+	catalog := relational.Catalog{}
+	suite.Require().NoError(suite.DB.Create(&catalog).Error)
+
+	mkFilter := func(name, label string, sspID *uuid.UUID) relational.Filter {
+		return relational.Filter{
+			Name:  name,
+			SSPID: sspID,
+			Filter: datatypes.NewJSONType(labelfilter.Filter{
+				Scope: &labelfilter.Scope{Condition: &labelfilter.Condition{Label: label, Operator: "=", Value: "1"}},
+			}),
+		}
+	}
+	globalF := mkFilter("global", "g", nil)
+	aF := mkFilter("plan-a", "a", &sspA)
+	bF := mkFilter("plan-b", "b", &sspB)
+	suite.Require().NoError(suite.DB.Create(&globalF).Error)
+	suite.Require().NoError(suite.DB.Create(&aF).Error)
+	suite.Require().NoError(suite.DB.Create(&bF).Error)
+
+	control := relational.Control{CatalogID: *catalog.ID, ID: "AC-1", Title: "Access Control 1"}
+	control.Filters = []relational.Filter{globalF, aF, bF}
+	suite.Require().NoError(suite.DB.Create(&control).Error)
+
+	mkEvidence := func(label, state string) relational.Evidence {
+		return relational.Evidence{
+			UUID:   uuid.New(),
+			Title:  label,
+			Start:  now,
+			End:    now.Add(time.Minute),
+			Status: datatypes.NewJSONType(oscalTypes_1_1_3.ObjectiveStatus{State: state}),
+			Labels: []relational.Labels{{Name: label, Value: "1"}},
+		}
+	}
+	evidence := []relational.Evidence{
+		mkEvidence("g", "satisfied"),     // matches the global filter
+		mkEvidence("a", "satisfied"),     // matches plan A's filter
+		mkEvidence("b", "not-satisfied"), // matches plan B's filter
+	}
+	suite.Require().NoError(suite.DB.Create(&evidence).Error)
+
+	server := suite.setupServer()
+	countsFor := func(query string) map[string]int64 {
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/evidence/compliance-by-control/%s%s", control.ID, query), nil)
+		server.E().ServeHTTP(rec, req)
+		suite.Require().Equal(http.StatusOK, rec.Code, rec.Body.String())
+		var response struct {
+			Data []struct {
+				Count  int64  `json:"count"`
+				Status string `json:"status"`
+			} `json:"data"`
+		}
+		suite.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &response))
+		out := map[string]int64{}
+		for _, s := range response.Data {
+			out[s.Status] = s.Count
+		}
+		return out
+	}
+
+	// Scoped to plan A: global + A's evidence count; plan B's not-satisfied is excluded.
+	scoped := countsFor("?sspId=" + sspA.String())
+	suite.Equal(int64(2), scoped["satisfied"], "global + plan A")
+	suite.Equal(int64(0), scoped["not-satisfied"], "plan B's filter must be scoped out")
+
+	// No sspId: every plan's filter is counted — the leak the UI badge must avoid.
+	unscoped := countsFor("")
+	suite.Equal(int64(2), unscoped["satisfied"])
+	suite.Equal(int64(1), unscoped["not-satisfied"])
+}
+
 func (suite *EvidenceApiIntegrationSuite) TestCreate() {
 	err := suite.Migrator.Refresh()
 	suite.Require().NoError(err)
