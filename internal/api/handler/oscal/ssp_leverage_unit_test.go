@@ -186,6 +186,35 @@ func TestResolveUpstreamResponsibilitiesUnknownProvidedReturnsEmpty(t *testing.T
 	require.Empty(t, got)
 }
 
+// TestBulkResolveUpstreamResponsibilitiesGroupsByProvidedUUID: resolving several
+// provided-uuids at once (mixing a real one, one with no responsibilities, and one
+// that doesn't exist at all) returns a correctly grouped map in two queries total —
+// the batching behavior a per-item loop would defeat.
+func TestBulkResolveUpstreamResponsibilitiesGroupsByProvidedUUID(t *testing.T) {
+	db := newSSPLeverageTestDB(t)
+
+	export := relational.Export{}
+	require.NoError(t, db.Create(&export).Error)
+
+	providedWithResp := relational.ProvidedControlImplementation{ExportId: *export.ID, Description: "has responsibilities"}
+	require.NoError(t, db.Create(&providedWithResp).Error)
+	respA := relational.ControlImplementationResponsibility{ExportId: *export.ID, ProvidedUuid: *providedWithResp.ID, Description: "resp a"}
+	require.NoError(t, db.Create(&respA).Error)
+
+	providedNoResp := relational.ProvidedControlImplementation{ExportId: *export.ID, Description: "no responsibilities"}
+	require.NoError(t, db.Create(&providedNoResp).Error)
+
+	unknownProvided := uuid.New()
+
+	got, err := bulkResolveUpstreamResponsibilities(db, []uuid.UUID{*providedWithResp.ID, *providedNoResp.ID, unknownProvided})
+	require.NoError(t, err)
+	require.Len(t, got, 3)
+	require.Len(t, got[*providedWithResp.ID], 1)
+	require.Equal(t, *respA.ID, got[*providedWithResp.ID][0].ResponsibilityUUID)
+	require.Empty(t, got[*providedNoResp.ID])
+	require.Empty(t, got[unknownProvided])
+}
+
 // TestDeriveSatisfaction: full iff every upstream responsibility has a matching
 // downstream satisfied uuid — vacuously full when there are no upstream responsibilities
 // at all, partial when some (but not all) are covered, and the outstanding list is
@@ -382,7 +411,8 @@ func TestSubscribeForbiddenWhenDownstreamUpdateDenied(t *testing.T) {
 }
 
 // TestSubscribeUnknownResponsibilityUUIDRejected: satisfying a responsibility uuid that
-// isn't part of the item's provided-uuid rolls back the whole transaction.
+// isn't part of the item's provided-uuid is rejected as a client error (400) before the
+// write transaction ever opens — not a 500 from a mid-transaction rollback.
 func TestSubscribeUnknownResponsibilityUUIDRejected(t *testing.T) {
 	db := newSSPLeverageTestDB(t)
 	fx := newLeverageFixture(t, db)
@@ -392,13 +422,75 @@ func TestSubscribeUnknownResponsibilityUUIDRejected(t *testing.T) {
 	body := subscribeBody(fx.downstreamSSPID, fx.itemID, uuid.New())
 	ctx, _, rec := newSubscribeRequestContext(fx.offeringID, body)
 	require.NoError(t, h.Subscribe(ctx))
-	require.Equal(t, http.StatusInternalServerError, rec.Code)
+	require.Equal(t, http.StatusBadRequest, rec.Code)
 
 	var count int64
 	require.NoError(t, db.Model(&relational.SSPLeverageLink{}).Count(&count).Error)
 	require.Equal(t, int64(0), count)
 	require.NoError(t, db.Model(&relational.LeveragedAuthorization{}).Count(&count).Error)
-	require.Equal(t, int64(0), count, "the shared leveraged authorization must roll back too")
+	require.Equal(t, int64(0), count, "nothing should be written when validation rejects the request")
+}
+
+// TestSubscribeDuplicateProvidedUUIDWithinRequestRejected: two items in the same request
+// referencing the same provided-uuid is a 400, not a 409 or a constraint violation —
+// the existing-link pre-check only compares against already-committed rows and would
+// otherwise let this slip through to the transaction.
+func TestSubscribeDuplicateProvidedUUIDWithinRequestRejected(t *testing.T) {
+	db := newSSPLeverageTestDB(t)
+	fx := newLeverageFixture(t, db)
+	pdp := &stubPDP{allow: true}
+	h := NewSSPLeverageHandler(zap.NewNop().Sugar(), db, pdp, authz.FailClosed)
+
+	body := fmt.Sprintf(
+		`{"downstreamSspId":%q,"leveragedAuthorization":{"title":"Trust","partyUuid":%q},"items":[{"itemId":%q,"satisfiedResponsibilityUuids":[]},{"itemId":%q,"satisfiedResponsibilityUuids":[]}]}`,
+		fx.downstreamSSPID.String(), uuid.New().String(), fx.itemID.String(), fx.itemID.String(),
+	)
+	ctx, _, rec := newSubscribeRequestContext(fx.offeringID, body)
+	require.NoError(t, h.Subscribe(ctx))
+	require.Equal(t, http.StatusBadRequest, rec.Code)
+
+	var count int64
+	require.NoError(t, db.Model(&relational.SSPLeverageLink{}).Count(&count).Error)
+	require.Equal(t, int64(0), count)
+}
+
+// TestSubscribeRejectsMissingSystemImplementation: a downstream SSP row without a
+// SystemImplementation child (e.g. created outside the normal OSCAL create/import
+// cascade) is rejected with 422 instead of panicking on a nil ID dereference.
+func TestSubscribeRejectsMissingSystemImplementation(t *testing.T) {
+	db := newSSPLeverageTestDB(t)
+	fx := newLeverageFixture(t, db)
+	pdp := &stubPDP{allow: true}
+	h := NewSSPLeverageHandler(zap.NewNop().Sugar(), db, pdp, authz.FailClosed)
+
+	bareSSP := relational.SystemSecurityPlan{}
+	require.NoError(t, db.Create(&bareSSP).Error)
+	require.NoError(t, db.Create(&relational.ControlImplementation{SystemSecurityPlanId: *bareSSP.ID}).Error)
+	// Deliberately no SystemImplementation row for bareSSP.
+
+	body := subscribeBody(*bareSSP.ID, fx.itemID, fx.respAID)
+	ctx, _, rec := newSubscribeRequestContext(fx.offeringID, body)
+	require.NoError(t, h.Subscribe(ctx))
+	require.Equal(t, http.StatusUnprocessableEntity, rec.Code)
+}
+
+// TestSubscribeRejectsMissingControlImplementation: same as above, for the symmetric
+// missing-ControlImplementation case.
+func TestSubscribeRejectsMissingControlImplementation(t *testing.T) {
+	db := newSSPLeverageTestDB(t)
+	fx := newLeverageFixture(t, db)
+	pdp := &stubPDP{allow: true}
+	h := NewSSPLeverageHandler(zap.NewNop().Sugar(), db, pdp, authz.FailClosed)
+
+	bareSSP := relational.SystemSecurityPlan{}
+	require.NoError(t, db.Create(&bareSSP).Error)
+	require.NoError(t, db.Create(&relational.SystemImplementation{SystemSecurityPlanId: *bareSSP.ID}).Error)
+	// Deliberately no ControlImplementation row for bareSSP.
+
+	body := subscribeBody(*bareSSP.ID, fx.itemID, fx.respAID)
+	ctx, _, rec := newSubscribeRequestContext(fx.offeringID, body)
+	require.NoError(t, h.Subscribe(ctx))
+	require.Equal(t, http.StatusUnprocessableEntity, rec.Code)
 }
 
 // TestLeveragedControlsProjectionShowsPartialAndOutstanding: after a partial subscribe,

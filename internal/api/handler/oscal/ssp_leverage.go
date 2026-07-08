@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/labstack/echo/v4"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
@@ -24,6 +25,21 @@ import (
 // constant for this — it only appears in JSON test fixtures — so it's declared here.
 const thisSystemComponentType = "this-system"
 
+// errDuplicateLeverageLink signals a UNIQUE(downstream_ssp_id, provided_uuid) violation
+// caught inside the subscribe transaction — a concurrent request racing the same insert
+// past the pre-check earlier in Subscribe. Mapped to 409, same as the pre-check's own
+// (non-racy) duplicate detection.
+var errDuplicateLeverageLink = errors.New("already subscribed to this provided-uuid")
+
+// isUniqueViolation reports whether err is a Postgres unique-constraint violation. GORM's
+// ErrDuplicatedKey translation is unreliable here (same issue noted in
+// internal/api/handler/groups.go's isUniqueViolation), so the driver code is inspected
+// directly.
+func isUniqueViolation(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == "23505"
+}
+
 // upstreamResponsibility is the minimal shape both the catalog exposure (BCH-1338 task
 // 004) and the subscribe handler (task 005) need: enough to let a downstream subscriber
 // pick specific responsibility UUIDs to satisfy, and to compute full/partial coverage.
@@ -34,37 +50,80 @@ type upstreamResponsibility struct {
 
 // resolveUpstreamResponsibilities finds every ControlImplementationResponsibility that
 // responsibility-maps to the ProvidedControlImplementation identified by providedUUID.
-// The two are siblings under Export with no direct FK between them — only the shared
-// OSCAL-level provided-uuid value — so this is a two-step lookup: find the provided
-// item's ExportId, then find responsibilities in that same Export referencing
-// providedUUID (scoped by export_id, not providedUUID alone, since provided-uuid values
-// are only unique within a single upstream's Export). Returns an empty slice, not an
-// error, if the provided item itself no longer exists — treated as "no responsibilities"
-// rather than a failure, since an offering item's provided_uuid could in principle
-// outlive the upstream row it once pointed at.
+// A thin single-item wrapper over bulkResolveUpstreamResponsibilities — see that function
+// for the lookup strategy.
 func resolveUpstreamResponsibilities(db *gorm.DB, providedUUID uuid.UUID) ([]upstreamResponsibility, error) {
-	var provided relational.ProvidedControlImplementation
-	if err := db.First(&provided, "id = ?", providedUUID).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return []upstreamResponsibility{}, nil
-		}
+	byProvided, err := bulkResolveUpstreamResponsibilities(db, []uuid.UUID{providedUUID})
+	if err != nil {
 		return nil, err
+	}
+	return byProvided[providedUUID], nil
+}
+
+// bulkResolveUpstreamResponsibilities is the batched form of resolveUpstreamResponsibilities:
+// two queries total regardless of how many providedUUIDs are requested, rather than two
+// queries per item (the catalog list and the leveraged-controls projection each resolve
+// responsibilities for many items/links in one request). The two-step lookup is unavoidable
+// because ControlImplementationResponsibility and ProvidedControlImplementation are siblings
+// under Export with no direct FK between them — only the shared OSCAL-level provided-uuid
+// value — so responsibilities are scoped by (export_id, provided_uuid) pairs, not
+// provided_uuid alone, since provided-uuid values are only unique within a single upstream's
+// Export. providedUUIDs with no matching ProvidedControlImplementation row (e.g. the upstream
+// row was since deleted) map to an empty slice, not an error or a missing key.
+func bulkResolveUpstreamResponsibilities(db *gorm.DB, providedUUIDs []uuid.UUID) (map[uuid.UUID][]upstreamResponsibility, error) {
+	result := make(map[uuid.UUID][]upstreamResponsibility, len(providedUUIDs))
+	for _, id := range providedUUIDs {
+		result[id] = []upstreamResponsibility{}
+	}
+	if len(providedUUIDs) == 0 {
+		return result, nil
+	}
+
+	var provided []relational.ProvidedControlImplementation
+	if err := db.Where("id IN ?", providedUUIDs).Find(&provided).Error; err != nil {
+		return nil, err
+	}
+	if len(provided) == 0 {
+		return result, nil
+	}
+	exportIDByProvided := make(map[uuid.UUID]uuid.UUID, len(provided))
+	for _, p := range provided {
+		exportIDByProvided[*p.ID] = p.ExportId
 	}
 
 	var responsibilities []relational.ControlImplementationResponsibility
-	if err := db.Where("export_id = ? AND provided_uuid = ?", provided.ExportId, providedUUID).
-		Find(&responsibilities).Error; err != nil {
+	if err := db.Where("provided_uuid IN ?", providedUUIDs).Find(&responsibilities).Error; err != nil {
 		return nil, err
 	}
-
-	result := make([]upstreamResponsibility, 0, len(responsibilities))
 	for _, r := range responsibilities {
-		result = append(result, upstreamResponsibility{
+		// Scope by export_id too: provided-uuid values are only unique within a single
+		// upstream's Export, so a bulk provided_uuid-only match could in principle pick
+		// up a same-valued responsibility from an unrelated Export.
+		if exportIDByProvided[r.ProvidedUuid] != r.ExportId {
+			continue
+		}
+		result[r.ProvidedUuid] = append(result[r.ProvidedUuid], upstreamResponsibility{
 			ResponsibilityUUID: *r.ID,
 			Description:        r.Description,
 		})
 	}
 	return result, nil
+}
+
+// uniqueUUIDs extracts the deduplicated set of UUIDs from items, preserving first-seen
+// order — used to build IN-clause batches from a list of rows that may repeat the same
+// referenced id (e.g. several leverage links pointing at the same offering).
+func uniqueUUIDs[T any](items []T, extract func(T) uuid.UUID) []uuid.UUID {
+	seen := make(map[uuid.UUID]bool, len(items))
+	result := make([]uuid.UUID, 0, len(items))
+	for _, item := range items {
+		id := extract(item)
+		if !seen[id] {
+			seen[id] = true
+			result = append(result, id)
+		}
+	}
+	return result
 }
 
 // deriveSatisfaction is the single definition of "full iff every upstream
@@ -344,10 +403,20 @@ func (h *SSPLeverageHandler) Subscribe(ctx echo.Context) error {
 	for _, item := range offering.Items {
 		itemsByID[*item.ID] = item
 	}
+	seenProvidedUUIDs := make(map[uuid.UUID]bool, len(req.Items))
 	for _, reqItem := range req.Items {
-		if _, ok := itemsByID[uuid.MustParse(reqItem.ItemID)]; !ok {
+		item, ok := itemsByID[uuid.MustParse(reqItem.ItemID)]
+		if !ok {
 			return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("unknown offering item id %q", reqItem.ItemID)))
 		}
+		// A request can't subscribe to the same provided-uuid twice in one call: besides
+		// being nonsensical, it would otherwise slip past the existing-link pre-check
+		// below (which only compares against already-committed rows) and hit the
+		// UNIQUE(downstream_ssp_id, provided_uuid) constraint mid-transaction.
+		if seenProvidedUUIDs[item.ProvidedUUID] {
+			return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("duplicate provided-uuid %q in request items", item.ProvidedUUID)))
+		}
+		seenProvidedUUIDs[item.ProvidedUUID] = true
 	}
 
 	var downstream relational.SystemSecurityPlan
@@ -361,10 +430,20 @@ func (h *SSPLeverageHandler) Subscribe(ctx echo.Context) error {
 		h.sugar.Errorf("Failed to load downstream SSP: %v", err)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
+	// SystemImplementation/ControlImplementation are has-one associations without their
+	// own not-null guarantee at this layer: a SystemSecurityPlan row created outside the
+	// normal OSCAL create/import cascade (or missing its child row for any other reason)
+	// preloads them as zero-value structs with a nil ID, which would otherwise panic when
+	// dereferenced below.
+	if downstream.SystemImplementation.ID == nil || downstream.ControlImplementation.ID == nil {
+		return ctx.JSON(http.StatusUnprocessableEntity,
+			api.NewError(fmt.Errorf("downstream SSP is missing its system-implementation or control-implementation")))
+	}
 
 	// Pre-check (downstream_ssp_id, provided_uuid) uniqueness before opening the write
-	// transaction, so a duplicate subscribe gets a clean 409 rather than a raw
-	// unique-constraint error whose shape differs between Postgres and sqlite.
+	// transaction, so the common case (a genuine duplicate subscribe) gets a clean 409
+	// without the cost of a transaction. This can't catch a concurrent request racing the
+	// same insert, though — that's caught inside the transaction below.
 	for _, reqItem := range req.Items {
 		item := itemsByID[uuid.MustParse(reqItem.ItemID)]
 		err := h.db.Where("downstream_ssp_id = ? AND provided_uuid = ?", downstreamSSPID, item.ProvidedUUID).
@@ -375,6 +454,33 @@ func (h *SSPLeverageHandler) Subscribe(ctx echo.Context) error {
 		if !errors.Is(err, gorm.ErrRecordNotFound) {
 			h.sugar.Errorf("Failed to check existing leverage link: %v", err)
 			return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		}
+	}
+
+	// Resolve and validate every item's satisfied-responsibility selection before opening
+	// the write transaction, so an unknown responsibility uuid — a client input error —
+	// is a clean 400 rather than a mid-transaction rollback surfaced as a 500. The
+	// resolved sets are reused inside the transaction below instead of re-querying.
+	providedUUIDs := make([]uuid.UUID, 0, len(req.Items))
+	for _, reqItem := range req.Items {
+		providedUUIDs = append(providedUUIDs, itemsByID[uuid.MustParse(reqItem.ItemID)].ProvidedUUID)
+	}
+	fullSetByProvided, err := bulkResolveUpstreamResponsibilities(h.db, providedUUIDs)
+	if err != nil {
+		h.sugar.Errorf("Failed to resolve upstream responsibilities: %v", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+	for _, reqItem := range req.Items {
+		item := itemsByID[uuid.MustParse(reqItem.ItemID)]
+		fullByUUID := make(map[uuid.UUID]bool, len(fullSetByProvided[item.ProvidedUUID]))
+		for _, r := range fullSetByProvided[item.ProvidedUUID] {
+			fullByUUID[r.ResponsibilityUUID] = true
+		}
+		for _, respIDStr := range reqItem.SatisfiedResponsibilityUUIDs {
+			if !fullByUUID[uuid.MustParse(respIDStr)] {
+				return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf(
+					"responsibility uuid %q is not a valid responsibility for provided-uuid %q", respIDStr, item.ProvidedUUID)))
+			}
 		}
 	}
 
@@ -439,10 +545,10 @@ func (h *SSPLeverageHandler) Subscribe(ctx echo.Context) error {
 				return err
 			}
 
-			fullSet, err := resolveUpstreamResponsibilities(tx, item.ProvidedUUID)
-			if err != nil {
-				return err
-			}
+			// Reuse the set resolved and validated before the transaction opened — every
+			// uuid in reqItem.SatisfiedResponsibilityUUIDs is already confirmed to be a
+			// member of it, so no further validation or DB lookup is needed here.
+			fullSet := fullSetByProvided[item.ProvidedUUID]
 			fullByUUID := make(map[uuid.UUID]upstreamResponsibility, len(fullSet))
 			for _, r := range fullSet {
 				fullByUUID[r.ResponsibilityUUID] = r
@@ -451,10 +557,6 @@ func (h *SSPLeverageHandler) Subscribe(ctx echo.Context) error {
 			satisfiedSet := make(map[uuid.UUID]bool, len(reqItem.SatisfiedResponsibilityUUIDs))
 			for _, respIDStr := range reqItem.SatisfiedResponsibilityUUIDs {
 				respID := uuid.MustParse(respIDStr)
-				resp, ok := fullByUUID[respID]
-				if !ok {
-					return fmt.Errorf("responsibility uuid %q is not a valid responsibility for provided-uuid %q", respIDStr, item.ProvidedUUID)
-				}
 				if satisfiedSet[respID] {
 					continue
 				}
@@ -462,7 +564,7 @@ func (h *SSPLeverageHandler) Subscribe(ctx echo.Context) error {
 				satisfied := relational.SatisfiedControlImplementationResponsibility{
 					ByComponentId:      *byComponent.ID,
 					ResponsibilityUuid: respID,
-					Description:        resp.Description,
+					Description:        fullByUUID[respID].Description,
 				}
 				if err := tx.Create(&satisfied).Error; err != nil {
 					return err
@@ -487,12 +589,18 @@ func (h *SSPLeverageHandler) Subscribe(ctx echo.Context) error {
 				AttestedByID:      attestedBy,
 			}
 			if err := tx.Create(&link).Error; err != nil {
+				if isUniqueViolation(err) {
+					return errDuplicateLeverageLink
+				}
 				return err
 			}
 			links = append(links, link)
 		}
 		return nil
 	}); err != nil {
+		if errors.Is(err, errDuplicateLeverageLink) {
+			return ctx.JSON(http.StatusConflict, api.NewError(err))
+		}
 		h.sugar.Errorf("Failed to subscribe to export offering: %v", err)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
@@ -555,37 +663,61 @@ func (h *SSPLeverageHandler) LeveragedControls(ctx echo.Context) error {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
+	if len(links) == 0 {
+		return ctx.JSON(http.StatusOK, handler.GenericDataListResponse[leveragedControlResponse]{Data: []leveragedControlResponse{}})
+	}
+
+	// Batch every per-link lookup up front (four queries total, independent of how many
+	// links this SSP has) instead of the four-queries-per-link loop this used to be.
+	offeringIDs := uniqueUUIDs(links, func(l relational.SSPLeverageLink) uuid.UUID { return l.OfferingID })
+	var offerings []relational.SSPExportOffering
+	if err := h.db.Select("id, title").Where("id IN ?", offeringIDs).Find(&offerings).Error; err != nil {
+		h.sugar.Errorf("Failed to load offerings for leverage links: %v", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+	offeringTitleByID := make(map[uuid.UUID]string, len(offerings))
+	for _, o := range offerings {
+		offeringTitleByID[*o.ID] = o.Title
+	}
+
+	inheritedIDs := uniqueUUIDs(links, func(l relational.SSPLeverageLink) uuid.UUID { return l.InheritedUUID })
+	var inheritedRows []relational.InheritedControlImplementation
+	if err := h.db.Where("id IN ?", inheritedIDs).Find(&inheritedRows).Error; err != nil {
+		h.sugar.Errorf("Failed to load inherited control implementations for leverage links: %v", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+	byComponentIDByInherited := make(map[uuid.UUID]uuid.UUID, len(inheritedRows))
+	for _, i := range inheritedRows {
+		byComponentIDByInherited[*i.ID] = i.ByComponentId
+	}
+
+	providedUUIDs := uniqueUUIDs(links, func(l relational.SSPLeverageLink) uuid.UUID { return l.ProvidedUUID })
+	fullSetByProvided, err := bulkResolveUpstreamResponsibilities(h.db, providedUUIDs)
+	if err != nil {
+		h.sugar.Errorf("Failed to resolve upstream responsibilities for leverage links: %v", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	byComponentIDs := uniqueUUIDs(inheritedRows, func(i relational.InheritedControlImplementation) uuid.UUID { return i.ByComponentId })
+	var satisfiedRows []relational.SatisfiedControlImplementationResponsibility
+	if len(byComponentIDs) > 0 {
+		if err := h.db.Where("by_component_id IN ?", byComponentIDs).Find(&satisfiedRows).Error; err != nil {
+			h.sugar.Errorf("Failed to load satisfied responsibilities for leverage links: %v", err)
+			return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		}
+	}
+	satisfiedByComponent := make(map[uuid.UUID]map[uuid.UUID]bool, len(byComponentIDs))
+	for _, s := range satisfiedRows {
+		if satisfiedByComponent[s.ByComponentId] == nil {
+			satisfiedByComponent[s.ByComponentId] = make(map[uuid.UUID]bool)
+		}
+		satisfiedByComponent[s.ByComponentId][s.ResponsibilityUuid] = true
+	}
+
 	result := make([]leveragedControlResponse, 0, len(links))
 	for _, link := range links {
-		var offering relational.SSPExportOffering
-		if err := h.db.Select("id, title").First(&offering, "id = ?", link.OfferingID).Error; err != nil {
-			h.sugar.Errorf("Failed to load offering for leverage link: %v", err)
-			return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
-		}
-
-		var inherited relational.InheritedControlImplementation
-		if err := h.db.First(&inherited, "id = ?", link.InheritedUUID).Error; err != nil {
-			h.sugar.Errorf("Failed to load inherited control implementation for leverage link: %v", err)
-			return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
-		}
-
-		fullSet, err := resolveUpstreamResponsibilities(h.db, link.ProvidedUUID)
-		if err != nil {
-			h.sugar.Errorf("Failed to resolve upstream responsibilities for leverage link: %v", err)
-			return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
-		}
-
-		var satisfiedRows []relational.SatisfiedControlImplementationResponsibility
-		if err := h.db.Where("by_component_id = ?", inherited.ByComponentId).Find(&satisfiedRows).Error; err != nil {
-			h.sugar.Errorf("Failed to load satisfied responsibilities for leverage link: %v", err)
-			return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
-		}
-		satisfiedByUUID := make(map[uuid.UUID]bool, len(satisfiedRows))
-		for _, s := range satisfiedRows {
-			satisfiedByUUID[s.ResponsibilityUuid] = true
-		}
-
-		satisfaction, outstanding := deriveSatisfaction(fullSet, satisfiedByUUID)
+		byComponentID := byComponentIDByInherited[link.InheritedUUID]
+		satisfaction, outstanding := deriveSatisfaction(fullSetByProvided[link.ProvidedUUID], satisfiedByComponent[byComponentID])
 
 		result = append(result, leveragedControlResponse{
 			ControlID:   link.ControlID,
@@ -593,7 +725,7 @@ func (h *SSPLeverageHandler) LeveragedControls(ctx echo.Context) error {
 			InheritedFrom: leveragedControlInheritedFrom{
 				UpstreamSSPID:   link.UpstreamSSPID,
 				OfferingID:      link.OfferingID,
-				OfferingTitle:   offering.Title,
+				OfferingTitle:   offeringTitleByID[link.OfferingID],
 				OfferingVersion: link.OfferingVersion,
 			},
 			Satisfaction:                satisfaction,

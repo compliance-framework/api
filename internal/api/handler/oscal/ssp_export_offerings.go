@@ -670,17 +670,29 @@ type catalogOffering struct {
 }
 
 // withResolvedResponsibilities wraps offerings for the flat catalog response, resolving
-// each item's upstream responsibility set.
+// every item's upstream responsibility set in one batched lookup (two queries total)
+// rather than per-item, since ListAll can return up to maxExportOfferingCatalogLimit
+// offerings each with their own items.
 func (h *SSPExportOfferingHandler) withResolvedResponsibilities(offerings []relational.SSPExportOffering) ([]catalogOffering, error) {
+	var allItems []relational.SSPExportOfferingItem
+	for _, offering := range offerings {
+		allItems = append(allItems, offering.Items...)
+	}
+	providedUUIDs := uniqueUUIDs(allItems, func(item relational.SSPExportOfferingItem) uuid.UUID { return item.ProvidedUUID })
+
+	responsibilitiesByProvided, err := bulkResolveUpstreamResponsibilities(h.db, providedUUIDs)
+	if err != nil {
+		return nil, err
+	}
+
 	result := make([]catalogOffering, 0, len(offerings))
 	for _, offering := range offerings {
 		items := make([]catalogOfferingItem, 0, len(offering.Items))
 		for _, item := range offering.Items {
-			responsibilities, err := resolveUpstreamResponsibilities(h.db, item.ProvidedUUID)
-			if err != nil {
-				return nil, err
-			}
-			items = append(items, catalogOfferingItem{SSPExportOfferingItem: item, Responsibilities: responsibilities})
+			items = append(items, catalogOfferingItem{
+				SSPExportOfferingItem: item,
+				Responsibilities:      responsibilitiesByProvided[item.ProvidedUUID],
+			})
 		}
 		result = append(result, catalogOffering{SSPExportOffering: offering, Items: items})
 	}
