@@ -47,9 +47,16 @@ func RegisterHandlers(server *api.Server, logger *zap.SugaredLogger, db *gorm.DB
 	sspHandler := NewSystemSecurityPlanHandler(logger, db, evidenceSvc, jobEnqueuer)
 	sspHandler.Register(sspGroup, sspGuard)
 
+	offeringGroup := oscalGroup.Group("/ssp-export-offerings")
+	offeringGuard := pep.For(authz.ResourceSSPExportOffering)
+
 	exportOfferingHandler := NewSSPExportOfferingHandler(logger, db)
 	exportOfferingHandler.RegisterNested(sspGroup, sspGuard)
-	exportOfferingHandler.Register(oscalGroup.Group("/ssp-export-offerings"), pep.For(authz.ResourceSSPExportOffering))
+	exportOfferingHandler.Register(offeringGroup, offeringGuard)
+
+	leverageHandler := NewSSPLeverageHandler(logger, db, pep.PDP(), pep.FailMode())
+	leverageHandler.RegisterSubscribe(offeringGroup, offeringGuard)
+	leverageHandler.RegisterProjection(sspGroup, sspGuard)
 
 	if config.AI != nil && config.AI.Enabled {
 		dashboardSuggestionHandler.Register(oscalGroup.Group("/system-security-plans"), jwtMiddleware, dashboardGuard)

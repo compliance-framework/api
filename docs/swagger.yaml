@@ -688,6 +688,15 @@ definitions:
         type: array
       meta: {}
     type: object
+  handler.GenericDataListResponse-oscal_catalogOffering:
+    properties:
+      data:
+        description: Items from the list response
+        items:
+          $ref: '#/definitions/oscal.catalogOffering'
+        type: array
+      meta: {}
+    type: object
   handler.GenericDataListResponse-oscal_controlSuggestionResultResponse:
     properties:
       data:
@@ -712,6 +721,15 @@ definitions:
         description: Items from the list response
         items:
           $ref: '#/definitions/oscal.dashboardSuggestionResponse'
+        type: array
+      meta: {}
+    type: object
+  handler.GenericDataListResponse-oscal_leveragedControlResponse:
+    properties:
+      data:
+        description: Items from the list response
+        items:
+          $ref: '#/definitions/oscal.leveragedControlResponse'
         type: array
       meta: {}
     type: object
@@ -1075,6 +1093,15 @@ definitions:
         type: array
       meta: {}
     type: object
+  handler.GenericDataListResponse-relational_SSPLeverageLink:
+    properties:
+      data:
+        description: Items from the list response
+        items:
+          $ref: '#/definitions/relational.SSPLeverageLink'
+        type: array
+      meta: {}
+    type: object
   handler.GenericDataListResponse-relational_SystemComponentSuggestion:
     properties:
       data:
@@ -1353,6 +1380,13 @@ definitions:
       data:
         allOf:
         - $ref: '#/definitions/oscal.acceptDashboardSuggestionsResponse'
+        description: Wrapped response data
+    type: object
+  handler.GenericDataResponse-oscal_catalogOffering:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/oscal.catalogOffering'
         description: Wrapped response data
     type: object
   handler.GenericDataResponse-oscal_dashboardSuggestionConfigResponse:
@@ -3878,6 +3912,54 @@ definitions:
       profileId:
         type: string
     type: object
+  oscal.catalogOffering:
+    properties:
+      contentHash:
+        type: string
+      createdAt:
+        type: string
+      createdById:
+        type: string
+      description:
+        type: string
+      id:
+        type: string
+      items:
+        items:
+          $ref: '#/definitions/oscal.catalogOfferingItem'
+        type: array
+      publishedAt:
+        type: string
+      sspId:
+        type: string
+      status:
+        $ref: '#/definitions/relational.SSPExportOfferingStatus'
+      title:
+        type: string
+      updatedAt:
+        type: string
+      version:
+        type: integer
+    type: object
+  oscal.catalogOfferingItem:
+    properties:
+      componentUuid:
+        type: string
+      controlId:
+        type: string
+      id:
+        type: string
+      offeringId:
+        type: string
+      providedUuid:
+        type: string
+      responsibilities:
+        items:
+          $ref: '#/definitions/oscal.upstreamResponsibility'
+        type: array
+      statementId:
+        type: string
+    type: object
   oscal.controlSuggestionResultResponse:
     properties:
       controlCatalogId:
@@ -4238,6 +4320,32 @@ definitions:
       value:
         type: string
     type: object
+  oscal.leveragedControlInheritedFrom:
+    properties:
+      offeringId:
+        type: string
+      offeringTitle:
+        type: string
+      offeringVersion:
+        type: integer
+      upstreamSspId:
+        type: string
+    type: object
+  oscal.leveragedControlResponse:
+    properties:
+      controlId:
+        type: string
+      inheritedFrom:
+        $ref: '#/definitions/oscal.leveragedControlInheritedFrom'
+      outstandingResponsibilities:
+        items:
+          $ref: '#/definitions/oscal.upstreamResponsibility'
+        type: array
+      satisfaction:
+        $ref: '#/definitions/relational.SSPLeverageSatisfaction'
+      statementId:
+        type: string
+    type: object
   oscal.profileSummary:
     properties:
       id:
@@ -4268,11 +4376,47 @@ definitions:
       value:
         type: string
     type: object
+  oscal.subscribeItemRequest:
+    properties:
+      itemId:
+        type: string
+      satisfiedResponsibilityUuids:
+        items:
+          type: string
+        type: array
+    type: object
+  oscal.subscribeLeveragedAuthorizationRequest:
+    properties:
+      dateAuthorized:
+        type: string
+      partyUuid:
+        type: string
+      title:
+        type: string
+    type: object
+  oscal.subscribeRequest:
+    properties:
+      downstreamSspId:
+        type: string
+      items:
+        items:
+          $ref: '#/definitions/oscal.subscribeItemRequest'
+        type: array
+      leveragedAuthorization:
+        $ref: '#/definitions/oscal.subscribeLeveragedAuthorizationRequest'
+    type: object
   oscal.suggestionEventActor:
     properties:
       id:
         type: string
       name:
+        type: string
+    type: object
+  oscal.upstreamResponsibility:
+    properties:
+      description:
+        type: string
+      responsibilityUuid:
         type: string
     type: object
   oscalTypes_1_1_3.Action:
@@ -8874,6 +9018,61 @@ definitions:
     - SSPExportOfferingStatusPublished
     - SSPExportOfferingStatusDeprecated
     - SSPExportOfferingStatusRevoked
+  relational.SSPLeverageLink:
+    properties:
+      attestedAt:
+        type: string
+      attestedById:
+        type: string
+      controlId:
+        type: string
+      createdAt:
+        type: string
+      downstreamSspId:
+        type: string
+      id:
+        type: string
+      inheritedUuid:
+        type: string
+      leveragedAuthUuid:
+        type: string
+      offeringId:
+        type: string
+      offeringVersion:
+        type: integer
+      providedUuid:
+        type: string
+      satisfaction:
+        $ref: '#/definitions/relational.SSPLeverageSatisfaction'
+      statementId:
+        type: string
+      status:
+        $ref: '#/definitions/relational.SSPLeverageStatus'
+      updatedAt:
+        type: string
+      upstreamSspId:
+        type: string
+    type: object
+  relational.SSPLeverageSatisfaction:
+    enum:
+    - full
+    - partial
+    type: string
+    x-enum-varnames:
+    - SSPLeverageSatisfactionFull
+    - SSPLeverageSatisfactionPartial
+  relational.SSPLeverageStatus:
+    enum:
+    - active
+    - drifted
+    - revoked
+    - superseded
+    type: string
+    x-enum-varnames:
+    - SSPLeverageStatusActive
+    - SSPLeverageStatusDrifted
+    - SSPLeverageStatusRevoked
+    - SSPLeverageStatusSuperseded
   relational.SatisfiedControlImplementationResponsibility:
     properties:
       by-component-id:
@@ -21714,7 +21913,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/handler.GenericDataListResponse-relational_SSPExportOffering'
+            $ref: '#/definitions/handler.GenericDataListResponse-oscal_catalogOffering'
         "400":
           description: Bad Request
           schema:
@@ -21745,7 +21944,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/handler.GenericDataResponse-relational_SSPExportOffering'
+            $ref: '#/definitions/handler.GenericDataResponse-oscal_catalogOffering'
         "400":
           description: Bad Request
           schema:
@@ -21761,6 +21960,62 @@ paths:
       security:
       - OAuth2Password: []
       summary: Get an export offering
+      tags:
+      - SSP Export Offerings
+  /oscal/ssp-export-offerings/{id}/subscribe:
+    post:
+      consumes:
+      - application/json
+      description: |-
+        Records, on the downstream SSP named in the request body, an OSCAL
+        inherited-control-implementation and (optionally) satisfied-responsibility
+        entries per chosen offering item, plus one leveraged-authorization for the
+        whole request — all in a single atomic write. Never checks ssp:read on the
+        upstream SSP: the trust boundary is that subscribing to a published offering
+        only requires ssp-export-offering:subscribe on the offering and ssp:update on
+        the downstream SSP.
+      parameters:
+      - description: Offering ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Subscribe request
+        in: body
+        name: subscribe
+        required: true
+        schema:
+          $ref: '#/definitions/oscal.subscribeRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-relational_SSPLeverageLink'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Subscribe to a published export offering
       tags:
       - SSP Export Offerings
   /oscal/system-security-plans:
@@ -24959,6 +25214,45 @@ paths:
       summary: Update SSP import-profile
       tags:
       - System Security Plans
+  /oscal/system-security-plans/{id}/leveraged-controls:
+    get:
+      description: |-
+        Read-only view over the downstream SSP's own inherited/satisfied entries
+        joined to ssp_leverage_links + the upstream offering. Per control/statement,
+        returns which offering it was inherited from, whether satisfaction is full
+        or partial (recomputed live from the current satisfied-responsibility rows,
+        not trusted from the link's stored value), and any outstanding
+        responsibilities. Writes nothing; never touches profile_controls/controls.
+      parameters:
+      - description: Downstream SSP ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-oscal_leveragedControlResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Project a downstream SSP's leveraged controls
+      tags:
+      - SSP Export Offerings
   /oscal/system-security-plans/{id}/metadata:
     get:
       description: Retrieves metadata for a given SSP.

@@ -651,6 +651,42 @@ const (
 	maxExportOfferingCatalogLimit     = 1000
 )
 
+// catalogOfferingItem is an SSPExportOfferingItem as seen through the flat, cross-SSP
+// catalog: it adds the upstream's responsibility UUIDs + descriptions for the item's
+// ProvidedUUID (BCH-1338), resolved server-side via resolveUpstreamResponsibilities, so
+// a downstream subscriber has real responsibility UUIDs to select without needing
+// ssp:read on the upstream SSP — this is an internal DB read behind the existing
+// ssp-export-offering:read guard, not a read of the upstream SSP resource. The
+// SSP-nested curation routes (ListForSSP/GetOffering) don't need this: the offering's
+// own curator already has full access to the upstream SSP's data.
+type catalogOfferingItem struct {
+	relational.SSPExportOfferingItem
+	Responsibilities []upstreamResponsibility `json:"responsibilities"`
+}
+
+type catalogOffering struct {
+	relational.SSPExportOffering
+	Items []catalogOfferingItem `json:"items,omitempty"`
+}
+
+// withResolvedResponsibilities wraps offerings for the flat catalog response, resolving
+// each item's upstream responsibility set.
+func (h *SSPExportOfferingHandler) withResolvedResponsibilities(offerings []relational.SSPExportOffering) ([]catalogOffering, error) {
+	result := make([]catalogOffering, 0, len(offerings))
+	for _, offering := range offerings {
+		items := make([]catalogOfferingItem, 0, len(offering.Items))
+		for _, item := range offering.Items {
+			responsibilities, err := resolveUpstreamResponsibilities(h.db, item.ProvidedUUID)
+			if err != nil {
+				return nil, err
+			}
+			items = append(items, catalogOfferingItem{SSPExportOfferingItem: item, Responsibilities: responsibilities})
+		}
+		result = append(result, catalogOffering{SSPExportOffering: offering, Items: items})
+	}
+	return result, nil
+}
+
 // ListAll godoc
 //
 //	@Summary		List export offerings
@@ -659,7 +695,7 @@ const (
 //	@Produce		json
 //	@Param			limit	query		int	false	"Max number of offerings to return (default 100, max 1000)"
 //	@Param			offset	query		int	false	"Number of offerings to skip"
-//	@Success		200		{object}	handler.GenericDataListResponse[relational.SSPExportOffering]
+//	@Success		200		{object}	handler.GenericDataListResponse[catalogOffering]
 //	@Failure		400		{object}	api.Error
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
@@ -695,7 +731,13 @@ func (h *SSPExportOfferingHandler) ListAll(ctx echo.Context) error {
 		h.sugar.Errorf("Failed to list export offerings: %v", err)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
-	return ctx.JSON(http.StatusOK, handler.GenericDataListResponse[relational.SSPExportOffering]{Data: offerings})
+
+	withResponsibilities, err := h.withResolvedResponsibilities(offerings)
+	if err != nil {
+		h.sugar.Errorf("Failed to resolve offering responsibilities: %v", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+	return ctx.JSON(http.StatusOK, handler.GenericDataListResponse[catalogOffering]{Data: withResponsibilities})
 }
 
 // GetByID godoc
@@ -705,7 +747,7 @@ func (h *SSPExportOfferingHandler) ListAll(ctx echo.Context) error {
 //	@Tags			SSP Export Offerings
 //	@Produce		json
 //	@Param			id	path		string	true	"Offering ID"
-//	@Success		200	{object}	handler.GenericDataResponse[relational.SSPExportOffering]
+//	@Success		200	{object}	handler.GenericDataResponse[catalogOffering]
 //	@Failure		400	{object}	api.Error
 //	@Failure		404	{object}	api.Error
 //	@Failure		500	{object}	api.Error
@@ -730,5 +772,10 @@ func (h *SSPExportOfferingHandler) GetByID(ctx echo.Context) error {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
-	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[relational.SSPExportOffering]{Data: offering})
+	withResponsibilities, err := h.withResolvedResponsibilities([]relational.SSPExportOffering{offering})
+	if err != nil {
+		h.sugar.Errorf("Failed to resolve offering responsibilities: %v", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[catalogOffering]{Data: withResponsibilities[0]})
 }
