@@ -80,8 +80,10 @@ resources:
       props: set<string>
   ssp:
     # The tenancy boundary: ssp_id is the scope key for risk, poam_item, filter,
-    # dashboard-suggestion and workflow-instance.
-    actions: [read, create, update, delete]
+    # dashboard-suggestion and workflow-instance. `export` (BCH-1337) gates curating
+    # and publishing an SSP's export offerings — separate from the CRUD verbs so a
+    # contributor's general edit rights don't automatically include export/publish.
+    actions: [read, create, update, delete, export]
     attributes:
       props: set<string>
       status: string
@@ -94,6 +96,14 @@ resources:
           OSCAL responsible-roles the subject holds on THIS SSP (BCH-1319 §7.1). Resource-
           scoped, resolved per request by the OSS PIP; reserved until BCH-1329 formalizes
           the User↔Party crosswalk. Exposed as context.oscal_roles, never a static prop.
+  ssp-export-offering:
+    # BCH-1337 Phase 1: a versioned, publishable subset of an upstream SSP's control
+    # implementations. Deliberately a separate resource rather than inheriting the SSP
+    # root (unlike the nested OSCAL sub-documents noted above) because published offerings
+    # are meant to be independently discoverable/subscribable (Phase 2+) by parties who may
+    # not hold any grant on the upstream ssp resource itself. `subscribe` is declared now for
+    # the Phase 2 downstream-subscribe vocabulary; no route enforces it yet.
+    actions: [read, create, update, delete, subscribe]
   assessment-plan:
     actions: [read, create, update, delete]
     attributes:
@@ -283,7 +293,8 @@ roles:
     catalog: [read, create, update, delete]
     profile: [read, create, update, delete]
     component-definition: [read, create, update, delete]
-    ssp: [read, create, update, delete]
+    ssp: [read, create, update, delete, export]
+    ssp-export-offering: [read, create, update, delete, subscribe]
     assessment-plan: [read, create, update, delete]
     assessment-results: [read, create, update, delete]
     poam_oscal: [read, create, update, delete]

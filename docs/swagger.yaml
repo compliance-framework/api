@@ -1066,6 +1066,15 @@ definitions:
         type: array
       meta: {}
     type: object
+  handler.GenericDataListResponse-relational_SSPExportOffering:
+    properties:
+      data:
+        description: Items from the list response
+        items:
+          $ref: '#/definitions/relational.SSPExportOffering'
+        type: array
+      meta: {}
+    type: object
   handler.GenericDataListResponse-relational_SystemComponentSuggestion:
     properties:
       data:
@@ -1806,6 +1815,20 @@ definitions:
       data:
         allOf:
         - $ref: '#/definitions/relational.SSOGroupMapping'
+        description: Wrapped response data
+    type: object
+  handler.GenericDataResponse-relational_SSPExportOffering:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/relational.SSPExportOffering'
+        description: Wrapped response data
+    type: object
+  handler.GenericDataResponse-relational_SSPExportOfferingItem:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/relational.SSPExportOfferingItem'
         description: Wrapped response data
     type: object
   handler.GenericDataResponse-relational_User:
@@ -3869,6 +3892,24 @@ definitions:
         type: string
       suggestionCount:
         type: integer
+    type: object
+  oscal.createExportOfferingItemRequest:
+    properties:
+      componentUuid:
+        type: string
+      controlId:
+        type: string
+      providedUuid:
+        type: string
+      statementId:
+        type: string
+    type: object
+  oscal.createExportOfferingRequest:
+    properties:
+      description:
+        type: string
+      title:
+        type: string
     type: object
   oscal.dashboardSuggestionConfigResponse:
     properties:
@@ -8777,6 +8818,62 @@ definitions:
       updatedAt:
         type: string
     type: object
+  relational.SSPExportOffering:
+    properties:
+      contentHash:
+        type: string
+      createdAt:
+        type: string
+      createdById:
+        type: string
+      description:
+        type: string
+      id:
+        type: string
+      items:
+        items:
+          $ref: '#/definitions/relational.SSPExportOfferingItem'
+        type: array
+      publishedAt:
+        type: string
+      sspId:
+        type: string
+      status:
+        $ref: '#/definitions/relational.SSPExportOfferingStatus'
+      title:
+        type: string
+      updatedAt:
+        type: string
+      version:
+        type: integer
+    type: object
+  relational.SSPExportOfferingItem:
+    properties:
+      componentUuid:
+        type: string
+      controlId:
+        type: string
+      id:
+        type: string
+      offeringId:
+        type: string
+      providedUuid:
+        type: string
+      statementId:
+        type: string
+    type: object
+  relational.SSPExportOfferingStatus:
+    enum:
+    - draft
+    - published
+    - deprecated
+    - revoked
+    type: string
+    x-enum-varnames:
+    - SSPExportOfferingStatusDraft
+    - SSPExportOfferingStatusPublished
+    - SSPExportOfferingStatusDeprecated
+    - SSPExportOfferingStatusRevoked
   relational.SatisfiedControlImplementationResponsibility:
     properties:
       by-component-id:
@@ -21597,6 +21694,75 @@ paths:
       summary: Get a Role
       tags:
       - Oscal
+  /oscal/ssp-export-offerings:
+    get:
+      description: Retrieves published export offerings across all system security
+        plans. Draft/deprecated/revoked offerings are only visible via the SSP-nested
+        curation routes.
+      parameters:
+      - description: Max number of offerings to return (default 100, max 1000)
+        in: query
+        name: limit
+        type: integer
+      - description: Number of offerings to skip
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-relational_SSPExportOffering'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: List export offerings
+      tags:
+      - SSP Export Offerings
+  /oscal/ssp-export-offerings/{id}:
+    get:
+      description: Retrieves a single published export offering by its own ID (no
+        parent SSP scoping). Draft/deprecated/revoked offerings are only visible via
+        the SSP-nested curation routes.
+      parameters:
+      - description: Offering ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-relational_SSPExportOffering'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Get an export offering
+      tags:
+      - SSP Export Offerings
   /oscal/system-security-plans:
     get:
       description: Retrieves all System Security Plans.
@@ -24359,6 +24525,371 @@ paths:
       summary: Reject dashboard suggestions
       tags:
       - Dashboard Suggestions
+  /oscal/system-security-plans/{id}/export-offerings:
+    get:
+      description: Retrieves every export offering curated for a given system security
+        plan.
+      parameters:
+      - description: SSP ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-relational_SSPExportOffering'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: List export offerings for an SSP
+      tags:
+      - SSP Export Offerings
+    post:
+      consumes:
+      - application/json
+      description: Creates a new draft export offering for an SSP.
+      parameters:
+      - description: SSP ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Offering data
+        in: body
+        name: offering
+        required: true
+        schema:
+          $ref: '#/definitions/oscal.createExportOfferingRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-relational_SSPExportOffering'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Create an export offering
+      tags:
+      - SSP Export Offerings
+  /oscal/system-security-plans/{id}/export-offerings/{offeringId}:
+    delete:
+      description: Deletes an export offering and its items.
+      parameters:
+      - description: SSP ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Offering ID
+        in: path
+        name: offeringId
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Delete an export offering
+      tags:
+      - SSP Export Offerings
+    get:
+      description: Retrieves a single export offering (with its items) curated for
+        an SSP.
+      parameters:
+      - description: SSP ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Offering ID
+        in: path
+        name: offeringId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-relational_SSPExportOffering'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Get an export offering
+      tags:
+      - SSP Export Offerings
+    put:
+      consumes:
+      - application/json
+      description: Updates the title/description of an export offering. Does not change
+        items, status, version or content_hash.
+      parameters:
+      - description: SSP ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Offering ID
+        in: path
+        name: offeringId
+        required: true
+        type: string
+      - description: Offering data
+        in: body
+        name: offering
+        required: true
+        schema:
+          $ref: '#/definitions/oscal.createExportOfferingRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-relational_SSPExportOffering'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Update an export offering
+      tags:
+      - SSP Export Offerings
+  /oscal/system-security-plans/{id}/export-offerings/{offeringId}/items:
+    post:
+      consumes:
+      - application/json
+      description: Adds one offered capability (a control, optionally scoped to a
+        statement, implemented by a component) to a draft export offering.
+      parameters:
+      - description: SSP ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Offering ID
+        in: path
+        name: offeringId
+        required: true
+        type: string
+      - description: Item data
+        in: body
+        name: item
+        required: true
+        schema:
+          $ref: '#/definitions/oscal.createExportOfferingItemRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-relational_SSPExportOfferingItem'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Add an item to an export offering
+      tags:
+      - SSP Export Offerings
+  /oscal/system-security-plans/{id}/export-offerings/{offeringId}/items/{itemId}:
+    delete:
+      description: Removes one item from an export offering.
+      parameters:
+      - description: SSP ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Offering ID
+        in: path
+        name: offeringId
+        required: true
+        type: string
+      - description: Item ID
+        in: path
+        name: itemId
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Delete an export offering item
+      tags:
+      - SSP Export Offerings
+    put:
+      consumes:
+      - application/json
+      description: Updates one item of an export offering.
+      parameters:
+      - description: SSP ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Offering ID
+        in: path
+        name: offeringId
+        required: true
+        type: string
+      - description: Item ID
+        in: path
+        name: itemId
+        required: true
+        type: string
+      - description: Item data
+        in: body
+        name: item
+        required: true
+        schema:
+          $ref: '#/definitions/oscal.createExportOfferingItemRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-relational_SSPExportOfferingItem'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Update an export offering item
+      tags:
+      - SSP Export Offerings
+  /oscal/system-security-plans/{id}/export-offerings/{offeringId}/publish:
+    post:
+      description: |-
+        Transitions a draft export offering to published (or republishes a
+        published one), recomputing content_hash via SyncExportOffering and
+        bumping version only if the content actually changed since the last publish.
+      parameters:
+      - description: SSP ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Offering ID
+        in: path
+        name: offeringId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-relational_SSPExportOffering'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Publish an export offering
+      tags:
+      - SSP Export Offerings
   /oscal/system-security-plans/{id}/import-profile:
     get:
       description: Retrieves import-profile for a given SSP.
