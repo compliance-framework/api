@@ -4341,6 +4341,16 @@ definitions:
         items:
           $ref: '#/definitions/oscal.upstreamResponsibility'
         type: array
+      responsibilityPosture:
+        additionalProperties:
+          type: string
+        description: |-
+          ResponsibilityPosture is the live, evidence-backed posture (satisfied /
+          not-satisfied / unknown) per upstream responsibility uuid under this link's
+          provided-uuid — computed via filter_responsibilities (BCH-1339), independent of
+          Satisfaction/OutstandingResponsibilities above (which reflect what was attested at
+          subscribe time, not current evidence).
+        type: object
       satisfaction:
         $ref: '#/definitions/relational.SSPLeverageSatisfaction'
       statementId:
@@ -7673,6 +7683,12 @@ definitions:
           $ref: '#/definitions/relational.Prop'
         type: array
       provided-uuid:
+        description: |-
+          ProvidedUuid is explicitly typed uuid (unlike its historical default, aligned by
+          migrateAlignProvidedUuidColumnType for pre-existing databases): BCH-1339's
+          filter_responsibilities → ssp_leverage_links resolution arm
+          (risk_evidence_worker.go) joins this column directly against
+          ssp_leverage_links.provided_uuid, which is uuid.
         type: string
       remarks:
         type: string
@@ -25221,8 +25237,10 @@ paths:
         joined to ssp_leverage_links + the upstream offering. Per control/statement,
         returns which offering it was inherited from, whether satisfaction is full
         or partial (recomputed live from the current satisfied-responsibility rows,
-        not trusted from the link's stored value), and any outstanding
-        responsibilities. Writes nothing; never touches profile_controls/controls.
+        not trusted from the link's stored value), any outstanding
+        responsibilities, and live evidence-backed posture per responsibility uuid
+        (satisfied/not-satisfied/unknown, via filter_responsibilities). Writes
+        nothing; never touches profile_controls/controls.
       parameters:
       - description: Downstream SSP ID
         in: path
