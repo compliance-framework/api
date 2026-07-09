@@ -3,6 +3,7 @@ package oscal
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"log"
 	"os"
@@ -75,6 +76,51 @@ func importOscal(cmd *cobra.Command, args []string) {
 	}
 }
 
+// importResult reports what upsertDocument did with a document.
+type importResult struct {
+	created bool
+	err     error
+}
+
+// upsertDocument creates the document when its uuid is new, and otherwise
+// updates it from the file contents (FullSaveAssociations upserts every
+// nested row by primary key). Re-importing an updated file therefore
+// propagates new controls, requirements and statements instead of being
+// silently skipped.
+//
+// Update semantics are additive: struct-based Updates skips zero-value
+// fields, so DB-managed columns not represented in OSCAL (e.g. a catalog's
+// Active flag) are left untouched, and rows or values removed from the file
+// are NOT deleted or cleared.
+func upsertDocument[T any](db *gorm.DB, rawID string, def *T) importResult {
+	id, err := uuid.Parse(rawID)
+	if err != nil {
+		return importResult{err: err}
+	}
+
+	var existing T
+	err = db.Select("id").First(&existing, "id = ?", id).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return importResult{created: true, err: db.Create(def).Error}
+	}
+	if err != nil {
+		return importResult{err: err}
+	}
+	return importResult{err: db.Session(&gorm.Session{FullSaveAssociations: true}).Updates(def).Error}
+}
+
+func logImport(sugar *zap.SugaredLogger, res importResult, kind, title, file string) {
+	if res.err != nil {
+		sugar.Errorw("Failed to import "+kind, "title", title, "file", file, "error", res.err)
+		return
+	}
+	action := "Updated"
+	if res.created {
+		action = "Created"
+	}
+	sugar.Infow("Successfully "+action+" "+kind, "title", title, "file", file)
+}
+
 func importFile(db *gorm.DB, sugar *zap.SugaredLogger, f *os.File) error {
 	info, err := f.Stat()
 	if err != nil {
@@ -93,7 +139,9 @@ func importFile(db *gorm.DB, sugar *zap.SugaredLogger, f *os.File) error {
 				continue
 			}
 
-			systemFile, err := os.Open(path.Join(info.Name(), dirFile.Name()))
+			// Join against the path the directory was opened with (f.Name()),
+			// not its base name (info.Name()), so nested directories resolve.
+			systemFile, err := os.Open(path.Join(f.Name(), dirFile.Name()))
 			if err != nil {
 				panic(err)
 			}
@@ -135,65 +183,42 @@ func importFile(db *gorm.DB, sugar *zap.SugaredLogger, f *os.File) error {
 	if input.Catalog != nil {
 		def := &relational.Catalog{}
 		def.UnmarshalOscal(*input.Catalog)
-		out := db.FirstOrCreate(def)
-		if out.Error != nil {
-			sugar.Error(out.Error)
-		}
-		sugar.Infow("Successfully Created Catalog", "title", def.Metadata.Title, "file", f.Name())
+		logImport(sugar, upsertDocument(db, input.Catalog.UUID, def), "Catalog", def.Metadata.Title, f.Name())
 		imported = true
 	}
 
 	if input.ComponentDefinition != nil {
 		def := &relational.ComponentDefinition{}
 		def.UnmarshalOscal(*input.ComponentDefinition)
-		out := db.FirstOrCreate(def)
-		if out.Error != nil {
-			sugar.Error(out.Error)
-		}
-		sugar.Infow("Successfully Created Component Definition", "title", def.Metadata.Title, "file", f.Name())
+		logImport(sugar, upsertDocument(db, input.ComponentDefinition.UUID, def), "Component Definition", def.Metadata.Title, f.Name())
 		imported = true
 	}
 
 	if input.SystemSecurityPlan != nil {
 		def := &relational.SystemSecurityPlan{}
 		def.UnmarshalOscal(*input.SystemSecurityPlan)
-		out := db.FirstOrCreate(def)
-		if out.Error != nil {
-			sugar.Error(out.Error)
-		}
-		sugar.Infow("Successfully Created System Security Plan", "title", def.Metadata.Title, "file", f.Name())
+		logImport(sugar, upsertDocument(db, input.SystemSecurityPlan.UUID, def), "System Security Plan", def.Metadata.Title, f.Name())
 		imported = true
 	}
 
 	if input.AssessmentPlan != nil {
 		def := &relational.AssessmentPlan{}
 		def.UnmarshalOscal(*input.AssessmentPlan)
-		out := db.FirstOrCreate(def)
-		if out.Error != nil {
-			panic(out.Error)
-		}
-		sugar.Infow("Successfully Created Assessment Plan", "title", def.Metadata.Title, "file", f.Name())
+		logImport(sugar, upsertDocument(db, input.AssessmentPlan.UUID, def), "Assessment Plan", def.Metadata.Title, f.Name())
 		imported = true
 	}
 
 	if input.AssessmentResult != nil {
 		def := &relational.AssessmentResult{}
 		def.UnmarshalOscal(*input.AssessmentResult)
-		out := db.FirstOrCreate(def)
-		if out.Error != nil {
-			panic(out.Error)
-		}
-		sugar.Infow("Successfully Created Assessment Result", "title", def.Metadata.Title, "file", f.Name())
+		logImport(sugar, upsertDocument(db, input.AssessmentResult.UUID, def), "Assessment Result", def.Metadata.Title, f.Name())
 		imported = true
 	}
 
 	if input.Profile != nil {
 		def := &relational.Profile{}
 		def.UnmarshalOscal(*input.Profile)
-		out := db.FirstOrCreate(def)
-		if out.Error != nil {
-			panic(out.Error)
-		}
+		logImport(sugar, upsertDocument(db, input.Profile.UUID, def), "Profile", def.Metadata.Title, f.Name())
 
 		// Sync ProfileControl pivot table synchronously so errors can be reported
 		_, err := oscal.SyncProfileControls(db, uuid.MustParse(input.Profile.UUID))
@@ -202,7 +227,6 @@ func importFile(db *gorm.DB, sugar *zap.SugaredLogger, f *os.File) error {
 			return err
 		}
 
-		sugar.Infow("Successfully Created Profile", "title", def.Metadata.Title, "file", f.Name())
 		imported = true
 	}
 
@@ -214,13 +238,7 @@ func importFile(db *gorm.DB, sugar *zap.SugaredLogger, f *os.File) error {
 		sugar.Infof("Importing POAM with %d risks, %d observations, %d findings",
 			len(def.Risks), len(def.Observations), len(def.Findings))
 
-		// Create with polymorphic entities
-		out := db.FirstOrCreate(def)
-		if out.Error != nil {
-			sugar.Errorf("Error creating POAM: %v", out.Error)
-			return err
-		}
-		sugar.Infow("Successfully Created Plan of Action and Milestones", "title", def.Metadata.Title, "file", f.Name())
+		logImport(sugar, upsertDocument(db, input.PlanOfActionAndMilestones.UUID, def), "Plan of Action and Milestones", def.Metadata.Title, f.Name())
 		imported = true
 	}
 
