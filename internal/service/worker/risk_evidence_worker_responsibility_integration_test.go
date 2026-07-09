@@ -90,13 +90,14 @@ func (suite *RiskEvidenceWorkerResponsibilityIntegrationSuite) TestResolvesDowns
 	suite.seedResponsibilityFilter(downstreamSSPID, responsibilityUUID, "environment", "production")
 
 	worker := NewRiskEvidenceWorker(suite.DB, zap.NewNop().Sugar())
-	sspInfos, err := worker.resolveSSPsViaFilters(context.Background(), []relational.Labels{
+	sspInfos, responsibilityInfos, err := worker.resolveSSPsViaFilters(context.Background(), []relational.Labels{
 		{Name: "environment", Value: "production"},
 	})
 	suite.Require().NoError(err)
-	suite.Require().Len(sspInfos, 1)
-	suite.Equal(downstreamSSPID, sspInfos[0].SSPID)
-	suite.Empty(sspInfos[0].ControlLinks)
+	suite.Empty(sspInfos)
+	suite.Require().Len(responsibilityInfos, 1)
+	suite.Equal(downstreamSSPID, responsibilityInfos[0].SSPID)
+	suite.Equal(responsibilityUUID, responsibilityInfos[0].ResponsibilityUUID)
 }
 
 func (suite *RiskEvidenceWorkerResponsibilityIntegrationSuite) TestNoMatchReturnsNoSSPs() {
@@ -104,9 +105,10 @@ func (suite *RiskEvidenceWorkerResponsibilityIntegrationSuite) TestNoMatchReturn
 	suite.seedResponsibilityFilter(downstreamSSPID, responsibilityUUID, "environment", "staging")
 
 	worker := NewRiskEvidenceWorker(suite.DB, zap.NewNop().Sugar())
-	sspInfos, err := worker.resolveSSPsViaFilters(context.Background(), []relational.Labels{
+	sspInfos, responsibilityInfos, err := worker.resolveSSPsViaFilters(context.Background(), []relational.Labels{
 		{Name: "environment", Value: "production"},
 	})
 	suite.Require().NoError(err)
 	suite.Empty(sspInfos)
+	suite.Empty(responsibilityInfos)
 }

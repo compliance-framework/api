@@ -45,6 +45,21 @@ func (RiskComponentLink) TableName() string {
 	return "risk_component_links"
 }
 
+type RiskResponsibilityLink struct {
+	RiskID uuid.UUID `json:"riskId" gorm:"type:uuid;primaryKey"`
+	// ResponsibilityUUID is the upstream ControlImplementationResponsibility uuid
+	// (BCH-1340) — resolved via the filter_responsibilities -> ssp_leverage_links arm in
+	// risk_evidence_worker.go, not a local catalog control.
+	ResponsibilityUUID uuid.UUID  `json:"responsibilityUuid" gorm:"type:uuid;primaryKey;index"`
+	CreatedAt          time.Time  `json:"createdAt"`
+	CreatedByID        *uuid.UUID `json:"createdById" gorm:"type:uuid;index"`
+	Risk               *Risk      `json:"-" gorm:"foreignKey:RiskID;references:ID;constraint:OnDelete:CASCADE"`
+}
+
+func (RiskResponsibilityLink) TableName() string {
+	return "risk_responsibility_links"
+}
+
 type RiskSubjectLink struct {
 	RiskID      uuid.UUID  `json:"riskId" gorm:"type:uuid;primaryKey"`
 	SubjectID   uuid.UUID  `json:"subjectId" gorm:"type:uuid;primaryKey;index"`
