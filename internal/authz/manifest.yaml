@@ -80,8 +80,10 @@ resources:
       props: set<string>
   ssp:
     # The tenancy boundary: ssp_id is the scope key for risk, poam_item, filter,
-    # dashboard-suggestion and workflow-instance.
-    actions: [read, create, update, delete]
+    # dashboard-suggestion and workflow-instance. `export` (BCH-1337) gates curating
+    # and publishing an SSP's export offerings — separate from the CRUD verbs so a
+    # contributor's general edit rights don't automatically include export/publish.
+    actions: [read, create, update, delete, export]
     attributes:
       props: set<string>
       status: string
@@ -94,6 +96,14 @@ resources:
           OSCAL responsible-roles the subject holds on THIS SSP (BCH-1319 §7.1). Resource-
           scoped, resolved per request by the OSS PIP; reserved until BCH-1329 formalizes
           the User↔Party crosswalk. Exposed as context.oscal_roles, never a static prop.
+  ssp-export-offering:
+    # BCH-1337 Phase 1: a versioned, publishable subset of an upstream SSP's control
+    # implementations. Deliberately a separate resource rather than inheriting the SSP
+    # root (unlike the nested OSCAL sub-documents noted above) because published offerings
+    # are meant to be independently discoverable/subscribable (Phase 2+) by parties who may
+    # not hold any grant on the upstream ssp resource itself. `subscribe` is declared now for
+    # the Phase 2 downstream-subscribe vocabulary; no route enforces it yet.
+    actions: [read, create, update, delete, subscribe]
   assessment-plan:
     actions: [read, create, update, delete]
     attributes:
@@ -252,13 +262,13 @@ resources:
     actions: [execute]           # action-only bulk import (creates many docs); admin
 
 # ── Roles ───────────────────────────────────────────────────────────────────────────────
-# The OSS global-RBAC policy set: four fixed roles (admin/contributor/auditor/viewer) plus
-# the agent service role. These reference C0 only — they are resource→actions maps with no
-# attribute conditions — which is the C0 policy set the embedded Cedar engine is DESIGNED to
-# honor (BCH-1319 §11.1, §11.3) — and which the embedded Cedar engine (BCH-1316) compiles into
-# its bundled policy set. The default builtin driver does not consume these roles; the cedar
-# driver does. Operators may override or extend them in their PAP. "*" means all resources /
-# all actions.
+# The OSS global-RBAC policy set: four fixed roles (admin/contributor/auditor/viewer), the
+# ssp-subscriber role (BCH-1338), and the agent service role. These reference C0 only — they
+# are resource→actions maps with no attribute conditions — which is the C0 policy set the
+# embedded Cedar engine is DESIGNED to honor (BCH-1319 §11.1, §11.3) — and which the embedded
+# Cedar engine (BCH-1316) compiles into its bundled policy set. The default builtin driver
+# does not consume these roles; the cedar driver does. Operators may override or extend them
+# in their PAP. "*" means all resources / all actions.
 roles:
   # Full access.
   admin:
@@ -283,7 +293,8 @@ roles:
     catalog: [read, create, update, delete]
     profile: [read, create, update, delete]
     component-definition: [read, create, update, delete]
-    ssp: [read, create, update, delete]
+    ssp: [read, create, update, delete, export]
+    ssp-export-offering: [read, create, update, delete, subscribe]
     assessment-plan: [read, create, update, delete]
     assessment-results: [read, create, update, delete]
     poam_oscal: [read, create, update, delete]
@@ -304,6 +315,16 @@ roles:
     control-relationship: [read, create, update, delete]
     control-link: [read, create, delete]
     lineage: [read]
+
+  # A downstream system that consumes published export offerings and maintains its own SSP,
+  # without the "*": [read] baseline every other role carries (BCH-1338). ssp-export-offering
+  # read is needed to discover the catalog's per-item responsibility UUIDs before subscribing
+  # (BCH-1338 task 004) — granting it doesn't weaken the trust boundary the role is meant to
+  # prove, since that boundary is specifically that subscribing never requires ssp:read on the
+  # *upstream SSP resource*, which this role deliberately omits.
+  ssp-subscriber:
+    ssp: [update]
+    ssp-export-offering: [read, subscribe]
 
   # Service accounts: ingest telemetry and register, and reconcile their own plugin templates
   # (the /agent/{risk,subject}-templates batch upsert — plugin v2). The batch routes enforce the

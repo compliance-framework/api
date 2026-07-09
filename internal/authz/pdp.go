@@ -85,6 +85,7 @@ const (
 	ResourceProfile             = "profile"
 	ResourceComponentDefinition = "component-definition"
 	ResourceSSP                 = "ssp"
+	ResourceSSPExportOffering   = "ssp-export-offering"
 	ResourceAssessmentPlan      = "assessment-plan"
 	ResourceAssessmentResults   = "assessment-results"
 	ResourcePoamOSCAL           = "poam_oscal"
@@ -116,14 +117,17 @@ const (
 
 	// Actions. read/create/update/delete are the CRUD verbs; the rest are resource-specific
 	// (promote → risk; ingest → heartbeat/agent; register → agent; trigger → digest;
-	// execute → import). ActionManage is the admin umbrella.
-	ActionManage  = "manage"
-	ActionRead    = "read"
-	ActionCreate  = "create"
-	ActionUpdate  = "update"
-	ActionDelete  = "delete"
-	ActionPromote = "promote"
-	ActionIngest  = "ingest"
-	ActionExecute = "execute"
-	ActionTrigger = "trigger"
+	// execute → import; export/subscribe → ssp/ssp-export-offering, BCH-1337). ActionManage
+	// is the admin umbrella.
+	ActionManage    = "manage"
+	ActionRead      = "read"
+	ActionCreate    = "create"
+	ActionUpdate    = "update"
+	ActionDelete    = "delete"
+	ActionPromote   = "promote"
+	ActionIngest    = "ingest"
+	ActionExecute   = "execute"
+	ActionTrigger   = "trigger"
+	ActionExport    = "export"
+	ActionSubscribe = "subscribe"
 )

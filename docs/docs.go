@@ -16108,6 +16108,185 @@ const docTemplate = `{
                 ]
             }
         },
+        "/oscal/ssp-export-offerings": {
+            "get": {
+                "description": "Retrieves published export offerings across all system security plans. Draft/deprecated/revoked offerings are only visible via the SSP-nested curation routes.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "SSP Export Offerings"
+                ],
+                "summary": "List export offerings",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Max number of offerings to return (default 100, max 1000)",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Number of offerings to skip",
+                        "name": "offset",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataListResponse-oscal_catalogOffering"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/oscal/ssp-export-offerings/{id}": {
+            "get": {
+                "description": "Retrieves a single published export offering by its own ID (no parent SSP scoping). Draft/deprecated/revoked offerings are only visible via the SSP-nested curation routes.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "SSP Export Offerings"
+                ],
+                "summary": "Get an export offering",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Offering ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-oscal_catalogOffering"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/oscal/ssp-export-offerings/{id}/subscribe": {
+            "post": {
+                "description": "Records, on the downstream SSP named in the request body, an OSCAL\ninherited-control-implementation and (optionally) satisfied-responsibility\nentries per chosen offering item, plus one leveraged-authorization for the\nwhole request — all in a single atomic write. Never checks ssp:read on the\nupstream SSP: the trust boundary is that subscribing to a published offering\nonly requires ssp-export-offering:subscribe on the offering and ssp:update on\nthe downstream SSP.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "SSP Export Offerings"
+                ],
+                "summary": "Subscribe to a published export offering",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Offering ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Subscribe request",
+                        "name": "subscribe",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/oscal.subscribeRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataListResponse-relational_SSPLeverageLink"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
         "/oscal/system-security-plans": {
             "get": {
                 "description": "Retrieves all System Security Plans.",
@@ -20244,6 +20423,559 @@ const docTemplate = `{
                 ]
             }
         },
+        "/oscal/system-security-plans/{id}/export-offerings": {
+            "get": {
+                "description": "Retrieves every export offering curated for a given system security plan.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "SSP Export Offerings"
+                ],
+                "summary": "List export offerings for an SSP",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "SSP ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataListResponse-relational_SSPExportOffering"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            },
+            "post": {
+                "description": "Creates a new draft export offering for an SSP.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "SSP Export Offerings"
+                ],
+                "summary": "Create an export offering",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "SSP ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Offering data",
+                        "name": "offering",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/oscal.createExportOfferingRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-relational_SSPExportOffering"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/oscal/system-security-plans/{id}/export-offerings/{offeringId}": {
+            "get": {
+                "description": "Retrieves a single export offering (with its items) curated for an SSP.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "SSP Export Offerings"
+                ],
+                "summary": "Get an export offering",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "SSP ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Offering ID",
+                        "name": "offeringId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-relational_SSPExportOffering"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            },
+            "put": {
+                "description": "Updates the title/description of an export offering. Does not change items, status, version or content_hash.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "SSP Export Offerings"
+                ],
+                "summary": "Update an export offering",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "SSP ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Offering ID",
+                        "name": "offeringId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Offering data",
+                        "name": "offering",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/oscal.createExportOfferingRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-relational_SSPExportOffering"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            },
+            "delete": {
+                "description": "Deletes an export offering and its items.",
+                "tags": [
+                    "SSP Export Offerings"
+                ],
+                "summary": "Delete an export offering",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "SSP ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Offering ID",
+                        "name": "offeringId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/oscal/system-security-plans/{id}/export-offerings/{offeringId}/items": {
+            "post": {
+                "description": "Adds one offered capability (a control, optionally scoped to a statement, implemented by a component) to a draft export offering.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "SSP Export Offerings"
+                ],
+                "summary": "Add an item to an export offering",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "SSP ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Offering ID",
+                        "name": "offeringId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Item data",
+                        "name": "item",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/oscal.createExportOfferingItemRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-relational_SSPExportOfferingItem"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/oscal/system-security-plans/{id}/export-offerings/{offeringId}/items/{itemId}": {
+            "put": {
+                "description": "Updates one item of an export offering.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "SSP Export Offerings"
+                ],
+                "summary": "Update an export offering item",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "SSP ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Offering ID",
+                        "name": "offeringId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Item ID",
+                        "name": "itemId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Item data",
+                        "name": "item",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/oscal.createExportOfferingItemRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-relational_SSPExportOfferingItem"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            },
+            "delete": {
+                "description": "Removes one item from an export offering.",
+                "tags": [
+                    "SSP Export Offerings"
+                ],
+                "summary": "Delete an export offering item",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "SSP ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Offering ID",
+                        "name": "offeringId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Item ID",
+                        "name": "itemId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/oscal/system-security-plans/{id}/export-offerings/{offeringId}/publish": {
+            "post": {
+                "description": "Transitions a draft export offering to published (or republishes a\npublished one), recomputing content_hash via SyncExportOffering and\nbumping version only if the content actually changed since the last publish.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "SSP Export Offerings"
+                ],
+                "summary": "Publish an export offering",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "SSP ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Offering ID",
+                        "name": "offeringId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-relational_SSPExportOffering"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
         "/oscal/system-security-plans/{id}/import-profile": {
             "get": {
                 "description": "Retrieves import-profile for a given SSP.",
@@ -20346,6 +21078,58 @@ const docTemplate = `{
                         }
                     }
                 }
+            }
+        },
+        "/oscal/system-security-plans/{id}/leveraged-controls": {
+            "get": {
+                "description": "Read-only view over the downstream SSP's own inherited/satisfied entries\njoined to ssp_leverage_links + the upstream offering. Per control/statement,\nreturns which offering it was inherited from, whether satisfaction is full\nor partial (recomputed live from the current satisfied-responsibility rows,\nnot trusted from the link's stored value), and any outstanding\nresponsibilities. Writes nothing; never touches profile_controls/controls.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "SSP Export Offerings"
+                ],
+                "summary": "Project a downstream SSP's leveraged controls",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Downstream SSP ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataListResponse-oscal_leveragedControlResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
             }
         },
         "/oscal/system-security-plans/{id}/metadata": {
@@ -32694,6 +33478,19 @@ const docTemplate = `{
                 "meta": {}
             }
         },
+        "handler.GenericDataListResponse-oscal_catalogOffering": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscal.catalogOffering"
+                    }
+                },
+                "meta": {}
+            }
+        },
         "handler.GenericDataListResponse-oscal_controlSuggestionResultResponse": {
             "type": "object",
             "properties": {
@@ -32728,6 +33525,19 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/oscal.dashboardSuggestionResponse"
+                    }
+                },
+                "meta": {}
+            }
+        },
+        "handler.GenericDataListResponse-oscal_leveragedControlResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscal.leveragedControlResponse"
                     }
                 },
                 "meta": {}
@@ -32832,6 +33642,32 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/relational.SSOGroupMapping"
+                    }
+                },
+                "meta": {}
+            }
+        },
+        "handler.GenericDataListResponse-relational_SSPExportOffering": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/relational.SSPExportOffering"
+                    }
+                },
+                "meta": {}
+            }
+        },
+        "handler.GenericDataListResponse-relational_SSPLeverageLink": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/relational.SSPLeverageLink"
                     }
                 },
                 "meta": {}
@@ -34029,6 +34865,19 @@ const docTemplate = `{
                 }
             }
         },
+        "handler.GenericDataResponse-oscal_catalogOffering": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Wrapped response data",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/oscal.catalogOffering"
+                        }
+                    ]
+                }
+            }
+        },
         "handler.GenericDataResponse-oscal_dashboardSuggestionConfigResponse": {
             "type": "object",
             "properties": {
@@ -34180,6 +35029,32 @@ const docTemplate = `{
                     "allOf": [
                         {
                             "$ref": "#/definitions/relational.SSOGroupMapping"
+                        }
+                    ]
+                }
+            }
+        },
+        "handler.GenericDataResponse-relational_SSPExportOffering": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Wrapped response data",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/relational.SSPExportOffering"
+                        }
+                    ]
+                }
+            }
+        },
+        "handler.GenericDataResponse-relational_SSPExportOfferingItem": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Wrapped response data",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/relational.SSPExportOfferingItem"
                         }
                     ]
                 }
@@ -37255,6 +38130,79 @@ const docTemplate = `{
                 }
             }
         },
+        "oscal.catalogOffering": {
+            "type": "object",
+            "properties": {
+                "contentHash": {
+                    "type": "string"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "createdById": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscal.catalogOfferingItem"
+                    }
+                },
+                "publishedAt": {
+                    "type": "string"
+                },
+                "sspId": {
+                    "type": "string"
+                },
+                "status": {
+                    "$ref": "#/definitions/relational.SSPExportOfferingStatus"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "updatedAt": {
+                    "type": "string"
+                },
+                "version": {
+                    "type": "integer"
+                }
+            }
+        },
+        "oscal.catalogOfferingItem": {
+            "type": "object",
+            "properties": {
+                "componentUuid": {
+                    "type": "string"
+                },
+                "controlId": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "offeringId": {
+                    "type": "string"
+                },
+                "providedUuid": {
+                    "type": "string"
+                },
+                "responsibilities": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscal.upstreamResponsibility"
+                    }
+                },
+                "statementId": {
+                    "type": "string"
+                }
+            }
+        },
         "oscal.controlSuggestionResultResponse": {
             "type": "object",
             "properties": {
@@ -37275,6 +38223,34 @@ const docTemplate = `{
                 },
                 "suggestionCount": {
                     "type": "integer"
+                }
+            }
+        },
+        "oscal.createExportOfferingItemRequest": {
+            "type": "object",
+            "properties": {
+                "componentUuid": {
+                    "type": "string"
+                },
+                "controlId": {
+                    "type": "string"
+                },
+                "providedUuid": {
+                    "type": "string"
+                },
+                "statementId": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscal.createExportOfferingRequest": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
                 }
             }
         },
@@ -37748,6 +38724,46 @@ const docTemplate = `{
                 }
             }
         },
+        "oscal.leveragedControlInheritedFrom": {
+            "type": "object",
+            "properties": {
+                "offeringId": {
+                    "type": "string"
+                },
+                "offeringTitle": {
+                    "type": "string"
+                },
+                "offeringVersion": {
+                    "type": "integer"
+                },
+                "upstreamSspId": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscal.leveragedControlResponse": {
+            "type": "object",
+            "properties": {
+                "controlId": {
+                    "type": "string"
+                },
+                "inheritedFrom": {
+                    "$ref": "#/definitions/oscal.leveragedControlInheritedFrom"
+                },
+                "outstandingResponsibilities": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscal.upstreamResponsibility"
+                    }
+                },
+                "satisfaction": {
+                    "$ref": "#/definitions/relational.SSPLeverageSatisfaction"
+                },
+                "statementId": {
+                    "type": "string"
+                }
+            }
+        },
         "oscal.profileSummary": {
             "type": "object",
             "properties": {
@@ -37794,6 +38810,51 @@ const docTemplate = `{
                 }
             }
         },
+        "oscal.subscribeItemRequest": {
+            "type": "object",
+            "properties": {
+                "itemId": {
+                    "type": "string"
+                },
+                "satisfiedResponsibilityUuids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "oscal.subscribeLeveragedAuthorizationRequest": {
+            "type": "object",
+            "properties": {
+                "dateAuthorized": {
+                    "type": "string"
+                },
+                "partyUuid": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscal.subscribeRequest": {
+            "type": "object",
+            "properties": {
+                "downstreamSspId": {
+                    "type": "string"
+                },
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscal.subscribeItemRequest"
+                    }
+                },
+                "leveragedAuthorization": {
+                    "$ref": "#/definitions/oscal.subscribeLeveragedAuthorizationRequest"
+                }
+            }
+        },
         "oscal.suggestionEventActor": {
             "type": "object",
             "properties": {
@@ -37801,6 +38862,17 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "name": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscal.upstreamResponsibility": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "responsibilityUuid": {
                     "type": "string"
                 }
             }
@@ -44659,6 +45731,167 @@ const docTemplate = `{
                     "type": "string"
                 }
             }
+        },
+        "relational.SSPExportOffering": {
+            "type": "object",
+            "properties": {
+                "contentHash": {
+                    "type": "string"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "createdById": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/relational.SSPExportOfferingItem"
+                    }
+                },
+                "publishedAt": {
+                    "type": "string"
+                },
+                "sspId": {
+                    "type": "string"
+                },
+                "status": {
+                    "$ref": "#/definitions/relational.SSPExportOfferingStatus"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "updatedAt": {
+                    "type": "string"
+                },
+                "version": {
+                    "type": "integer"
+                }
+            }
+        },
+        "relational.SSPExportOfferingItem": {
+            "type": "object",
+            "properties": {
+                "componentUuid": {
+                    "type": "string"
+                },
+                "controlId": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "offeringId": {
+                    "type": "string"
+                },
+                "providedUuid": {
+                    "type": "string"
+                },
+                "statementId": {
+                    "type": "string"
+                }
+            }
+        },
+        "relational.SSPExportOfferingStatus": {
+            "type": "string",
+            "enum": [
+                "draft",
+                "published",
+                "deprecated",
+                "revoked"
+            ],
+            "x-enum-varnames": [
+                "SSPExportOfferingStatusDraft",
+                "SSPExportOfferingStatusPublished",
+                "SSPExportOfferingStatusDeprecated",
+                "SSPExportOfferingStatusRevoked"
+            ]
+        },
+        "relational.SSPLeverageLink": {
+            "type": "object",
+            "properties": {
+                "attestedAt": {
+                    "type": "string"
+                },
+                "attestedById": {
+                    "type": "string"
+                },
+                "controlId": {
+                    "type": "string"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "downstreamSspId": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "inheritedUuid": {
+                    "type": "string"
+                },
+                "leveragedAuthUuid": {
+                    "type": "string"
+                },
+                "offeringId": {
+                    "type": "string"
+                },
+                "offeringVersion": {
+                    "type": "integer"
+                },
+                "providedUuid": {
+                    "type": "string"
+                },
+                "satisfaction": {
+                    "$ref": "#/definitions/relational.SSPLeverageSatisfaction"
+                },
+                "statementId": {
+                    "type": "string"
+                },
+                "status": {
+                    "$ref": "#/definitions/relational.SSPLeverageStatus"
+                },
+                "updatedAt": {
+                    "type": "string"
+                },
+                "upstreamSspId": {
+                    "type": "string"
+                }
+            }
+        },
+        "relational.SSPLeverageSatisfaction": {
+            "type": "string",
+            "enum": [
+                "full",
+                "partial"
+            ],
+            "x-enum-varnames": [
+                "SSPLeverageSatisfactionFull",
+                "SSPLeverageSatisfactionPartial"
+            ]
+        },
+        "relational.SSPLeverageStatus": {
+            "type": "string",
+            "enum": [
+                "active",
+                "drifted",
+                "revoked",
+                "superseded"
+            ],
+            "x-enum-varnames": [
+                "SSPLeverageStatusActive",
+                "SSPLeverageStatusDrifted",
+                "SSPLeverageStatusRevoked",
+                "SSPLeverageStatusSuperseded"
+            ]
         },
         "relational.SatisfiedControlImplementationResponsibility": {
             "type": "object",
