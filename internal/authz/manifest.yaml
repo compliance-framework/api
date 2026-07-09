@@ -262,13 +262,13 @@ resources:
     actions: [execute]           # action-only bulk import (creates many docs); admin
 
 # ── Roles ───────────────────────────────────────────────────────────────────────────────
-# The OSS global-RBAC policy set: four fixed roles (admin/contributor/auditor/viewer) plus
-# the agent service role. These reference C0 only — they are resource→actions maps with no
-# attribute conditions — which is the C0 policy set the embedded Cedar engine is DESIGNED to
-# honor (BCH-1319 §11.1, §11.3) — and which the embedded Cedar engine (BCH-1316) compiles into
-# its bundled policy set. The default builtin driver does not consume these roles; the cedar
-# driver does. Operators may override or extend them in their PAP. "*" means all resources /
-# all actions.
+# The OSS global-RBAC policy set: four fixed roles (admin/contributor/auditor/viewer), the
+# ssp-subscriber role (BCH-1338), and the agent service role. These reference C0 only — they
+# are resource→actions maps with no attribute conditions — which is the C0 policy set the
+# embedded Cedar engine is DESIGNED to honor (BCH-1319 §11.1, §11.3) — and which the embedded
+# Cedar engine (BCH-1316) compiles into its bundled policy set. The default builtin driver
+# does not consume these roles; the cedar driver does. Operators may override or extend them
+# in their PAP. "*" means all resources / all actions.
 roles:
   # Full access.
   admin:
@@ -315,6 +315,16 @@ roles:
     control-relationship: [read, create, update, delete]
     control-link: [read, create, delete]
     lineage: [read]
+
+  # A downstream system that consumes published export offerings and maintains its own SSP,
+  # without the "*": [read] baseline every other role carries (BCH-1338). ssp-export-offering
+  # read is needed to discover the catalog's per-item responsibility UUIDs before subscribing
+  # (BCH-1338 task 004) — granting it doesn't weaken the trust boundary the role is meant to
+  # prove, since that boundary is specifically that subscribing never requires ssp:read on the
+  # *upstream SSP resource*, which this role deliberately omits.
+  ssp-subscriber:
+    ssp: [update]
+    ssp-export-offering: [read, subscribe]
 
   # Service accounts: ingest telemetry and register, and reconcile their own plugin templates
   # (the /agent/{risk,subject}-templates batch upsert — plugin v2). The batch routes enforce the

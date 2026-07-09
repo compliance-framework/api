@@ -42,7 +42,9 @@ func TestSSPExportOfferingAuthzIntegrationSuite(t *testing.T) {
 
 // newCedarServer builds a server whose PEP is backed by the real embedded Cedar PDP (roles
 // resolved from the ccf_role_assignments table), instead of the nil-pep/builtin-driver path.
-func (suite *SSPExportOfferingAuthzIntegrationSuite) newCedarServer() *api.Server {
+// Shared by every oscal integration suite that needs to exercise real role-based enforcement
+// (BCH-1337, BCH-1338) rather than the builtin driver's allow-every-authenticated-request path.
+func newCedarServer(suite *tests.IntegrationTestSuite) *api.Server {
 	logConf := zap.NewDevelopmentConfig()
 	logConf.Level = zap.NewAtomicLevelAt(zap.ErrorLevel)
 	logger, _ := logConf.Build()
@@ -65,7 +67,7 @@ func (suite *SSPExportOfferingAuthzIntegrationSuite) newCedarServer() *api.Serve
 // createRoledUser creates a user row and grants it roleName via a direct ccf_role_assignments
 // insert (the table the DB-backed role resolver reads; bypasses the admin HTTP route, which is
 // unnecessary indirection for seeding test fixtures), then mints a JWT for that specific user.
-func (suite *SSPExportOfferingAuthzIntegrationSuite) createRoledUser(email, roleName string) string {
+func createRoledUser(suite *tests.IntegrationTestSuite, email, roleName string) string {
 	user := relational.User{Email: email, FirstName: "Test", LastName: "User"}
 	suite.Require().NoError(suite.DB.Create(&user).Error)
 
@@ -80,7 +82,7 @@ func (suite *SSPExportOfferingAuthzIntegrationSuite) createRoledUser(email, role
 	return *token
 }
 
-func (suite *SSPExportOfferingAuthzIntegrationSuite) authedRequest(server *api.Server, method, path, token string, body any) *httptest.ResponseRecorder {
+func authedRequest(suite *tests.IntegrationTestSuite, server *api.Server, method, path, token string, body any) *httptest.ResponseRecorder {
 	var reader *bytes.Reader
 	if body != nil {
 		raw, err := json.Marshal(body)
@@ -148,18 +150,18 @@ func minimalSSP(componentUUID string) *oscalTypes_1_1_3.SystemSecurityPlan {
 func (suite *SSPExportOfferingAuthzIntegrationSuite) TestPublishRequiresSSPExportContributorCan_ViewerCannot() {
 	suite.Require().NoError(suite.Migrator.Refresh())
 
-	contributorToken := suite.createRoledUser("contributor@example.com", "contributor")
-	viewerToken := suite.createRoledUser("viewer@example.com", "viewer")
+	contributorToken := createRoledUser(&suite.IntegrationTestSuite, "contributor@example.com", "contributor")
+	viewerToken := createRoledUser(&suite.IntegrationTestSuite, "viewer@example.com", "viewer")
 
-	server := suite.newCedarServer()
+	server := newCedarServer(&suite.IntegrationTestSuite)
 
 	componentUUID := uuid.New().String()
 	ssp := minimalSSP(componentUUID)
-	rec := suite.authedRequest(server, "POST", "/api/oscal/system-security-plans", contributorToken, ssp)
+	rec := authedRequest(&suite.IntegrationTestSuite, server, "POST", "/api/oscal/system-security-plans", contributorToken, ssp)
 	suite.Require().Equal(http.StatusCreated, rec.Code, rec.Body.String())
 
 	// Create the offering as the contributor (ssp:export).
-	rec = suite.authedRequest(server, "POST",
+	rec = authedRequest(&suite.IntegrationTestSuite, server, "POST",
 		fmt.Sprintf("/api/oscal/system-security-plans/%s/export-offerings", ssp.UUID),
 		contributorToken,
 		map[string]string{"title": "Leverageable controls", "description": "AC-1 and a per-statement AC-2"},
@@ -172,17 +174,17 @@ func (suite *SSPExportOfferingAuthzIntegrationSuite) TestPublishRequiresSSPExpor
 	// A viewer must not be able to curate items either — same ssp:export gate.
 	stmtID := "ac-2_stmt.a"
 	itemPath := fmt.Sprintf("/api/oscal/system-security-plans/%s/export-offerings/%s/items", ssp.UUID, offeringID)
-	rec = suite.authedRequest(server, "POST", itemPath, viewerToken, map[string]any{
+	rec = authedRequest(&suite.IntegrationTestSuite, server, "POST", itemPath, viewerToken, map[string]any{
 		"controlId": "ac-1", "componentUuid": componentUUID, "providedUuid": uuid.New().String(),
 	})
 	suite.Require().Equal(http.StatusForbidden, rec.Code, rec.Body.String())
 
 	// Contributor adds the 2 controls: one control-level, one per-statement.
-	rec = suite.authedRequest(server, "POST", itemPath, contributorToken, map[string]any{
+	rec = authedRequest(&suite.IntegrationTestSuite, server, "POST", itemPath, contributorToken, map[string]any{
 		"controlId": "ac-1", "componentUuid": componentUUID, "providedUuid": uuid.New().String(),
 	})
 	suite.Require().Equal(http.StatusCreated, rec.Code, rec.Body.String())
-	rec = suite.authedRequest(server, "POST", itemPath, contributorToken, map[string]any{
+	rec = authedRequest(&suite.IntegrationTestSuite, server, "POST", itemPath, contributorToken, map[string]any{
 		"controlId": "ac-2", "statementId": stmtID, "componentUuid": componentUUID, "providedUuid": uuid.New().String(),
 	})
 	suite.Require().Equal(http.StatusCreated, rec.Code, rec.Body.String())
@@ -190,11 +192,11 @@ func (suite *SSPExportOfferingAuthzIntegrationSuite) TestPublishRequiresSSPExpor
 	publishPath := fmt.Sprintf("/api/oscal/system-security-plans/%s/export-offerings/%s/publish", ssp.UUID, offeringID)
 
 	// Viewer cannot publish.
-	rec = suite.authedRequest(server, "POST", publishPath, viewerToken, nil)
+	rec = authedRequest(&suite.IntegrationTestSuite, server, "POST", publishPath, viewerToken, nil)
 	suite.Require().Equal(http.StatusForbidden, rec.Code, rec.Body.String())
 
 	// Contributor can publish.
-	rec = suite.authedRequest(server, "POST", publishPath, contributorToken, nil)
+	rec = authedRequest(&suite.IntegrationTestSuite, server, "POST", publishPath, contributorToken, nil)
 	suite.Require().Equal(http.StatusOK, rec.Code, rec.Body.String())
 	var published handler.GenericDataResponse[relational.SSPExportOffering]
 	suite.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &published))
@@ -204,6 +206,6 @@ func (suite *SSPExportOfferingAuthzIntegrationSuite) TestPublishRequiresSSPExpor
 	suite.Len(published.Data.Items, 2)
 
 	// Viewer CAN read the published offering via the top-level catalog (ssp-export-offering:read).
-	rec = suite.authedRequest(server, "GET", "/api/oscal/ssp-export-offerings/"+offeringID, viewerToken, nil)
+	rec = authedRequest(&suite.IntegrationTestSuite, server, "GET", "/api/oscal/ssp-export-offerings/"+offeringID, viewerToken, nil)
 	suite.Require().Equal(http.StatusOK, rec.Code, rec.Body.String())
 }
