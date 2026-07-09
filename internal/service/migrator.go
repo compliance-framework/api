@@ -348,6 +348,31 @@ func MigrateUpWithConfig(db *gorm.DB, cfg *config.Config) error {
 			return err
 		}
 
+		// FilterResponsibility.SSPID (BCH-1339) mirrors filters.ssp_id above: it should
+		// cascade-delete when its downstream SSP is deleted, same as the association
+		// declared in the Go struct (relational.FilterResponsibility.SystemSecurityPlan).
+		if err := db.Exec(`
+			DO $$
+			BEGIN
+			  IF EXISTS (
+			    SELECT 1 FROM information_schema.columns
+			    WHERE table_name = 'filter_responsibilities'
+			      AND column_name = 'ssp_id'
+			  ) AND NOT EXISTS (
+			    SELECT 1 FROM pg_constraint
+			    WHERE conname = 'fk_filter_responsibilities_system_security_plan'
+			  ) THEN
+			    ALTER TABLE filter_responsibilities
+			      ADD CONSTRAINT fk_filter_responsibilities_system_security_plan
+			      FOREIGN KEY (ssp_id)
+			      REFERENCES system_security_plans(id)
+			      ON DELETE CASCADE;
+			  END IF;
+			END $$;
+		`).Error; err != nil {
+			return err
+		}
+
 		if err := db.Exec(`
 			DO $$
 			BEGIN
