@@ -188,6 +188,7 @@ func MigrateUpWithConfig(db *gorm.DB, cfg *config.Config) error {
 		&relational.Labels{},
 		&relational.SelectSubjectById{},
 		&relational.Filter{},
+		&relational.FilterResponsibility{},
 		&suggestionrel.DashboardSuggestionRun{},
 		&suggestionrel.DashboardSuggestionRunCell{},
 		&suggestionrel.DashboardSuggestion{},
@@ -295,6 +296,30 @@ func MigrateUpWithConfig(db *gorm.DB, cfg *config.Config) error {
 			    ALTER TABLE profile_controls
 			      ALTER COLUMN control_catalog_id TYPE uuid
 			      USING NULLIF(control_catalog_id, '')::uuid;
+			  END IF;
+			END $$;
+		`).Error; err != nil {
+			return err
+		}
+
+		// Align control_implementation_responsibilities.provided_uuid (historically text,
+		// since ControlImplementationResponsibility.ProvidedUuid carries no explicit
+		// gorm uuid type tag) with ssp_leverage_links.provided_uuid, which is uuid — the
+		// BCH-1339 filter_responsibilities → ssp_leverage_links resolution arm
+		// (risk_evidence_worker.go) joins these two columns directly. Same idempotent
+		// fix as filter_controls/profile_controls's control_catalog_id above.
+		if err := db.Exec(`
+			DO $$
+			BEGIN
+			  IF EXISTS (
+			    SELECT 1 FROM information_schema.columns
+			    WHERE table_name = 'control_implementation_responsibilities'
+			      AND column_name = 'provided_uuid'
+			      AND data_type = 'text'
+			  ) THEN
+			    ALTER TABLE control_implementation_responsibilities
+			      ALTER COLUMN provided_uuid TYPE uuid
+			      USING NULLIF(provided_uuid, '')::uuid;
 			  END IF;
 			END $$;
 		`).Error; err != nil {
@@ -862,6 +887,7 @@ func MigrateDown(db *gorm.DB) error {
 		&suggestionrel.DashboardSuggestion{},
 		&suggestionrel.DashboardSuggestionRunCell{},
 		&suggestionrel.DashboardSuggestionRun{},
+		&relational.FilterResponsibility{},
 		&relational.Filter{},
 		"filter_controls",
 		"filter_system_components",

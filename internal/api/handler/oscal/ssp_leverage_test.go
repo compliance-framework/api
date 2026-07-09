@@ -7,11 +7,14 @@ import (
 	"fmt"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/suite"
+	"gorm.io/datatypes"
 
 	"github.com/compliance-framework/api/internal/api/handler"
+	"github.com/compliance-framework/api/internal/converters/labelfilter"
 	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/compliance-framework/api/internal/tests"
 	oscalTypes_1_1_3 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
@@ -255,4 +258,119 @@ func (suite *SSPLeverageIntegrationSuite) TestSubscribeRequiresSSPUpdateOnDownst
 			"items":                  []map[string]any{{"itemId": createdItem.Data.ID.String(), "satisfiedResponsibilityUuids": []string{respUUID}}},
 		})
 	suite.Require().Equal(http.StatusForbidden, rec.Code, rec.Body.String())
+}
+
+// TestResponsibilityFilterFlipsPosture is BCH-1339's core integration scenario: a
+// filter_responsibilities row targeting respB (the responsibility left outstanding by
+// the subscribe in TestSubscribePartialThenProjection's style flow) drives live,
+// evidence-backed posture on the Inherited Capability projection — independent of the
+// subscribe-time satisfaction/outstandingResponsibilities fields (BCH-1338), and posture
+// flips as newer evidence for the same stream changes status. respA, which has no filter
+// targeting it, stays "unknown" throughout. The SSP-resolution half of AC #1 (matched
+// filter → filter_responsibilities → ssp_leverage_links → downstream SSP) is covered
+// against real Postgres by
+// internal/service/worker's TestRiskEvidenceWorkerResponsibilityIntegrationSuite.
+func (suite *SSPLeverageIntegrationSuite) TestResponsibilityFilterFlipsPosture() {
+	suite.Require().NoError(suite.Migrator.Refresh())
+
+	contributorToken := createRoledUser(&suite.IntegrationTestSuite, "posture-contributor@example.com", "contributor")
+	subscriberToken := createRoledUser(&suite.IntegrationTestSuite, "posture-subscriber@example.com", "ssp-subscriber")
+
+	server := newCedarServer(&suite.IntegrationTestSuite)
+
+	upstreamComponentUUID := uuid.New().String()
+	providedUUID := uuid.New().String()
+	respAUUID := uuid.New().String()
+	respBUUID := uuid.New().String()
+	upstreamSSP := sspWithLeverageableCapability(upstreamComponentUUID, providedUUID, respAUUID, respBUUID)
+	rec := authedRequest(&suite.IntegrationTestSuite, server, "POST", "/api/oscal/system-security-plans", contributorToken, upstreamSSP)
+	suite.Require().Equal(http.StatusCreated, rec.Code, rec.Body.String())
+
+	rec = authedRequest(&suite.IntegrationTestSuite, server, "POST",
+		fmt.Sprintf("/api/oscal/system-security-plans/%s/export-offerings", upstreamSSP.UUID),
+		contributorToken, map[string]string{"title": "Offering"})
+	suite.Require().Equal(http.StatusCreated, rec.Code, rec.Body.String())
+	var createdOffering handler.GenericDataResponse[relational.SSPExportOffering]
+	suite.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &createdOffering))
+	offeringID := createdOffering.Data.ID.String()
+
+	rec = authedRequest(&suite.IntegrationTestSuite, server, "POST",
+		fmt.Sprintf("/api/oscal/system-security-plans/%s/export-offerings/%s/items", upstreamSSP.UUID, offeringID),
+		contributorToken, map[string]any{"controlId": "ac-1", "componentUuid": upstreamComponentUUID, "providedUuid": providedUUID})
+	suite.Require().Equal(http.StatusCreated, rec.Code, rec.Body.String())
+	var createdItem handler.GenericDataResponse[relational.SSPExportOfferingItem]
+	suite.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &createdItem))
+	itemID := createdItem.Data.ID.String()
+
+	rec = authedRequest(&suite.IntegrationTestSuite, server, "POST",
+		fmt.Sprintf("/api/oscal/system-security-plans/%s/export-offerings/%s/publish", upstreamSSP.UUID, offeringID),
+		contributorToken, nil)
+	suite.Require().Equal(http.StatusOK, rec.Code, rec.Body.String())
+
+	downstreamSSP := minimalSSP(uuid.New().String())
+	rec = authedRequest(&suite.IntegrationTestSuite, server, "POST", "/api/oscal/system-security-plans", contributorToken, downstreamSSP)
+	suite.Require().Equal(http.StatusCreated, rec.Code, rec.Body.String())
+
+	rec = authedRequest(&suite.IntegrationTestSuite, server, "POST",
+		"/api/oscal/ssp-export-offerings/"+offeringID+"/subscribe", subscriberToken, map[string]any{
+			"downstreamSspId":        downstreamSSP.UUID,
+			"leveragedAuthorization": map[string]string{"title": "Trust in upstream provider", "partyUuid": uuid.New().String()},
+			"items": []map[string]any{
+				{"itemId": itemID, "satisfiedResponsibilityUuids": []string{respAUUID}},
+			},
+		})
+	suite.Require().Equal(http.StatusCreated, rec.Code, rec.Body.String())
+
+	// A responsibility-targeting filter (BCH-1339) on respB, scoped to the downstream SSP.
+	f := relational.Filter{
+		Name: "respB-filter",
+		Filter: datatypes.NewJSONType(labelfilter.Filter{
+			Scope: &labelfilter.Scope{Condition: &labelfilter.Condition{Label: "resp", Operator: "=", Value: "b"}},
+		}),
+	}
+	suite.Require().NoError(suite.DB.Create(&f).Error)
+	suite.Require().NoError(suite.DB.Create(&relational.FilterResponsibility{
+		FilterID:           *f.ID,
+		ResponsibilityUUID: uuid.MustParse(respBUUID),
+		SSPID:              uuid.MustParse(downstreamSSP.UUID),
+	}).Error)
+
+	now := time.Now().UTC()
+	streamUUID := uuid.New()
+	submitEvidence := func(status string, end time.Time) {
+		evID := uuid.New()
+		suite.Require().NoError(suite.DB.Create(&relational.Evidence{
+			UUIDModel: relational.UUIDModel{ID: &evID},
+			UUID:      streamUUID,
+			Title:     "resp-b-evidence",
+			Start:     now, End: end, Expires: &end,
+			Status: datatypes.NewJSONType(oscalTypes_1_1_3.ObjectiveStatus{State: status, Reason: "auto"}),
+		}).Error)
+		suite.Require().NoError(suite.DB.Exec(
+			"INSERT INTO labels (name, value) VALUES ('resp', 'b') ON CONFLICT DO NOTHING").Error)
+		suite.Require().NoError(suite.DB.Exec(
+			"INSERT INTO evidence_labels (evidence_id, labels_name, labels_value) VALUES (?, 'resp', 'b')", evID).Error)
+	}
+
+	fetchProjection := func() leveragedControlResponse {
+		rec := authedRequest(&suite.IntegrationTestSuite, server, "GET",
+			fmt.Sprintf("/api/oscal/system-security-plans/%s/leveraged-controls", downstreamSSP.UUID), contributorToken, nil)
+		suite.Require().Equal(http.StatusOK, rec.Code, rec.Body.String())
+		var projection handler.GenericDataListResponse[leveragedControlResponse]
+		suite.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &projection))
+		suite.Require().Len(projection.Data, 1)
+		return projection.Data[0]
+	}
+
+	submitEvidence("not-satisfied", now)
+	entry := fetchProjection()
+	suite.Equal("not-satisfied", entry.ResponsibilityPosture[uuid.MustParse(respBUUID)])
+	// respA was satisfied at subscribe time but has no filter targeting it, so its live
+	// posture is "unknown" — independent of the subscribe-time attestation.
+	suite.Equal("unknown", entry.ResponsibilityPosture[uuid.MustParse(respAUUID)])
+
+	// Newer evidence for the same stream flips the posture.
+	submitEvidence("satisfied", now.Add(time.Hour))
+	entry = fetchProjection()
+	suite.Equal("satisfied", entry.ResponsibilityPosture[uuid.MustParse(respBUUID)])
 }

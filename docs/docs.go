@@ -21082,7 +21082,7 @@ const docTemplate = `{
         },
         "/oscal/system-security-plans/{id}/leveraged-controls": {
             "get": {
-                "description": "Read-only view over the downstream SSP's own inherited/satisfied entries\njoined to ssp_leverage_links + the upstream offering. Per control/statement,\nreturns which offering it was inherited from, whether satisfaction is full\nor partial (recomputed live from the current satisfied-responsibility rows,\nnot trusted from the link's stored value), and any outstanding\nresponsibilities. Writes nothing; never touches profile_controls/controls.",
+                "description": "Read-only view over the downstream SSP's own inherited/satisfied entries\njoined to ssp_leverage_links + the upstream offering. Per control/statement,\nreturns which offering it was inherited from, whether satisfaction is full\nor partial (recomputed live from the current satisfied-responsibility rows,\nnot trusted from the link's stored value), any outstanding\nresponsibilities, and live evidence-backed posture per responsibility uuid\n(satisfied/not-satisfied/unknown, via filter_responsibilities). Writes\nnothing; never touches profile_controls/controls.",
                 "produces": [
                     "application/json"
                 ],
@@ -38756,6 +38756,13 @@ const docTemplate = `{
                         "$ref": "#/definitions/oscal.upstreamResponsibility"
                     }
                 },
+                "responsibilityPosture": {
+                    "description": "ResponsibilityPosture is the live, evidence-backed posture (satisfied /\nnot-satisfied / unknown) per upstream responsibility uuid under this link's\nprovided-uuid — computed via filter_responsibilities (BCH-1339), independent of\nSatisfaction/OutstandingResponsibilities above (which reflect what was attested at\nsubscribe time, not current evidence).",
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
                 "satisfaction": {
                     "$ref": "#/definitions/relational.SSPLeverageSatisfaction"
                 },
@@ -43815,6 +43822,7 @@ const docTemplate = `{
                     }
                 },
                 "provided-uuid": {
+                    "description": "ProvidedUuid is explicitly typed uuid (unlike its historical default, aligned by\nmigrateAlignProvidedUuidColumnType for pre-existing databases): BCH-1339's\nfilter_responsibilities → ssp_leverage_links resolution arm\n(risk_evidence_worker.go) joins this column directly against\nssp_leverage_links.provided_uuid, which is uuid.",
                     "type": "string"
                 },
                 "remarks": {

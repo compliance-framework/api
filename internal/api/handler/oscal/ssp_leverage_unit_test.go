@@ -3,6 +3,7 @@ package oscal
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -40,6 +41,8 @@ func newSSPLeverageTestDB(t *testing.T) *gorm.DB {
 		&relational.InheritedControlImplementation{},
 		&relational.SatisfiedControlImplementationResponsibility{},
 		&relational.LeveragedAuthorization{},
+		&relational.Filter{},
+		&relational.FilterResponsibility{},
 	))
 	return db
 }
@@ -518,5 +521,22 @@ func TestLeveragedControlsProjectionShowsPartialAndOutstanding(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec.Code)
 	require.Contains(t, rec.Body.String(), `"satisfaction":"partial"`)
 	require.Contains(t, rec.Body.String(), fx.respBID.String())
-	require.NotContains(t, rec.Body.String(), fx.respAID.String())
+
+	var parsed struct {
+		Data []leveragedControlResponse `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &parsed))
+	require.Len(t, parsed.Data, 1)
+	// outstandingResponsibilities only ever lists the unsatisfied responsibility (respB) —
+	// that part of the response is unchanged by BCH-1339.
+	require.Len(t, parsed.Data[0].OutstandingResponsibilities, 1)
+	require.Equal(t, fx.respBID, parsed.Data[0].OutstandingResponsibilities[0].ResponsibilityUUID)
+	// responsibilityPosture, by contrast, always covers every upstream responsibility
+	// under the provided-uuid — both respA (satisfied at subscribe time) and respB — since
+	// it's independent, evidence-backed posture, not a subset of what's outstanding.
+	// Neither has a filter targeting it in this test, so both default to "unknown".
+	require.Equal(t, map[uuid.UUID]string{
+		fx.respAID: "unknown",
+		fx.respBID: "unknown",
+	}, parsed.Data[0].ResponsibilityPosture)
 }
