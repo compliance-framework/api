@@ -95,6 +95,27 @@ func newRiskEvidenceWorkerTestDB(t *testing.T) *gorm.DB {
 		PRIMARY KEY (system_security_plan_id, profile_id)
 	)`).Error)
 
+	// BCH-1339: minimal tables for the filter_responsibilities → ssp_leverage_links
+	// resolution arm. Only the columns resolveSSPsViaFilters actually joins on are
+	// included, matching the minimal-table style already used above for filter_controls.
+	require.NoError(t, db.Exec(`CREATE TABLE IF NOT EXISTS filter_responsibilities (
+		filter_id TEXT,
+		responsibility_uuid TEXT,
+		ssp_id TEXT,
+		PRIMARY KEY (filter_id, responsibility_uuid, ssp_id)
+	)`).Error)
+
+	require.NoError(t, db.Exec(`CREATE TABLE IF NOT EXISTS control_implementation_responsibilities (
+		id TEXT PRIMARY KEY,
+		provided_uuid TEXT
+	)`).Error)
+
+	require.NoError(t, db.Exec(`CREATE TABLE IF NOT EXISTS ssp_leverage_links (
+		id TEXT PRIMARY KEY,
+		downstream_ssp_id TEXT,
+		provided_uuid TEXT
+	)`).Error)
+
 	return db
 }
 
@@ -224,6 +245,46 @@ func seedScopedFilterForControl(t *testing.T, db *gorm.DB, sspID *uuid.UUID, con
 	require.NoError(t, db.Exec(
 		`INSERT INTO filter_controls (filter_id, control_catalog_id, control_id) VALUES (?, ?, ?)`,
 		filterID.String(), controlCatalogID.String(), controlID,
+	).Error)
+
+	return filterID
+}
+
+// seedFilterForResponsibility creates a filter matching labelKey=labelValue and links it to
+// responsibilityUUID, scoped to downstreamSSPID, via filter_responsibilities. Also seeds the
+// minimal control_implementation_responsibilities row (responsibilityUUID → providedUUID) and
+// ssp_leverage_links row (downstreamSSPID + providedUUID) needed for the join in
+// resolveSSPsViaFilters's second arm to resolve. Returns the filter id.
+func seedFilterForResponsibility(t *testing.T, db *gorm.DB, downstreamSSPID, responsibilityUUID, providedUUID uuid.UUID, labelKey, labelValue string) uuid.UUID {
+	t.Helper()
+	filterID := uuid.New()
+
+	filterScope := labelfilter.Filter{
+		Scope: &labelfilter.Scope{
+			Condition: &labelfilter.Condition{Label: labelKey, Operator: "=", Value: labelValue},
+		},
+	}
+	filterJSON, err := json.Marshal(filterScope)
+	require.NoError(t, err)
+
+	require.NoError(t, db.Exec(
+		`INSERT INTO filters (id, name, filter) VALUES (?, ?, ?)`,
+		filterID.String(), "test-responsibility-filter", string(filterJSON),
+	).Error)
+
+	require.NoError(t, db.Exec(
+		`INSERT INTO filter_responsibilities (filter_id, responsibility_uuid, ssp_id) VALUES (?, ?, ?)`,
+		filterID.String(), responsibilityUUID.String(), downstreamSSPID.String(),
+	).Error)
+
+	require.NoError(t, db.Exec(
+		`INSERT INTO control_implementation_responsibilities (id, provided_uuid) VALUES (?, ?)`,
+		responsibilityUUID.String(), providedUUID.String(),
+	).Error)
+
+	require.NoError(t, db.Exec(
+		`INSERT INTO ssp_leverage_links (id, downstream_ssp_id, provided_uuid) VALUES (?, ?, ?)`,
+		uuid.New().String(), downstreamSSPID.String(), providedUUID.String(),
 	).Error)
 
 	return filterID
@@ -1791,6 +1852,135 @@ func TestRiskEvidenceWorker_resolveSSPsViaFilters_MultipleSSPs(t *testing.T) {
 	}
 	assert.True(t, sspIDs[*ssp1.ID])
 	assert.True(t, sspIDs[*ssp2.ID])
+}
+
+func TestRiskEvidenceWorker_resolveSSPsViaFilters_ResolvesViaFilterResponsibilities(t *testing.T) {
+	t.Parallel()
+
+	worker := createTestRiskEvidenceWorker(t)
+	ctx := context.Background()
+
+	downstreamSSPID := uuid.New()
+	responsibilityUUID := uuid.New()
+	providedUUID := uuid.New()
+
+	// This filter has no filter_controls row at all — only filter_responsibilities — so
+	// it exercises both the updated filter-load query (task 002) and the new arm.
+	seedFilterForResponsibility(t, worker.db, downstreamSSPID, responsibilityUUID, providedUUID, "environment", "production")
+
+	labels := []relational.Labels{
+		{Name: "environment", Value: "production"},
+	}
+
+	sspInfos, err := worker.resolveSSPsViaFilters(ctx, labels)
+	require.NoError(t, err)
+	require.Len(t, sspInfos, 1)
+	assert.Equal(t, downstreamSSPID, sspInfos[0].SSPID)
+	assert.Empty(t, sspInfos[0].ControlLinks)
+}
+
+func TestRiskEvidenceWorker_resolveSSPsViaFilters_ResponsibilityLeveragedByMultipleSSPs(t *testing.T) {
+	t.Parallel()
+
+	worker := createTestRiskEvidenceWorker(t)
+	ctx := context.Background()
+
+	// Two different downstream SSPs both leverage the same upstream responsibility (and
+	// its provided_uuid — a single, real upstream row), each via its own filter scoped to
+	// its own ssp_id. seedFilterForResponsibility seeds the shared
+	// control_implementation_responsibilities row itself, so it can only be called once
+	// per responsibilityUUID; the second SSP's filter + leverage link are seeded directly.
+	providedUUID := uuid.New()
+	responsibilityUUID := uuid.New()
+	downstreamSSP1 := uuid.New()
+	downstreamSSP2 := uuid.New()
+
+	seedFilterForResponsibility(t, worker.db, downstreamSSP1, responsibilityUUID, providedUUID, "environment", "production")
+
+	filter2ID := uuid.New()
+	filterScope := labelfilter.Filter{
+		Scope: &labelfilter.Scope{
+			Condition: &labelfilter.Condition{Label: "environment", Operator: "=", Value: "production"},
+		},
+	}
+	filterJSON, err := json.Marshal(filterScope)
+	require.NoError(t, err)
+	require.NoError(t, worker.db.Exec(
+		`INSERT INTO filters (id, name, filter) VALUES (?, ?, ?)`,
+		filter2ID.String(), "second-downstream-filter", string(filterJSON),
+	).Error)
+	require.NoError(t, worker.db.Exec(
+		`INSERT INTO filter_responsibilities (filter_id, responsibility_uuid, ssp_id) VALUES (?, ?, ?)`,
+		filter2ID.String(), responsibilityUUID.String(), downstreamSSP2.String(),
+	).Error)
+	require.NoError(t, worker.db.Exec(
+		`INSERT INTO ssp_leverage_links (id, downstream_ssp_id, provided_uuid) VALUES (?, ?, ?)`,
+		uuid.New().String(), downstreamSSP2.String(), providedUUID.String(),
+	).Error)
+
+	labels := []relational.Labels{
+		{Name: "environment", Value: "production"},
+	}
+
+	sspInfos, err := worker.resolveSSPsViaFilters(ctx, labels)
+	require.NoError(t, err)
+	require.Len(t, sspInfos, 2)
+
+	sspIDs := make(map[uuid.UUID]bool)
+	for _, info := range sspInfos {
+		sspIDs[info.SSPID] = true
+	}
+	assert.True(t, sspIDs[downstreamSSP1])
+	assert.True(t, sspIDs[downstreamSSP2])
+}
+
+func TestRiskEvidenceWorker_resolveSSPsViaFilters_ResponsibilityWrongSSPScopeDoesNotResolve(t *testing.T) {
+	t.Parallel()
+
+	worker := createTestRiskEvidenceWorker(t)
+	ctx := context.Background()
+
+	// filter_responsibilities.ssp_id names a downstream SSP that has no matching
+	// ssp_leverage_links row for this provided_uuid (a leverage link exists, but for a
+	// different downstream SSP) — the join must not resolve anything.
+	providedUUID := uuid.New()
+	responsibilityUUID := uuid.New()
+	scopedSSPID := uuid.New()
+	actualLeveragingSSPID := uuid.New()
+
+	filterID := uuid.New()
+	filterScope := labelfilter.Filter{
+		Scope: &labelfilter.Scope{
+			Condition: &labelfilter.Condition{Label: "environment", Operator: "=", Value: "production"},
+		},
+	}
+	filterJSON, err := json.Marshal(filterScope)
+	require.NoError(t, err)
+	require.NoError(t, worker.db.Exec(
+		`INSERT INTO filters (id, name, filter) VALUES (?, ?, ?)`,
+		filterID.String(), "mis-scoped-filter", string(filterJSON),
+	).Error)
+	require.NoError(t, worker.db.Exec(
+		`INSERT INTO filter_responsibilities (filter_id, responsibility_uuid, ssp_id) VALUES (?, ?, ?)`,
+		filterID.String(), responsibilityUUID.String(), scopedSSPID.String(),
+	).Error)
+	require.NoError(t, worker.db.Exec(
+		`INSERT INTO control_implementation_responsibilities (id, provided_uuid) VALUES (?, ?)`,
+		responsibilityUUID.String(), providedUUID.String(),
+	).Error)
+	// Leverage link exists, but for a different downstream SSP than the filter names.
+	require.NoError(t, worker.db.Exec(
+		`INSERT INTO ssp_leverage_links (id, downstream_ssp_id, provided_uuid) VALUES (?, ?, ?)`,
+		uuid.New().String(), actualLeveragingSSPID.String(), providedUUID.String(),
+	).Error)
+
+	labels := []relational.Labels{
+		{Name: "environment", Value: "production"},
+	}
+
+	sspInfos, err := worker.resolveSSPsViaFilters(ctx, labels)
+	require.NoError(t, err)
+	assert.Empty(t, sspInfos)
 }
 
 func TestComputeDedupeKeyForSSP_WithDedupeLabelKeys(t *testing.T) {

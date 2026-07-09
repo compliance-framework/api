@@ -193,6 +193,7 @@ func (t *TestMigrator) Up() error {
 		&relational.Labels{},
 		&relational.SelectSubjectById{},
 		&relational.Filter{},
+		&relational.FilterResponsibility{},
 		&suggestionrel.DashboardSuggestionRun{},
 		&suggestionrel.DashboardSuggestionRunCell{},
 		&suggestionrel.DashboardSuggestion{},
@@ -570,6 +571,7 @@ func (t *TestMigrator) Down() error {
 		&suggestionrel.DashboardSuggestion{},
 		&suggestionrel.DashboardSuggestionRunCell{},
 		&suggestionrel.DashboardSuggestionRun{},
+		&relational.FilterResponsibility{},
 		&relational.Filter{},
 	)
 }

@@ -1606,12 +1606,17 @@ func (pci *ProvidedControlImplementation) MarshalOscal() *oscalTypes_1_1_3.Provi
 
 type ControlImplementationResponsibility struct {
 	UUIDModel
-	Description      string                    `json:"description"` // required
-	Links            datatypes.JSONSlice[Link] `json:"links"`
-	Props            datatypes.JSONSlice[Prop] `json:"props"`
-	ProvidedUuid     uuid.UUID                 `json:"provided-uuid"`
-	Remarks          string                    `json:"remarks"`
-	ResponsibleRoles []ResponsibleRole         `json:"responsible-roles" gorm:"polymorphic:Parent"`
+	Description string                    `json:"description"` // required
+	Links       datatypes.JSONSlice[Link] `json:"links"`
+	Props       datatypes.JSONSlice[Prop] `json:"props"`
+	// ProvidedUuid is explicitly typed uuid (unlike its historical default, aligned by
+	// migrateAlignProvidedUuidColumnType for pre-existing databases): BCH-1339's
+	// filter_responsibilities → ssp_leverage_links resolution arm
+	// (risk_evidence_worker.go) joins this column directly against
+	// ssp_leverage_links.provided_uuid, which is uuid.
+	ProvidedUuid     uuid.UUID         `json:"provided-uuid" gorm:"type:uuid"`
+	Remarks          string            `json:"remarks"`
+	ResponsibleRoles []ResponsibleRole `json:"responsible-roles" gorm:"polymorphic:Parent"`
 
 	ExportId uuid.UUID
 }

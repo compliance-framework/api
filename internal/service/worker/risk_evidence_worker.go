@@ -139,13 +139,15 @@ func (w *RiskEvidenceWorker) Work(ctx context.Context, job *river.Job[RiskProces
 }
 
 // resolveSSPsViaFilters resolves SSPs by evaluating evidence labels against all filters in-memory,
-// then querying the DB for the filter→control→SSP path.
+// then querying the DB for the filter→control→SSP path (and, for BCH-1339, the
+// filter→responsibility→leverage-link→downstream-SSP path).
 func (w *RiskEvidenceWorker) resolveSSPsViaFilters(ctx context.Context, evidenceLabels []relational.Labels) ([]resolvedSSPInfo, error) {
-	// 1. Load only filters that have at least one control linked (via filter_controls).
-	// Filters without controls can never resolve to an SSP, so loading them is wasteful.
+	// 1. Load only filters that have at least one control or responsibility linked (via
+	// filter_controls or filter_responsibilities). Filters with neither can never resolve
+	// to an SSP, so loading them is wasteful.
 	var filters []relational.Filter
 	if err := w.db.WithContext(ctx).
-		Where("id IN (SELECT DISTINCT filter_id FROM filter_controls)").
+		Where("id IN (SELECT DISTINCT filter_id FROM filter_controls) OR id IN (SELECT DISTINCT filter_id FROM filter_responsibilities)").
 		Find(&filters).Error; err != nil {
 		return nil, fmt.Errorf("failed to load filters: %w", err)
 	}
@@ -222,10 +224,6 @@ func (w *RiskEvidenceWorker) resolveSSPsViaFilters(ctx context.Context, evidence
 		return nil, fmt.Errorf("failed to query SSPs via filter controls: %w", err)
 	}
 
-	if len(rows) == 0 {
-		return nil, nil
-	}
-
 	// 5. Group by SSP ID
 	sspMap := make(map[uuid.UUID]*resolvedSSPInfo)
 	for _, row := range rows {
@@ -238,6 +236,49 @@ func (w *RiskEvidenceWorker) resolveSSPsViaFilters(ctx context.Context, evidence
 			CatalogID: row.ControlCatalogID,
 			ControlID: row.ControlID,
 		})
+	}
+
+	// 6. Query filter_responsibilities → ssp_leverage_links to resolve downstream SSPs
+	// leveraging a responsibility a matched filter targets (BCH-1339). The two-hop lookup
+	// (filter_responsibilities.responsibility_uuid → its provided_uuid via
+	// control_implementation_responsibilities → the downstream leverage link) mirrors the
+	// one already used in internal/api/handler/oscal/ssp_leverage.go's
+	// bulkResolveUpstreamResponsibilities, but in reverse: there we start from a
+	// provided-uuid and find responsibilities; here we start from a responsibility-uuid
+	// and find its provided-uuid. filter_responsibilities.ssp_id must match the leverage
+	// link's own downstream_ssp_id: the same upstream provided-uuid can be leveraged by
+	// several different downstream SSPs, and ssp_id is what picks the right one.
+	// Unlike the control arm, there's no catalog control being targeted here, so resolved
+	// SSPs get no ControlLinks — createRiskLinks already treats that as optional.
+	type filterResponsibilityRow struct {
+		SystemSecurityPlanID uuid.UUID `gorm:"column:system_security_plan_id"`
+	}
+
+	var responsibilityRows []filterResponsibilityRow
+	if err := w.db.WithContext(ctx).
+		Table("filter_responsibilities fr").
+		Select("DISTINCT sll.downstream_ssp_id AS system_security_plan_id").
+		Joins("JOIN control_implementation_responsibilities cir ON cir.id = fr.responsibility_uuid").
+		// Direct (uncast) equality: both sides are uuid on Postgres (cir.provided_uuid's
+		// column type is aligned by the migrateAlignProvidedUuidColumnType data migration,
+		// the same fix already applied to filter_controls.control_catalog_id), text=text
+		// on the sqlite unit-test DB. CAST(... AS uuid) would coerce sqlite's text uuids to
+		// 0 via NUMERIC affinity and cross-join — the same trap the filter_controls arm
+		// above avoids for exactly this reason.
+		Joins("JOIN ssp_leverage_links sll ON sll.provided_uuid = cir.provided_uuid AND sll.downstream_ssp_id = fr.ssp_id").
+		Where("fr.filter_id IN ?", matchingFilterIDs).
+		Scan(&responsibilityRows).Error; err != nil {
+		return nil, fmt.Errorf("failed to query SSPs via filter responsibilities: %w", err)
+	}
+
+	for _, row := range responsibilityRows {
+		if _, exists := sspMap[row.SystemSecurityPlanID]; !exists {
+			sspMap[row.SystemSecurityPlanID] = &resolvedSSPInfo{SSPID: row.SystemSecurityPlanID}
+		}
+	}
+
+	if len(sspMap) == 0 {
+		return nil, nil
 	}
 
 	result := make([]resolvedSSPInfo, 0, len(sspMap))

@@ -621,6 +621,12 @@ type leveragedControlResponse struct {
 	InheritedFrom               leveragedControlInheritedFrom      `json:"inheritedFrom"`
 	Satisfaction                relational.SSPLeverageSatisfaction `json:"satisfaction"`
 	OutstandingResponsibilities []upstreamResponsibility           `json:"outstandingResponsibilities"`
+	// ResponsibilityPosture is the live, evidence-backed posture (satisfied /
+	// not-satisfied / unknown) per upstream responsibility uuid under this link's
+	// provided-uuid — computed via filter_responsibilities (BCH-1339), independent of
+	// Satisfaction/OutstandingResponsibilities above (which reflect what was attested at
+	// subscribe time, not current evidence).
+	ResponsibilityPosture map[uuid.UUID]string `json:"responsibilityPosture"`
 }
 
 // LeveragedControls godoc
@@ -630,8 +636,10 @@ type leveragedControlResponse struct {
 //	@Description	joined to ssp_leverage_links + the upstream offering. Per control/statement,
 //	@Description	returns which offering it was inherited from, whether satisfaction is full
 //	@Description	or partial (recomputed live from the current satisfied-responsibility rows,
-//	@Description	not trusted from the link's stored value), and any outstanding
-//	@Description	responsibilities. Writes nothing; never touches profile_controls/controls.
+//	@Description	not trusted from the link's stored value), any outstanding
+//	@Description	responsibilities, and live evidence-backed posture per responsibility uuid
+//	@Description	(satisfied/not-satisfied/unknown, via filter_responsibilities). Writes
+//	@Description	nothing; never touches profile_controls/controls.
 //	@Tags			SSP Export Offerings
 //	@Produce		json
 //	@Param			id	path		string	true	"Downstream SSP ID"
@@ -714,10 +722,30 @@ func (h *SSPLeverageHandler) LeveragedControls(ctx echo.Context) error {
 		satisfiedByComponent[s.ByComponentId][s.ResponsibilityUuid] = true
 	}
 
+	// Batch every responsibility uuid under every link's provided-uuid into a single
+	// ResponsibilityPosture call, rather than one call per link.
+	var allResponsibilityUUIDs []uuid.UUID
+	for _, full := range fullSetByProvided {
+		for _, r := range full {
+			allResponsibilityUUIDs = append(allResponsibilityUUIDs, r.ResponsibilityUUID)
+		}
+	}
+	posture, err := ResponsibilityPosture(h.db, sspID, allResponsibilityUUIDs)
+	if err != nil {
+		h.sugar.Errorf("Failed to compute responsibility posture for leverage links: %v", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
 	result := make([]leveragedControlResponse, 0, len(links))
 	for _, link := range links {
 		byComponentID := byComponentIDByInherited[link.InheritedUUID]
-		satisfaction, outstanding := deriveSatisfaction(fullSetByProvided[link.ProvidedUUID], satisfiedByComponent[byComponentID])
+		full := fullSetByProvided[link.ProvidedUUID]
+		satisfaction, outstanding := deriveSatisfaction(full, satisfiedByComponent[byComponentID])
+
+		linkPosture := make(map[uuid.UUID]string, len(full))
+		for _, r := range full {
+			linkPosture[r.ResponsibilityUUID] = posture[r.ResponsibilityUUID]
+		}
 
 		result = append(result, leveragedControlResponse{
 			ControlID:   link.ControlID,
@@ -730,6 +758,7 @@ func (h *SSPLeverageHandler) LeveragedControls(ctx echo.Context) error {
 			},
 			Satisfaction:                satisfaction,
 			OutstandingResponsibilities: outstanding,
+			ResponsibilityPosture:       linkPosture,
 		})
 	}
 
