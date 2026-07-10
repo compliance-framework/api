@@ -33,6 +33,17 @@ type controlLinkInfo struct {
 	ControlID string
 }
 
+// resolvedResponsibilityInfo groups a resolved downstream SSP with the specific upstream
+// responsibility uuid a filter_responsibilities row matched (BCH-1340). Kept separate
+// from resolvedSSPInfo/controlLinkInfo: a responsibility match needs a structurally
+// different risk (dedupe-keyed on the responsibility uuid, linked via
+// risk_responsibility_links, one risk per (SSP, responsibility) pair rather than one per
+// SSP+template), not a control-linked risk on the resolved SSP.
+type resolvedResponsibilityInfo struct {
+	SSPID              uuid.UUID
+	ResponsibilityUUID uuid.UUID
+}
+
 // RiskEvidenceWorker handles processing evidence and creating risks
 type RiskEvidenceWorker struct {
 	db     *gorm.DB
@@ -95,13 +106,13 @@ func (w *RiskEvidenceWorker) Work(ctx context.Context, job *river.Job[RiskProces
 	}
 
 	// 5. Resolve SSPs via filter matching (replaces component-based resolution)
-	sspInfos, err := w.resolveSSPsViaFilters(ctx, evidence.Labels)
+	sspInfos, responsibilityInfos, err := w.resolveSSPsViaFilters(ctx, evidence.Labels)
 	if err != nil {
 		w.logger.Errorw("Failed to resolve SSPs via filters", "error", err, "evidence_id", args.EvidenceID)
 		return err
 	}
 
-	if len(sspInfos) == 0 {
+	if len(sspInfos) == 0 && len(responsibilityInfos) == 0 {
 		w.logger.Infow("No SSPs resolved via filters for evidence", "evidence_id", args.EvidenceID)
 		return nil
 	}
@@ -113,11 +124,20 @@ func (w *RiskEvidenceWorker) Work(ctx context.Context, job *river.Job[RiskProces
 		return err
 	}
 
-	// 7. Create/update risks for each template × SSP
+	// 7. Create/update risks for each template × SSP, and each template × resolved
+	// responsibility (BCH-1340) — the latter creates a downstream-local
+	// inherited-responsibility risk instead of a control-linked one.
 	var errs []error
 	for _, riskTemplate := range filteredRiskTemplates {
 		if err := w.createOrUpdateRisksForSSPs(ctx, riskTemplate, evidence, sspInfos); err != nil {
 			w.logger.Errorw("Failed to create or update risks for SSPs",
+				"error", err,
+				"evidence_id", args.EvidenceID,
+				"risk_template_id", riskTemplate.ID)
+			errs = append(errs, err)
+		}
+		if err := w.createOrUpdateRisksForResponsibilities(ctx, riskTemplate, evidence, responsibilityInfos); err != nil {
+			w.logger.Errorw("Failed to create or update risks for responsibilities",
 				"error", err,
 				"evidence_id", args.EvidenceID,
 				"risk_template_id", riskTemplate.ID)
@@ -133,15 +153,19 @@ func (w *RiskEvidenceWorker) Work(ctx context.Context, job *river.Job[RiskProces
 		"evidence_id", args.EvidenceID,
 		"risk_templates", len(filteredRiskTemplates),
 		"ssps", len(sspInfos),
+		"responsibilities", len(responsibilityInfos),
 	)
 
 	return nil
 }
 
 // resolveSSPsViaFilters resolves SSPs by evaluating evidence labels against all filters in-memory,
-// then querying the DB for the filter→control→SSP path (and, for BCH-1339, the
-// filter→responsibility→leverage-link→downstream-SSP path).
-func (w *RiskEvidenceWorker) resolveSSPsViaFilters(ctx context.Context, evidenceLabels []relational.Labels) ([]resolvedSSPInfo, error) {
+// then querying the DB for the filter→control→SSP path and, separately (BCH-1339/1340),
+// the filter→responsibility→leverage-link→downstream-SSP path. The two paths are
+// returned separately because they feed structurally different risks: a control match
+// feeds a risk linked via risk_control_links, a responsibility match feeds a risk
+// dedupe-keyed on the responsibility uuid and linked via risk_responsibility_links.
+func (w *RiskEvidenceWorker) resolveSSPsViaFilters(ctx context.Context, evidenceLabels []relational.Labels) ([]resolvedSSPInfo, []resolvedResponsibilityInfo, error) {
 	// 1. Load only filters that have at least one control or responsibility linked (via
 	// filter_controls or filter_responsibilities). Filters with neither can never resolve
 	// to an SSP, so loading them is wasteful.
@@ -149,11 +173,11 @@ func (w *RiskEvidenceWorker) resolveSSPsViaFilters(ctx context.Context, evidence
 	if err := w.db.WithContext(ctx).
 		Where("id IN (SELECT DISTINCT filter_id FROM filter_controls) OR id IN (SELECT DISTINCT filter_id FROM filter_responsibilities)").
 		Find(&filters).Error; err != nil {
-		return nil, fmt.Errorf("failed to load filters: %w", err)
+		return nil, nil, fmt.Errorf("failed to load filters: %w", err)
 	}
 
 	if len(filters) == 0 {
-		return nil, nil
+		return nil, nil, nil
 	}
 
 	// 2. Normalize evidence labels into map[string][]string
@@ -181,7 +205,7 @@ func (w *RiskEvidenceWorker) resolveSSPsViaFilters(ctx context.Context, evidence
 	}
 
 	if len(matchingFilterIDs) == 0 {
-		return nil, nil
+		return nil, nil, nil
 	}
 
 	w.logger.Debugw("Filters matched evidence labels",
@@ -221,7 +245,7 @@ func (w *RiskEvidenceWorker) resolveSSPsViaFilters(ctx context.Context, evidence
 		// another SSP that merely shares the control id in its profile.
 		Where("f.ssp_id IS NULL OR f.ssp_id = ssp.id").
 		Scan(&rows).Error; err != nil {
-		return nil, fmt.Errorf("failed to query SSPs via filter controls: %w", err)
+		return nil, nil, fmt.Errorf("failed to query SSPs via filter controls: %w", err)
 	}
 
 	// 5. Group by SSP ID
@@ -247,17 +271,19 @@ func (w *RiskEvidenceWorker) resolveSSPsViaFilters(ctx context.Context, evidence
 	// provided-uuid and find responsibilities; here we start from a responsibility-uuid
 	// and find its provided-uuid. filter_responsibilities.ssp_id must match the leverage
 	// link's own downstream_ssp_id: the same upstream provided-uuid can be leveraged by
-	// several different downstream SSPs, and ssp_id is what picks the right one.
-	// Unlike the control arm, there's no catalog control being targeted here, so resolved
-	// SSPs get no ControlLinks — createRiskLinks already treats that as optional.
+	// several different downstream SSPs, and ssp_id is what picks the right one. Returned
+	// separately from resolvedSSPInfo/sspMap (BCH-1340): a responsibility match feeds a
+	// different kind of risk (dedupe-keyed on responsibility uuid, linked via
+	// risk_responsibility_links), not a control-linked risk on the resolved SSP.
 	type filterResponsibilityRow struct {
 		SystemSecurityPlanID uuid.UUID `gorm:"column:system_security_plan_id"`
+		ResponsibilityUUID   uuid.UUID `gorm:"column:responsibility_uuid"`
 	}
 
 	var responsibilityRows []filterResponsibilityRow
 	if err := w.db.WithContext(ctx).
 		Table("filter_responsibilities fr").
-		Select("DISTINCT sll.downstream_ssp_id AS system_security_plan_id").
+		Select("DISTINCT sll.downstream_ssp_id AS system_security_plan_id, fr.responsibility_uuid AS responsibility_uuid").
 		Joins("JOIN control_implementation_responsibilities cir ON cir.id = fr.responsibility_uuid").
 		// Direct (uncast) equality: both sides are uuid on Postgres (cir.provided_uuid's
 		// column type is aligned by the migrateAlignProvidedUuidColumnType data migration,
@@ -268,17 +294,15 @@ func (w *RiskEvidenceWorker) resolveSSPsViaFilters(ctx context.Context, evidence
 		Joins("JOIN ssp_leverage_links sll ON sll.provided_uuid = cir.provided_uuid AND sll.downstream_ssp_id = fr.ssp_id").
 		Where("fr.filter_id IN ?", matchingFilterIDs).
 		Scan(&responsibilityRows).Error; err != nil {
-		return nil, fmt.Errorf("failed to query SSPs via filter responsibilities: %w", err)
+		return nil, nil, fmt.Errorf("failed to query SSPs via filter responsibilities: %w", err)
 	}
 
+	responsibilityResult := make([]resolvedResponsibilityInfo, 0, len(responsibilityRows))
 	for _, row := range responsibilityRows {
-		if _, exists := sspMap[row.SystemSecurityPlanID]; !exists {
-			sspMap[row.SystemSecurityPlanID] = &resolvedSSPInfo{SSPID: row.SystemSecurityPlanID}
-		}
-	}
-
-	if len(sspMap) == 0 {
-		return nil, nil
+		responsibilityResult = append(responsibilityResult, resolvedResponsibilityInfo{
+			SSPID:              row.SystemSecurityPlanID,
+			ResponsibilityUUID: row.ResponsibilityUUID,
+		})
 	}
 
 	result := make([]resolvedSSPInfo, 0, len(sspMap))
@@ -286,7 +310,7 @@ func (w *RiskEvidenceWorker) resolveSSPsViaFilters(ctx context.Context, evidence
 		result = append(result, *info)
 	}
 
-	return result, nil
+	return result, responsibilityResult, nil
 }
 
 // RiskEvidenceWorker helper methods
@@ -626,6 +650,223 @@ func (w *RiskEvidenceWorker) createNewRiskForSSP(ctx context.Context, riskTempla
 		"ssp_id", sspID,
 		"dedupe_key", dedupeKey,
 	)
+
+	return nil
+}
+
+// createOrUpdateRisksForResponsibilities creates or updates one inherited-responsibility
+// risk per resolved (downstream SSP, responsibility) pair (BCH-1340). Mirrors
+// createOrUpdateRisksForSSPs, but keyed on the responsibility uuid rather than the SSP
+// alone, and linked via risk_responsibility_links rather than risk_control_links.
+func (w *RiskEvidenceWorker) createOrUpdateRisksForResponsibilities(ctx context.Context, riskTemplate templates.RiskTemplate, evidence *relational.Evidence, responsibilityInfos []resolvedResponsibilityInfo) error {
+	var errs []error
+	for _, info := range responsibilityInfos {
+		dedupeKey := w.computeDedupeKeyForResponsibility(riskTemplate, info.SSPID, info.ResponsibilityUUID)
+
+		var existingRisk risks.Risk
+		err := w.db.WithContext(ctx).
+			Where("dedupe_key = ? AND status != ?", dedupeKey, risks.RiskStatusClosed).
+			First(&existingRisk).Error
+
+		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+			errs = append(errs, fmt.Errorf("failed to check for existing responsibility risk: %w", err))
+			continue
+		}
+
+		if err == nil {
+			err = w.updateExistingResponsibilityRisk(ctx, &existingRisk, evidence, info.ResponsibilityUUID)
+		} else {
+			err = w.createNewResponsibilityRisk(ctx, riskTemplate, evidence, info, dedupeKey)
+		}
+
+		if err != nil {
+			w.logger.Errorw("Failed to create or update responsibility risk",
+				"error", err,
+				"evidence_id", evidence.UUID,
+				"risk_template_id", riskTemplate.ID,
+				"ssp_id", info.SSPID,
+				"responsibility_uuid", info.ResponsibilityUUID)
+			errs = append(errs, err)
+		}
+	}
+
+	return errors.Join(errs...)
+}
+
+// computeDedupeKeyForResponsibility computes the dedupe key for an inherited-
+// responsibility risk: ssp_id:risk_template_id:responsibility:<uuid>. The responsibility
+// uuid is an additional scope dimension beyond computeDedupeKeyForSSP's base — the same
+// upstream responsibility can be leveraged by multiple downstream SSPs (BCH-1339), each
+// needing its own risk.
+func (w *RiskEvidenceWorker) computeDedupeKeyForResponsibility(riskTemplate templates.RiskTemplate, sspID uuid.UUID, responsibilityUUID uuid.UUID) string {
+	return fmt.Sprintf("%s:%s:responsibility:%s", sspID.String(), riskTemplate.ID.String(), responsibilityUUID.String())
+}
+
+// updateExistingResponsibilityRisk mirrors updateExistingRisk, scoped to a single
+// responsibility rather than a set of control links.
+func (w *RiskEvidenceWorker) updateExistingResponsibilityRisk(ctx context.Context, existingRisk *risks.Risk, evidence *relational.Evidence, responsibilityUUID uuid.UUID) error {
+	now := time.Now().UTC()
+	previousLastSeen := existingRisk.LastSeenAt
+
+	reopened := false
+	oldStatus := existingRisk.Status
+	if existingRisk.Status == string(risks.RiskStatusRemediated) {
+		existingRisk.Status = string(risks.RiskStatusOpen)
+		reopened = true
+	}
+
+	err := w.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		existingRisk.LastSeenAt = now
+		if err := tx.Save(existingRisk).Error; err != nil {
+			return fmt.Errorf("failed to update existing responsibility risk: %w", err)
+		}
+
+		// Re-create risk links (evidence + responsibility) for this new piece of
+		// evidence. createResponsibilityRiskLinks is idempotent via
+		// OnConflict{DoNothing}, so this is safe for existing risks.
+		if err := w.createResponsibilityRiskLinks(ctx, tx, *existingRisk.ID, evidence, responsibilityUUID); err != nil {
+			return fmt.Errorf("failed to create responsibility risk links: %w", err)
+		}
+
+		if reopened {
+			if err := w.emitRiskEventAt(ctx, tx, *existingRisk.ID, string(risks.RiskEventTypeStatusChange), map[string]interface{}{
+				"from":        oldStatus,
+				"to":          string(risks.RiskStatusOpen),
+				"evidence_id": evidence.UUID,
+				"reason":      "new_failing_evidence",
+			}, now); err != nil {
+				return fmt.Errorf("failed to emit reopen status change event: %w", err)
+			}
+			if err := risks.NewRiskService(w.db).RecordRiskScoreSnapshot(tx, *existingRisk.ID, risks.RiskEventTypeStatusChange, nil, now); err != nil {
+				return fmt.Errorf("failed to record reopened risk score snapshot: %w", err)
+			}
+		}
+
+		if err := w.emitRiskEvent(ctx, tx, *existingRisk.ID, string(risks.RiskEventTypeLastSeen), map[string]interface{}{
+			"evidence_id":        evidence.UUID,
+			"previous_last_seen": previousLastSeen,
+			"new_last_seen":      now,
+		}); err != nil {
+			return fmt.Errorf("failed to emit risk event: %w", err)
+		}
+
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+
+	w.logger.Infow("Updated existing responsibility risk",
+		"risk_id", existingRisk.ID,
+		"evidence_id", evidence.UUID,
+		"dedupe_key", existingRisk.DedupeKey,
+	)
+
+	return nil
+}
+
+// createNewResponsibilityRisk mirrors createNewRiskForSSP: sourced as
+// inherited-responsibility rather than evidence-auto, and linked via
+// createResponsibilityRiskLinks rather than createRiskLinks — no control or component
+// links, since an inherited capability has neither a local catalog control nor a local
+// component.
+func (w *RiskEvidenceWorker) createNewResponsibilityRisk(ctx context.Context, riskTemplate templates.RiskTemplate, evidence *relational.Evidence, info resolvedResponsibilityInfo, dedupeKey string) error {
+	now := time.Now().UTC()
+
+	title, statement, likelihoodHint, impactHint := w.resolveRiskTemplateFields(riskTemplate, evidence.Labels)
+
+	newRisk := risks.Risk{
+		Title:          title,
+		Description:    statement,
+		Status:         string(risks.RiskStatusOpen),
+		SSPID:          info.SSPID,
+		RiskTemplateID: riskTemplate.ID,
+		SourceType:     string(risks.RiskSourceTypeInheritedResponsibility),
+		DedupeKey:      dedupeKey,
+		FirstSeenAt:    now,
+		LastSeenAt:     now,
+	}
+
+	if likelihoodHint != nil {
+		newRisk.Likelihood = likelihoodHint
+	}
+	if impactHint != nil {
+		newRisk.Impact = impactHint
+	}
+
+	err := w.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(&newRisk).Error; err != nil {
+			return fmt.Errorf("failed to create new responsibility risk: %w", err)
+		}
+		if err := w.copyTemplateAssociationsToRisk(tx, *newRisk.ID, riskTemplate); err != nil {
+			return fmt.Errorf("failed to copy risk template associations: %w", err)
+		}
+		if err := w.createResponsibilityRiskLinks(ctx, tx, *newRisk.ID, evidence, info.ResponsibilityUUID); err != nil {
+			return err
+		}
+		if err := w.emitRiskEventAt(ctx, tx, *newRisk.ID, string(risks.RiskEventTypeCreated), map[string]interface{}{
+			"evidence_id":         evidence.UUID,
+			"template_id":         riskTemplate.ID,
+			"dedupe_key":          dedupeKey,
+			"ssp_id":              info.SSPID,
+			"responsibility_uuid": info.ResponsibilityUUID,
+		}, now); err != nil {
+			return fmt.Errorf("failed to emit created risk event: %w", err)
+		}
+		if err := risks.NewRiskService(w.db).RecordRiskScoreSnapshot(tx, *newRisk.ID, risks.RiskEventTypeCreated, nil, now); err != nil {
+			return fmt.Errorf("failed to record created risk score snapshot: %w", err)
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+
+	w.logger.Infow("Created new responsibility risk",
+		"risk_id", newRisk.ID,
+		"evidence_id", evidence.UUID,
+		"risk_template_id", riskTemplate.ID,
+		"ssp_id", info.SSPID,
+		"responsibility_uuid", info.ResponsibilityUUID,
+		"dedupe_key", dedupeKey,
+	)
+
+	return nil
+}
+
+// createResponsibilityRiskLinks links an inherited-responsibility risk to the evidence
+// that triggered it and the upstream responsibility it covers. Mirrors createRiskLinks'
+// evidence-linking half exactly — including the reason a RiskEvidenceLink is required at
+// all: it's what makes handleEvidenceResolution's existing satisfied-evidence
+// auto-remediation apply to these risks with zero changes there. No control or component
+// links, since an inherited capability has neither.
+func (w *RiskEvidenceWorker) createResponsibilityRiskLinks(ctx context.Context, db *gorm.DB, riskID uuid.UUID, evidence *relational.Evidence, responsibilityUUID uuid.UUID) error {
+	now := time.Now().UTC()
+	if evidence.UUID == uuid.Nil {
+		evidenceID := uuid.Nil
+		if evidence.ID != nil {
+			evidenceID = *evidence.ID
+		}
+		return fmt.Errorf("evidence %s is missing stream uuid", evidenceID)
+	}
+
+	evidenceLink := &risks.RiskEvidenceLink{
+		RiskID:     riskID,
+		EvidenceID: evidence.UUID,
+		CreatedAt:  now,
+	}
+	if err := db.WithContext(ctx).Clauses(clause.OnConflict{DoNothing: true}).Create(evidenceLink).Error; err != nil {
+		return fmt.Errorf("failed to create evidence link: %w", err)
+	}
+
+	responsibilityLink := &risks.RiskResponsibilityLink{
+		RiskID:             riskID,
+		ResponsibilityUUID: responsibilityUUID,
+		CreatedAt:          now,
+	}
+	if err := db.WithContext(ctx).Clauses(clause.OnConflict{DoNothing: true}).Create(responsibilityLink).Error; err != nil {
+		return fmt.Errorf("failed to create responsibility link: %w", err)
+	}
 
 	return nil
 }

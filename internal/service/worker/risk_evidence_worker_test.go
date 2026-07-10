@@ -52,6 +52,7 @@ func newRiskEvidenceWorkerTestDB(t *testing.T) *gorm.DB {
 		&risks.RiskSubjectLink{},
 		&risks.RiskComponentLink{},
 		&risks.RiskControlLink{},
+		&risks.RiskResponsibilityLink{},
 		&risks.RiskThreatRef{},
 		&risks.RiskRemediationTemplate{},
 		&risks.RiskRemediationTask{},
@@ -1280,6 +1281,256 @@ func TestRiskEvidenceWorker_createRiskLinks_MissingEvidenceStreamUUID(t *testing
 	assert.Zero(t, evidenceLinkCount)
 }
 
+func TestRiskEvidenceWorker_createOrUpdateRisksForResponsibilities_CreateNew(t *testing.T) {
+	t.Parallel()
+
+	worker := createTestRiskEvidenceWorker(t)
+	ctx := context.Background()
+
+	downstreamSSPID := uuid.New()
+	responsibilityUUID := uuid.New()
+	riskTemplate := createTestRiskTemplate(t, worker.db)
+	evidence := createTestEvidence(t, worker.db)
+
+	responsibilityInfos := []resolvedResponsibilityInfo{
+		{SSPID: downstreamSSPID, ResponsibilityUUID: responsibilityUUID},
+	}
+
+	err := worker.createOrUpdateRisksForResponsibilities(ctx, *riskTemplate, evidence, responsibilityInfos)
+	assert.NoError(t, err)
+
+	var risk risks.Risk
+	err = worker.db.WithContext(ctx).
+		Where("ssp_id = ? AND risk_template_id = ?", downstreamSSPID, riskTemplate.ID).
+		First(&risk).Error
+	assert.NoError(t, err)
+	assert.Equal(t, riskTemplate.Title, risk.Title)
+	assert.Equal(t, string(risks.RiskSourceTypeInheritedResponsibility), risk.SourceType)
+	assert.Equal(t, risks.RiskStatusOpen, risks.RiskStatus(risk.Status))
+	assert.Equal(t, worker.computeDedupeKeyForResponsibility(*riskTemplate, downstreamSSPID, responsibilityUUID), risk.DedupeKey)
+
+	var responsibilityLink risks.RiskResponsibilityLink
+	require.NoError(t, worker.db.Where("risk_id = ?", risk.ID).First(&responsibilityLink).Error)
+	assert.Equal(t, responsibilityUUID, responsibilityLink.ResponsibilityUUID)
+
+	var evidenceLink risks.RiskEvidenceLink
+	require.NoError(t, worker.db.Where("risk_id = ? AND evidence_id = ?", risk.ID, evidence.UUID).First(&evidenceLink).Error)
+
+	// No control/component links — an inherited capability has neither.
+	var controlLinkCount int64
+	require.NoError(t, worker.db.Model(&risks.RiskControlLink{}).Where("risk_id = ?", risk.ID).Count(&controlLinkCount).Error)
+	assert.Zero(t, controlLinkCount)
+}
+
+func TestRiskEvidenceWorker_createOrUpdateRisksForResponsibilities_UpdateExisting(t *testing.T) {
+	t.Parallel()
+
+	worker := createTestRiskEvidenceWorker(t)
+	ctx := context.Background()
+
+	downstreamSSPID := uuid.New()
+	responsibilityUUID := uuid.New()
+	riskTemplate := createTestRiskTemplate(t, worker.db)
+	evidence := createTestEvidence(t, worker.db)
+
+	dedupeKey := worker.computeDedupeKeyForResponsibility(*riskTemplate, downstreamSSPID, responsibilityUUID)
+	existingRisk := &risks.Risk{
+		Title:          "Existing Responsibility Risk",
+		Description:    "Existing description",
+		Status:         string(risks.RiskStatusOpen),
+		SSPID:          downstreamSSPID,
+		RiskTemplateID: riskTemplate.ID,
+		SourceType:     string(risks.RiskSourceTypeInheritedResponsibility),
+		DedupeKey:      dedupeKey,
+		FirstSeenAt:    time.Now().Add(-1 * time.Hour),
+		LastSeenAt:     time.Now().Add(-1 * time.Hour),
+	}
+	require.NoError(t, worker.db.Create(existingRisk).Error)
+
+	responsibilityInfos := []resolvedResponsibilityInfo{
+		{SSPID: downstreamSSPID, ResponsibilityUUID: responsibilityUUID},
+	}
+
+	err := worker.createOrUpdateRisksForResponsibilities(ctx, *riskTemplate, evidence, responsibilityInfos)
+	assert.NoError(t, err)
+
+	var updatedRisk risks.Risk
+	require.NoError(t, worker.db.WithContext(ctx).First(&updatedRisk, existingRisk.ID).Error)
+	assert.True(t, updatedRisk.LastSeenAt.After(existingRisk.LastSeenAt))
+
+	// Re-processing the same evidence doesn't duplicate the risk (dedupe).
+	var riskCount int64
+	require.NoError(t, worker.db.Model(&risks.Risk{}).Where("dedupe_key = ?", dedupeKey).Count(&riskCount).Error)
+	assert.Equal(t, int64(1), riskCount)
+}
+
+func TestRiskEvidenceWorker_createOrUpdateRisksForResponsibilities_ReopensRemediated(t *testing.T) {
+	t.Parallel()
+
+	worker := createTestRiskEvidenceWorker(t)
+	ctx := context.Background()
+
+	downstreamSSPID := uuid.New()
+	responsibilityUUID := uuid.New()
+	riskTemplate := createTestRiskTemplate(t, worker.db)
+	evidence := createTestEvidence(t, worker.db)
+
+	dedupeKey := worker.computeDedupeKeyForResponsibility(*riskTemplate, downstreamSSPID, responsibilityUUID)
+	existingRisk := &risks.Risk{
+		Title:          "Remediated Responsibility Risk",
+		Description:    "Existing description",
+		Status:         string(risks.RiskStatusRemediated),
+		SSPID:          downstreamSSPID,
+		RiskTemplateID: riskTemplate.ID,
+		SourceType:     string(risks.RiskSourceTypeInheritedResponsibility),
+		DedupeKey:      dedupeKey,
+		FirstSeenAt:    time.Now().Add(-1 * time.Hour),
+		LastSeenAt:     time.Now().Add(-1 * time.Hour),
+	}
+	require.NoError(t, worker.db.Create(existingRisk).Error)
+
+	// The dedupe pre-check in createOrUpdateRisksForResponsibilities excludes closed
+	// risks but not remediated ones, so new failing evidence must reopen it rather than
+	// create a duplicate.
+	responsibilityInfos := []resolvedResponsibilityInfo{
+		{SSPID: downstreamSSPID, ResponsibilityUUID: responsibilityUUID},
+	}
+
+	err := worker.createOrUpdateRisksForResponsibilities(ctx, *riskTemplate, evidence, responsibilityInfos)
+	assert.NoError(t, err)
+
+	var updatedRisk risks.Risk
+	require.NoError(t, worker.db.WithContext(ctx).First(&updatedRisk, existingRisk.ID).Error)
+	assert.Equal(t, risks.RiskStatusOpen, risks.RiskStatus(updatedRisk.Status))
+}
+
+func TestRiskEvidenceWorker_computeDedupeKeyForResponsibility(t *testing.T) {
+	t.Parallel()
+
+	worker := createTestRiskEvidenceWorker(t)
+	sspID := uuid.New()
+	responsibilityUUID := uuid.New()
+	templateID := uuid.New()
+	riskTemplate := templates.RiskTemplate{UUIDModel: relational.UUIDModel{ID: &templateID}}
+
+	key := worker.computeDedupeKeyForResponsibility(riskTemplate, sspID, responsibilityUUID)
+	expected := fmt.Sprintf("%s:%s:responsibility:%s", sspID, templateID, responsibilityUUID)
+	assert.Equal(t, expected, key)
+
+	// Different SSPs leveraging the same responsibility must not collide.
+	otherSSPID := uuid.New()
+	otherKey := worker.computeDedupeKeyForResponsibility(riskTemplate, otherSSPID, responsibilityUUID)
+	assert.NotEqual(t, key, otherKey)
+}
+
+func TestRiskEvidenceWorker_createResponsibilityRiskLinks(t *testing.T) {
+	t.Parallel()
+
+	worker := createTestRiskEvidenceWorker(t)
+	ctx := context.Background()
+
+	evidence := createTestEvidence(t, worker.db)
+
+	sspID := uuid.New()
+	riskID := uuid.New()
+	risk := &risks.Risk{
+		UUIDModel:   relational.UUIDModel{ID: &riskID},
+		SSPID:       sspID,
+		Title:       "Test Risk",
+		Description: "Test Description",
+		Status:      "open",
+		SourceType:  string(risks.RiskSourceTypeInheritedResponsibility),
+		FirstSeenAt: time.Now(),
+		LastSeenAt:  time.Now(),
+	}
+	require.NoError(t, worker.db.Create(risk).Error)
+
+	responsibilityUUID := uuid.New()
+	err := worker.createResponsibilityRiskLinks(ctx, worker.db, riskID, evidence, responsibilityUUID)
+	assert.NoError(t, err)
+
+	var evidenceLink risks.RiskEvidenceLink
+	err = worker.db.WithContext(ctx).
+		Where("risk_id = ? AND evidence_id = ?", riskID, evidence.UUID).
+		First(&evidenceLink).Error
+	assert.NoError(t, err)
+
+	var responsibilityLink risks.RiskResponsibilityLink
+	err = worker.db.WithContext(ctx).
+		Where("risk_id = ? AND responsibility_uuid = ?", riskID, responsibilityUUID).
+		First(&responsibilityLink).Error
+	assert.NoError(t, err)
+
+	// Idempotent via OnConflict{DoNothing} — calling it again must not error or duplicate.
+	require.NoError(t, worker.createResponsibilityRiskLinks(ctx, worker.db, riskID, evidence, responsibilityUUID))
+	var linkCount int64
+	require.NoError(t, worker.db.Model(&risks.RiskResponsibilityLink{}).Where("risk_id = ?", riskID).Count(&linkCount).Error)
+	assert.Equal(t, int64(1), linkCount)
+}
+
+func TestRiskEvidenceWorker_createResponsibilityRiskLinks_MissingEvidenceStreamUUID(t *testing.T) {
+	t.Parallel()
+
+	worker := createTestRiskEvidenceWorker(t)
+	ctx := context.Background()
+
+	evidenceID := uuid.New()
+	evidence := &relational.Evidence{
+		UUIDModel: relational.UUIDModel{ID: &evidenceID},
+		// UUID intentionally left zero.
+	}
+
+	err := worker.createResponsibilityRiskLinks(ctx, worker.db, uuid.New(), evidence, uuid.New())
+	assert.Error(t, err)
+}
+
+// TestRiskEvidenceWorker_Resolution_InheritedResponsibilityRiskAutoRemediates confirms
+// the claim behind BCH-1340's design: handleEvidenceResolution is source-type-agnostic
+// and needs zero changes to auto-remediate an inherited-responsibility risk once its
+// evidence is satisfied — it only cares about risk_evidence_links, which
+// createResponsibilityRiskLinks creates exactly like createRiskLinks does for
+// control-linked risks.
+func TestRiskEvidenceWorker_Resolution_InheritedResponsibilityRiskAutoRemediates(t *testing.T) {
+	t.Parallel()
+
+	worker := createTestRiskEvidenceWorker(t)
+	ctx := context.Background()
+
+	evidenceID := uuid.New()
+	evidence := &relational.Evidence{
+		UUIDModel: relational.UUIDModel{ID: &evidenceID},
+		UUID:      evidenceID,
+		Title:     "Satisfied Responsibility Evidence",
+		Start:     time.Now().Add(-1 * time.Hour),
+		End:       time.Now(),
+		Status:    datatypes.NewJSONType(oscalTypes_1_1_3.ObjectiveStatus{State: "satisfied"}),
+	}
+	require.NoError(t, worker.db.Create(evidence).Error)
+
+	riskID := uuid.New()
+	risk := &risks.Risk{
+		UUIDModel:   relational.UUIDModel{ID: &riskID},
+		Title:       "Inherited Responsibility Risk",
+		Description: "Test",
+		Status:      string(risks.RiskStatusOpen),
+		SSPID:       uuid.New(),
+		SourceType:  string(risks.RiskSourceTypeInheritedResponsibility),
+		DedupeKey:   fmt.Sprintf("dedupe-%s", riskID),
+		FirstSeenAt: time.Now().Add(-1 * time.Hour),
+		LastSeenAt:  time.Now().Add(-1 * time.Hour),
+	}
+	require.NoError(t, worker.db.Create(risk).Error)
+	require.NoError(t, worker.db.Create(&risks.RiskEvidenceLink{RiskID: riskID, EvidenceID: evidenceID}).Error)
+	require.NoError(t, worker.db.Create(&risks.RiskResponsibilityLink{RiskID: riskID, ResponsibilityUUID: uuid.New()}).Error)
+
+	err := worker.handleEvidenceResolution(ctx, evidence)
+	require.NoError(t, err)
+
+	var updated risks.Risk
+	require.NoError(t, worker.db.First(&updated, "id = ?", riskID).Error)
+	assert.Equal(t, string(risks.RiskStatusRemediated), updated.Status)
+}
+
 func TestRiskEvidenceWorker_emitRiskEvent(t *testing.T) {
 	t.Parallel()
 
@@ -1386,13 +1637,14 @@ func TestRiskEvidenceWorker_resolveSSPsViaFilters(t *testing.T) {
 		{Name: "category", Value: "security"},
 	}
 
-	sspInfos, err := worker.resolveSSPsViaFilters(ctx, labels)
+	sspInfos, responsibilityInfos, err := worker.resolveSSPsViaFilters(ctx, labels)
 	require.NoError(t, err)
 	require.Len(t, sspInfos, 1)
 	assert.Equal(t, *ssp.ID, sspInfos[0].SSPID)
 	require.Len(t, sspInfos[0].ControlLinks, 1)
 	assert.Equal(t, catalogID, sspInfos[0].ControlLinks[0].CatalogID)
 	assert.Equal(t, controlID, sspInfos[0].ControlLinks[0].ControlID)
+	assert.Empty(t, responsibilityInfos)
 }
 
 func TestRiskEvidenceWorker_resolveSSPsViaFilters_NoMatch(t *testing.T) {
@@ -1408,9 +1660,10 @@ func TestRiskEvidenceWorker_resolveSSPsViaFilters_NoMatch(t *testing.T) {
 		{Name: "environment", Value: "production"},
 	}
 
-	sspInfos, err := worker.resolveSSPsViaFilters(ctx, labels)
+	sspInfos, responsibilityInfos, err := worker.resolveSSPsViaFilters(ctx, labels)
 	require.NoError(t, err)
 	assert.Nil(t, sspInfos)
+	assert.Nil(t, responsibilityInfos)
 }
 
 func TestRiskEvidenceWorker_resolveSSPsViaFilters_NoFilters(t *testing.T) {
@@ -1423,9 +1676,10 @@ func TestRiskEvidenceWorker_resolveSSPsViaFilters_NoFilters(t *testing.T) {
 		{Name: "environment", Value: "production"},
 	}
 
-	sspInfos, err := worker.resolveSSPsViaFilters(ctx, labels)
+	sspInfos, responsibilityInfos, err := worker.resolveSSPsViaFilters(ctx, labels)
 	require.NoError(t, err)
 	assert.Nil(t, sspInfos)
+	assert.Nil(t, responsibilityInfos)
 }
 
 // --- Resolution flow tests ---
@@ -1842,9 +2096,10 @@ func TestRiskEvidenceWorker_resolveSSPsViaFilters_MultipleSSPs(t *testing.T) {
 		{Name: "environment", Value: "production"},
 	}
 
-	sspInfos, err := worker.resolveSSPsViaFilters(ctx, labels)
+	sspInfos, responsibilityInfos, err := worker.resolveSSPsViaFilters(ctx, labels)
 	require.NoError(t, err)
 	require.Len(t, sspInfos, 2)
+	assert.Empty(t, responsibilityInfos)
 
 	sspIDs := make(map[uuid.UUID]bool)
 	for _, info := range sspInfos {
@@ -1872,11 +2127,12 @@ func TestRiskEvidenceWorker_resolveSSPsViaFilters_ResolvesViaFilterResponsibilit
 		{Name: "environment", Value: "production"},
 	}
 
-	sspInfos, err := worker.resolveSSPsViaFilters(ctx, labels)
+	sspInfos, responsibilityInfos, err := worker.resolveSSPsViaFilters(ctx, labels)
 	require.NoError(t, err)
-	require.Len(t, sspInfos, 1)
-	assert.Equal(t, downstreamSSPID, sspInfos[0].SSPID)
-	assert.Empty(t, sspInfos[0].ControlLinks)
+	assert.Empty(t, sspInfos)
+	require.Len(t, responsibilityInfos, 1)
+	assert.Equal(t, downstreamSSPID, responsibilityInfos[0].SSPID)
+	assert.Equal(t, responsibilityUUID, responsibilityInfos[0].ResponsibilityUUID)
 }
 
 func TestRiskEvidenceWorker_resolveSSPsViaFilters_ResponsibilityLeveragedByMultipleSSPs(t *testing.T) {
@@ -1922,13 +2178,15 @@ func TestRiskEvidenceWorker_resolveSSPsViaFilters_ResponsibilityLeveragedByMulti
 		{Name: "environment", Value: "production"},
 	}
 
-	sspInfos, err := worker.resolveSSPsViaFilters(ctx, labels)
+	sspInfos, responsibilityInfos, err := worker.resolveSSPsViaFilters(ctx, labels)
 	require.NoError(t, err)
-	require.Len(t, sspInfos, 2)
+	assert.Empty(t, sspInfos)
+	require.Len(t, responsibilityInfos, 2)
 
 	sspIDs := make(map[uuid.UUID]bool)
-	for _, info := range sspInfos {
+	for _, info := range responsibilityInfos {
 		sspIDs[info.SSPID] = true
+		assert.Equal(t, responsibilityUUID, info.ResponsibilityUUID)
 	}
 	assert.True(t, sspIDs[downstreamSSP1])
 	assert.True(t, sspIDs[downstreamSSP2])
@@ -1978,9 +2236,10 @@ func TestRiskEvidenceWorker_resolveSSPsViaFilters_ResponsibilityWrongSSPScopeDoe
 		{Name: "environment", Value: "production"},
 	}
 
-	sspInfos, err := worker.resolveSSPsViaFilters(ctx, labels)
+	sspInfos, responsibilityInfos, err := worker.resolveSSPsViaFilters(ctx, labels)
 	require.NoError(t, err)
 	assert.Empty(t, sspInfos)
+	assert.Empty(t, responsibilityInfos)
 }
 
 func TestComputeDedupeKeyForSSP_WithDedupeLabelKeys(t *testing.T) {

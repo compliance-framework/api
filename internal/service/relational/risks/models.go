@@ -89,14 +89,15 @@ func RiskLevelFilterValues(raw string) []string {
 type RiskSourceType string
 
 const (
-	RiskSourceTypeManual       RiskSourceType = "manual"
-	RiskSourceTypeEvidenceAuto RiskSourceType = "evidence-auto"
-	RiskSourceTypeOscalImport  RiskSourceType = "oscal-import"
+	RiskSourceTypeManual                  RiskSourceType = "manual"
+	RiskSourceTypeEvidenceAuto            RiskSourceType = "evidence-auto"
+	RiskSourceTypeOscalImport             RiskSourceType = "oscal-import"
+	RiskSourceTypeInheritedResponsibility RiskSourceType = "inherited-responsibility"
 )
 
 func (s RiskSourceType) IsValid() bool {
 	switch s {
-	case RiskSourceTypeManual, RiskSourceTypeEvidenceAuto, RiskSourceTypeOscalImport:
+	case RiskSourceTypeManual, RiskSourceTypeEvidenceAuto, RiskSourceTypeOscalImport, RiskSourceTypeInheritedResponsibility:
 		return true
 	default:
 		return false
