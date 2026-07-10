@@ -25114,6 +25114,10 @@ paths:
       - SSP Export Offerings
   /oscal/system-security-plans/{id}/export-offerings/{offeringId}/allowed-downstreams/{downstreamSspId}:
     delete:
+      description: |-
+        If this removes the offering's last allow-list entry, the offering
+        reverts to the type-level default (any downstream may subscribe,
+        subject to the existing ssp:update and contributor-role checks).
       parameters:
       - description: SSP ID
         in: path

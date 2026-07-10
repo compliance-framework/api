@@ -773,9 +773,14 @@ func (h *SSPExportOfferingHandler) AddAllowedDownstream(ctx echo.Context) error 
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 
+	downstreamSSPID, err := uuid.Parse(req.DownstreamSSPID)
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
 	allowed := relational.SSPExportOfferingAllowedDownstream{
 		OfferingID:      *offering.ID,
-		DownstreamSSPID: uuid.MustParse(req.DownstreamSSPID),
+		DownstreamSSPID: downstreamSSPID,
 	}
 	if err := h.db.Clauses(clause.OnConflict{DoNothing: true}).Create(&allowed).Error; err != nil {
 		h.sugar.Errorf("Failed to add offering allow-list entry: %v", err)
@@ -787,17 +792,20 @@ func (h *SSPExportOfferingHandler) AddAllowedDownstream(ctx echo.Context) error 
 
 // RemoveAllowedDownstream godoc
 //
-//	@Summary	Remove a downstream SSP from an export offering's allow-list
-//	@Tags		SSP Export Offerings
-//	@Param		id				path	string	true	"SSP ID"
-//	@Param		offeringId		path	string	true	"Offering ID"
-//	@Param		downstreamSspId	path	string	true	"Downstream SSP ID"
-//	@Success	204
-//	@Failure	400	{object}	api.Error
-//	@Failure	404	{object}	api.Error
-//	@Failure	500	{object}	api.Error
-//	@Security	OAuth2Password
-//	@Router		/oscal/system-security-plans/{id}/export-offerings/{offeringId}/allowed-downstreams/{downstreamSspId} [delete]
+//	@Summary		Remove a downstream SSP from an export offering's allow-list
+//	@Description	If this removes the offering's last allow-list entry, the offering
+//	@Description	reverts to the type-level default (any downstream may subscribe,
+//	@Description	subject to the existing ssp:update and contributor-role checks).
+//	@Tags			SSP Export Offerings
+//	@Param			id				path	string	true	"SSP ID"
+//	@Param			offeringId		path	string	true	"Offering ID"
+//	@Param			downstreamSspId	path	string	true	"Downstream SSP ID"
+//	@Success		204
+//	@Failure		400	{object}	api.Error
+//	@Failure		404	{object}	api.Error
+//	@Failure		500	{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/oscal/system-security-plans/{id}/export-offerings/{offeringId}/allowed-downstreams/{downstreamSspId} [delete]
 func (h *SSPExportOfferingHandler) RemoveAllowedDownstream(ctx echo.Context) error {
 	offering, ok := h.resolveOfferingForSSP(ctx)
 	if !ok {

@@ -118,3 +118,13 @@ func TestRemoveAllowedDownstreamNotFoundReturns404(t *testing.T) {
 	require.NoError(t, h.RemoveAllowedDownstream(ctx))
 	require.Equal(t, http.StatusNotFound, rec.Code)
 }
+
+func TestRemoveAllowedDownstreamInvalidUUIDReturns400(t *testing.T) {
+	db := newSSPLeverageTestDB(t)
+	fx := newLeverageFixture(t, db)
+	h := NewSSPExportOfferingHandler(zap.NewNop().Sugar(), db, nil)
+
+	ctx, rec := newAllowedDownstreamsRequestContext(http.MethodDelete, fx.upstreamSSPID, fx.offeringID, "downstreamSspId", "not-a-uuid", "")
+	require.NoError(t, h.RemoveAllowedDownstream(ctx))
+	require.Equal(t, http.StatusBadRequest, rec.Code)
+}

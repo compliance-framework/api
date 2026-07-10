@@ -20840,6 +20840,7 @@ const docTemplate = `{
         },
         "/oscal/system-security-plans/{id}/export-offerings/{offeringId}/allowed-downstreams/{downstreamSspId}": {
             "delete": {
+                "description": "If this removes the offering's last allow-list entry, the offering\nreverts to the type-level default (any downstream may subscribe,\nsubject to the existing ssp:update and contributor-role checks).",
                 "tags": [
                     "SSP Export Offerings"
                 ],

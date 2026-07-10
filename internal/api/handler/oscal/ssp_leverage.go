@@ -39,6 +39,13 @@ var errDuplicateLeverageLink = errors.New("already subscribed to this provided-u
 // correct client action, not treated as a 500.
 var errLeverageLinkNoLongerDrifted = errors.New("leverage link is no longer drifted")
 
+// errDownstreamNotAllowed signals that the offering's allow-list (BCH-1342) rejects
+// downstreamSSPID. Checked inside the subscribe transaction (via tx, not h.db) so the
+// allow-list read and the write it gates are atomic — reading it before the transaction
+// opened would let a concurrent allow-list change race the write undetected. Mapped to
+// 403, same as the original pre-transaction check.
+var errDownstreamNotAllowed = errors.New("downstream not allow-listed for this offering")
+
 // isUniqueViolation reports whether err is a Postgres unique-constraint violation. GORM's
 // ErrDuplicatedKey translation is unreliable here (same issue noted in
 // internal/api/handler/groups.go's isUniqueViolation), so the driver code is inspected
@@ -442,15 +449,6 @@ func (h *SSPLeverageHandler) Subscribe(ctx echo.Context) error {
 		return echo.NewHTTPError(http.StatusForbidden, "forbidden")
 	}
 
-	downstreamAllowed, err := isDownstreamAllowed(h.db, offeringID, downstreamSSPID)
-	if err != nil {
-		h.sugar.Errorf("Failed to check offering allow-list: %v", err)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
-	}
-	if !downstreamAllowed {
-		return echo.NewHTTPError(http.StatusForbidden, "downstream not allow-listed for this offering")
-	}
-
 	itemsByID := make(map[uuid.UUID]relational.SSPExportOfferingItem, len(offering.Items))
 	for _, item := range offering.Items {
 		itemsByID[*item.ID] = item
@@ -549,6 +547,14 @@ func (h *SSPLeverageHandler) Subscribe(ctx echo.Context) error {
 
 	var links []relational.SSPLeverageLink
 	if err := h.db.Transaction(func(tx *gorm.DB) error {
+		downstreamAllowed, err := isDownstreamAllowed(tx, offeringID, downstreamSSPID)
+		if err != nil {
+			return err
+		}
+		if !downstreamAllowed {
+			return errDownstreamNotAllowed
+		}
+
 		thisSystemComponent, err := findOrCreateThisSystemComponent(tx, *downstream.SystemImplementation.ID)
 		if err != nil {
 			return err
@@ -652,6 +658,9 @@ func (h *SSPLeverageHandler) Subscribe(ctx echo.Context) error {
 	}); err != nil {
 		if errors.Is(err, errDuplicateLeverageLink) {
 			return ctx.JSON(http.StatusConflict, api.NewError(err))
+		}
+		if errors.Is(err, errDownstreamNotAllowed) {
+			return echo.NewHTTPError(http.StatusForbidden, err.Error())
 		}
 		h.sugar.Errorf("Failed to subscribe to export offering: %v", err)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
