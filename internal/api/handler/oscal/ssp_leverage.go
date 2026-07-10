@@ -39,6 +39,13 @@ var errDuplicateLeverageLink = errors.New("already subscribed to this provided-u
 // correct client action, not treated as a 500.
 var errLeverageLinkNoLongerDrifted = errors.New("leverage link is no longer drifted")
 
+// errDownstreamNotAllowed signals that the offering's allow-list (BCH-1342) rejects
+// downstreamSSPID. Checked inside the subscribe transaction (via tx, not h.db) so the
+// allow-list read and the write it gates are atomic — reading it before the transaction
+// opened would let a concurrent allow-list change race the write undetected. Mapped to
+// 403, same as the original pre-transaction check.
+var errDownstreamNotAllowed = errors.New("downstream not allow-listed for this offering")
+
 // isUniqueViolation reports whether err is a Postgres unique-constraint violation. GORM's
 // ErrDuplicatedKey translation is unreliable here (same issue noted in
 // internal/api/handler/groups.go's isUniqueViolation), so the driver code is inspected
@@ -210,6 +217,33 @@ func (h *SSPLeverageHandler) authorizeDownstreamUpdate(ctx echo.Context, sspID u
 		return false, err
 	}
 	return decision.Allow, nil
+}
+
+// isDownstreamAllowed reports whether downstreamSSPID may subscribe to offeringID
+// (BCH-1342). A handler-level check, not a PDP/manifest-driven one — see this ticket's
+// scoping decision (tasks.md) for why: BCH-1319's C1/C2 resource-attribute resolution
+// isn't honoured by any shipped driver yet, so the offering's allow-list is enforced
+// directly here, mirroring authorizeDownstreamUpdate's existing ad-hoc pattern. An
+// offering with zero allow-list rows keeps the type-level default (any downstream
+// permitted) for backwards compatibility.
+func isDownstreamAllowed(db *gorm.DB, offeringID, downstreamSSPID uuid.UUID) (bool, error) {
+	var total int64
+	if err := db.Model(&relational.SSPExportOfferingAllowedDownstream{}).
+		Where("offering_id = ?", offeringID).
+		Count(&total).Error; err != nil {
+		return false, fmt.Errorf("failed to count offering allow-list: %w", err)
+	}
+	if total == 0 {
+		return true, nil
+	}
+
+	var matching int64
+	if err := db.Model(&relational.SSPExportOfferingAllowedDownstream{}).
+		Where("offering_id = ? AND downstream_ssp_id = ?", offeringID, downstreamSSPID).
+		Count(&matching).Error; err != nil {
+		return false, fmt.Errorf("failed to check offering allow-list membership: %w", err)
+	}
+	return matching > 0, nil
 }
 
 // findOrCreateThisSystemComponent finds the downstream's placeholder "this-system"
@@ -513,6 +547,14 @@ func (h *SSPLeverageHandler) Subscribe(ctx echo.Context) error {
 
 	var links []relational.SSPLeverageLink
 	if err := h.db.Transaction(func(tx *gorm.DB) error {
+		downstreamAllowed, err := isDownstreamAllowed(tx, offeringID, downstreamSSPID)
+		if err != nil {
+			return err
+		}
+		if !downstreamAllowed {
+			return errDownstreamNotAllowed
+		}
+
 		thisSystemComponent, err := findOrCreateThisSystemComponent(tx, *downstream.SystemImplementation.ID)
 		if err != nil {
 			return err
@@ -616,6 +658,9 @@ func (h *SSPLeverageHandler) Subscribe(ctx echo.Context) error {
 	}); err != nil {
 		if errors.Is(err, errDuplicateLeverageLink) {
 			return ctx.JSON(http.StatusConflict, api.NewError(err))
+		}
+		if errors.Is(err, errDownstreamNotAllowed) {
+			return echo.NewHTTPError(http.StatusForbidden, err.Error())
 		}
 		h.sugar.Errorf("Failed to subscribe to export offering: %v", err)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))

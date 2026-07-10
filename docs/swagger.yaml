@@ -1093,6 +1093,15 @@ definitions:
         type: array
       meta: {}
     type: object
+  handler.GenericDataListResponse-relational_SSPExportOfferingAllowedDownstream:
+    properties:
+      data:
+        description: Items from the list response
+        items:
+          $ref: '#/definitions/relational.SSPExportOfferingAllowedDownstream'
+        type: array
+      meta: {}
+    type: object
   handler.GenericDataListResponse-relational_SSPLeverageLink:
     properties:
       data:
@@ -1856,6 +1865,13 @@ definitions:
       data:
         allOf:
         - $ref: '#/definitions/relational.SSPExportOffering'
+        description: Wrapped response data
+    type: object
+  handler.GenericDataResponse-relational_SSPExportOfferingAllowedDownstream:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/relational.SSPExportOfferingAllowedDownstream'
         description: Wrapped response data
     type: object
   handler.GenericDataResponse-relational_SSPExportOfferingItem:
@@ -3910,6 +3926,11 @@ definitions:
   oscal.addProfileRequest:
     properties:
       profileId:
+        type: string
+    type: object
+  oscal.allowedDownstreamRequest:
+    properties:
+      downstreamSspId:
         type: string
     type: object
   oscal.catalogOffering:
@@ -9016,6 +9037,13 @@ definitions:
         type: string
       version:
         type: integer
+    type: object
+  relational.SSPExportOfferingAllowedDownstream:
+    properties:
+      downstreamSspId:
+        type: string
+      offeringId:
+        type: string
     type: object
   relational.SSPExportOfferingItem:
     properties:
@@ -24992,6 +25020,138 @@ paths:
       security:
       - OAuth2Password: []
       summary: Update an export offering
+      tags:
+      - SSP Export Offerings
+  /oscal/system-security-plans/{id}/export-offerings/{offeringId}/allowed-downstreams:
+    get:
+      description: |-
+        Returns every downstream SSP allow-listed to subscribe to this offering
+        (BCH-1342). An empty list means the offering has no allow-list set — any
+        downstream may subscribe (subject to the existing ssp:update and
+        contributor-role checks), the type-level default.
+      parameters:
+      - description: SSP ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Offering ID
+        in: path
+        name: offeringId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-relational_SSPExportOfferingAllowedDownstream'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: List an export offering's downstream-SSP allow-list
+      tags:
+      - SSP Export Offerings
+    post:
+      consumes:
+      - application/json
+      description: |-
+        Once an offering has at least one allow-list entry, only listed downstream
+        SSPs may subscribe to it (BCH-1342) — enforced by a handler-level check in
+        Subscribe, not by the PDP.
+      parameters:
+      - description: SSP ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Offering ID
+        in: path
+        name: offeringId
+        required: true
+        type: string
+      - description: Downstream SSP to allow
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/oscal.allowedDownstreamRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-relational_SSPExportOfferingAllowedDownstream'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Add a downstream SSP to an export offering's allow-list
+      tags:
+      - SSP Export Offerings
+  /oscal/system-security-plans/{id}/export-offerings/{offeringId}/allowed-downstreams/{downstreamSspId}:
+    delete:
+      description: |-
+        If this removes the offering's last allow-list entry, the offering
+        reverts to the type-level default (any downstream may subscribe,
+        subject to the existing ssp:update and contributor-role checks).
+      parameters:
+      - description: SSP ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Offering ID
+        in: path
+        name: offeringId
+        required: true
+        type: string
+      - description: Downstream SSP ID
+        in: path
+        name: downstreamSspId
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Remove a downstream SSP from an export offering's allow-list
       tags:
       - SSP Export Offerings
   /oscal/system-security-plans/{id}/export-offerings/{offeringId}/items:

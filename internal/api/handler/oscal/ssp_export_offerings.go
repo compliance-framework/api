@@ -16,6 +16,7 @@ import (
 	"github.com/labstack/echo/v4"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	"github.com/compliance-framework/api/internal/api"
 	"github.com/compliance-framework/api/internal/api/handler"
@@ -248,6 +249,9 @@ func (h *SSPExportOfferingHandler) RegisterNested(api *echo.Group, guard middlew
 	api.DELETE("/:id/export-offerings/:offeringId/items/:itemId", h.DeleteItem, guard.Do(authz.ActionExport))
 	api.POST("/:id/export-offerings/:offeringId/publish", h.Publish, guard.Do(authz.ActionExport))
 	api.PATCH("/:id/export-offerings/:offeringId/status", h.UpdateOfferingStatus, guard.Do(authz.ActionExport))
+	api.GET("/:id/export-offerings/:offeringId/allowed-downstreams", h.ListAllowedDownstreams, guard.Do(authz.ActionExport))
+	api.POST("/:id/export-offerings/:offeringId/allowed-downstreams", h.AddAllowedDownstream, guard.Do(authz.ActionExport))
+	api.DELETE("/:id/export-offerings/:offeringId/allowed-downstreams/:downstreamSspId", h.RemoveAllowedDownstream, guard.Do(authz.ActionExport))
 }
 
 // Register mounts the top-level, cross-SSP read-only catalog: list and get any
@@ -689,6 +693,140 @@ func (h *SSPExportOfferingHandler) DeleteItem(ctx echo.Context) error {
 	}
 	if rowsAffected == 0 {
 		return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("export offering item not found")))
+	}
+
+	return ctx.NoContent(http.StatusNoContent)
+}
+
+type allowedDownstreamRequest struct {
+	DownstreamSSPID string `json:"downstreamSspId"`
+}
+
+func (r allowedDownstreamRequest) validate() error {
+	if _, err := uuid.Parse(r.DownstreamSSPID); err != nil {
+		return fmt.Errorf("downstreamSspId must be a valid UUID")
+	}
+	return nil
+}
+
+// ListAllowedDownstreams godoc
+//
+//	@Summary		List an export offering's downstream-SSP allow-list
+//	@Description	Returns every downstream SSP allow-listed to subscribe to this offering
+//	@Description	(BCH-1342). An empty list means the offering has no allow-list set — any
+//	@Description	downstream may subscribe (subject to the existing ssp:update and
+//	@Description	contributor-role checks), the type-level default.
+//	@Tags			SSP Export Offerings
+//	@Produce		json
+//	@Param			id			path		string	true	"SSP ID"
+//	@Param			offeringId	path		string	true	"Offering ID"
+//	@Success		200			{object}	handler.GenericDataListResponse[relational.SSPExportOfferingAllowedDownstream]
+//	@Failure		400			{object}	api.Error
+//	@Failure		404			{object}	api.Error
+//	@Failure		500			{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/oscal/system-security-plans/{id}/export-offerings/{offeringId}/allowed-downstreams [get]
+func (h *SSPExportOfferingHandler) ListAllowedDownstreams(ctx echo.Context) error {
+	offering, ok := h.resolveOfferingForSSP(ctx)
+	if !ok {
+		return nil
+	}
+
+	var allowed []relational.SSPExportOfferingAllowedDownstream
+	if err := h.db.Where("offering_id = ?", offering.ID).Find(&allowed).Error; err != nil {
+		h.sugar.Errorf("Failed to list offering allow-list: %v", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	return ctx.JSON(http.StatusOK, handler.GenericDataListResponse[relational.SSPExportOfferingAllowedDownstream]{Data: allowed})
+}
+
+// AddAllowedDownstream godoc
+//
+//	@Summary		Add a downstream SSP to an export offering's allow-list
+//	@Description	Once an offering has at least one allow-list entry, only listed downstream
+//	@Description	SSPs may subscribe to it (BCH-1342) — enforced by a handler-level check in
+//	@Description	Subscribe, not by the PDP.
+//	@Tags			SSP Export Offerings
+//	@Accept			json
+//	@Produce		json
+//	@Param			id			path		string						true	"SSP ID"
+//	@Param			offeringId	path		string						true	"Offering ID"
+//	@Param			body		body		allowedDownstreamRequest	true	"Downstream SSP to allow"
+//	@Success		201			{object}	handler.GenericDataResponse[relational.SSPExportOfferingAllowedDownstream]
+//	@Failure		400			{object}	api.Error
+//	@Failure		404			{object}	api.Error
+//	@Failure		500			{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/oscal/system-security-plans/{id}/export-offerings/{offeringId}/allowed-downstreams [post]
+func (h *SSPExportOfferingHandler) AddAllowedDownstream(ctx echo.Context) error {
+	offering, ok := h.resolveOfferingForSSP(ctx)
+	if !ok {
+		return nil
+	}
+
+	var req allowedDownstreamRequest
+	if err := ctx.Bind(&req); err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	if err := req.validate(); err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	downstreamSSPID, err := uuid.Parse(req.DownstreamSSPID)
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	allowed := relational.SSPExportOfferingAllowedDownstream{
+		OfferingID:      *offering.ID,
+		DownstreamSSPID: downstreamSSPID,
+	}
+	if err := h.db.Clauses(clause.OnConflict{DoNothing: true}).Create(&allowed).Error; err != nil {
+		h.sugar.Errorf("Failed to add offering allow-list entry: %v", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	return ctx.JSON(http.StatusCreated, handler.GenericDataResponse[relational.SSPExportOfferingAllowedDownstream]{Data: allowed})
+}
+
+// RemoveAllowedDownstream godoc
+//
+//	@Summary		Remove a downstream SSP from an export offering's allow-list
+//	@Description	If this removes the offering's last allow-list entry, the offering
+//	@Description	reverts to the type-level default (any downstream may subscribe,
+//	@Description	subject to the existing ssp:update and contributor-role checks).
+//	@Tags			SSP Export Offerings
+//	@Param			id				path	string	true	"SSP ID"
+//	@Param			offeringId		path	string	true	"Offering ID"
+//	@Param			downstreamSspId	path	string	true	"Downstream SSP ID"
+//	@Success		204
+//	@Failure		400	{object}	api.Error
+//	@Failure		404	{object}	api.Error
+//	@Failure		500	{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/oscal/system-security-plans/{id}/export-offerings/{offeringId}/allowed-downstreams/{downstreamSspId} [delete]
+func (h *SSPExportOfferingHandler) RemoveAllowedDownstream(ctx echo.Context) error {
+	offering, ok := h.resolveOfferingForSSP(ctx)
+	if !ok {
+		return nil
+	}
+
+	downstreamSspIdParam := ctx.Param("downstreamSspId")
+	downstreamSSPID, err := uuid.Parse(downstreamSspIdParam)
+	if err != nil {
+		h.sugar.Warnw("Invalid downstream SSP id", "downstreamSspId", downstreamSspIdParam, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	result := h.db.Where("offering_id = ? AND downstream_ssp_id = ?", offering.ID, downstreamSSPID).
+		Delete(&relational.SSPExportOfferingAllowedDownstream{})
+	if result.Error != nil {
+		h.sugar.Errorf("Failed to remove offering allow-list entry: %v", result.Error)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(result.Error))
+	}
+	if result.RowsAffected == 0 {
+		return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("allow-list entry not found")))
 	}
 
 	return ctx.NoContent(http.StatusNoContent)

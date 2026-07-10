@@ -31,6 +31,7 @@ func newSSPLeverageTestDB(t *testing.T) *gorm.DB {
 		&relational.ControlImplementationResponsibility{},
 		&relational.SSPExportOffering{},
 		&relational.SSPExportOfferingItem{},
+		&relational.SSPExportOfferingAllowedDownstream{},
 		&relational.SSPLeverageLink{},
 		&relational.SystemSecurityPlan{},
 		&relational.SystemImplementation{},
