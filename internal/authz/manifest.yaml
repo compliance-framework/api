@@ -143,7 +143,7 @@ resources:
       ssp_id: uuid               # C0 on /system-security-plans/:sspId/risks, else C1
       owned_by: set<string>      # PrimaryOwnerUserID — matches subject.user_uuid
       status: string
-      source_type: string        # manual | evidence-auto | oscal-import | risk-promotion | inherited-responsibility
+      source_type: string        # manual | evidence-auto | oscal-import | inherited-responsibility
   poam_item:
     actions: [read, create, update, delete]
     attributes:

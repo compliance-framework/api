@@ -6,7 +6,6 @@ import (
 	"context"
 	"testing"
 
-	"github.com/compliance-framework/api/internal/converters/labelfilter"
 	"github.com/compliance-framework/api/internal/service/relational"
 	poamsvc "github.com/compliance-framework/api/internal/service/relational/poam"
 	"github.com/compliance-framework/api/internal/service/relational/risks"
@@ -42,64 +41,9 @@ func (suite *InheritedResponsibilityRiskIntegrationSuite) newWorker() *RiskEvide
 	return NewRiskEvidenceWorker(suite.DB, zap.NewNop().Sugar())
 }
 
-// seedLeveragedResponsibility creates the minimal real-schema graph a
-// filter_responsibilities → ssp_leverage_links resolution needs (mirroring
-// RiskEvidenceWorkerResponsibilityIntegrationSuite's BCH-1339 helper): an Export with one
-// ProvidedControlImplementation and one ControlImplementationResponsibility under it, an
-// upstream and downstream SystemSecurityPlan, and an SSPLeverageLink tying the two
-// together.
-func (suite *InheritedResponsibilityRiskIntegrationSuite) seedLeveragedResponsibility() (responsibilityUUID, downstreamSSPID, upstreamSSPID uuid.UUID) {
-	export := relational.Export{}
-	suite.Require().NoError(suite.DB.Create(&export).Error)
-
-	provided := relational.ProvidedControlImplementation{ExportId: *export.ID, Description: "provided"}
-	suite.Require().NoError(suite.DB.Create(&provided).Error)
-
-	responsibility := relational.ControlImplementationResponsibility{
-		ExportId: *export.ID, ProvidedUuid: *provided.ID, Description: "responsibility",
-	}
-	suite.Require().NoError(suite.DB.Create(&responsibility).Error)
-
-	upstreamSSP := relational.SystemSecurityPlan{}
-	suite.Require().NoError(suite.DB.Create(&upstreamSSP).Error)
-
-	downstreamSSP := relational.SystemSecurityPlan{}
-	suite.Require().NoError(suite.DB.Create(&downstreamSSP).Error)
-
-	link := relational.SSPLeverageLink{
-		DownstreamSSPID:   *downstreamSSP.ID,
-		UpstreamSSPID:     *upstreamSSP.ID,
-		OfferingID:        uuid.New(),
-		ControlID:         "ac-1",
-		ProvidedUUID:      *provided.ID,
-		InheritedUUID:     uuid.New(),
-		LeveragedAuthUUID: uuid.New(),
-		Satisfaction:      relational.SSPLeverageSatisfactionPartial,
-		Status:            relational.SSPLeverageStatusActive,
-	}
-	suite.Require().NoError(suite.DB.Create(&link).Error)
-
-	return *responsibility.ID, *downstreamSSP.ID, *upstreamSSP.ID
-}
-
-func (suite *InheritedResponsibilityRiskIntegrationSuite) seedResponsibilityFilter(downstreamSSPID, responsibilityUUID uuid.UUID, labelKey, labelValue string) {
-	filterScope := labelfilter.Filter{
-		Scope: &labelfilter.Scope{
-			Condition: &labelfilter.Condition{Label: labelKey, Operator: "=", Value: labelValue},
-		},
-	}
-	f := relational.Filter{Name: "responsibility-filter", Filter: datatypes.NewJSONType(filterScope)}
-	suite.Require().NoError(suite.DB.Create(&f).Error)
-	suite.Require().NoError(suite.DB.Create(&relational.FilterResponsibility{
-		FilterID:           *f.ID,
-		ResponsibilityUUID: responsibilityUUID,
-		SSPID:              downstreamSSPID,
-	}).Error)
-}
-
 func (suite *InheritedResponsibilityRiskIntegrationSuite) TestCreatedDedupedAndRemediated() {
-	responsibilityUUID, downstreamSSPID, upstreamSSPID := suite.seedLeveragedResponsibility()
-	suite.seedResponsibilityFilter(downstreamSSPID, responsibilityUUID, "environment", "production")
+	responsibilityUUID, downstreamSSPID, upstreamSSPID := seedLeveragedResponsibility(suite.T(), suite.DB)
+	seedResponsibilityFilter(suite.T(), suite.DB, downstreamSSPID, responsibilityUUID, "environment", "production")
 
 	riskTemplate := createTestRiskTemplate(suite.T(), suite.DB)
 	evidence := createTestEvidence(suite.T(), suite.DB)
@@ -180,8 +124,8 @@ func (suite *InheritedResponsibilityRiskIntegrationSuite) TestIsolationUpstreamO
 }
 
 func (suite *InheritedResponsibilityRiskIntegrationSuite) TestPromotesToPoamUnchanged() {
-	responsibilityUUID, downstreamSSPID, _ := suite.seedLeveragedResponsibility()
-	suite.seedResponsibilityFilter(downstreamSSPID, responsibilityUUID, "environment", "production")
+	responsibilityUUID, downstreamSSPID, _ := seedLeveragedResponsibility(suite.T(), suite.DB)
+	seedResponsibilityFilter(suite.T(), suite.DB, downstreamSSPID, responsibilityUUID, "environment", "production")
 
 	createTestRiskTemplate(suite.T(), suite.DB)
 	evidence := createTestEvidence(suite.T(), suite.DB)
