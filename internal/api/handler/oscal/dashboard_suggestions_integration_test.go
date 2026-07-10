@@ -38,6 +38,10 @@ func (f *dashboardSuggestionFakeEnqueuer) EnqueueOrphanedRiskCleanup(context.Con
 	return nil
 }
 
+func (f *dashboardSuggestionFakeEnqueuer) EnqueueLeverageDriftNotification(context.Context, uuid.UUID, uuid.UUID, string) error {
+	return nil
+}
+
 func (f *dashboardSuggestionFakeEnqueuer) EnqueueDashboardSuggestionCells(_ context.Context, runID uuid.UUID, cellCount int) error {
 	f.calls++
 	f.runID = runID

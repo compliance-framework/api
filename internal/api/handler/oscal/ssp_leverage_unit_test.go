@@ -13,6 +13,7 @@ import (
 	"github.com/compliance-framework/api/internal/authn"
 	"github.com/compliance-framework/api/internal/authz"
 	"github.com/compliance-framework/api/internal/service/relational"
+	"github.com/compliance-framework/api/internal/service/relational/risks"
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 	"github.com/stretchr/testify/require"
@@ -43,6 +44,14 @@ func newSSPLeverageTestDB(t *testing.T) *gorm.DB {
 		&relational.LeveragedAuthorization{},
 		&relational.Filter{},
 		&relational.FilterResponsibility{},
+		&relational.Profile{},
+		&relational.Control{},
+		&relational.SSPProfile{},
+		&risks.Risk{},
+		&risks.RiskEvent{},
+		&risks.RiskScore{},
+		&risks.RiskResponsibilityLink{},
+		&risks.RiskControlLink{},
 	))
 	return db
 }
