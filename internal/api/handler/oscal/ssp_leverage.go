@@ -212,6 +212,33 @@ func (h *SSPLeverageHandler) authorizeDownstreamUpdate(ctx echo.Context, sspID u
 	return decision.Allow, nil
 }
 
+// isDownstreamAllowed reports whether downstreamSSPID may subscribe to offeringID
+// (BCH-1342). A handler-level check, not a PDP/manifest-driven one — see this ticket's
+// scoping decision (tasks.md) for why: BCH-1319's C1/C2 resource-attribute resolution
+// isn't honoured by any shipped driver yet, so the offering's allow-list is enforced
+// directly here, mirroring authorizeDownstreamUpdate's existing ad-hoc pattern. An
+// offering with zero allow-list rows keeps the type-level default (any downstream
+// permitted) for backwards compatibility.
+func isDownstreamAllowed(db *gorm.DB, offeringID, downstreamSSPID uuid.UUID) (bool, error) {
+	var total int64
+	if err := db.Model(&relational.SSPExportOfferingAllowedDownstream{}).
+		Where("offering_id = ?", offeringID).
+		Count(&total).Error; err != nil {
+		return false, fmt.Errorf("failed to count offering allow-list: %w", err)
+	}
+	if total == 0 {
+		return true, nil
+	}
+
+	var matching int64
+	if err := db.Model(&relational.SSPExportOfferingAllowedDownstream{}).
+		Where("offering_id = ? AND downstream_ssp_id = ?", offeringID, downstreamSSPID).
+		Count(&matching).Error; err != nil {
+		return false, fmt.Errorf("failed to check offering allow-list membership: %w", err)
+	}
+	return matching > 0, nil
+}
+
 // findOrCreateThisSystemComponent finds the downstream's placeholder "this-system"
 // component, creating one if none exists — not every SSP has one, and there's no
 // guarantee the subscribing downstream does either.
@@ -413,6 +440,15 @@ func (h *SSPLeverageHandler) Subscribe(ctx echo.Context) error {
 	}
 	if !allowed {
 		return echo.NewHTTPError(http.StatusForbidden, "forbidden")
+	}
+
+	downstreamAllowed, err := isDownstreamAllowed(h.db, offeringID, downstreamSSPID)
+	if err != nil {
+		h.sugar.Errorf("Failed to check offering allow-list: %v", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+	if !downstreamAllowed {
+		return echo.NewHTTPError(http.StatusForbidden, "downstream not allow-listed for this offering")
 	}
 
 	itemsByID := make(map[uuid.UUID]relational.SSPExportOfferingItem, len(offering.Items))

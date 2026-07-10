@@ -20710,6 +20710,193 @@ const docTemplate = `{
                 ]
             }
         },
+        "/oscal/system-security-plans/{id}/export-offerings/{offeringId}/allowed-downstreams": {
+            "get": {
+                "description": "Returns every downstream SSP allow-listed to subscribe to this offering\n(BCH-1342). An empty list means the offering has no allow-list set — any\ndownstream may subscribe (subject to the existing ssp:update and\ncontributor-role checks), the type-level default.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "SSP Export Offerings"
+                ],
+                "summary": "List an export offering's downstream-SSP allow-list",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "SSP ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Offering ID",
+                        "name": "offeringId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataListResponse-relational_SSPExportOfferingAllowedDownstream"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            },
+            "post": {
+                "description": "Once an offering has at least one allow-list entry, only listed downstream\nSSPs may subscribe to it (BCH-1342) — enforced by a handler-level check in\nSubscribe, not by the PDP.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "SSP Export Offerings"
+                ],
+                "summary": "Add a downstream SSP to an export offering's allow-list",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "SSP ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Offering ID",
+                        "name": "offeringId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Downstream SSP to allow",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/oscal.allowedDownstreamRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-relational_SSPExportOfferingAllowedDownstream"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/oscal/system-security-plans/{id}/export-offerings/{offeringId}/allowed-downstreams/{downstreamSspId}": {
+            "delete": {
+                "tags": [
+                    "SSP Export Offerings"
+                ],
+                "summary": "Remove a downstream SSP from an export offering's allow-list",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "SSP ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Offering ID",
+                        "name": "offeringId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Downstream SSP ID",
+                        "name": "downstreamSspId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
         "/oscal/system-security-plans/{id}/export-offerings/{offeringId}/items": {
             "post": {
                 "description": "Adds one offered capability (a control, optionally scoped to a statement, implemented by a component) to a draft export offering.",
@@ -33731,6 +33918,19 @@ const docTemplate = `{
                 "meta": {}
             }
         },
+        "handler.GenericDataListResponse-relational_SSPExportOfferingAllowedDownstream": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/relational.SSPExportOfferingAllowedDownstream"
+                    }
+                },
+                "meta": {}
+            }
+        },
         "handler.GenericDataListResponse-relational_SSPLeverageLink": {
             "type": "object",
             "properties": {
@@ -35113,6 +35313,19 @@ const docTemplate = `{
                     "allOf": [
                         {
                             "$ref": "#/definitions/relational.SSPExportOffering"
+                        }
+                    ]
+                }
+            }
+        },
+        "handler.GenericDataResponse-relational_SSPExportOfferingAllowedDownstream": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Wrapped response data",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/relational.SSPExportOfferingAllowedDownstream"
                         }
                     ]
                 }
@@ -38197,6 +38410,14 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "profileId": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscal.allowedDownstreamRequest": {
+            "type": "object",
+            "properties": {
+                "downstreamSspId": {
                     "type": "string"
                 }
             }
@@ -45867,6 +46088,17 @@ const docTemplate = `{
                 },
                 "version": {
                     "type": "integer"
+                }
+            }
+        },
+        "relational.SSPExportOfferingAllowedDownstream": {
+            "type": "object",
+            "properties": {
+                "downstreamSspId": {
+                    "type": "string"
+                },
+                "offeringId": {
+                    "type": "string"
                 }
             }
         },
