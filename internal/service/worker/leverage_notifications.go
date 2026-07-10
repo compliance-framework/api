@@ -55,13 +55,21 @@ func JobInsertOptionsForLeverageDriftNotification() *river.InsertOpts {
 	}
 }
 
+// leverageRevocationReasons is the exact set of applyDriftToLink's free-text reasons
+// (ssp_leverage_drift.go, system_security_plans.go) that count as an explicit
+// revocation — the upstream offering was revoked, or its leveraged authorization was
+// deleted. Every other drift trigger (a content-changing version bump, or deprecation)
+// is the softer leverage_drifted.
+var leverageRevocationReasons = map[string]bool{
+	"upstream offering revoked":       true,
+	"leveraged authorization revoked": true,
+}
+
 // notificationKindForReason maps applyDriftToLink's free-text reason to one of the two
-// notification kinds the ticket asks for: an explicit revocation (the upstream offering
-// was revoked, or its leveraged authorization was deleted) is leverage_revoked; every
-// other drift trigger (a content-changing version bump, or deprecation) is the softer
-// leverage_drifted.
+// notification kinds the ticket asks for. An unrecognized reason defaults to
+// leverage_drifted, the softer of the two.
 func notificationKindForReason(reason string) notification.Kind {
-	if strings.Contains(reason, "revoked") {
+	if leverageRevocationReasons[reason] {
 		return leverageRevokedNotificationKind
 	}
 	return leverageDriftedNotificationKind

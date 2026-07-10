@@ -1,7 +1,6 @@
 package oscal
 
 import (
-	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -736,11 +735,7 @@ func (h *SSPExportOfferingHandler) Publish(ctx echo.Context) error {
 		h.sugar.Errorf("Failed to publish export offering: %v", err)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
-	if len(driftedLinks) > 0 {
-		enqueueCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx.Request().Context()), 10*time.Second)
-		defer cancel()
-		enqueueLeverageDriftNotifications(enqueueCtx, h.sugar, h.jobEnqueuer, driftedLinks)
-	}
+	enqueueLeverageDriftNotificationsAsync(ctx, h.sugar, h.jobEnqueuer, driftedLinks)
 
 	var published relational.SSPExportOffering
 	if err := h.db.Preload("Items").First(&published, "id = ?", offering.ID).Error; err != nil {
@@ -754,7 +749,7 @@ func (h *SSPExportOfferingHandler) Publish(ctx echo.Context) error {
 // terminal, drift-triggering transitions are allowed here — draft/published stay owned
 // by CreateOffering/Publish.
 type updateOfferingStatusRequest struct {
-	Status string `json:"status"`
+	Status string `json:"status" binding:"required" enums:"deprecated,revoked"`
 }
 
 func (r updateOfferingStatusRequest) validate() error {
@@ -823,11 +818,7 @@ func (h *SSPExportOfferingHandler) UpdateOfferingStatus(ctx echo.Context) error 
 		h.sugar.Errorf("Failed to update export offering status: %v", err)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
-	if len(driftedLinks) > 0 {
-		enqueueCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx.Request().Context()), 10*time.Second)
-		defer cancel()
-		enqueueLeverageDriftNotifications(enqueueCtx, h.sugar, h.jobEnqueuer, driftedLinks)
-	}
+	enqueueLeverageDriftNotificationsAsync(ctx, h.sugar, h.jobEnqueuer, driftedLinks)
 
 	var updated relational.SSPExportOffering
 	if err := h.db.Preload("Items").First(&updated, "id = ?", offering.ID).Error; err != nil {

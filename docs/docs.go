@@ -38946,9 +38946,16 @@ const docTemplate = `{
         },
         "oscal.updateOfferingStatusRequest": {
             "type": "object",
+            "required": [
+                "status"
+            ],
             "properties": {
                 "status": {
-                    "type": "string"
+                    "type": "string",
+                    "enum": [
+                        "deprecated",
+                        "revoked"
+                    ]
                 }
             }
         },

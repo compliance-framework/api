@@ -30,10 +30,9 @@ type spyJobEnqueuer struct {
 }
 
 type spyEnqueueCall struct {
-	RiskID          uuid.UUID
-	LinkID          uuid.UUID
-	DownstreamSSPID uuid.UUID
-	Reason          string
+	RiskID uuid.UUID
+	LinkID uuid.UUID
+	Reason string
 }
 
 func (s *spyJobEnqueuer) EnqueueOrphanedRiskCleanup(context.Context, uuid.UUID, *uuid.UUID, *uuid.UUID) error {
@@ -44,8 +43,8 @@ func (s *spyJobEnqueuer) EnqueueDashboardSuggestionCells(context.Context, uuid.U
 	return nil
 }
 
-func (s *spyJobEnqueuer) EnqueueLeverageDriftNotification(_ context.Context, riskID, linkID, downstreamSSPID uuid.UUID, reason string) error {
-	s.calls = append(s.calls, spyEnqueueCall{RiskID: riskID, LinkID: linkID, DownstreamSSPID: downstreamSSPID, Reason: reason})
+func (s *spyJobEnqueuer) EnqueueLeverageDriftNotification(_ context.Context, riskID, linkID uuid.UUID, reason string) error {
+	s.calls = append(s.calls, spyEnqueueCall{RiskID: riskID, LinkID: linkID, Reason: reason})
 	return nil
 }
 
@@ -93,7 +92,6 @@ func TestPublishEnqueuesLeverageDriftNotificationOnVersionBump(t *testing.T) {
 
 	require.Len(t, spy.calls, 1)
 	require.Equal(t, *link.ID, spy.calls[0].LinkID)
-	require.Equal(t, link.DownstreamSSPID, spy.calls[0].DownstreamSSPID)
 }
 
 func TestUpdateOfferingStatusEnqueuesLeverageDriftNotification(t *testing.T) {

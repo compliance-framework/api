@@ -1114,7 +1114,7 @@ func (s *Service) EnqueueOrphanedRiskCleanup(ctx context.Context, sspID uuid.UUI
 // every other owner-directed risk notification behaves. Plain uuid.UUID/string
 // parameters (not a shared struct) so *worker.Service can satisfy
 // oscal.SSPJobEnqueuer's method signature without a circular import.
-func (s *Service) EnqueueLeverageDriftNotification(ctx context.Context, riskID, linkID, downstreamSSPID uuid.UUID, reason string) error {
+func (s *Service) EnqueueLeverageDriftNotification(ctx context.Context, riskID, linkID uuid.UUID, reason string) error {
 	if !s.config.Enabled || s.client == nil {
 		return nil
 	}

@@ -4425,7 +4425,12 @@ definitions:
   oscal.updateOfferingStatusRequest:
     properties:
       status:
+        enum:
+        - deprecated
+        - revoked
         type: string
+    required:
+    - status
     type: object
   oscal.upstreamResponsibility:
     properties:

@@ -106,3 +106,46 @@ func TestReAttestRejectsWrongDownstreamSSP(t *testing.T) {
 	require.NoError(t, h.ReAttest(ctx))
 	require.Equal(t, http.StatusNotFound, rec.Code)
 }
+
+// TestReAttestRejectsWhenLinkNoLongerDriftedAtUpdateTime: ReAttest's pre-check reads the
+// link once (must be Drifted) before opening its transaction. If the link stops being
+// Drifted in between that read and the transaction's own update — a concurrent
+// re-attest, or a fresh drift landing right after — the update must not silently
+// overwrite that newer state. A query callback deterministically injects the concurrent
+// change right after the pre-check read completes and before the transactional update
+// runs, mirroring TestSyncExportOfferingAbortsOnConcurrentModification's technique.
+func TestReAttestRejectsWhenLinkNoLongerDriftedAtUpdateTime(t *testing.T) {
+	db := newSSPLeverageTestDB(t)
+	fx := newLeverageFixture(t, db)
+	link, riskID := subscribeAndDrift(t, db, fx)
+	require.Equal(t, relational.SSPLeverageStatusDrifted, link.Status)
+
+	var queryCount int
+	require.NoError(t, db.Callback().Query().After("gorm:query").
+		Register("test:simulate-concurrent-reattest", func(*gorm.DB) {
+			queryCount++
+			if queryCount == 1 {
+				// Simulate a concurrent request winning the race and clearing drift first.
+				require.NoError(t, db.Exec(
+					"UPDATE ssp_leverage_links SET status = ? WHERE id = ?",
+					string(relational.SSPLeverageStatusActive), link.ID.String(),
+				).Error)
+			}
+		}))
+	t.Cleanup(func() { _ = db.Callback().Query().Remove("test:simulate-concurrent-reattest") })
+
+	h := NewSSPLeverageHandler(zap.NewNop().Sugar(), db, &stubPDP{allow: true}, authz.FailClosed)
+	ctx, rec := newReAttestRequestContext(fx.downstreamSSPID, *link.ID)
+	require.NoError(t, h.ReAttest(ctx))
+	require.Equal(t, http.StatusConflict, rec.Code)
+
+	// The concurrent write's state must survive untouched — no bogus double-attest.
+	var reloadedLink relational.SSPLeverageLink
+	require.NoError(t, db.First(&reloadedLink, "id = ?", link.ID).Error)
+	require.Equal(t, relational.SSPLeverageStatusActive, reloadedLink.Status)
+	require.Equal(t, 1, reloadedLink.OfferingVersion, "the losing request must not have bumped OfferingVersion")
+
+	var risk risks.Risk
+	require.NoError(t, db.First(&risk, "id = ?", riskID).Error)
+	require.Equal(t, string(risks.RiskStatusOpen), risk.Status, "the losing request must not have remediated the risk")
+}

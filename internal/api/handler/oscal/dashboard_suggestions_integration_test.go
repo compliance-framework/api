@@ -38,7 +38,7 @@ func (f *dashboardSuggestionFakeEnqueuer) EnqueueOrphanedRiskCleanup(context.Con
 	return nil
 }
 
-func (f *dashboardSuggestionFakeEnqueuer) EnqueueLeverageDriftNotification(context.Context, uuid.UUID, uuid.UUID, uuid.UUID, string) error {
+func (f *dashboardSuggestionFakeEnqueuer) EnqueueLeverageDriftNotification(context.Context, uuid.UUID, uuid.UUID, string) error {
 	return nil
 }
 

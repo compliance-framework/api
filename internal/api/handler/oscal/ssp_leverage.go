@@ -32,6 +32,13 @@ const thisSystemComponentType = "this-system"
 // (non-racy) duplicate detection.
 var errDuplicateLeverageLink = errors.New("already subscribed to this provided-uuid")
 
+// errLeverageLinkNoLongerDrifted signals that ReAttest's pre-check (link.Status ==
+// Drifted, read before the transaction opened) is now stale by the time the
+// transaction's own update runs — a concurrent re-attest already cleared it, or a new
+// drift trigger landed in between. Mapped to 409: retrying with a fresh read is the
+// correct client action, not treated as a 500.
+var errLeverageLinkNoLongerDrifted = errors.New("leverage link is no longer drifted")
+
 // isUniqueViolation reports whether err is a Postgres unique-constraint violation. GORM's
 // ErrDuplicatedKey translation is unreliable here (same issue noted in
 // internal/api/handler/groups.go's isUniqueViolation), so the driver code is inspected
@@ -838,14 +845,23 @@ func (h *SSPLeverageHandler) ReAttest(ctx echo.Context) error {
 		}
 		satisfaction, _ := deriveSatisfaction(fullSet, satisfiedUUIDs)
 
-		if err := tx.Model(&relational.SSPLeverageLink{}).Where("id = ?", link.ID).Updates(map[string]any{
-			"offering_version": offering.Version,
-			"status":           relational.SSPLeverageStatusActive,
-			"satisfaction":     satisfaction,
-			"attested_at":      &now,
-			"attested_by_id":   attestedBy,
-		}).Error; err != nil {
-			return fmt.Errorf("failed to update leverage link: %w", err)
+		// Require the link to still be Drifted at update time, not just at the pre-check
+		// read above — otherwise a concurrent re-attest, or a fresh drift trigger landing
+		// in between, would be silently overwritten by this stale request.
+		result := tx.Model(&relational.SSPLeverageLink{}).
+			Where("id = ? AND status = ?", link.ID, relational.SSPLeverageStatusDrifted).
+			Updates(map[string]any{
+				"offering_version": offering.Version,
+				"status":           relational.SSPLeverageStatusActive,
+				"satisfaction":     satisfaction,
+				"attested_at":      &now,
+				"attested_by_id":   attestedBy,
+			})
+		if result.Error != nil {
+			return fmt.Errorf("failed to update leverage link: %w", result.Error)
+		}
+		if result.RowsAffected == 0 {
+			return errLeverageLinkNoLongerDrifted
 		}
 
 		dedupeKey := computeDedupeKeyForLeverageDrift(*link.ID)
@@ -873,6 +889,9 @@ func (h *SSPLeverageHandler) ReAttest(ctx echo.Context) error {
 		}
 		return risks.NewRiskService(tx).RecordRiskScoreSnapshot(tx, *driftRisk.ID, risks.RiskEventTypeStatusChange, attestedBy, now)
 	}); err != nil {
+		if errors.Is(err, errLeverageLinkNoLongerDrifted) {
+			return ctx.JSON(http.StatusConflict, api.NewError(err))
+		}
 		h.sugar.Errorf("Failed to re-attest leverage link: %v", err)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}

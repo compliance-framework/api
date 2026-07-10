@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/labstack/echo/v4"
 	"go.uber.org/zap"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
@@ -40,11 +41,26 @@ func enqueueLeverageDriftNotifications(ctx context.Context, sugar *zap.SugaredLo
 		return
 	}
 	for _, info := range links {
-		if err := jobEnqueuer.EnqueueLeverageDriftNotification(ctx, info.RiskID, info.LinkID, info.DownstreamSSPID, info.Reason); err != nil {
+		if err := jobEnqueuer.EnqueueLeverageDriftNotification(ctx, info.RiskID, info.LinkID, info.Reason); err != nil {
 			sugar.Warnw("Failed to enqueue leverage drift notification",
 				"risk_id", info.RiskID, "link_id", info.LinkID, "error", err)
 		}
 	}
+}
+
+// enqueueLeverageDriftNotificationsAsync is the shared post-commit call every drift
+// trigger handler (Publish, UpdateOfferingStatus,
+// DeleteSystemImplementationLeveragedAuthorization) makes: a no-op when nothing
+// drifted, otherwise a detached, timeout-bounded context (mirroring the
+// EnqueueOrphanedRiskCleanup call sites) so a slow/failed enqueue can't hang or be
+// cancelled by the already-completed request.
+func enqueueLeverageDriftNotificationsAsync(ctx echo.Context, sugar *zap.SugaredLogger, jobEnqueuer SSPJobEnqueuer, links []driftedLinkInfo) {
+	if len(links) == 0 {
+		return
+	}
+	enqueueCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx.Request().Context()), 10*time.Second)
+	defer cancel()
+	enqueueLeverageDriftNotifications(enqueueCtx, sugar, jobEnqueuer, links)
 }
 
 // computeDedupeKeyForLeverageDrift returns the dedupe key for the drift risk

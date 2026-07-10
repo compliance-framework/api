@@ -34,7 +34,7 @@ import (
 type SSPJobEnqueuer interface {
 	EnqueueOrphanedRiskCleanup(ctx context.Context, sspID uuid.UUID, oldProfileID, newProfileID *uuid.UUID) error
 	EnqueueDashboardSuggestionCells(ctx context.Context, runID uuid.UUID, cellCount int) error
-	EnqueueLeverageDriftNotification(ctx context.Context, riskID, linkID, downstreamSSPID uuid.UUID, reason string) error
+	EnqueueLeverageDriftNotification(ctx context.Context, riskID, linkID uuid.UUID, reason string) error
 }
 
 // profileSummary is a lightweight DTO returned by the multi-profile list endpoint.
@@ -3509,11 +3509,7 @@ func (h *SystemSecurityPlanHandler) DeleteSystemImplementationLeveragedAuthoriza
 		h.sugar.Errorf("Failed to delete leveraged authorization: %v", err)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
-	if len(driftedLinks) > 0 {
-		enqueueCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx.Request().Context()), 10*time.Second)
-		defer cancel()
-		enqueueLeverageDriftNotifications(enqueueCtx, h.sugar, h.jobEnqueuer, driftedLinks)
-	}
+	enqueueLeverageDriftNotificationsAsync(ctx, h.sugar, h.jobEnqueuer, driftedLinks)
 
 	if rowsAffected == 0 {
 		return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("leveraged authorization not found")))
