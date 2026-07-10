@@ -701,6 +701,9 @@ func Workers(
 			riskOpenDigestWorker := NewRiskOpenDigestWorker(db, userRepo, webBaseURL, riskNotificationServiceFactory, logger)
 			river.AddWorker(workers, river.WorkFunc(riskOpenDigestWorker.Work))
 
+			leverageDriftNotificationWorker := NewLeverageDriftNotificationWorker(db, userRepo, webBaseURL, riskNotificationServiceFactory, logger)
+			river.AddWorker(workers, river.WorkFunc(leverageDriftNotificationWorker.Work))
+
 			// Register POAM notification workers (BCH-1186 Phase 3)
 			poamDeadlineReminderWorker := NewPoamDeadlineReminderWorker(
 				userRepo,

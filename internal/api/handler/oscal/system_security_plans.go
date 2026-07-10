@@ -34,6 +34,7 @@ import (
 type SSPJobEnqueuer interface {
 	EnqueueOrphanedRiskCleanup(ctx context.Context, sspID uuid.UUID, oldProfileID, newProfileID *uuid.UUID) error
 	EnqueueDashboardSuggestionCells(ctx context.Context, runID uuid.UUID, cellCount int) error
+	EnqueueLeverageDriftNotification(ctx context.Context, riskID, linkID, downstreamSSPID uuid.UUID, reason string) error
 }
 
 // profileSummary is a lightweight DTO returned by the multi-profile list endpoint.
@@ -3475,13 +3476,46 @@ func (h *SystemSecurityPlanHandler) DeleteSystemImplementationLeveragedAuthoriza
 		return ctx.JSON(http.StatusNotFound, api.NewError(err))
 	}
 
-	result := h.db.Where("id = ? AND system_implementation_id = ?", authID, *systemImpl.ID).Delete(&relational.LeveragedAuthorization{})
-	if result.Error != nil {
-		h.sugar.Errorf("Failed to delete leveraged authorization: %v", result.Error)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(result.Error))
+	var driftedLinks []driftedLinkInfo
+	var rowsAffected int64
+	if err := h.db.Transaction(func(tx *gorm.DB) error {
+		result := tx.Where("id = ? AND system_implementation_id = ?", authID, *systemImpl.ID).Delete(&relational.LeveragedAuthorization{})
+		if result.Error != nil {
+			return result.Error
+		}
+		rowsAffected = result.RowsAffected
+		if rowsAffected == 0 {
+			return nil
+		}
+
+		// The leveraged authorization backing these links is gone — treat as "lapsed"
+		// (BCH-1341): drift every active leverage link that referenced it, independent of
+		// any offering version/status.
+		var links []relational.SSPLeverageLink
+		if err := tx.Where("leveraged_auth_uuid = ? AND status = ?", authID, relational.SSPLeverageStatusActive).Find(&links).Error; err != nil {
+			return fmt.Errorf("failed to load leverage links for lapsed authorization: %w", err)
+		}
+		for i := range links {
+			info, ok, err := applyDriftToLink(tx, &links[i], "leveraged authorization revoked")
+			if err != nil {
+				return err
+			}
+			if ok {
+				driftedLinks = append(driftedLinks, info)
+			}
+		}
+		return nil
+	}); err != nil {
+		h.sugar.Errorf("Failed to delete leveraged authorization: %v", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+	if len(driftedLinks) > 0 {
+		enqueueCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx.Request().Context()), 10*time.Second)
+		defer cancel()
+		enqueueLeverageDriftNotifications(enqueueCtx, h.sugar, h.jobEnqueuer, driftedLinks)
 	}
 
-	if result.RowsAffected == 0 {
+	if rowsAffected == 0 {
 		return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("leveraged authorization not found")))
 	}
 

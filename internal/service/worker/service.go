@@ -1106,6 +1106,53 @@ func (s *Service) EnqueueOrphanedRiskCleanup(ctx context.Context, sspID uuid.UUI
 	return nil
 }
 
+// EnqueueLeverageDriftNotification enqueues one leverage-drift notification job per
+// resolved owner of riskID (BCH-1341). Resolution reuses the same risk-owner mechanism
+// every other risk notification is targeted at (resolveRiskOwnerUserIDsBatch) — a drift
+// risk is a plain risks.Risk row, so no new "who owns this SSP" concept is needed. A risk
+// with no assigned owner yet enqueues no job (nobody to notify), consistent with how
+// every other owner-directed risk notification behaves. Plain uuid.UUID/string
+// parameters (not a shared struct) so *worker.Service can satisfy
+// oscal.SSPJobEnqueuer's method signature without a circular import.
+func (s *Service) EnqueueLeverageDriftNotification(ctx context.Context, riskID, linkID, downstreamSSPID uuid.UUID, reason string) error {
+	if !s.config.Enabled || s.client == nil {
+		return nil
+	}
+
+	var risk riskrel.Risk
+	if err := s.db.WithContext(ctx).First(&risk, "id = ?", riskID).Error; err != nil {
+		return fmt.Errorf("failed to load drift risk for notification enqueue: %w", err)
+	}
+
+	ownersByRiskID, err := resolveRiskOwnerUserIDsBatch(ctx, s.db, []riskrel.Risk{risk})
+	if err != nil {
+		return fmt.Errorf("failed to resolve drift risk owners: %w", err)
+	}
+
+	owners := ownersByRiskID[riskID]
+	if len(owners) == 0 {
+		return nil
+	}
+
+	params := make([]river.InsertManyParams, 0, len(owners))
+	for _, ownerID := range owners {
+		params = append(params, river.InsertManyParams{
+			Args: LeverageDriftNotificationArgs{
+				RiskID:      riskID,
+				LinkID:      linkID,
+				OwnerUserID: ownerID,
+				Reason:      reason,
+			},
+			InsertOpts: JobInsertOptionsForLeverageDriftNotification(),
+		})
+	}
+
+	if _, err := s.client.InsertMany(ctx, params); err != nil {
+		return fmt.Errorf("failed to enqueue leverage drift notification jobs for risk %s: %w", riskID, err)
+	}
+	return nil
+}
+
 func (s *Service) EnqueueDashboardSuggestionCells(ctx context.Context, runID uuid.UUID, cellCount int) error {
 	if s == nil || s.config == nil || !s.config.Enabled || s.client == nil || !s.aiEnabled {
 		return ErrDashboardSuggestionWorkerDisabled

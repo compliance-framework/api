@@ -20976,6 +20976,77 @@ const docTemplate = `{
                 ]
             }
         },
+        "/oscal/system-security-plans/{id}/export-offerings/{offeringId}/status": {
+            "patch": {
+                "description": "Transitions a published export offering to deprecated or revoked,\nwhich — independent of any content change — drifts every active\nleverage link pointing at it (BCH-1341 Phase 5).",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "SSP Export Offerings"
+                ],
+                "summary": "Deprecate or revoke an export offering",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "SSP ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Offering ID",
+                        "name": "offeringId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "New status",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/oscal.updateOfferingStatusRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-relational_SSPExportOffering"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
         "/oscal/system-security-plans/{id}/import-profile": {
             "get": {
                 "description": "Retrieves import-profile for a given SSP.",
@@ -38869,6 +38940,14 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "name": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscal.updateOfferingStatusRequest": {
+            "type": "object",
+            "properties": {
+                "status": {
                     "type": "string"
                 }
             }

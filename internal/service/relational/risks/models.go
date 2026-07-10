@@ -93,11 +93,12 @@ const (
 	RiskSourceTypeEvidenceAuto            RiskSourceType = "evidence-auto"
 	RiskSourceTypeOscalImport             RiskSourceType = "oscal-import"
 	RiskSourceTypeInheritedResponsibility RiskSourceType = "inherited-responsibility"
+	RiskSourceTypeInheritedRevoked        RiskSourceType = "inherited-revoked"
 )
 
 func (s RiskSourceType) IsValid() bool {
 	switch s {
-	case RiskSourceTypeManual, RiskSourceTypeEvidenceAuto, RiskSourceTypeOscalImport, RiskSourceTypeInheritedResponsibility:
+	case RiskSourceTypeManual, RiskSourceTypeEvidenceAuto, RiskSourceTypeOscalImport, RiskSourceTypeInheritedResponsibility, RiskSourceTypeInheritedRevoked:
 		return true
 	default:
 		return false

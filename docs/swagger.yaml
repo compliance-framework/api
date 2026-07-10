@@ -4422,6 +4422,11 @@ definitions:
       name:
         type: string
     type: object
+  oscal.updateOfferingStatusRequest:
+    properties:
+      status:
+        type: string
+    type: object
   oscal.upstreamResponsibility:
     properties:
       description:
@@ -25159,6 +25164,55 @@ paths:
       security:
       - OAuth2Password: []
       summary: Publish an export offering
+      tags:
+      - SSP Export Offerings
+  /oscal/system-security-plans/{id}/export-offerings/{offeringId}/status:
+    patch:
+      consumes:
+      - application/json
+      description: |-
+        Transitions a published export offering to deprecated or revoked,
+        which — independent of any content change — drifts every active
+        leverage link pointing at it (BCH-1341 Phase 5).
+      parameters:
+      - description: SSP ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Offering ID
+        in: path
+        name: offeringId
+        required: true
+        type: string
+      - description: New status
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/oscal.updateOfferingStatusRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-relational_SSPExportOffering'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Deprecate or revoke an export offering
       tags:
       - SSP Export Offerings
   /oscal/system-security-plans/{id}/import-profile:

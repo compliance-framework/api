@@ -17,6 +17,7 @@ import (
 	"github.com/compliance-framework/api/internal/api/middleware"
 	"github.com/compliance-framework/api/internal/authz"
 	"github.com/compliance-framework/api/internal/service/relational"
+	"github.com/compliance-framework/api/internal/service/relational/risks"
 )
 
 // thisSystemComponentType is the OSCAL convention for a placeholder component
@@ -163,6 +164,14 @@ func NewSSPLeverageHandler(l *zap.SugaredLogger, db *gorm.DB, pdp authz.PDP, fai
 // ssp-export-offering catalog uses, gated by ssp-export-offering:subscribe.
 func (h *SSPLeverageHandler) RegisterSubscribe(g *echo.Group, guard middleware.ResourceGuard) {
 	g.POST("/:id/subscribe", h.Subscribe, guard.Do(authz.ActionSubscribe))
+}
+
+// RegisterReAttest mounts the re-attestation route onto the SSP handler's own group,
+// gated by the same ssp:update guard as any other write against the downstream SSP's own
+// data — the SSP id is in the URL here (unlike Subscribe), so no bespoke
+// authorizeDownstreamUpdate-style check is needed.
+func (h *SSPLeverageHandler) RegisterReAttest(g *echo.Group, guard middleware.ResourceGuard) {
+	g.POST("/:id/leveraged-controls/:linkId/attest", h.ReAttest, guard.Do(authz.ActionUpdate))
 }
 
 // RegisterProjection mounts the leveraged-controls projection onto the SSP handler's own
@@ -763,4 +772,115 @@ func (h *SSPLeverageHandler) LeveragedControls(ctx echo.Context) error {
 	}
 
 	return ctx.JSON(http.StatusOK, handler.GenericDataListResponse[leveragedControlResponse]{Data: result})
+}
+
+// ReAttest clears drift on a leverage link (BCH-1341): bumps OfferingVersion to the
+// offering's current Version, refreshes Satisfaction against the current upstream
+// responsibility set and downstream satisfied set, flips the link back to active, and
+// marks the associated drift risk remediated — all in one transaction. Human-in-the-loop
+// only: this is the sole path that clears drift, there is no automatic re-activation.
+func (h *SSPLeverageHandler) ReAttest(ctx echo.Context) error {
+	sspIdParam := ctx.Param("id")
+	sspID, err := uuid.Parse(sspIdParam)
+	if err != nil {
+		h.sugar.Warnw("Invalid SSP id", "id", sspIdParam, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	linkIdParam := ctx.Param("linkId")
+	linkID, err := uuid.Parse(linkIdParam)
+	if err != nil {
+		h.sugar.Warnw("Invalid leverage link id", "linkId", linkIdParam, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	var link relational.SSPLeverageLink
+	if err := h.db.First(&link, "id = ?", linkID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("leverage link not found")))
+		}
+		h.sugar.Errorf("Failed to load leverage link: %v", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+	if link.DownstreamSSPID != sspID {
+		return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("leverage link not found")))
+	}
+	if link.Status != relational.SSPLeverageStatusDrifted {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("leverage link is not drifted")))
+	}
+
+	attestedBy := actorUserID(ctx)
+	now := time.Now()
+
+	if err := h.db.Transaction(func(tx *gorm.DB) error {
+		var offering relational.SSPExportOffering
+		if err := tx.First(&offering, "id = ?", link.OfferingID).Error; err != nil {
+			return fmt.Errorf("failed to load offering: %w", err)
+		}
+
+		var inherited relational.InheritedControlImplementation
+		if err := tx.First(&inherited, "id = ?", link.InheritedUUID).Error; err != nil {
+			return fmt.Errorf("failed to load inherited control implementation: %w", err)
+		}
+
+		var satisfiedRows []relational.SatisfiedControlImplementationResponsibility
+		if err := tx.Where("by_component_id = ?", inherited.ByComponentId).Find(&satisfiedRows).Error; err != nil {
+			return fmt.Errorf("failed to load satisfied responsibilities: %w", err)
+		}
+		satisfiedUUIDs := make(map[uuid.UUID]bool, len(satisfiedRows))
+		for _, s := range satisfiedRows {
+			satisfiedUUIDs[s.ResponsibilityUuid] = true
+		}
+
+		fullSet, err := resolveUpstreamResponsibilities(tx, link.ProvidedUUID)
+		if err != nil {
+			return fmt.Errorf("failed to resolve upstream responsibilities: %w", err)
+		}
+		satisfaction, _ := deriveSatisfaction(fullSet, satisfiedUUIDs)
+
+		if err := tx.Model(&relational.SSPLeverageLink{}).Where("id = ?", link.ID).Updates(map[string]any{
+			"offering_version": offering.Version,
+			"status":           relational.SSPLeverageStatusActive,
+			"satisfaction":     satisfaction,
+			"attested_at":      &now,
+			"attested_by_id":   attestedBy,
+		}).Error; err != nil {
+			return fmt.Errorf("failed to update leverage link: %w", err)
+		}
+
+		dedupeKey := computeDedupeKeyForLeverageDrift(*link.ID)
+		var driftRisk risks.Risk
+		err = tx.Where("dedupe_key = ? AND status != ?", dedupeKey, risks.RiskStatusClosed).First(&driftRisk).Error
+		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return nil
+			}
+			return fmt.Errorf("failed to load drift risk: %w", err)
+		}
+
+		oldStatus := driftRisk.Status
+		driftRisk.Status = string(risks.RiskStatusRemediated)
+		if err := tx.Save(&driftRisk).Error; err != nil {
+			return fmt.Errorf("failed to remediate drift risk: %w", err)
+		}
+		if err := emitLeverageDriftRiskEvent(tx, *driftRisk.ID, string(risks.RiskEventTypeStatusChange), map[string]interface{}{
+			"from":             oldStatus,
+			"to":               string(risks.RiskStatusRemediated),
+			"reason":           "re-attested",
+			"leverage_link_id": link.ID,
+		}, now); err != nil {
+			return err
+		}
+		return risks.NewRiskService(tx).RecordRiskScoreSnapshot(tx, *driftRisk.ID, risks.RiskEventTypeStatusChange, attestedBy, now)
+	}); err != nil {
+		h.sugar.Errorf("Failed to re-attest leverage link: %v", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	var updated relational.SSPLeverageLink
+	if err := h.db.First(&updated, "id = ?", link.ID).Error; err != nil {
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[relational.SSPLeverageLink]{Data: updated})
 }
