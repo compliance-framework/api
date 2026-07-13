@@ -39150,6 +39150,13 @@ const docTemplate = `{
                 "controlId": {
                     "type": "string"
                 },
+                "driftRiskId": {
+                    "description": "DriftRiskID is the open drift risk for this link (BCH-1341's applyDriftToLink /\ncomputeDedupeKeyForLeverageDrift convention), set only when Status is Drifted and a\nmatching risk is still open — nil otherwise (including for Revoked, which has no\nre-attest path and thus no risk to link).",
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
                 "inheritedFrom": {
                     "$ref": "#/definitions/oscal.leveragedControlInheritedFrom"
                 },
@@ -39171,6 +39178,9 @@ const docTemplate = `{
                 },
                 "statementId": {
                     "type": "string"
+                },
+                "status": {
+                    "$ref": "#/definitions/relational.SSPLeverageStatus"
                 }
             }
         },

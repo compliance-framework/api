@@ -677,10 +677,12 @@ type leveragedControlInheritedFrom struct {
 }
 
 type leveragedControlResponse struct {
+	ID                          uuid.UUID                          `json:"id"`
 	ControlID                   string                             `json:"controlId"`
 	StatementID                 *string                            `json:"statementId,omitempty"`
 	InheritedFrom               leveragedControlInheritedFrom      `json:"inheritedFrom"`
 	Satisfaction                relational.SSPLeverageSatisfaction `json:"satisfaction"`
+	Status                      relational.SSPLeverageStatus       `json:"status"`
 	OutstandingResponsibilities []upstreamResponsibility           `json:"outstandingResponsibilities"`
 	// ResponsibilityPosture is the live, evidence-backed posture (satisfied /
 	// not-satisfied / unknown) per upstream responsibility uuid under this link's
@@ -688,6 +690,11 @@ type leveragedControlResponse struct {
 	// Satisfaction/OutstandingResponsibilities above (which reflect what was attested at
 	// subscribe time, not current evidence).
 	ResponsibilityPosture map[uuid.UUID]string `json:"responsibilityPosture"`
+	// DriftRiskID is the open drift risk for this link (BCH-1341's applyDriftToLink /
+	// computeDedupeKeyForLeverageDrift convention), set only when Status is Drifted and a
+	// matching risk is still open — nil otherwise (including for Revoked, which has no
+	// re-attest path and thus no risk to link).
+	DriftRiskID *uuid.UUID `json:"driftRiskId,omitempty"`
 }
 
 // LeveragedControls godoc
@@ -797,6 +804,35 @@ func (h *SSPLeverageHandler) LeveragedControls(ctx echo.Context) error {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
+	// Batch-resolve every drifted link's open drift risk in one query, keyed by the
+	// dedupe_key convention computeDedupeKeyForLeverageDrift/applyDriftToLink already use —
+	// rather than a lookup per drifted link.
+	dedupeKeyToLinkID := make(map[string]uuid.UUID)
+	dedupeKeys := make([]string, 0, len(links))
+	for _, link := range links {
+		if link.Status != relational.SSPLeverageStatusDrifted {
+			continue
+		}
+		key := computeDedupeKeyForLeverageDrift(*link.ID)
+		dedupeKeyToLinkID[key] = *link.ID
+		dedupeKeys = append(dedupeKeys, key)
+	}
+	driftRiskIDByLinkID := make(map[uuid.UUID]uuid.UUID, len(dedupeKeys))
+	if len(dedupeKeys) > 0 {
+		var driftRisks []risks.Risk
+		if err := h.db.Select("id, dedupe_key").
+			Where("ssp_id = ? AND dedupe_key IN ? AND status != ?", sspID, dedupeKeys, risks.RiskStatusClosed).
+			Find(&driftRisks).Error; err != nil {
+			h.sugar.Errorf("Failed to load drift risks for leverage links: %v", err)
+			return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		}
+		for _, r := range driftRisks {
+			if linkID, ok := dedupeKeyToLinkID[r.DedupeKey]; ok {
+				driftRiskIDByLinkID[linkID] = *r.ID
+			}
+		}
+	}
+
 	result := make([]leveragedControlResponse, 0, len(links))
 	for _, link := range links {
 		byComponentID := byComponentIDByInherited[link.InheritedUUID]
@@ -808,7 +844,13 @@ func (h *SSPLeverageHandler) LeveragedControls(ctx echo.Context) error {
 			linkPosture[r.ResponsibilityUUID] = posture[r.ResponsibilityUUID]
 		}
 
+		var driftRiskID *uuid.UUID
+		if id, ok := driftRiskIDByLinkID[*link.ID]; ok {
+			driftRiskID = &id
+		}
+
 		result = append(result, leveragedControlResponse{
+			ID:          *link.ID,
 			ControlID:   link.ControlID,
 			StatementID: link.StatementID,
 			InheritedFrom: leveragedControlInheritedFrom{
@@ -818,8 +860,10 @@ func (h *SSPLeverageHandler) LeveragedControls(ctx echo.Context) error {
 				OfferingVersion: link.OfferingVersion,
 			},
 			Satisfaction:                satisfaction,
+			Status:                      link.Status,
 			OutstandingResponsibilities: outstanding,
 			ResponsibilityPosture:       linkPosture,
+			DriftRiskID:                 driftRiskID,
 		})
 	}
 
