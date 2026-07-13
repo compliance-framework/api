@@ -4356,6 +4356,15 @@ definitions:
     properties:
       controlId:
         type: string
+      driftRiskId:
+        description: |-
+          DriftRiskID is the open drift risk for this link (BCH-1341's applyDriftToLink /
+          computeDedupeKeyForLeverageDrift convention), set only when Status is Drifted and a
+          matching risk is still open — nil otherwise (including for Revoked, which has no
+          re-attest path and thus no risk to link).
+        type: string
+      id:
+        type: string
       inheritedFrom:
         $ref: '#/definitions/oscal.leveragedControlInheritedFrom'
       outstandingResponsibilities:
@@ -4376,6 +4385,8 @@ definitions:
         $ref: '#/definitions/relational.SSPLeverageSatisfaction'
       statementId:
         type: string
+      status:
+        $ref: '#/definitions/relational.SSPLeverageStatus'
     type: object
   oscal.profileSummary:
     properties:
