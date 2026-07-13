@@ -3908,6 +3908,64 @@
                 }
             }
         },
+        "/evidence/{id}/risks": {
+            "get": {
+                "description": "Retrieves every risk register entry linked to the evidence record's stream, across all System Security Plans.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Evidence"
+                ],
+                "summary": "List Risks linked to an Evidence stream",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Evidence ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataListResponse-handler_EvidenceRiskResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
         "/evidence/{id}/signature": {
             "get": {
                 "description": "Retrieves the stored signature envelope for a single Evidence record.",
@@ -32930,6 +32988,38 @@
                 }
             }
         },
+        "handler.EvidenceRiskResponse": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "impact": {
+                    "type": "string"
+                },
+                "likelihood": {
+                    "type": "string"
+                },
+                "source-type": {
+                    "type": "string"
+                },
+                "ssp-id": {
+                    "type": "string"
+                },
+                "ssp-title": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
         "handler.EvidenceSignatureResponse": {
             "type": "object",
             "properties": {
@@ -33102,6 +33192,19 @@
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/evidence.StatusCount"
+                    }
+                },
+                "meta": {}
+            }
+        },
+        "handler.GenericDataListResponse-handler_EvidenceRiskResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handler.EvidenceRiskResponse"
                     }
                 },
                 "meta": {}
@@ -35581,6 +35684,13 @@
                 },
                 "sspBreakdown": {
                     "$ref": "#/definitions/handler.LineageSSPBreakdown"
+                },
+                "sspId": {
+                    "description": "RiskSSPID/RiskSSPTitle identify the single SSP a risk node belongs to\n(risk_register_risks.ssp_id is not-null — every risk has exactly one).\nPopulated regardless of scope so the UI can group risk nodes by SSP in\nthe unscoped \"All SSPs\" view.",
+                    "type": "string"
+                },
+                "sspTitle": {
+                    "type": "string"
                 },
                 "statement": {
                     "description": "Statement is the control's requirement prose (OSCAL \"statement\" part),\nsurfaced for hover/tooltip in the lineage tree \u0026 graph. Control nodes only.",

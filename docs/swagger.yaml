@@ -419,6 +419,27 @@ definitions:
           for a specific purpose.\""
         type: string
     type: object
+  handler.EvidenceRiskResponse:
+    properties:
+      description:
+        type: string
+      id:
+        type: string
+      impact:
+        type: string
+      likelihood:
+        type: string
+      source-type:
+        type: string
+      ssp-id:
+        type: string
+      ssp-title:
+        type: string
+      status:
+        type: string
+      title:
+        type: string
+    type: object
   handler.EvidenceSignatureResponse:
     properties:
       data:
@@ -532,6 +553,15 @@ definitions:
         description: Items from the list response
         items:
           $ref: '#/definitions/evidence.StatusCount'
+        type: array
+      meta: {}
+    type: object
+  handler.GenericDataListResponse-handler_EvidenceRiskResponse:
+    properties:
+      data:
+        description: Items from the list response
+        items:
+          $ref: '#/definitions/handler.EvidenceRiskResponse'
         type: array
       meta: {}
     type: object
@@ -2038,6 +2068,15 @@ definitions:
           SSPBreakdown replaces both in the global (no sspId) view on control nodes.
       sspBreakdown:
         $ref: '#/definitions/handler.LineageSSPBreakdown'
+      sspId:
+        description: |-
+          RiskSSPID/RiskSSPTitle identify the single SSP a risk node belongs to
+          (risk_register_risks.ssp_id is not-null — every risk has exactly one).
+          Populated regardless of scope so the UI can group risk nodes by SSP in
+          the unscoped "All SSPs" view.
+        type: string
+      sspTitle:
+        type: string
       statement:
         description: |-
           Statement is the control's requirement prose (OSCAL "statement" part),
@@ -13685,6 +13724,44 @@ paths:
           schema:
             $ref: '#/definitions/api.Error'
       summary: Get Evidence by ID
+      tags:
+      - Evidence
+  /evidence/{id}/risks:
+    get:
+      description: Retrieves every risk register entry linked to the evidence record's
+        stream, across all System Security Plans.
+      parameters:
+      - description: Evidence ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-handler_EvidenceRiskResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: List Risks linked to an Evidence stream
       tags:
       - Evidence
   /evidence/{id}/signature:

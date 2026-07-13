@@ -59,13 +59,19 @@ func (suite *LineageRiskEvidenceSuite) TestControlToRiskToEvidence() {
 	}
 	suite.Require().NoError(suite.DB.Create(&catalog).Error)
 
+	sspID := uuid.New()
+	suite.Require().NoError(suite.DB.Create(&relational.SystemSecurityPlan{
+		UUIDModel: relational.UUIDModel{ID: &sspID},
+		Metadata:  relational.Metadata{Title: "Prod SSP", Version: "1.0.0", OscalVersion: "1.1.3", LastModified: &now},
+	}).Error)
+
 	// A risk (high x high = 16) linked to ac-1.
 	high := "high"
 	risk := riskrel.Risk{
 		Title:       "Test Risk",
 		Description: "d",
 		Status:      string(riskrel.RiskStatusOpen),
-		SSPID:       uuid.New(),
+		SSPID:       sspID,
 		Likelihood:  &high,
 		Impact:      &high,
 		SourceType:  string(riskrel.RiskSourceTypeManual),
@@ -113,6 +119,8 @@ func (suite *LineageRiskEvidenceSuite) TestControlToRiskToEvidence() {
 	suite.NotNil(rn.FirstSeenAt)
 	suite.True(rn.HasChildren)
 	suite.Equal(1, rn.ChildrenCount, "one linked stream")
+	suite.Equal(sspID.String(), rn.RiskSSPID, "risk nodes carry their owning SSP id")
+	suite.Equal("Prod SSP", rn.RiskSSPTitle, "risk nodes carry their owning SSP title in the global view")
 
 	// risk -> evidence (latest per stream: one node, satisfied)
 	evs := suite.childrenOf(rn.Key)

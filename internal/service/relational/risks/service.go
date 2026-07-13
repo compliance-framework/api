@@ -117,6 +117,22 @@ func (s *RiskService) List(params ListParams) ([]Risk, int64, error) {
 	return items, total, nil
 }
 
+// ListForEvidenceStream returns every risk linked to an evidence stream, across all
+// SSPs, newest first. The owning SSP's metadata is preloaded so callers can title
+// each risk's plan without a second round trip.
+func (s *RiskService) ListForEvidenceStream(evidenceStreamUUID uuid.UUID) ([]Risk, error) {
+	var items []Risk
+	query := ApplyEvidenceStreamFilter(s.db, evidenceStreamUUID).
+		Preload("SystemSecurityPlan.Metadata").
+		Order("risk_register_risks.created_at DESC")
+
+	if err := query.Find(&items).Error; err != nil {
+		return nil, err
+	}
+
+	return items, nil
+}
+
 func (s *RiskService) Create(params CreateRiskParams) (*Risk, error) {
 	risk := params.Risk
 	if err := validateRiskThreatRefs(params.ThreatRefs); err != nil {
