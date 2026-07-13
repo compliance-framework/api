@@ -96,6 +96,15 @@ func ApplyRiskFilters(query *gorm.DB, filters ListFilters) *gorm.DB {
 	return q
 }
 
+// ApplyEvidenceStreamFilter narrows a risk query to the risks linked to a single
+// evidence stream. risk_evidence_links.evidence_id holds the evidence stream UUID
+// (evidences.uuid), not an evidence row ID.
+func ApplyEvidenceStreamFilter(query *gorm.DB, evidenceStreamUUID uuid.UUID) *gorm.DB {
+	return query.Model(&Risk{}).
+		Joins("JOIN risk_evidence_links rel ON rel.risk_id = risk_register_risks.id").
+		Where("rel.evidence_id = ?", evidenceStreamUUID)
+}
+
 func ApplyRiskSorting(query *gorm.DB, sortField, sortOrder string) *gorm.DB {
 	column := mapSortField(sortField)
 	order := strings.ToUpper(sortOrder)

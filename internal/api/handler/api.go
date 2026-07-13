@@ -100,7 +100,10 @@ func RegisterHandlers(server *api.Server, logger *zap.SugaredLogger, db *gorm.DB
 	// Keep the legacy operator-facing metrics route stable while protecting it with user auth.
 	heartbeatHandler.RegisterOverTime(server.API().Group("/agent/heartbeat"), middleware.JWTMiddleware(config.JWTPublicKey), heartbeatGuard.Read())
 
-	evidenceHandler := NewEvidenceHandler(logger, services.EvidenceService)
+	riskService := riskrel.NewRiskService(db)
+	riskGuard := pep.For(authz.ResourceRisk)
+
+	evidenceHandler := NewEvidenceHandler(logger, services.EvidenceService, riskService)
 	evidenceGuard := pep.For(authz.ResourceEvidence)
 	evidenceGroup := server.API().Group("/evidence")
 	evidenceHandler.RegisterCreate(
@@ -119,8 +122,13 @@ func RegisterHandlers(server *api.Server, logger *zap.SugaredLogger, db *gorm.DB
 	evidenceSignatureGroup.Use(middleware.JWTMiddleware(config.JWTPublicKey))
 	evidenceHandler.RegisterSignatureRoutes(evidenceSignatureGroup, evidenceGuard.Read())
 
+	// Evidence→risk lookups return risk register data, so they need auth and the risk
+	// read guard rather than joining the intentionally anonymous evidence read routes.
+	evidenceRiskGroup := server.API().Group("/evidence")
+	evidenceRiskGroup.Use(middleware.JWTMiddleware(config.JWTPublicKey))
+	evidenceHandler.RegisterRiskRoutes(evidenceRiskGroup, riskGuard.Read())
+
 	poamService := poamsvc.NewPoamService(db)
-	riskService := riskrel.NewRiskService(db)
 	poamHandler := NewPoamItemsHandler(poamService, riskService, logger)
 	// Flat route: /api/poam-items (supports ?sspId= query filter)
 	poamGroup := server.API().Group("/poam-items")
@@ -134,7 +142,6 @@ func RegisterHandlers(server *api.Server, logger *zap.SugaredLogger, db *gorm.DB
 	poamHandler.RegisterSSPScoped(sspPoamGroup, poamGuard)
 
 	riskHandler := NewRiskHandler(logger, db, poamService, riskService)
-	riskGuard := pep.For(authz.ResourceRisk)
 	riskGroup := server.API().Group("/risks")
 	riskGroup.Use(middleware.JWTMiddleware(config.JWTPublicKey))
 	riskHandler.Register(riskGroup, riskGuard)
