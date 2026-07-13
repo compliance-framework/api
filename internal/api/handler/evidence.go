@@ -14,6 +14,7 @@ import (
 	svc "github.com/compliance-framework/api/internal/service"
 	"github.com/compliance-framework/api/internal/service/relational"
 	evidencesvc "github.com/compliance-framework/api/internal/service/relational/evidence"
+	riskrel "github.com/compliance-framework/api/internal/service/relational/risks"
 	oscalTypes_1_1_3 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
@@ -24,13 +25,15 @@ import (
 
 type EvidenceHandler struct {
 	evidenceService *evidencesvc.EvidenceService
+	riskService     *riskrel.RiskService
 	pagination      *svc.PaginationConfig
 	sugar           *zap.SugaredLogger
 }
 
-func NewEvidenceHandler(sugar *zap.SugaredLogger, evidenceService *evidencesvc.EvidenceService) *EvidenceHandler {
+func NewEvidenceHandler(sugar *zap.SugaredLogger, evidenceService *evidencesvc.EvidenceService, riskService *riskrel.RiskService) *EvidenceHandler {
 	return &EvidenceHandler{
 		evidenceService: evidenceService,
+		riskService:     riskService,
 		pagination:      svc.NewPaginationConfig(),
 		sugar:           sugar,
 	}
@@ -74,6 +77,13 @@ func (h *EvidenceHandler) RegisterReadRoutes(api *echo.Group, middlewares ...ech
 func (h *EvidenceHandler) RegisterSignatureRoutes(api *echo.Group, middlewares ...echo.MiddlewareFunc) {
 	api.GET("/:id/signature", h.GetSignature, middlewares...)
 	api.POST("/:id/verify", h.VerifySignature, middlewares...)
+}
+
+// RegisterRiskRoutes mounts the evidence→risk lookup. The response exposes risk
+// register data, so the caller must pass an authenticated group and the risk read
+// guard rather than the (anonymous-readable) evidence one.
+func (h *EvidenceHandler) RegisterRiskRoutes(api *echo.Group, middlewares ...echo.MiddlewareFunc) {
+	api.GET("/:id/risks", h.Risks, middlewares...)
 }
 
 type EvidenceActivityStep struct {
@@ -777,6 +787,85 @@ func (h *EvidenceHandler) VerifySignature(ctx echo.Context) error {
 	}
 
 	return ctx.JSON(http.StatusOK, EvidenceSignatureVerificationResponse{Data: result})
+}
+
+type EvidenceRiskResponse struct {
+	ID          uuid.UUID `json:"id"`
+	Title       string    `json:"title"`
+	Description string    `json:"description"`
+	Status      string    `json:"status"`
+	Likelihood  *string   `json:"likelihood,omitempty"`
+	Impact      *string   `json:"impact,omitempty"`
+	SSPID       uuid.UUID `json:"ssp-id"`
+	SSPTitle    string    `json:"ssp-title"`
+	SourceType  string    `json:"source-type"`
+}
+
+// Risks godoc
+//
+//	@Summary		List Risks linked to an Evidence stream
+//	@Description	Retrieves every risk register entry linked to the evidence record's stream, across all System Security Plans.
+//	@Tags			Evidence
+//	@Produce		json
+//	@Param			id	path		string	true	"Evidence ID"
+//	@Success		200	{object}	GenericDataListResponse[EvidenceRiskResponse]
+//	@Failure		400	{object}	api.Error
+//	@Failure		401	{object}	api.Error
+//	@Failure		404	{object}	api.Error
+//	@Failure		500	{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/evidence/{id}/risks [get]
+func (h *EvidenceHandler) Risks(ctx echo.Context) error {
+	idParam := ctx.Param("id")
+	id, err := parseEvidenceID(ctx)
+	if err != nil {
+		h.sugar.Warnw("Invalid evidence id", "id", idParam, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	evidence, err := h.evidenceService.GetByID(id)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(err))
+		}
+		h.sugar.Warnw("Failed to load evidence", "id", idParam, "error", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	// Evidence created without a stream UUID can never be linked to a risk, since
+	// risk_evidence_links keys on the stream. Report that as "no risks", not an error.
+	if evidence.UUID == uuid.Nil {
+		return ctx.JSON(http.StatusOK, GenericDataListResponse[EvidenceRiskResponse]{Data: []EvidenceRiskResponse{}})
+	}
+
+	risks, err := h.riskService.ListForEvidenceStream(evidence.UUID)
+	if err != nil {
+		h.sugar.Warnw("Failed to load risks for evidence", "id", idParam, "error", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	output := make([]EvidenceRiskResponse, 0, len(risks))
+	for _, risk := range risks {
+		if risk.ID == nil {
+			continue
+		}
+		item := EvidenceRiskResponse{
+			ID:          *risk.ID,
+			Title:       risk.Title,
+			Description: risk.Description,
+			Status:      risk.Status,
+			Likelihood:  risk.Likelihood,
+			Impact:      risk.Impact,
+			SSPID:       risk.SSPID,
+			SourceType:  risk.SourceType,
+		}
+		if risk.SystemSecurityPlan != nil {
+			item.SSPTitle = risk.SystemSecurityPlan.Metadata.Title
+		}
+		output = append(output, item)
+	}
+
+	return ctx.JSON(http.StatusOK, GenericDataListResponse[EvidenceRiskResponse]{Data: output})
 }
 
 // ForControl godoc

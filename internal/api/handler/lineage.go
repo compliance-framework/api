@@ -179,6 +179,12 @@ type LineageNode struct {
 	LastReviewedAt      *time.Time `json:"lastReviewedAt,omitempty"`
 	FirstSeenAt         *time.Time `json:"firstSeenAt,omitempty"`
 	LastSeenAt          *time.Time `json:"lastSeenAt,omitempty"`
+	// RiskSSPID/RiskSSPTitle identify the single SSP a risk node belongs to
+	// (risk_register_risks.ssp_id is not-null — every risk has exactly one).
+	// Populated regardless of scope so the UI can group risk nodes by SSP in
+	// the unscoped "All SSPs" view.
+	RiskSSPID    string `json:"sspId,omitempty"`
+	RiskSSPTitle string `json:"sspTitle,omitempty"`
 
 	// Evidence-node detail.
 	Reason      string     `json:"reason,omitempty"`
@@ -533,6 +539,9 @@ func (h *LineageHandler) buildEngine(sspID, componentID *uuid.UUID) (*lineageEng
 		if err := e.loadImplementationStatuses(h.db, []uuid.UUID{*sspID}); err != nil {
 			return nil, err
 		}
+		if err := e.loadSSPTitle(h.db, *sspID); err != nil {
+			return nil, err
+		}
 	} else {
 		if err := e.loadGlobalSSPScope(h.db); err != nil {
 			return nil, err
@@ -883,6 +892,17 @@ func (e *lineageEngine) loadImplementationStatuses(db *gorm.DB, sspIDs []uuid.UU
 			}
 		}
 	}
+	return nil
+}
+
+// loadSSPTitle resolves the single scoped SSP's title into sspTitles, so risk
+// nodes can carry it the same way they do in the global (no sspId) view.
+func (e *lineageEngine) loadSSPTitle(db *gorm.DB, sspID uuid.UUID) error {
+	var ssp relational.SystemSecurityPlan
+	if err := db.Preload("Metadata").First(&ssp, "id = ?", sspID).Error; err != nil {
+		return err
+	}
+	e.sspTitles[sspID] = ssp.Metadata.Title
 	return nil
 }
 
@@ -1550,13 +1570,14 @@ type riskRow struct {
 	LastReviewedAt *time.Time `gorm:"column:last_reviewed_at"`
 	FirstSeenAt    *time.Time `gorm:"column:first_seen_at"`
 	LastSeenAt     *time.Time `gorm:"column:last_seen_at"`
+	SSPID          uuid.UUID  `gorm:"column:ssp_id"`
 }
 
 // riskNodesForControl loads the risks directly linked to a control (same SSP/
 // component scoping as loadRisks) as leaf-ish lineage nodes that expand to evidence.
 func (e *lineageEngine) riskNodesForControl(ref relational.ControlRef) ([]LineageNode, error) {
 	q := e.db.Table("risk_control_links rcl").
-		Select("r.id, r.title, r.status, r.likelihood, r.impact, r.review_deadline, r.last_reviewed_at, r.first_seen_at, r.last_seen_at").
+		Select("r.id, r.title, r.status, r.likelihood, r.impact, r.review_deadline, r.last_reviewed_at, r.first_seen_at, r.last_seen_at, r.ssp_id").
 		Joins("JOIN risk_register_risks r ON r.id = rcl.risk_id").
 		Where("rcl.catalog_id = ? AND rcl.control_id = ?", ref.CatalogID, ref.ControlID).
 		// Closed risks are omitted as nodes (matches loadRisks / the child count).
@@ -1590,7 +1611,7 @@ func (e *lineageEngine) riskNodesForControl(ref relational.ControlRef) ([]Lineag
 	nodes := make([]LineageNode, 0, len(order))
 	for _, id := range order {
 		r := seen[id]
-		nodes = append(nodes, riskNode(r, counts[id]))
+		nodes = append(nodes, riskNode(r, counts[id], e.sspTitles[r.SSPID]))
 	}
 	return nodes, nil
 }
@@ -1666,7 +1687,7 @@ func (e *lineageEngine) evidenceNodesForRisk(riskID uuid.UUID) ([]LineageNode, e
 	return nodes, nil
 }
 
-func riskNode(r riskRow, evidenceCount int) LineageNode {
+func riskNode(r riskRow, evidenceCount int, sspTitle string) LineageNode {
 	score, _ := riskrel.NumericalRiskScore(r.Likelihood, r.Impact)
 	s := score
 	linked := evidenceCount
@@ -1687,6 +1708,8 @@ func riskNode(r riskRow, evidenceCount int) LineageNode {
 		Risk:                bucketRisks([]riskEntry{{riskID: r.ID, status: r.Status, score: score}}),
 		HasChildren:         evidenceCount > 0,
 		ChildrenCount:       evidenceCount,
+		RiskSSPID:           r.SSPID.String(),
+		RiskSSPTitle:        sspTitle,
 	}
 	if r.Likelihood != nil {
 		node.Likelihood = *r.Likelihood
