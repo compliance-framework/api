@@ -16,6 +16,7 @@ import (
 	"github.com/labstack/echo/v4"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	"github.com/compliance-framework/api/internal/api"
 	"github.com/compliance-framework/api/internal/api/handler"
@@ -29,17 +30,91 @@ import (
 // SSPExportOfferingItem hashes into: only the fields that define what is being
 // offered, normalized so struct field order and JSON tag order can't perturb the hash.
 type canonicalOfferingItem struct {
-	ControlID     string `json:"control_id"`
-	StatementID   string `json:"statement_id"`
-	ComponentUUID string `json:"component_uuid"`
-	ProvidedUUID  string `json:"provided_uuid"`
+	ControlID            string `json:"control_id"`
+	StatementID          string `json:"statement_id"`
+	ComponentUUID        string `json:"component_uuid"`
+	ProvidedUUID         string `json:"provided_uuid"`
+	ImplementationStatus string `json:"implementation_status"`
+}
+
+// resolveItemImplementationStatuses resolves, for the distinct ProvidedUUIDs across
+// items, the live ImplementationStatus of the ByComponent backing each provided
+// capability (item.ProvidedUUID -> ProvidedControlImplementation.ExportId ->
+// Export.ByComponentId -> ByComponent.ImplementationStatus). This is looked up fresh on
+// every call rather than trusted from any cached copy, since it's exactly the signal a
+// downgrade (implemented -> planned/partial) needs to be visible as drift (BCH-1341). A
+// provided uuid whose chain doesn't resolve (dangling reference) contributes an empty
+// status rather than failing the whole sync.
+func resolveItemImplementationStatuses(db *gorm.DB, items []relational.SSPExportOfferingItem) (map[uuid.UUID]string, error) {
+	result := make(map[uuid.UUID]string, len(items))
+	if len(items) == 0 {
+		return result, nil
+	}
+
+	providedUUIDs := make([]uuid.UUID, 0, len(items))
+	seen := make(map[uuid.UUID]struct{}, len(items))
+	for _, item := range items {
+		if _, ok := seen[item.ProvidedUUID]; ok {
+			continue
+		}
+		seen[item.ProvidedUUID] = struct{}{}
+		providedUUIDs = append(providedUUIDs, item.ProvidedUUID)
+	}
+
+	var provided []relational.ProvidedControlImplementation
+	if err := db.Where("id IN ?", providedUUIDs).Find(&provided).Error; err != nil {
+		return nil, fmt.Errorf("failed to load provided control implementations: %w", err)
+	}
+	if len(provided) == 0 {
+		return result, nil
+	}
+
+	exportIDs := make([]uuid.UUID, 0, len(provided))
+	exportIDByProvided := make(map[uuid.UUID]uuid.UUID, len(provided))
+	for _, p := range provided {
+		exportIDByProvided[*p.ID] = p.ExportId
+		exportIDs = append(exportIDs, p.ExportId)
+	}
+
+	var exports []relational.Export
+	if err := db.Where("id IN ?", exportIDs).Find(&exports).Error; err != nil {
+		return nil, fmt.Errorf("failed to load exports: %w", err)
+	}
+	byComponentIDByExport := make(map[uuid.UUID]uuid.UUID, len(exports))
+	byComponentIDs := make([]uuid.UUID, 0, len(exports))
+	for _, e := range exports {
+		byComponentIDByExport[*e.ID] = e.ByComponentId
+		byComponentIDs = append(byComponentIDs, e.ByComponentId)
+	}
+
+	var byComponents []relational.ByComponent
+	if err := db.Where("id IN ?", byComponentIDs).Find(&byComponents).Error; err != nil {
+		return nil, fmt.Errorf("failed to load by-components: %w", err)
+	}
+	statusByComponent := make(map[uuid.UUID]string, len(byComponents))
+	for _, bc := range byComponents {
+		statusByComponent[*bc.ID] = string(bc.ImplementationStatus.Data().State)
+	}
+
+	for providedID, exportID := range exportIDByProvided {
+		byComponentID, ok := byComponentIDByExport[exportID]
+		if !ok {
+			continue
+		}
+		if status, ok := statusByComponent[byComponentID]; ok {
+			result[providedID] = status
+		}
+	}
+
+	return result, nil
 }
 
 // computeOfferingContentHash returns a deterministic sha256 hex digest over an
-// offering's curatorial content — title, description, and its items — so that two
+// offering's curatorial content — title, description, and its items (including the
+// live ImplementationStatus of the component backing each item, BCH-1341) — so that two
 // offerings (or the same offering re-read in a different item order) with identical
 // content always hash identically, and any real content change always changes it.
-func computeOfferingContentHash(title, description string, items []relational.SSPExportOfferingItem) string {
+func computeOfferingContentHash(title, description string, items []relational.SSPExportOfferingItem, statusByProvidedUUID map[uuid.UUID]string) string {
 	canon := make([]canonicalOfferingItem, 0, len(items))
 	for _, item := range items {
 		statementID := ""
@@ -47,10 +122,11 @@ func computeOfferingContentHash(title, description string, items []relational.SS
 			statementID = *item.StatementID
 		}
 		canon = append(canon, canonicalOfferingItem{
-			ControlID:     item.ControlID,
-			StatementID:   statementID,
-			ComponentUUID: item.ComponentUUID.String(),
-			ProvidedUUID:  item.ProvidedUUID.String(),
+			ControlID:            item.ControlID,
+			StatementID:          statementID,
+			ComponentUUID:        item.ComponentUUID.String(),
+			ProvidedUUID:         item.ProvidedUUID.String(),
+			ImplementationStatus: statusByProvidedUUID[item.ProvidedUUID],
 		})
 	}
 	sort.Slice(canon, func(i, j int) bool {
@@ -85,16 +161,21 @@ func computeOfferingContentHash(title, description string, items []relational.SS
 // concurrency guard: it captures UpdatedAt before recomputing, then aborts inside the
 // write transaction if the row was modified in the meantime, rather than overwriting a
 // newer state with a stale computation.
-func SyncExportOffering(db *gorm.DB, offeringID uuid.UUID) error {
+func SyncExportOffering(db *gorm.DB, offeringID uuid.UUID) ([]driftedLinkInfo, error) {
 	var offering relational.SSPExportOffering
 	if err := db.Preload("Items").First(&offering, "id = ?", offeringID).Error; err != nil {
-		return err
+		return nil, err
 	}
 	originalUpdatedAt := offering.UpdatedAt
 
-	newHash := computeOfferingContentHash(offering.Title, offering.Description, offering.Items)
+	statusByProvidedUUID, err := resolveItemImplementationStatuses(db, offering.Items)
+	if err != nil {
+		return nil, err
+	}
+	newHash := computeOfferingContentHash(offering.Title, offering.Description, offering.Items, statusByProvidedUUID)
 
-	return db.Transaction(func(tx *gorm.DB) error {
+	var driftedLinks []driftedLinkInfo
+	txErr := db.Transaction(func(tx *gorm.DB) error {
 		var current relational.SSPExportOffering
 		if err := tx.First(&current, "id = ?", offeringID).Error; err != nil {
 			return err
@@ -112,8 +193,21 @@ func SyncExportOffering(db *gorm.DB, offeringID uuid.UUID) error {
 
 		current.ContentHash = newHash
 		current.Version++
-		return tx.Save(&current).Error
+		if err := tx.Save(&current).Error; err != nil {
+			return err
+		}
+
+		links, err := evaluateLeverageDriftForOffering(tx, current)
+		if err != nil {
+			return err
+		}
+		driftedLinks = links
+		return nil
 	})
+	if txErr != nil {
+		return nil, txErr
+	}
+	return driftedLinks, nil
 }
 
 // touchOfferingUpdatedAt bumps an offering's own UpdatedAt without touching any other
@@ -132,12 +226,13 @@ func touchOfferingUpdatedAt(tx *gorm.DB, offeringID uuid.UUID) error {
 // delete/publish, gated by ssp:export) and the top-level read-only ssp-export-offering
 // catalog (gated by ssp-export-offering:read).
 type SSPExportOfferingHandler struct {
-	sugar *zap.SugaredLogger
-	db    *gorm.DB
+	sugar       *zap.SugaredLogger
+	db          *gorm.DB
+	jobEnqueuer SSPJobEnqueuer
 }
 
-func NewSSPExportOfferingHandler(l *zap.SugaredLogger, db *gorm.DB) *SSPExportOfferingHandler {
-	return &SSPExportOfferingHandler{sugar: l, db: db}
+func NewSSPExportOfferingHandler(l *zap.SugaredLogger, db *gorm.DB, jobEnqueuer SSPJobEnqueuer) *SSPExportOfferingHandler {
+	return &SSPExportOfferingHandler{sugar: l, db: db, jobEnqueuer: jobEnqueuer}
 }
 
 // RegisterNested mounts the SSP-scoped curation routes onto the SSP handler's own
@@ -153,6 +248,10 @@ func (h *SSPExportOfferingHandler) RegisterNested(api *echo.Group, guard middlew
 	api.PUT("/:id/export-offerings/:offeringId/items/:itemId", h.UpdateItem, guard.Do(authz.ActionExport))
 	api.DELETE("/:id/export-offerings/:offeringId/items/:itemId", h.DeleteItem, guard.Do(authz.ActionExport))
 	api.POST("/:id/export-offerings/:offeringId/publish", h.Publish, guard.Do(authz.ActionExport))
+	api.PATCH("/:id/export-offerings/:offeringId/status", h.UpdateOfferingStatus, guard.Do(authz.ActionExport))
+	api.GET("/:id/export-offerings/:offeringId/allowed-downstreams", h.ListAllowedDownstreams, guard.Do(authz.ActionExport))
+	api.POST("/:id/export-offerings/:offeringId/allowed-downstreams", h.AddAllowedDownstream, guard.Do(authz.ActionExport))
+	api.DELETE("/:id/export-offerings/:offeringId/allowed-downstreams/:downstreamSspId", h.RemoveAllowedDownstream, guard.Do(authz.ActionExport))
 }
 
 // Register mounts the top-level, cross-SSP read-only catalog: list and get any
@@ -599,6 +698,140 @@ func (h *SSPExportOfferingHandler) DeleteItem(ctx echo.Context) error {
 	return ctx.NoContent(http.StatusNoContent)
 }
 
+type allowedDownstreamRequest struct {
+	DownstreamSSPID string `json:"downstreamSspId"`
+}
+
+func (r allowedDownstreamRequest) validate() error {
+	if _, err := uuid.Parse(r.DownstreamSSPID); err != nil {
+		return fmt.Errorf("downstreamSspId must be a valid UUID")
+	}
+	return nil
+}
+
+// ListAllowedDownstreams godoc
+//
+//	@Summary		List an export offering's downstream-SSP allow-list
+//	@Description	Returns every downstream SSP allow-listed to subscribe to this offering
+//	@Description	(BCH-1342). An empty list means the offering has no allow-list set — any
+//	@Description	downstream may subscribe (subject to the existing ssp:update and
+//	@Description	contributor-role checks), the type-level default.
+//	@Tags			SSP Export Offerings
+//	@Produce		json
+//	@Param			id			path		string	true	"SSP ID"
+//	@Param			offeringId	path		string	true	"Offering ID"
+//	@Success		200			{object}	handler.GenericDataListResponse[relational.SSPExportOfferingAllowedDownstream]
+//	@Failure		400			{object}	api.Error
+//	@Failure		404			{object}	api.Error
+//	@Failure		500			{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/oscal/system-security-plans/{id}/export-offerings/{offeringId}/allowed-downstreams [get]
+func (h *SSPExportOfferingHandler) ListAllowedDownstreams(ctx echo.Context) error {
+	offering, ok := h.resolveOfferingForSSP(ctx)
+	if !ok {
+		return nil
+	}
+
+	var allowed []relational.SSPExportOfferingAllowedDownstream
+	if err := h.db.Where("offering_id = ?", offering.ID).Find(&allowed).Error; err != nil {
+		h.sugar.Errorf("Failed to list offering allow-list: %v", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	return ctx.JSON(http.StatusOK, handler.GenericDataListResponse[relational.SSPExportOfferingAllowedDownstream]{Data: allowed})
+}
+
+// AddAllowedDownstream godoc
+//
+//	@Summary		Add a downstream SSP to an export offering's allow-list
+//	@Description	Once an offering has at least one allow-list entry, only listed downstream
+//	@Description	SSPs may subscribe to it (BCH-1342) — enforced by a handler-level check in
+//	@Description	Subscribe, not by the PDP.
+//	@Tags			SSP Export Offerings
+//	@Accept			json
+//	@Produce		json
+//	@Param			id			path		string						true	"SSP ID"
+//	@Param			offeringId	path		string						true	"Offering ID"
+//	@Param			body		body		allowedDownstreamRequest	true	"Downstream SSP to allow"
+//	@Success		201			{object}	handler.GenericDataResponse[relational.SSPExportOfferingAllowedDownstream]
+//	@Failure		400			{object}	api.Error
+//	@Failure		404			{object}	api.Error
+//	@Failure		500			{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/oscal/system-security-plans/{id}/export-offerings/{offeringId}/allowed-downstreams [post]
+func (h *SSPExportOfferingHandler) AddAllowedDownstream(ctx echo.Context) error {
+	offering, ok := h.resolveOfferingForSSP(ctx)
+	if !ok {
+		return nil
+	}
+
+	var req allowedDownstreamRequest
+	if err := ctx.Bind(&req); err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	if err := req.validate(); err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	downstreamSSPID, err := uuid.Parse(req.DownstreamSSPID)
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	allowed := relational.SSPExportOfferingAllowedDownstream{
+		OfferingID:      *offering.ID,
+		DownstreamSSPID: downstreamSSPID,
+	}
+	if err := h.db.Clauses(clause.OnConflict{DoNothing: true}).Create(&allowed).Error; err != nil {
+		h.sugar.Errorf("Failed to add offering allow-list entry: %v", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	return ctx.JSON(http.StatusCreated, handler.GenericDataResponse[relational.SSPExportOfferingAllowedDownstream]{Data: allowed})
+}
+
+// RemoveAllowedDownstream godoc
+//
+//	@Summary		Remove a downstream SSP from an export offering's allow-list
+//	@Description	If this removes the offering's last allow-list entry, the offering
+//	@Description	reverts to the type-level default (any downstream may subscribe,
+//	@Description	subject to the existing ssp:update and contributor-role checks).
+//	@Tags			SSP Export Offerings
+//	@Param			id				path	string	true	"SSP ID"
+//	@Param			offeringId		path	string	true	"Offering ID"
+//	@Param			downstreamSspId	path	string	true	"Downstream SSP ID"
+//	@Success		204
+//	@Failure		400	{object}	api.Error
+//	@Failure		404	{object}	api.Error
+//	@Failure		500	{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/oscal/system-security-plans/{id}/export-offerings/{offeringId}/allowed-downstreams/{downstreamSspId} [delete]
+func (h *SSPExportOfferingHandler) RemoveAllowedDownstream(ctx echo.Context) error {
+	offering, ok := h.resolveOfferingForSSP(ctx)
+	if !ok {
+		return nil
+	}
+
+	downstreamSspIdParam := ctx.Param("downstreamSspId")
+	downstreamSSPID, err := uuid.Parse(downstreamSspIdParam)
+	if err != nil {
+		h.sugar.Warnw("Invalid downstream SSP id", "downstreamSspId", downstreamSspIdParam, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	result := h.db.Where("offering_id = ? AND downstream_ssp_id = ?", offering.ID, downstreamSSPID).
+		Delete(&relational.SSPExportOfferingAllowedDownstream{})
+	if result.Error != nil {
+		h.sugar.Errorf("Failed to remove offering allow-list entry: %v", result.Error)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(result.Error))
+	}
+	if result.RowsAffected == 0 {
+		return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("allow-list entry not found")))
+	}
+
+	return ctx.NoContent(http.StatusNoContent)
+}
+
 // Publish godoc
 //
 //	@Summary		Publish an export offering
@@ -626,10 +859,13 @@ func (h *SSPExportOfferingHandler) Publish(ctx echo.Context) error {
 	}
 
 	now := time.Now()
+	var driftedLinks []driftedLinkInfo
 	if err := h.db.Transaction(func(tx *gorm.DB) error {
-		if err := SyncExportOffering(tx, *offering.ID); err != nil {
+		links, err := SyncExportOffering(tx, *offering.ID)
+		if err != nil {
 			return err
 		}
+		driftedLinks = links
 		return tx.Model(&relational.SSPExportOffering{}).
 			Where("id = ?", offering.ID).
 			Updates(map[string]any{"status": relational.SSPExportOfferingStatusPublished, "published_at": &now}).Error
@@ -637,6 +873,7 @@ func (h *SSPExportOfferingHandler) Publish(ctx echo.Context) error {
 		h.sugar.Errorf("Failed to publish export offering: %v", err)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
+	enqueueLeverageDriftNotificationsAsync(ctx, h.sugar, h.jobEnqueuer, driftedLinks)
 
 	var published relational.SSPExportOffering
 	if err := h.db.Preload("Items").First(&published, "id = ?", offering.ID).Error; err != nil {
@@ -644,6 +881,89 @@ func (h *SSPExportOfferingHandler) Publish(ctx echo.Context) error {
 	}
 
 	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[relational.SSPExportOffering]{Data: published})
+}
+
+// updateOfferingStatusRequest is the body for UpdateOfferingStatus: only the two
+// terminal, drift-triggering transitions are allowed here — draft/published stay owned
+// by CreateOffering/Publish.
+type updateOfferingStatusRequest struct {
+	Status string `json:"status" binding:"required" enums:"deprecated,revoked"`
+}
+
+func (r updateOfferingStatusRequest) validate() error {
+	switch relational.SSPExportOfferingStatus(r.Status) {
+	case relational.SSPExportOfferingStatusDeprecated, relational.SSPExportOfferingStatusRevoked:
+		return nil
+	default:
+		return fmt.Errorf("status must be %q or %q", relational.SSPExportOfferingStatusDeprecated, relational.SSPExportOfferingStatusRevoked)
+	}
+}
+
+// UpdateOfferingStatus godoc
+//
+//	@Summary		Deprecate or revoke an export offering
+//	@Description	Transitions a published export offering to deprecated or revoked,
+//	@Description	which — independent of any content change — drifts every active
+//	@Description	leverage link pointing at it (BCH-1341 Phase 5).
+//	@Tags			SSP Export Offerings
+//	@Accept			json
+//	@Produce		json
+//	@Param			id			path		string						true	"SSP ID"
+//	@Param			offeringId	path		string						true	"Offering ID"
+//	@Param			body		body		updateOfferingStatusRequest	true	"New status"
+//	@Success		200			{object}	handler.GenericDataResponse[relational.SSPExportOffering]
+//	@Failure		400			{object}	api.Error
+//	@Failure		404			{object}	api.Error
+//	@Failure		500			{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/oscal/system-security-plans/{id}/export-offerings/{offeringId}/status [patch]
+func (h *SSPExportOfferingHandler) UpdateOfferingStatus(ctx echo.Context) error {
+	offering, ok := h.resolveOfferingForSSP(ctx)
+	if !ok {
+		return nil
+	}
+
+	var req updateOfferingStatusRequest
+	if err := ctx.Bind(&req); err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	if err := req.validate(); err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	if offering.Status != relational.SSPExportOfferingStatusPublished {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("cannot transition an offering with status %q", offering.Status)))
+	}
+
+	newStatus := relational.SSPExportOfferingStatus(req.Status)
+	var driftedLinks []driftedLinkInfo
+	if err := h.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&relational.SSPExportOffering{}).
+			Where("id = ?", offering.ID).
+			Update("status", newStatus).Error; err != nil {
+			return err
+		}
+
+		updated := *offering
+		updated.Status = newStatus
+		links, err := evaluateLeverageDriftForOffering(tx, updated)
+		if err != nil {
+			return err
+		}
+		driftedLinks = links
+		return nil
+	}); err != nil {
+		h.sugar.Errorf("Failed to update export offering status: %v", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+	enqueueLeverageDriftNotificationsAsync(ctx, h.sugar, h.jobEnqueuer, driftedLinks)
+
+	var updated relational.SSPExportOffering
+	if err := h.db.Preload("Items").First(&updated, "id = ?", offering.ID).Error; err != nil {
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[relational.SSPExportOffering]{Data: updated})
 }
 
 const (

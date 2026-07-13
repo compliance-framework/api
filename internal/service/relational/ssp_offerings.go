@@ -67,3 +67,21 @@ type SSPExportOfferingItem struct {
 func (SSPExportOfferingItem) TableName() string {
 	return "ssp_export_offering_items"
 }
+
+// SSPExportOfferingAllowedDownstream is one entry in an offering's downstream-SSP
+// allow-list (BCH-1342): if an offering has at least one row here, only the listed
+// downstream SSPs may subscribe to it; an offering with zero rows keeps today's
+// type-level default (any downstream permitted, subject to the existing ssp:update and
+// contributor-role checks). Enforced by a handler-level check in Subscribe
+// (ssp_leverage.go), not by the PDP — see internal/authz/manifest.yaml's
+// allowed_downstreams attribute comment for why.
+type SSPExportOfferingAllowedDownstream struct {
+	OfferingID      uuid.UUID `json:"offeringId" gorm:"type:uuid;primaryKey"`
+	DownstreamSSPID uuid.UUID `json:"downstreamSspId" gorm:"type:uuid;primaryKey"`
+
+	Offering *SSPExportOffering `json:"-" gorm:"foreignKey:OfferingID;references:ID;constraint:OnDelete:CASCADE"`
+}
+
+func (SSPExportOfferingAllowedDownstream) TableName() string {
+	return "ssp_export_offering_allowed_downstreams"
+}

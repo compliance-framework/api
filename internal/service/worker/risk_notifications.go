@@ -84,6 +84,18 @@ func NewRiskNotificationServiceFactory(
 				renderRiskOpenDigestEmail,
 				renderRiskOpenDigestSlack,
 			),
+			newTypedEmailOnlyNotificationDefinition(
+				leverageDriftedNotificationKind,
+				notification.SubscriptionGateRiskNotifications,
+				newNotificationModelDecoder[leverageDriftNotificationModel]("leverage drift notification model"),
+				renderLeverageDriftedEmail,
+			),
+			newTypedEmailOnlyNotificationDefinition(
+				leverageRevokedNotificationKind,
+				notification.SubscriptionGateRiskNotifications,
+				newNotificationModelDecoder[leverageDriftNotificationModel]("leverage drift notification model"),
+				renderLeverageRevokedEmail,
+			),
 		},
 	}
 }

@@ -101,9 +101,19 @@ resources:
     # implementations. Deliberately a separate resource rather than inheriting the SSP
     # root (unlike the nested OSCAL sub-documents noted above) because published offerings
     # are meant to be independently discoverable/subscribable (Phase 2+) by parties who may
-    # not hold any grant on the upstream ssp resource itself. `subscribe` is declared now for
-    # the Phase 2 downstream-subscribe vocabulary; no route enforces it yet.
+    # not hold any grant on the upstream ssp resource itself. `subscribe` is enforced
+    # type-level (any contributor) via guard.Do(authz.ActionSubscribe) on the Subscribe
+    # route (BCH-1338 Phase 2).
     actions: [read, create, update, delete, subscribe]
+    attributes:
+      allowed_downstreams: set<uuid>  # C1 (BCH-1342) — the offering's downstream-SSP
+        # subscribe allow-list. Declared here for documentation/future engine wiring only:
+        # enforced today by a handler-level check in Subscribe (ssp_leverage.go's
+        # isDownstreamAllowed), not by the PDP/Cedar policy layer, since BCH-1319's C1/C2
+        # attribute resolution isn't honoured by any shipped driver yet (see this file's
+        # header comment). An offering with no allow-list rows keeps the type-level
+        # default (any downstream may subscribe, subject to the existing ssp:update and
+        # contributor-role checks) — backwards compatible.
   assessment-plan:
     actions: [read, create, update, delete]
     attributes:
@@ -143,7 +153,7 @@ resources:
       ssp_id: uuid               # C0 on /system-security-plans/:sspId/risks, else C1
       owned_by: set<string>      # PrimaryOwnerUserID — matches subject.user_uuid
       status: string
-      source_type: string        # manual | evidence-auto | oscal-import | inherited-responsibility
+      source_type: string        # manual | evidence-auto | oscal-import | inherited-responsibility | inherited-revoked
   poam_item:
     actions: [read, create, update, delete]
     attributes:
