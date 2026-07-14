@@ -1,0 +1,66 @@
+lisa-addressed:
+---
+Comment (internal/api/handler/oscal/system_security_plans.go:4427):
+The handler documents component-uuid as immutable, but updateByComponentMetadata currently only validates that a non-empty component-uuid is a valid UUID; if a client sends a different (valid) component-uuid, it will be silently ignored (since component_uuid isn’t in the Updates map). It’s safer to either reject mismatches with 400 (immutable) or always overwrite the body value with the stored component UUID to avoid surprising clients.
+Replies:
+**lisa implementation guidance:** Valid — silently ignoring a differing component-uuid is a surprise, and the godoc already promises immutability.
+
+FIX in `updateByComponentMetadata` (internal/api/handler/oscal/system_security_plans.go). The block currently reads:
+
+    oscalBC.UUID = bc.ID.String()
+    if strings.TrimSpace(oscalBC.ComponentUuid) == "" {
+        oscalBC.ComponentUuid = bc.ComponentUUID.String()
+    } else if _, err := uuid.Parse(oscalBC.ComponentUuid); err != nil {
+        return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("component-uuid must be a valid UUID")))
+    }
+
+Change the non-empty branch so that a valid-but-different component-uuid is REJECTED with 400 rather than ignored. Keep the empty case (default to the stored value) — omitting it must stay legal, since UnmarshalOscal MustParses it and a missing value would otherwise panic into a 500.
+
+Reject with the same shape used for the other immutable identities in this PR (see the inherited/satisfied PUTs, which 400 on a provided-uuid / responsibility-uuid change), e.g.:
+
+    if trimmed := strings.TrimSpace(oscalBC.ComponentUuid); trimmed == "" {
+        oscalBC.ComponentUuid = bc.ComponentUUID.String()
+    } else {
+        parsedComponentUUID, err := uuid.Parse(trimmed)
+        if err != nil { 400 "component-uuid must be a valid UUID" }
+        if parsedComponentUUID != bc.ComponentUUID {
+            400 "component-uuid is immutable: it identifies which component this by-component describes, and the offering-item coherence check joins on it"
+        }
+    }
+
+Both by-component PUTs (requirement- and statement-level) route through this one helper, so one change covers both.
+
+Add a unit test in ssp_shared_responsibility_test.go next to the other immutability tests: PUT with a different valid component-uuid -> 400 and the stored ComponentUUID is unchanged; PUT omitting component-uuid entirely -> 200 (still legal).
+
+<!-- lisa-guidance-posted -->
+---
+Comment (internal/api/handler/oscal/ssp_shared_responsibility.go:null):
+This query is used to decide whether a provided UUID is actually *published* in one of the SSP’s offerings (and drives the Offered flag), but it only filters by ssp_id and does not filter offering status. Draft/deprecated/revoked offerings would incorrectly mark capabilities as Offered, contradicting the comment and the published-only behavior of the by-control catalog.
+Replies:
+**lisa implementation guidance:** Correct, and this is a real bug — the code contradicts its own comment. The `Offered` field's doc says "whether the capability is actually published for a downstream to find", but the query filters only on `ssp_id`, so a draft / deprecated / revoked offering marks a capability as `offered: true` even though no downstream can discover or subscribe to it (both `ListAll` and the new `by-control` catalog are published-only, and `Subscribe` 404s on a non-published offering).
+
+FIX in `collectOwnedSharedResponsibility` (internal/api/handler/oscal/ssp_shared_responsibility.go, the `offeredItems` query around line 245). Add the status predicate to the existing join:
+
+    Where("ssp_export_offerings.ssp_id = ? AND ssp_export_offerings.status = ?",
+        sspID, relational.SSPExportOfferingStatusPublished)
+
+That aligns `offered` with the only definition that is useful to a caller — "a downstream can actually find and subscribe to this" — and with the published-only behaviour of `ByControl` and `ListAll`. Do not invent a second flag for drafts; the curator already sees their drafts via `GET /:id/export-offerings` (ListForSSP).
+
+Also tighten the `Offered` doc comment on the `SharedResponsibilityProvides` struct and the `@Description` on the `SharedResponsibility` godoc to say published explicitly, so the contract is unambiguous.
+
+TEST (ssp_shared_responsibility_test.go, extend `TestSharedResponsibilityRollup`): the fixture's offering is already published, so `offered` is true. Flip the offering to draft (`db.Model(&relational.SSPExportOffering{}).Where("id = ?", fx.offeringID).Update("status", relational.SSPExportOfferingStatusDraft)`), re-request the rollup, and assert `up.Provides[0].Offered == false` while the `provides` row itself is still returned. That is the assertion that would have caught this.
+
+<!-- lisa-guidance-posted -->
+---
+Comment (internal/api/handler/oscal/system_security_plans.go:null):
+The comment above replaceResponsibleRoles says the new roles are appended through the association so GORM fills in parent_id/parent_type, but the implementation now sets parent_id/parent_type explicitly and uses tx.Create(&roles) (not Association(...).Append). Updating the comment will help prevent future refactors from reintroducing the Append behavior that drops responsible_role_parties join rows.
+Replies:
+**lisa implementation guidance:** Correct — that doc comment is stale and actively dangerous, since it describes the exact `Association(...).Append` approach that was found to silently drop every `responsible_role_parties` join row. Leaving it would invite a future refactor to reintroduce the bug.
+
+FIX in internal/api/handler/oscal/system_security_plans.go, the doc comment directly above `replaceResponsibleRoles`. It currently says the new roles "are appended through the association so GORM fills in parent_id/parent_type — a plain Replace would orphan the old rows rather than delete them". The implementation now sets parent_id/parent_type explicitly (parent_type derived from the parsed GORM schema's table name) and uses `tx.Create(&roles)`.
+
+Rewrite the doc comment to state what the code actually does and, critically, WHY — that `Association("ResponsibleRoles").Append(roles)` writes the role rows but does NOT cascade into each role's own `Parties` many2many, leaving every `responsible_role_parties` join row unwritten, whereas a plain `Create` does cascade (the same path the nested by-component create relies on). Keep the note about old rows going through `deleteResponsibleRoles` so their join rows are cleared first while the shared Party records survive.
+
+The in-body comment on the `tx.Create(&roles)` line already explains this — make the doc comment agree with it rather than duplicating it at length. Comment-only change; no behaviour change, and the existing responsible-role tests already cover the behaviour.
+
+<!-- lisa-guidance-posted -->
