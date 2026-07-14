@@ -1,0 +1,13 @@
+lisa-design:
+- The by-component subtree lock is now SELF-ENFORCING on the derivation path:
+  resyncLeverageSatisfaction takes lockByComponentSubtreeWrite itself, so the three writers that
+  derive through it (satisfied CREATE, satisfied DELETE, Subscribe) cannot forget it. Advisory locks
+  are re-entrant within a transaction, so those callers still take it explicitly and EARLIER — to
+  cover their own inserts/deletes as well as the derivation — at zero cost. ReAttest derives inline
+  and so its explicit lock is load-bearing on its own. Do NOT delete the lock from
+  resyncLeverageSatisfaction as "redundant": it is what makes partial adoption structurally
+  impossible, and this invariant has been half-missed twice.
+- TestEveryLeverageSatisfactionWriterTakesTheSubtreeLock (subtree_lock_invariant_test.go) pins it
+  structurally via go/ast, because the lock is a Postgres advisory lock and a no-op under the sqlite
+  unit driver — no unit test can observe the race it prevents. Verified the guard actually fails when
+  the lock is removed from Subscribe.
