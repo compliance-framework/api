@@ -1,0 +1,13 @@
+lisa-addressed:
+Human review round 3 (gusfcarvalho, PR #456) — 1 finding, valid, fixed:
+- [Medium] ReAttest is a FOURTH read-modify-write over the by-component subtree (loads the satisfied
+  set, derives satisfaction in Go, UPDATEs the link with the computed value) and took no lock. Same
+  lost-update as the satisfied DELETE, with ReAttest as one racer. Its `WHERE status = drifted`
+  guard defends against a concurrent re-attest, NOT against a concurrent satisfied write, which
+  never touches status. The race is new even though ReAttest isn't: before this PR there were no
+  Inherited/Satisfied handlers, so satisfied rows were written only by Subscribe and ReAttest had no
+  concurrent writer. FIXED: ReAttest takes lockByComponentSubtreeWrite on inherited.ByComponentId,
+  after loading the inherited row (which names the by-component) and before every read that feeds
+  the derivation. Lock doc now enumerates all four writers — satisfied CREATE, satisfied DELETE,
+  Subscribe via resyncLeverageSatisfaction, and ReAttest — and states that partial adoption is worse
+  than useless because it reads as if the subtree were safe.
