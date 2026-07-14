@@ -1150,6 +1150,25 @@ func (h *SSPLeverageHandler) ReAttest(ctx echo.Context) error {
 			return fmt.Errorf("failed to load inherited control implementation: %w", err)
 		}
 
+		// ReAttest is a third read-modify-write over this by-component's subtree: it reads the
+		// satisfied set, derives satisfaction in Go, and UPDATEs the link with the computed value.
+		// It must take the same lock the satisfied CREATE/DELETE take, or the identical lost-update
+		// applies with ReAttest as one of the racers — it could read the satisfied set before a
+		// concurrent satisfied write commits and then overwrite that writer's freshly-derived
+		// satisfaction with a stale one. (The `WHERE status = drifted` guard below defends against a
+		// concurrent re-attest, not against a concurrent satisfied write, which never touches status.)
+		//
+		// The race is new even though ReAttest isn't: before this PR there were no Inherited/Satisfied
+		// handlers at all — satisfied rows were written only by Subscribe — so ReAttest had no
+		// concurrent writer to race. The satisfied CRUD and resyncLeverageSatisfaction are what
+		// create the second writer.
+		//
+		// Taken after the inherited row is loaded, since that is what names the by-component, but
+		// before every read that feeds the derivation below.
+		if err := lockByComponentSubtreeWrite(tx, inherited.ByComponentId); err != nil {
+			return err
+		}
+
 		var satisfiedRows []relational.SatisfiedControlImplementationResponsibility
 		if err := tx.Where("by_component_id = ?", inherited.ByComponentId).Find(&satisfiedRows).Error; err != nil {
 			return fmt.Errorf("failed to load satisfied responsibilities: %w", err)

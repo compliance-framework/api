@@ -4926,17 +4926,23 @@ func (h *SystemSecurityPlanHandler) createByComponentExport(ctx echo.Context, bc
 // singleton Export, and its Inherited/Satisfied entries — with a transaction-scoped Postgres
 // advisory lock keyed on the by-component's UUID.
 //
-// Every writer that participates in a read-modify-write over that subtree must take it, not just
-// the creates: nothing in the schema enforces exports.by_component_id uniqueness, and both the
-// satisfied CREATE and the satisfied DELETE re-derive SSPLeverageLink.Satisfaction from the
-// satisfied set they just changed. If only one side locked, the lock would serialize
-// create-vs-create and nothing else, and a concurrent create and delete could each compute
-// satisfaction from a snapshot taken before the other's write was visible — the SET value is
-// computed in Go, so the second UPDATE would simply overwrite the first with a stale value (a
-// plain lost update). The cached Satisfaction is what the drift detector and the notification
-// path read, which is the whole reason resyncLeverageSatisfaction exists.
+// EVERY writer that performs a read-modify-write over that subtree must take it, not just the
+// creates. Nothing in the schema enforces exports.by_component_id uniqueness, and four writers
+// re-derive SSPLeverageLink.Satisfaction from a satisfied set they read earlier in the same
+// transaction: the satisfied CREATE, the satisfied DELETE, Subscribe (via
+// resyncLeverageSatisfaction), and ReAttest. Each computes the SET value in Go from a snapshot, so
+// any writer that skips the lock can overwrite a concurrent writer's freshly-derived value with a
+// stale one — a plain lost update. Partial adoption is worse than useless: it serializes only the
+// writers that opted in, while reading as though the subtree were safe.
 //
-// (Named "...Create" until a delete needed it too — the name is why it got missed.)
+// ReAttest's `WHERE status = drifted` guard is not a substitute — it defends against a concurrent
+// re-attest, not against a concurrent satisfied write, which never touches status.
+//
+// The cached Satisfaction is what the drift detector and the notification path read, which is the
+// whole reason resyncLeverageSatisfaction exists.
+//
+// (Named "...Create" until a delete needed it too — that create-only name is exactly why the
+// delete and ReAttest were missed. It is a subtree-WRITE lock; keep the name honest.)
 //
 // The lock key string stays "export-create:" despite the wider scope: it is only meaningful as a
 // value all writers agree on, and changing it would stop old and new pods serializing against
