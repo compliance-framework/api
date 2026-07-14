@@ -1,0 +1,17 @@
+lisa-design:
+- The by-component PUT is a PUT, not a PATCH: it FULLY REPLACES the fields it owns (description,
+  props, links, set-parameters, remarks, implementation-status, responsible-roles), so a body that
+  omits one clears it. This is deliberate and was challenged in review (PR #456, copilot) and
+  upheld. Reasons: (a) it matches updateByComponentExport — the BCH-1336 handler the ticket says to
+  mirror — and every other OSCAL PUT in system_security_plans.go; (b) GET returns the full OSCAL
+  ByComponent, so read-modify-write round-trips losslessly; (c) the data loss the ticket targets is
+  the SUBTREE clobbering (nested export/inherited/satisfied upserted with no cascade cleanup),
+  which is what the regression test pins. Do NOT add presence-tracking DTOs / partial-update
+  semantics to this one endpoint — if partial updates are ever needed, add a PATCH.
+- `offered` on the shared-responsibility rollup counts PUBLISHED offerings only. A
+  draft/deprecated/revoked offering is unreachable by any downstream (ListAll and ByControl are
+  published-only; Subscribe 404s on anything else), so counting one would advertise a capability
+  nothing can leverage. Curators see their drafts via GET /:id/export-offerings.
+- component-uuid is immutable on the by-component PUT: a body naming a different one is rejected
+  with 400 (not silently ignored), matching how provided-uuid/responsibility-uuid are treated on
+  the inherited/satisfied PUTs. Omitting it stays legal and defaults to the stored value.
