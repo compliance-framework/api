@@ -4406,13 +4406,24 @@ func (h *SystemSecurityPlanHandler) updateByComponentMetadata(ctx echo.Context, 
 	}
 
 	// UnmarshalOscal MustParses both uuids; a body missing (or malformed in) either would
-	// panic rather than 400. Echoing the path-resolved by-component's own ids keeps the
-	// parse total without making uuid a required body field.
+	// panic rather than 400. Echoing the path-resolved by-component's own id keeps the parse
+	// total without making uuid a required body field.
 	oscalBC.UUID = bc.ID.String()
-	if strings.TrimSpace(oscalBC.ComponentUuid) == "" {
+
+	// component-uuid is immutable, so a body naming a *different* one is rejected rather than
+	// silently ignored — the same treatment provided-uuid and responsibility-uuid get on the
+	// inherited/satisfied PUTs. Omitting it stays legal: it defaults to the stored value.
+	if trimmed := strings.TrimSpace(oscalBC.ComponentUuid); trimmed == "" {
 		oscalBC.ComponentUuid = bc.ComponentUUID.String()
-	} else if _, err := uuid.Parse(oscalBC.ComponentUuid); err != nil {
-		return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("component-uuid must be a valid UUID")))
+	} else {
+		componentUUID, err := uuid.Parse(trimmed)
+		if err != nil {
+			return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("component-uuid must be a valid UUID")))
+		}
+		if componentUUID != bc.ComponentUUID {
+			return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf(
+				"component-uuid is immutable: it identifies which component this by-component describes, and the offering-item coherence check joins on it")))
+		}
 	}
 
 	parsed := &relational.ByComponent{}
@@ -4450,11 +4461,15 @@ func (h *SystemSecurityPlanHandler) updateByComponentMetadata(ctx echo.Context, 
 	)
 }
 
-// replaceResponsibleRoles swaps a parent's polymorphic ResponsibleRoles for a new set. The
-// old rows go through deleteResponsibleRoles so their responsible_role_parties join rows are
-// cleared first (Party records themselves are shared and must survive); the new ones are
-// appended through the association so GORM fills in parent_id/parent_type — a plain Replace
-// would orphan the old rows rather than delete them.
+// replaceResponsibleRoles swaps a parent's polymorphic ResponsibleRoles for a new set.
+//
+// The old rows go through deleteResponsibleRoles, so their responsible_role_parties join rows
+// are cleared before the roles are deleted (the Party records themselves are shared and must
+// survive). The new rows are written with tx.Create and an explicitly-set parent_id/parent_type
+// — NOT through Association("ResponsibleRoles").Append, which writes the role rows but does not
+// cascade into each role's own Parties many2many, silently leaving every responsible_role_parties
+// join row unwritten. Create does cascade; it is the same path the nested by-component create
+// already relies on.
 func replaceResponsibleRoles(tx *gorm.DB, parent any, parentID uuid.UUID, roles []relational.ResponsibleRole) error {
 	// A polymorphic parent_type is filled with the owner's table name. Derive it from the parsed
 	// schema rather than hardcoding "by_components" / "inherited_control_implementations" / ...

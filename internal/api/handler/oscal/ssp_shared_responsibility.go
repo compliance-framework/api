@@ -31,9 +31,10 @@ type SharedResponsibilityProvides struct {
 	Provided         []controlExportProvided       `json:"provided"`
 	Responsibilities []controlExportResponsibility `json:"responsibilities"`
 
-	// Offered reports whether an offering item on this SSP already points at one of these
-	// provided-uuids — i.e. whether the capability is actually published for a downstream to
-	// find, as opposed to merely existing in the control-implementation tree.
+	// Offered reports whether an item on one of this SSP's *published* offerings already points
+	// at one of these provided-uuids — i.e. whether a downstream can actually find and subscribe
+	// to the capability, as opposed to it merely existing in the control-implementation tree.
+	// An item on a draft/deprecated/revoked offering does not count: nothing can reach it.
 	Offered bool `json:"offered"`
 }
 
@@ -99,7 +100,9 @@ type SharedResponsibilityRollup struct {
 //	@Summary		Roll up everything one SSP provides, inherits and satisfies
 //	@Description	A flat, statement-keyed projection of this SSP's shared-responsibility posture:
 //	@Description	what it exports (with the provided capabilities and the responsibilities it
-//	@Description	pushes onto consumers, and whether each is actually offered), what it inherits
+//	@Description	pushes onto consumers, and whether each is offered on a *published* offering —
+//	@Description	a draft/deprecated/revoked one does not count, since no downstream can reach
+//	@Description	it), what it inherits
 //	@Description	from upstreams (with live-recomputed satisfaction and link status), how it
 //	@Description	discharges upstream responsibilities, and any legacy requirement-anchored
 //	@Description	by-components still to be migrated.
@@ -243,10 +246,15 @@ func (h *SystemSecurityPlanHandler) collectOwnedSharedResponsibility(rollup *Sha
 	}
 
 	// Which of this SSP's provided-uuids are actually published in one of its own offerings.
+	// Published-only, deliberately: a draft/deprecated/revoked offering is invisible to every
+	// downstream (ListAll and ByControl are published-only, and Subscribe 404s on anything else),
+	// so counting one as "offered" would claim a capability is available to leverage when nothing
+	// can reach it. A curator sees their own drafts via GET /:id/export-offerings.
 	var offeredItems []relational.SSPExportOfferingItem
 	if err := h.db.
 		Joins("JOIN ssp_export_offerings ON ssp_export_offerings.id = ssp_export_offering_items.offering_id").
-		Where("ssp_export_offerings.ssp_id = ?", sspID).
+		Where("ssp_export_offerings.ssp_id = ? AND ssp_export_offerings.status = ?",
+			sspID, relational.SSPExportOfferingStatusPublished).
 		Find(&offeredItems).Error; err != nil {
 		return err
 	}

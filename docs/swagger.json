@@ -23099,7 +23099,7 @@
         },
         "/oscal/system-security-plans/{id}/shared-responsibility": {
             "get": {
-                "description": "A flat, statement-keyed projection of this SSP's shared-responsibility posture:\nwhat it exports (with the provided capabilities and the responsibilities it\npushes onto consumers, and whether each is actually offered), what it inherits\nfrom upstreams (with live-recomputed satisfaction and link status), how it\ndischarges upstream responsibilities, and any legacy requirement-anchored\nby-components still to be migrated.\n\nThe inherits arm reuses the same batched projection GET /leveraged-controls\nserves, so the two can never disagree about satisfaction. Optionally filter the\nwhole rollup to one control with controlId.",
+                "description": "A flat, statement-keyed projection of this SSP's shared-responsibility posture:\nwhat it exports (with the provided capabilities and the responsibilities it\npushes onto consumers, and whether each is offered on a *published* offering —\na draft/deprecated/revoked one does not count, since no downstream can reach\nit), what it inherits\nfrom upstreams (with live-recomputed satisfaction and link status), how it\ndischarges upstream responsibilities, and any legacy requirement-anchored\nby-components still to be migrated.\n\nThe inherits arm reuses the same batched projection GET /leveraged-controls\nserves, so the two can never disagree about satisfaction. Optionally filter the\nwhole rollup to one control with controlId.",
                 "produces": [
                     "application/json"
                 ],
@@ -39996,7 +39996,7 @@
                     "type": "string"
                 },
                 "offered": {
-                    "description": "Offered reports whether an offering item on this SSP already points at one of these\nprovided-uuids — i.e. whether the capability is actually published for a downstream to\nfind, as opposed to merely existing in the control-implementation tree.",
+                    "description": "Offered reports whether an item on one of this SSP's *published* offerings already points\nat one of these provided-uuids — i.e. whether a downstream can actually find and subscribe\nto the capability, as opposed to it merely existing in the control-implementation tree.\nAn item on a draft/deprecated/revoked offering does not count: nothing can reach it.",
                     "type": "boolean"
                 },
                 "provided": {

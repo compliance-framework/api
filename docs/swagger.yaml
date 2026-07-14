@@ -4074,9 +4074,10 @@ definitions:
         type: string
       offered:
         description: |-
-          Offered reports whether an offering item on this SSP already points at one of these
-          provided-uuids — i.e. whether the capability is actually published for a downstream to
-          find, as opposed to merely existing in the control-implementation tree.
+          Offered reports whether an item on one of this SSP's *published* offerings already points
+          at one of these provided-uuids — i.e. whether a downstream can actually find and subscribe
+          to the capability, as opposed to it merely existing in the control-implementation tree.
+          An item on a draft/deprecated/revoked offering does not count: nothing can reach it.
         type: boolean
       provided:
         items:
@@ -27048,7 +27049,9 @@ paths:
       description: |-
         A flat, statement-keyed projection of this SSP's shared-responsibility posture:
         what it exports (with the provided capabilities and the responsibilities it
-        pushes onto consumers, and whether each is actually offered), what it inherits
+        pushes onto consumers, and whether each is offered on a *published* offering —
+        a draft/deprecated/revoked one does not count, since no downstream can reach
+        it), what it inherits
         from upstreams (with live-recomputed satisfaction and link status), how it
         discharges upstream responsibilities, and any legacy requirement-anchored
         by-components still to be migrated.

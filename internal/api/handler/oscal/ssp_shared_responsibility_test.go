@@ -1311,3 +1311,87 @@ func TestByControlRouteIsNotShadowedByGetByID(t *testing.T) {
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &byID))
 	require.Equal(t, fx.offeringID, *byID.Data.ID)
 }
+
+// TestSharedResponsibilityOfferedIsPublishedOnly: `offered` claims a downstream can actually
+// find and subscribe to the capability. A draft/deprecated/revoked offering is invisible to
+// every downstream (ListAll and ByControl are published-only, Subscribe 404s on anything else),
+// so an item on one must not set the flag — otherwise the rollup advertises a capability nothing
+// can reach.
+func TestSharedResponsibilityOfferedIsPublishedOnly(t *testing.T) {
+	db := newSSPLeverageTestDB(t)
+	fx := newSharedResponsibilityFixture(t, db)
+	h := newSSPHandler(db)
+
+	provides := func() SharedResponsibilityProvides {
+		e := echo.New()
+		rec := httptest.NewRecorder()
+		ctx := e.NewContext(httptest.NewRequest(http.MethodGet, "/", nil), rec)
+		ctx.SetParamNames("id")
+		ctx.SetParamValues(fx.upstreamSSPID.String())
+		require.NoError(t, h.SharedResponsibility(ctx))
+		require.Equal(t, http.StatusOK, rec.Code)
+
+		var resp handler.GenericDataResponse[SharedResponsibilityRollup]
+		require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
+		require.Len(t, resp.Data.Provides, 1)
+		return resp.Data.Provides[0]
+	}
+
+	// The fixture's offering is published, and its item points at this provided-uuid.
+	require.True(t, provides().Offered)
+
+	setStatus := func(status relational.SSPExportOfferingStatus) {
+		require.NoError(t, db.Model(&relational.SSPExportOffering{}).
+			Where("id = ?", fx.offeringID).
+			Update("status", status).Error)
+	}
+
+	// Every non-published status hides the offering from downstreams, so none of them count.
+	for _, status := range []relational.SSPExportOfferingStatus{
+		relational.SSPExportOfferingStatusDraft,
+		relational.SSPExportOfferingStatusDeprecated,
+		relational.SSPExportOfferingStatusRevoked,
+	} {
+		setStatus(status)
+		row := provides()
+		require.Falsef(t, row.Offered, "an item on a %q offering must not count as offered", status)
+		// The capability itself is still reported — only the flag changes.
+		require.Equal(t, fx.byComponentID, row.ByComponentUUID)
+		require.Len(t, row.Provided, 1)
+	}
+
+	setStatus(relational.SSPExportOfferingStatusPublished)
+	require.True(t, provides().Offered)
+}
+
+// TestUpdateByComponentRejectsComponentUuidChange: component-uuid identifies which component the
+// by-component describes, and the offering-item coherence check joins on it — so a PUT naming a
+// different one is rejected rather than silently ignored. Omitting it stays legal.
+func TestUpdateByComponentRejectsComponentUuidChange(t *testing.T) {
+	db := newSSPLeverageTestDB(t)
+	fx := newSharedResponsibilityFixture(t, db)
+	h := newSSPHandler(db)
+
+	body := fmt.Sprintf(`{"uuid": %q, "component-uuid": %q, "description": "moved"}`,
+		fx.byComponentID.String(), uuid.New().String())
+	ctx, rec := newByComponentContext(http.MethodPut, body, fx.upstreamSSPID, fx.requirementID, fx.statementID, fx.byComponentID)
+	require.NoError(t, h.UpdateImplementedRequirementStatementByComponent(ctx))
+
+	require.Equal(t, http.StatusBadRequest, rec.Code)
+	require.Contains(t, rec.Body.String(), "immutable")
+
+	var stored relational.ByComponent
+	require.NoError(t, db.First(&stored, "id = ?", fx.byComponentID).Error)
+	require.Equal(t, fx.componentID, stored.ComponentUUID, "the rejected PUT must not have moved the by-component")
+	require.Equal(t, "original description", stored.Description, "the rejected PUT must not have written anything")
+
+	// Omitting component-uuid entirely is still legal — it defaults to the stored value.
+	body = fmt.Sprintf(`{"uuid": %q, "description": "renamed"}`, fx.byComponentID.String())
+	ctx, rec = newByComponentContext(http.MethodPut, body, fx.upstreamSSPID, fx.requirementID, fx.statementID, fx.byComponentID)
+	require.NoError(t, h.UpdateImplementedRequirementStatementByComponent(ctx))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	require.NoError(t, db.First(&stored, "id = ?", fx.byComponentID).Error)
+	require.Equal(t, fx.componentID, stored.ComponentUUID)
+	require.Equal(t, "renamed", stored.Description)
+}
