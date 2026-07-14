@@ -1,0 +1,15 @@
+lisa-design:
+- ByControl's ?downstreamSspId= is a CONVENIENCE FILTER, not an authorization boundary. No
+  permission is evaluated against the SSP it names. It cannot surface an offering the caller could
+  not already list (it only removes rows), but it does let a catalog reader infer an offering's
+  allow-list membership by diffing filtered vs unfiltered responses. ACCEPTED, explicitly, not by
+  omission: allow-list membership (who may leverage whom) is non-confidential topology, and a
+  per-request PDP round-trip on a read path is not worth paying to hide it. Documented in the
+  handler godoc. If it must become confidential, evaluate ssp:read on downstreamSspId the way
+  Subscribe does.
+- The shared-responsibility `legacy` arm reports ONLY requirement-anchored by-components that
+  actually carry shared responsibility (an export, an inherited, or a satisfied row). A bare
+  requirement-anchored by-component is the ordinary OSCAL shape for "this component implements this
+  control" — every imported SSP is full of them — and reporting those as debt would invite users to
+  delete their own control implementation. Reason is "requirement-anchored export", or
+  "requirement-anchored inherited/satisfied" when it carries consumer-side rows but no export.
