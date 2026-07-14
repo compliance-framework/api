@@ -43,6 +43,14 @@ func newSSPLeverageTestDB(t *testing.T) *gorm.DB {
 		&relational.InheritedControlImplementation{},
 		&relational.SatisfiedControlImplementationResponsibility{},
 		&relational.LeveragedAuthorization{},
+		// ResponsibleRole (with its Party m2m and Role) is polymorphically attached to
+		// by-components, provided, responsibilities, inherited and satisfied — every
+		// by-component read preloads it, so the schema has to carry it.
+		&relational.ResponsibleRole{},
+		&relational.Party{},
+		&relational.Role{},
+		// The control-centric read models resolve an SSP's title through its Metadata.
+		&relational.Metadata{},
 		&relational.Filter{},
 		&relational.FilterResponsibility{},
 		&relational.Profile{},
@@ -114,8 +122,10 @@ func newLeverageFixture(t *testing.T, db *gorm.DB) leverageFixture {
 	}
 	require.NoError(t, db.Create(&offering).Error)
 
+	// Statement-anchored: the statement is the canonical anchor for shared responsibility, and
+	// Subscribe rejects a NULL-statement (legacy) item with 422.
 	item := relational.SSPExportOfferingItem{
-		OfferingID: *offering.ID, ControlID: "ac-1",
+		OfferingID: *offering.ID, ControlID: "ac-1", StatementID: statementID("ac-1_smt.a"),
 		ComponentUUID: uuid.New(), ProvidedUUID: *provided.ID,
 	}
 	require.NoError(t, db.Create(&item).Error)
@@ -284,23 +294,54 @@ func TestFindOrCreateThisSystemComponent(t *testing.T) {
 
 // TestFindOrCreateImplementedRequirement: creates a requirement for a control_id when
 // none exists under the given ControlImplementation, and returns the same row (not a
-// duplicate) on a second call for the same control_id.
+// duplicate) on a second call for the same control_id. The created flag reports which of
+// the two happened — Subscribe's meta.created block is built from it.
 func TestFindOrCreateImplementedRequirement(t *testing.T) {
 	db := newSSPLeverageTestDB(t)
 	ci := relational.ControlImplementation{}
 	require.NoError(t, db.Create(&ci).Error)
 
-	first, err := findOrCreateImplementedRequirement(db, *ci.ID, "ac-1")
+	first, created, err := findOrCreateImplementedRequirement(db, *ci.ID, "ac-1")
 	require.NoError(t, err)
 	require.Equal(t, "ac-1", first.ControlId)
+	require.True(t, created)
 
-	second, err := findOrCreateImplementedRequirement(db, *ci.ID, "ac-1")
+	second, created, err := findOrCreateImplementedRequirement(db, *ci.ID, "ac-1")
 	require.NoError(t, err)
 	require.Equal(t, *first.ID, *second.ID)
+	require.False(t, created)
 
-	third, err := findOrCreateImplementedRequirement(db, *ci.ID, "ac-2")
+	third, created, err := findOrCreateImplementedRequirement(db, *ci.ID, "ac-2")
 	require.NoError(t, err)
 	require.NotEqual(t, *first.ID, *third.ID)
+	require.True(t, created)
+}
+
+// TestFindOrCreateStatement: creates a Statement for a statement_id when none exists under
+// the given ImplementedRequirement, returns the same row on a second call, and reports which
+// happened via created. Subscribe now always goes through this helper — the statement is the
+// canonical anchor, so there is no requirement-anchored path left.
+func TestFindOrCreateStatement(t *testing.T) {
+	db := newSSPLeverageTestDB(t)
+	ci := relational.ControlImplementation{}
+	require.NoError(t, db.Create(&ci).Error)
+	ir := relational.ImplementedRequirement{ControlImplementationId: *ci.ID, ControlId: "ac-1"}
+	require.NoError(t, db.Create(&ir).Error)
+
+	first, created, err := findOrCreateStatement(db, *ir.ID, "ac-1_smt.a")
+	require.NoError(t, err)
+	require.Equal(t, "ac-1_smt.a", first.StatementId)
+	require.True(t, created)
+
+	second, created, err := findOrCreateStatement(db, *ir.ID, "ac-1_smt.a")
+	require.NoError(t, err)
+	require.Equal(t, *first.ID, *second.ID)
+	require.False(t, created)
+
+	third, created, err := findOrCreateStatement(db, *ir.ID, "ac-1_smt.b")
+	require.NoError(t, err)
+	require.NotEqual(t, *first.ID, *third.ID)
+	require.True(t, created)
 }
 
 // TestFindOrCreateByComponent: creates a ByComponent row for a (parent, componentUUID)
@@ -310,13 +351,15 @@ func TestFindOrCreateByComponent(t *testing.T) {
 	parentID := uuid.New()
 	componentUUID := uuid.New()
 
-	first, err := findOrCreateByComponent(db, parentID, "implemented_requirements", componentUUID)
+	first, created, err := findOrCreateByComponent(db, parentID, "statements", componentUUID)
 	require.NoError(t, err)
 	require.Equal(t, componentUUID, first.ComponentUUID)
+	require.True(t, created)
 
-	second, err := findOrCreateByComponent(db, parentID, "implemented_requirements", componentUUID)
+	second, created, err := findOrCreateByComponent(db, parentID, "statements", componentUUID)
 	require.NoError(t, err)
 	require.Equal(t, *first.ID, *second.ID)
+	require.False(t, created)
 }
 
 // TestSubscribePartialSatisfactionWritesAtomically: subscribing to an item whose

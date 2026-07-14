@@ -255,9 +255,11 @@ func (h *SSPExportOfferingHandler) RegisterNested(api *echo.Group, guard middlew
 }
 
 // Register mounts the top-level, cross-SSP read-only catalog: list and get any
-// offering by its own ID, gated by ssp-export-offering:read.
+// offering by its own ID, plus the control-centric by-control query — all gated by
+// ssp-export-offering:read.
 func (h *SSPExportOfferingHandler) Register(api *echo.Group, guard middleware.ResourceGuard) {
 	api.GET("", h.ListAll, guard.Read())
+	api.GET("/by-control/:controlId", h.ByControl, guard.Read())
 	api.GET("/:id", h.GetByID, guard.Read())
 }
 
@@ -499,8 +501,14 @@ func (h *SSPExportOfferingHandler) DeleteOffering(ctx echo.Context) error {
 }
 
 type createExportOfferingItemRequest struct {
-	ControlID     string  `json:"controlId"`
-	StatementID   *string `json:"statementId,omitempty"`
+	ControlID string `json:"controlId"`
+	// StatementID is required on every write. The statement is the canonical anchor for
+	// shared responsibility: a control is too coarse to attribute a provided capability
+	// against, and a requirement-anchored item leaves the downstream unable to say which
+	// clause the upstream discharges. Still a *string (not string) because the DB column
+	// stays nullable for legacy rows that pre-date this constraint — see
+	// migrateBackfillOfferingItemStatementIDs.
+	StatementID   *string `json:"statementId"`
 	ComponentUUID string  `json:"componentUuid"`
 	ProvidedUUID  string  `json:"providedUuid"`
 }
@@ -509,12 +517,99 @@ func (r createExportOfferingItemRequest) validate() error {
 	if r.ControlID == "" {
 		return fmt.Errorf("controlId is required")
 	}
+	if r.StatementID == nil || strings.TrimSpace(*r.StatementID) == "" {
+		return fmt.Errorf("statementId is required: shared responsibility is tracked per statement — pick the statement this provided capability is exported from")
+	}
 	if _, err := uuid.Parse(r.ComponentUUID); err != nil {
 		return fmt.Errorf("componentUuid must be a valid UUID")
 	}
 	if _, err := uuid.Parse(r.ProvidedUUID); err != nil {
 		return fmt.Errorf("providedUuid must be a valid UUID")
 	}
+	return nil
+}
+
+// validateOfferingItemCoherence checks that the item's (ControlID, StatementID,
+// ComponentUUID, ProvidedUUID) tuple actually describes one real statement-anchored
+// by-component inside the offering's own SSP, rather than four independently-plausible
+// identifiers. Nothing validated this before: an item could name a provided-uuid from a
+// different SSP entirely, or pair it with a control/statement/component it has no relation
+// to, and the incoherence only surfaced downstream at subscribe time (or never).
+//
+// It walks the ownership chain the offering item is a by-value pointer into:
+//
+//	Provided -> Export -> ByComponent (must be statement-anchored)
+//	         -> Statement (statement-id must match) -> ImplementedRequirement (control-id must match)
+//	         -> ControlImplementation (must be this SSP's)
+//
+// resolveItemImplementationStatuses walks the first half of the same chain, but only ever
+// projects the ByComponent's implementation-status out of it — it discards the parent
+// identities this check exists to compare — so the walk is done explicitly here.
+func (h *SSPExportOfferingHandler) validateOfferingItemCoherence(sspID uuid.UUID, req createExportOfferingItemRequest) error {
+	providedUUID := uuid.MustParse(req.ProvidedUUID)
+	componentUUID := uuid.MustParse(req.ComponentUUID)
+
+	var provided relational.ProvidedControlImplementation
+	if err := h.db.First(&provided, "id = ?", providedUUID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return fmt.Errorf("providedUuid %q does not exist", req.ProvidedUUID)
+		}
+		return err
+	}
+
+	var export relational.Export
+	if err := h.db.First(&export, "id = ?", provided.ExportId).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return fmt.Errorf("providedUuid %q has no export", req.ProvidedUUID)
+		}
+		return err
+	}
+
+	var byComponent relational.ByComponent
+	if err := h.db.First(&byComponent, "id = ?", export.ByComponentId).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return fmt.Errorf("providedUuid %q has no by-component", req.ProvidedUUID)
+		}
+		return err
+	}
+
+	if byComponent.ParentType == nil || *byComponent.ParentType != "statements" || byComponent.ParentID == nil {
+		return fmt.Errorf("providedUuid %q is exported from a requirement-anchored by-component; shared responsibility is tracked per statement", req.ProvidedUUID)
+	}
+	if byComponent.ComponentUUID != componentUUID {
+		return fmt.Errorf("componentUuid %q does not match the component exporting providedUuid %q", req.ComponentUUID, req.ProvidedUUID)
+	}
+
+	var statement relational.Statement
+	if err := h.db.First(&statement, "id = ?", *byComponent.ParentID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return fmt.Errorf("providedUuid %q has no statement", req.ProvidedUUID)
+		}
+		return err
+	}
+	if statement.StatementId != *req.StatementID {
+		return fmt.Errorf("statementId %q does not match the statement exporting providedUuid %q", *req.StatementID, req.ProvidedUUID)
+	}
+
+	var requirement relational.ImplementedRequirement
+	if err := h.db.First(&requirement, "id = ?", statement.ImplementedRequirementId).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return fmt.Errorf("providedUuid %q has no implemented requirement", req.ProvidedUUID)
+		}
+		return err
+	}
+	if !strings.EqualFold(requirement.ControlId, req.ControlID) {
+		return fmt.Errorf("controlId %q does not match the control exporting providedUuid %q", req.ControlID, req.ProvidedUUID)
+	}
+
+	var ssp relational.SystemSecurityPlan
+	if err := h.db.Preload("ControlImplementation").First(&ssp, "id = ?", sspID).Error; err != nil {
+		return err
+	}
+	if ssp.ControlImplementation.ID == nil || *ssp.ControlImplementation.ID != requirement.ControlImplementationId {
+		return fmt.Errorf("providedUuid %q does not resolve inside this SSP", req.ProvidedUUID)
+	}
+
 	return nil
 }
 
@@ -548,6 +643,10 @@ func (h *SSPExportOfferingHandler) CreateItem(ctx echo.Context) error {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 	if err := req.validate(); err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	if err := h.validateOfferingItemCoherence(offering.SSPID, req); err != nil {
+		h.sugar.Warnw("Incoherent export offering item", "offeringId", offering.ID, "error", err)
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 
@@ -609,6 +708,10 @@ func (h *SSPExportOfferingHandler) UpdateItem(ctx echo.Context) error {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 	if err := req.validate(); err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	if err := h.validateOfferingItemCoherence(offering.SSPID, req); err != nil {
+		h.sugar.Warnw("Incoherent export offering item", "offeringId", offering.ID, "itemId", itemID, "error", err)
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 
@@ -1110,4 +1213,211 @@ func (h *SSPExportOfferingHandler) GetByID(ctx echo.Context) error {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[catalogOffering]{Data: withResponsibilities[0]})
+}
+
+// controlExportProvided is the provided capability behind one ControlExportOffer, resolved
+// by value so the Controls UI never has to walk into the upstream's Export subtree.
+type controlExportProvided struct {
+	UUID        uuid.UUID `json:"uuid"`
+	Description string    `json:"description"`
+}
+
+// controlExportResponsibility is one responsibility the upstream makes the downstream
+// answerable for under the offered provided capability.
+type controlExportResponsibility struct {
+	UUID         uuid.UUID `json:"uuid"`
+	Description  string    `json:"description"`
+	ProvidedUUID uuid.UUID `json:"providedUuid"`
+}
+
+// ControlExportOffer answers "for control X, what is exported, by whom, against which
+// statement?" — one published offering item, with every pointer it carries already resolved
+// (offering, upstream SSP, component, provided, responsibilities). This is what the Controls
+// page reads and what "import an implementation" picks from, so a consumer needs no further
+// round-trips and — critically — no ssp:read on the upstream SSP.
+type ControlExportOffer struct {
+	OfferingID      uuid.UUID                          `json:"offeringId"`
+	OfferingTitle   string                             `json:"offeringTitle"`
+	OfferingVersion int                                `json:"offeringVersion"`
+	OfferingStatus  relational.SSPExportOfferingStatus `json:"offeringStatus"`
+
+	UpstreamSSPID    uuid.UUID `json:"upstreamSspId"`
+	UpstreamSSPTitle string    `json:"upstreamSspTitle"`
+
+	ItemID uuid.UUID `json:"itemId"`
+
+	ControlID   string  `json:"controlId"`
+	StatementID *string `json:"statementId,omitempty"`
+
+	ComponentUUID  uuid.UUID `json:"componentUuid"`
+	ComponentTitle string    `json:"componentTitle"`
+
+	Provided         *controlExportProvided        `json:"provided"`
+	Responsibilities []controlExportResponsibility `json:"responsibilities"`
+}
+
+// ByControl godoc
+//
+//	@Summary		List every published export offering for one control
+//	@Description	Cross-SSP catalog of what is exported for a control, by whom, and against
+//	@Description	which statement — every published offering item whose control-id matches
+//	@Description	(case-insensitively), with the offering, upstream SSP, component, provided
+//	@Description	capability and responsibility set all resolved server-side. Honours the same
+//	@Description	trust boundary as the flat catalog: gated by ssp-export-offering:read only,
+//	@Description	never ssp:read on the upstream SSP. Pass downstreamSspId to narrow the result
+//	@Description	to offerings that SSP is actually allow-listed to subscribe to (BCH-1342).
+//	@Tags			SSP Export Offerings
+//	@Produce		json
+//	@Param			controlId		path		string	true	"Control ID (e.g. AC-2)"
+//	@Param			downstreamSspId	query		string	false	"Only return offerings this downstream SSP may subscribe to"
+//	@Success		200				{object}	handler.GenericDataListResponse[ControlExportOffer]
+//	@Failure		400				{object}	api.Error
+//	@Failure		500				{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/oscal/ssp-export-offerings/by-control/{controlId} [get]
+func (h *SSPExportOfferingHandler) ByControl(ctx echo.Context) error {
+	controlID := strings.TrimSpace(ctx.Param("controlId"))
+	if controlID == "" {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("controlId is required")))
+	}
+
+	var downstreamSSPID *uuid.UUID
+	if raw := strings.TrimSpace(ctx.QueryParam("downstreamSspId")); raw != "" {
+		parsed, err := uuid.Parse(raw)
+		if err != nil {
+			return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("downstreamSspId must be a valid UUID")))
+		}
+		downstreamSSPID = &parsed
+	}
+
+	// Control ids are stored in their catalog-canonical casing but referenced in mixed
+	// casing across the codebase (fixtures use "ac-2", catalogs "AC-2"), so match the way
+	// every other control lookup here does: fold case rather than compare bytes.
+	var items []relational.SSPExportOfferingItem
+	if err := h.db.
+		Joins("JOIN ssp_export_offerings ON ssp_export_offerings.id = ssp_export_offering_items.offering_id").
+		Where("ssp_export_offerings.status = ? AND UPPER(ssp_export_offering_items.control_id) = UPPER(?)",
+			relational.SSPExportOfferingStatusPublished, controlID).
+		Order("ssp_export_offering_items.id ASC").
+		Find(&items).Error; err != nil {
+		h.sugar.Errorf("Failed to list export offering items by control: %v", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+	if len(items) == 0 {
+		return ctx.JSON(http.StatusOK, handler.GenericDataListResponse[ControlExportOffer]{Data: []ControlExportOffer{}})
+	}
+
+	offeringIDs := uniqueUUIDs(items, func(i relational.SSPExportOfferingItem) uuid.UUID { return i.OfferingID })
+	var offerings []relational.SSPExportOffering
+	if err := h.db.Where("id IN ?", offeringIDs).Find(&offerings).Error; err != nil {
+		h.sugar.Errorf("Failed to load offerings by control: %v", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+	offeringByID := make(map[uuid.UUID]relational.SSPExportOffering, len(offerings))
+	for _, o := range offerings {
+		offeringByID[*o.ID] = o
+	}
+
+	// Drop items whose offering the downstream isn't allow-listed for, before spending any
+	// further resolution on them.
+	if downstreamSSPID != nil {
+		allowedOfferings := make(map[uuid.UUID]bool, len(offerings))
+		for _, o := range offerings {
+			allowed, err := isDownstreamAllowed(h.db, *o.ID, *downstreamSSPID)
+			if err != nil {
+				h.sugar.Errorf("Failed to check offering allow-list: %v", err)
+				return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+			}
+			allowedOfferings[*o.ID] = allowed
+		}
+		filtered := make([]relational.SSPExportOfferingItem, 0, len(items))
+		for _, item := range items {
+			if allowedOfferings[item.OfferingID] {
+				filtered = append(filtered, item)
+			}
+		}
+		items = filtered
+		if len(items) == 0 {
+			return ctx.JSON(http.StatusOK, handler.GenericDataListResponse[ControlExportOffer]{Data: []ControlExportOffer{}})
+		}
+	}
+
+	sspIDs := uniqueUUIDs(offerings, func(o relational.SSPExportOffering) uuid.UUID { return o.SSPID })
+	var ssps []relational.SystemSecurityPlan
+	if err := h.db.Preload("Metadata").Where("id IN ?", sspIDs).Find(&ssps).Error; err != nil {
+		h.sugar.Errorf("Failed to load upstream SSPs by control: %v", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+	sspTitleByID := make(map[uuid.UUID]string, len(ssps))
+	for _, s := range ssps {
+		sspTitleByID[*s.ID] = s.Metadata.Title
+	}
+
+	componentUUIDs := uniqueUUIDs(items, func(i relational.SSPExportOfferingItem) uuid.UUID { return i.ComponentUUID })
+	var components []relational.SystemComponent
+	if err := h.db.Where("id IN ?", componentUUIDs).Find(&components).Error; err != nil {
+		h.sugar.Errorf("Failed to load components by control: %v", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+	componentTitleByID := make(map[uuid.UUID]string, len(components))
+	for _, c := range components {
+		componentTitleByID[*c.ID] = c.Title
+	}
+
+	providedUUIDs := uniqueUUIDs(items, func(i relational.SSPExportOfferingItem) uuid.UUID { return i.ProvidedUUID })
+	var providedRows []relational.ProvidedControlImplementation
+	if err := h.db.Where("id IN ?", providedUUIDs).Find(&providedRows).Error; err != nil {
+		h.sugar.Errorf("Failed to load provided implementations by control: %v", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+	providedByID := make(map[uuid.UUID]relational.ProvidedControlImplementation, len(providedRows))
+	for _, p := range providedRows {
+		providedByID[*p.ID] = p
+	}
+
+	// Same batched (export_id, provided_uuid)-scoped resolution the flat catalog uses — the
+	// only correct way to map a provided-uuid to its responsibilities, since provided-uuid
+	// values are only unique within one upstream's Export.
+	responsibilitiesByProvided, err := bulkResolveUpstreamResponsibilities(h.db, providedUUIDs)
+	if err != nil {
+		h.sugar.Errorf("Failed to resolve responsibilities by control: %v", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	result := make([]ControlExportOffer, 0, len(items))
+	for _, item := range items {
+		offering := offeringByID[item.OfferingID]
+
+		var provided *controlExportProvided
+		if p, ok := providedByID[item.ProvidedUUID]; ok {
+			provided = &controlExportProvided{UUID: *p.ID, Description: p.Description}
+		}
+
+		responsibilities := make([]controlExportResponsibility, 0, len(responsibilitiesByProvided[item.ProvidedUUID]))
+		for _, r := range responsibilitiesByProvided[item.ProvidedUUID] {
+			responsibilities = append(responsibilities, controlExportResponsibility{
+				UUID:         r.ResponsibilityUUID,
+				Description:  r.Description,
+				ProvidedUUID: item.ProvidedUUID,
+			})
+		}
+
+		result = append(result, ControlExportOffer{
+			OfferingID:       item.OfferingID,
+			OfferingTitle:    offering.Title,
+			OfferingVersion:  offering.Version,
+			OfferingStatus:   offering.Status,
+			UpstreamSSPID:    offering.SSPID,
+			UpstreamSSPTitle: sspTitleByID[offering.SSPID],
+			ItemID:           *item.ID,
+			ControlID:        item.ControlID,
+			StatementID:      item.StatementID,
+			ComponentUUID:    item.ComponentUUID,
+			ComponentTitle:   componentTitleByID[item.ComponentUUID],
+			Provided:         provided,
+			Responsibilities: responsibilities,
+		})
+	}
+
+	return ctx.JSON(http.StatusOK, handler.GenericDataListResponse[ControlExportOffer]{Data: result})
 }

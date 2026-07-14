@@ -467,7 +467,15 @@ func (h *SystemSecurityPlanHandler) Register(api *echo.Group, guard middleware.R
 	api.PUT("/:id/control-implementation/implemented-requirements/:reqId", h.UpdateImplementedRequirement, guard.Update())
 	api.POST("/:id/control-implementation/implemented-requirements/:reqId/statements", h.CreateImplementedRequirementStatement, guard.Create())
 	api.PUT("/:id/control-implementation/implemented-requirements/:reqId/statements/:stmtId", h.UpdateImplementedRequirementStatement, guard.Update())
+	// Requirement-level by-component routes are legacy: the statement is the canonical
+	// anchor for anything carrying shared responsibility, so there is deliberately no
+	// requirement-level POST. Read, update and delete stay so existing requirement-anchored
+	// rows can be wound down.
+	api.GET("/:id/control-implementation/implemented-requirements/:reqId/by-components/:byComponentId", h.GetImplementedRequirementByComponent, guard.Read())
 	api.PUT("/:id/control-implementation/implemented-requirements/:reqId/by-components/:byComponentId", h.UpdateImplementedRequirementByComponent, guard.Update())
+	api.DELETE("/:id/control-implementation/implemented-requirements/:reqId/by-components/:byComponentId", h.DeleteImplementedRequirementByComponent, guard.Delete())
+	api.GET("/:id/control-implementation/implemented-requirements/:reqId/statements/:stmtId/by-components", h.GetImplementedRequirementStatementByComponents, guard.Read())
+	api.GET("/:id/control-implementation/implemented-requirements/:reqId/statements/:stmtId/by-components/:byComponentId", h.GetImplementedRequirementStatementByComponent, guard.Read())
 	api.PUT("/:id/control-implementation/implemented-requirements/:reqId/statements/:stmtId/by-components/:byComponentId", h.UpdateImplementedRequirementStatementByComponent, guard.Update())
 	api.DELETE("/:id/control-implementation/implemented-requirements/:reqId/statements/:stmtId/by-components/:byComponentId", h.DeleteImplementedRequirementStatementByComponent, guard.Delete())
 	api.POST("/:id/control-implementation/implemented-requirements/:reqId/statements/:stmtId/by-components", h.CreateImplementedRequirementStatementByComponent, guard.Create())
@@ -475,9 +483,11 @@ func (h *SystemSecurityPlanHandler) Register(api *echo.Group, guard middleware.R
 	api.POST("/:id/control-implementation/implemented-requirements/:reqId/by-components/:byComponentId/export", h.CreateImplementedRequirementByComponentExport, guard.Create())
 	api.PUT("/:id/control-implementation/implemented-requirements/:reqId/by-components/:byComponentId/export", h.UpdateImplementedRequirementByComponentExport, guard.Update())
 	api.DELETE("/:id/control-implementation/implemented-requirements/:reqId/by-components/:byComponentId/export", h.DeleteImplementedRequirementByComponentExport, guard.Delete())
+	api.GET("/:id/control-implementation/implemented-requirements/:reqId/by-components/:byComponentId/export/provided", h.GetImplementedRequirementByComponentExportProvided, guard.Read())
 	api.POST("/:id/control-implementation/implemented-requirements/:reqId/by-components/:byComponentId/export/provided", h.CreateImplementedRequirementByComponentExportProvided, guard.Create())
 	api.PUT("/:id/control-implementation/implemented-requirements/:reqId/by-components/:byComponentId/export/provided/:providedId", h.UpdateImplementedRequirementByComponentExportProvided, guard.Update())
 	api.DELETE("/:id/control-implementation/implemented-requirements/:reqId/by-components/:byComponentId/export/provided/:providedId", h.DeleteImplementedRequirementByComponentExportProvided, guard.Delete())
+	api.GET("/:id/control-implementation/implemented-requirements/:reqId/by-components/:byComponentId/export/responsibilities", h.GetImplementedRequirementByComponentExportResponsibilities, guard.Read())
 	api.POST("/:id/control-implementation/implemented-requirements/:reqId/by-components/:byComponentId/export/responsibilities", h.CreateImplementedRequirementByComponentExportResponsibility, guard.Create())
 	api.PUT("/:id/control-implementation/implemented-requirements/:reqId/by-components/:byComponentId/export/responsibilities/:responsibilityId", h.UpdateImplementedRequirementByComponentExportResponsibility, guard.Update())
 	api.DELETE("/:id/control-implementation/implemented-requirements/:reqId/by-components/:byComponentId/export/responsibilities/:responsibilityId", h.DeleteImplementedRequirementByComponentExportResponsibility, guard.Delete())
@@ -485,12 +495,29 @@ func (h *SystemSecurityPlanHandler) Register(api *echo.Group, guard middleware.R
 	api.POST("/:id/control-implementation/implemented-requirements/:reqId/statements/:stmtId/by-components/:byComponentId/export", h.CreateImplementedRequirementStatementByComponentExport, guard.Create())
 	api.PUT("/:id/control-implementation/implemented-requirements/:reqId/statements/:stmtId/by-components/:byComponentId/export", h.UpdateImplementedRequirementStatementByComponentExport, guard.Update())
 	api.DELETE("/:id/control-implementation/implemented-requirements/:reqId/statements/:stmtId/by-components/:byComponentId/export", h.DeleteImplementedRequirementStatementByComponentExport, guard.Delete())
+	api.GET("/:id/control-implementation/implemented-requirements/:reqId/statements/:stmtId/by-components/:byComponentId/export/provided", h.GetImplementedRequirementStatementByComponentExportProvided, guard.Read())
 	api.POST("/:id/control-implementation/implemented-requirements/:reqId/statements/:stmtId/by-components/:byComponentId/export/provided", h.CreateImplementedRequirementStatementByComponentExportProvided, guard.Create())
 	api.PUT("/:id/control-implementation/implemented-requirements/:reqId/statements/:stmtId/by-components/:byComponentId/export/provided/:providedId", h.UpdateImplementedRequirementStatementByComponentExportProvided, guard.Update())
 	api.DELETE("/:id/control-implementation/implemented-requirements/:reqId/statements/:stmtId/by-components/:byComponentId/export/provided/:providedId", h.DeleteImplementedRequirementStatementByComponentExportProvided, guard.Delete())
+	api.GET("/:id/control-implementation/implemented-requirements/:reqId/statements/:stmtId/by-components/:byComponentId/export/responsibilities", h.GetImplementedRequirementStatementByComponentExportResponsibilities, guard.Read())
 	api.POST("/:id/control-implementation/implemented-requirements/:reqId/statements/:stmtId/by-components/:byComponentId/export/responsibilities", h.CreateImplementedRequirementStatementByComponentExportResponsibility, guard.Create())
 	api.PUT("/:id/control-implementation/implemented-requirements/:reqId/statements/:stmtId/by-components/:byComponentId/export/responsibilities/:responsibilityId", h.UpdateImplementedRequirementStatementByComponentExportResponsibility, guard.Update())
 	api.DELETE("/:id/control-implementation/implemented-requirements/:reqId/statements/:stmtId/by-components/:byComponentId/export/responsibilities/:responsibilityId", h.DeleteImplementedRequirementStatementByComponentExportResponsibility, guard.Delete())
+
+	// Consumer-side CRUD: statement-level only. Inherited/Satisfied describe what this
+	// system consumes from an upstream and how it discharges the upstream's
+	// responsibilities — both hang off a statement-anchored by-component by construction,
+	// so they get no requirement-level surface.
+	api.GET("/:id/control-implementation/implemented-requirements/:reqId/statements/:stmtId/by-components/:byComponentId/inherited", h.GetImplementedRequirementStatementByComponentInherited, guard.Read())
+	api.POST("/:id/control-implementation/implemented-requirements/:reqId/statements/:stmtId/by-components/:byComponentId/inherited", h.CreateImplementedRequirementStatementByComponentInherited, guard.Create())
+	api.PUT("/:id/control-implementation/implemented-requirements/:reqId/statements/:stmtId/by-components/:byComponentId/inherited/:inheritedId", h.UpdateImplementedRequirementStatementByComponentInherited, guard.Update())
+	api.DELETE("/:id/control-implementation/implemented-requirements/:reqId/statements/:stmtId/by-components/:byComponentId/inherited/:inheritedId", h.DeleteImplementedRequirementStatementByComponentInherited, guard.Delete())
+	api.GET("/:id/control-implementation/implemented-requirements/:reqId/statements/:stmtId/by-components/:byComponentId/satisfied", h.GetImplementedRequirementStatementByComponentSatisfied, guard.Read())
+	api.POST("/:id/control-implementation/implemented-requirements/:reqId/statements/:stmtId/by-components/:byComponentId/satisfied", h.CreateImplementedRequirementStatementByComponentSatisfied, guard.Create())
+	api.PUT("/:id/control-implementation/implemented-requirements/:reqId/statements/:stmtId/by-components/:byComponentId/satisfied/:satisfiedId", h.UpdateImplementedRequirementStatementByComponentSatisfied, guard.Update())
+	api.DELETE("/:id/control-implementation/implemented-requirements/:reqId/statements/:stmtId/by-components/:byComponentId/satisfied/:satisfiedId", h.DeleteImplementedRequirementStatementByComponentSatisfied, guard.Delete())
+
+	api.GET("/:id/shared-responsibility", h.SharedResponsibility, guard.Read())
 	api.DELETE("/:id/control-implementation/implemented-requirements/:reqId", h.DeleteImplementedRequirement, guard.Delete())
 	api.POST("/:id/control-implementation/implemented-requirements/:reqId/suggest-components", h.SuggestComponents, guard.Read())
 	api.POST("/:id/control-implementation/implemented-requirements/:reqId/apply-suggestion", h.ApplySuggestion, guard.Update())
@@ -3758,7 +3785,18 @@ func (h *SystemSecurityPlanHandler) UpdateImplementedRequirement(ctx echo.Contex
 // UpdateImplementedRequirementByComponent godoc
 //
 //	@Summary		Update a by-component within an implemented requirement
-//	@Description	Updates an existing by-component that belongs to an implemented requirement for a given SSP.
+//	@Description	Deprecated: requirement-anchored by-components are legacy — the statement is
+//	@Description	the canonical anchor for shared responsibility. Use
+//	@Description	PUT .../statements/{stmtId}/by-components/{byComponentId} instead. This route
+//	@Description	remains so existing requirement-anchored rows can be edited and wound down;
+//	@Description	there is no requirement-level POST.
+//	@Description
+//	@Description	Updates metadata only — description, props, links, set-parameters, remarks,
+//	@Description	implementation-status and responsible-roles. Any export, inherited or
+//	@Description	satisfied entries in the body are IGNORED (they have their own sub-resource
+//	@Description	routes); component-uuid is immutable. Previously this blind-Saved a struct
+//	@Description	rebuilt from the request body, which zeroed every omitted field and upserted
+//	@Description	nested associations with no cascade cleanup.
 //	@Tags			System Security Plans
 //	@Accept			json
 //	@Produce		json
@@ -3770,81 +3808,15 @@ func (h *SystemSecurityPlanHandler) UpdateImplementedRequirement(ctx echo.Contex
 //	@Failure		400				{object}	api.Error
 //	@Failure		404				{object}	api.Error
 //	@Failure		500				{object}	api.Error
-//	@Router			/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/by-components/{byComponentId} [put]
+//	@Deprecated
+//	@Security	OAuth2Password
+//	@Router		/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/by-components/{byComponentId} [put]
 func (h *SystemSecurityPlanHandler) UpdateImplementedRequirementByComponent(ctx echo.Context) error {
-	idParam := ctx.Param("id")
-	sspID, err := uuid.Parse(idParam)
-	if err != nil {
-		h.sugar.Warnw("Invalid SSP id", "id", idParam, "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	bc, ok := h.resolveByComponentForRequirement(ctx)
+	if !ok {
+		return nil
 	}
-
-	reqIdParam := ctx.Param("reqId")
-	reqID, err := uuid.Parse(reqIdParam)
-	if err != nil {
-		h.sugar.Warnw("Invalid requirement id", "reqId", reqIdParam, "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
-	}
-
-	byComponentIdParam := ctx.Param("byComponentId")
-	byComponentID, err := uuid.Parse(byComponentIdParam)
-	if err != nil {
-		h.sugar.Warnw("Invalid component id", "byComponentId", byComponentIdParam, "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
-	}
-
-	var ssp relational.SystemSecurityPlan
-	if err := h.db.Preload("ControlImplementation").
-		First(&ssp, "id = ?", sspID).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("SSP not found")))
-		}
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
-	}
-
-	var req relational.ImplementedRequirement
-	if err := h.db.Where("id = ? AND control_implementation_id = ?", reqID, ssp.ControlImplementation.ID).
-		First(&req).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("requirement not found")))
-		}
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
-	}
-
-	var existing relational.ByComponent
-	if err := h.db.Where("id = ? AND parent_id = ? AND parent_type = ?",
-		byComponentID, req.ID, "implemented_requirements").
-		First(&existing).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("by-component not found")))
-		}
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
-	}
-
-	var oscalBC oscalTypes_1_1_3.ByComponent
-	if err := ctx.Bind(&oscalBC); err != nil {
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
-	}
-
-	relBC := &relational.ByComponent{}
-	relBC.UnmarshalOscal(oscalBC)
-
-	if err := validateByComponentImplementationStatus(relBC); err != nil {
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
-	}
-
-	relBC.ID = &byComponentID
-	relBC.ParentID = req.ID
-	parentType := "implemented_requirements"
-	relBC.ParentType = &parentType
-
-	if err := h.db.Save(relBC).Error; err != nil {
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
-	}
-
-	return ctx.JSON(http.StatusOK,
-		handler.GenericDataResponse[oscalTypes_1_1_3.ByComponent]{Data: *relBC.MarshalOscal()},
-	)
+	return h.updateByComponentMetadata(ctx, bc)
 }
 
 // DeleteImplementedRequirement godoc
@@ -4386,7 +4358,13 @@ func (h *SystemSecurityPlanHandler) UpdateImplementedRequirementStatement(ctx ec
 // UpdateImplementedRequirementStatementByComponent godoc
 //
 //	@Summary		Update a by-component within a statement (within an implemented requirement)
-//	@Description	Updates a by-component within an existing statement within an implemented requirement for a given SSP.
+//	@Description	Updates metadata only — description, props, links, set-parameters, remarks,
+//	@Description	implementation-status and responsible-roles. Any export, inherited or
+//	@Description	satisfied entries in the body are IGNORED: those subtrees are managed through
+//	@Description	their own sub-resource routes, which enforce the leverage bookkeeping this
+//	@Description	route cannot. component-uuid is immutable. Previously this blind-Saved a
+//	@Description	struct rebuilt from the request body, which zeroed every omitted field and
+//	@Description	upserted nested associations with no cascade cleanup.
 //	@Tags			System Security Plans
 //	@Accept			json
 //	@Produce		json
@@ -4399,104 +4377,114 @@ func (h *SystemSecurityPlanHandler) UpdateImplementedRequirementStatement(ctx ec
 //	@Failure		400				{object}	api.Error
 //	@Failure		404				{object}	api.Error
 //	@Failure		500				{object}	api.Error
+//	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/statements/{stmtId}/by-components/{byComponentId} [put]
 func (h *SystemSecurityPlanHandler) UpdateImplementedRequirementStatementByComponent(ctx echo.Context) error {
-	idParam := ctx.Param("id")
-	sspID, err := uuid.Parse(idParam)
-	if err != nil {
-		h.sugar.Warnw("Invalid SSP id", "id", idParam, "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	bc, ok := h.resolveByComponentForStatement(ctx)
+	if !ok {
+		return nil
 	}
+	return h.updateByComponentMetadata(ctx, bc)
+}
 
-	reqIdParam := ctx.Param("reqId")
-	reqID, err := uuid.Parse(reqIdParam)
-	if err != nil {
-		h.sugar.Warnw("Invalid requirement id", "reqId", reqIdParam, "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
-	}
-
-	stmtIdParam := ctx.Param("stmtId")
-	stmtID, err := uuid.Parse(stmtIdParam)
-	if err != nil {
-		h.sugar.Warnw("Invalid statement id", "stmtId", stmtIdParam, "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
-	}
-
-	byComponentIdParam := ctx.Param("byComponentId")
-	byComponentID, err := uuid.Parse(byComponentIdParam)
-	if err != nil {
-		h.sugar.Warnw("Invalid component id", "byComponentId", byComponentIdParam, "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
-	}
-
-	// Step 1: Verify SSP exists
-	var ssp relational.SystemSecurityPlan
-	if err := h.db.Preload("ControlImplementation").
-		First(&ssp, "id = ?", sspID).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("SSP not found")))
-		}
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
-	}
-
-	// Step 2: Verify Implemented Requirement belongs to SSP
-	var req relational.ImplementedRequirement
-	if err := h.db.Where("id = ? AND control_implementation_id = ?", reqID, ssp.ControlImplementation.ID).
-		First(&req).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("requirement not found")))
-		}
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
-	}
-
-	// Step 3: Verify Statement belongs to Requirement
-	var stmt relational.Statement
-	if err := h.db.Where("id = ? AND implemented_requirement_id = ?", stmtID, req.ID).
-		First(&stmt).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("statement not found")))
-		}
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
-	}
-
-	// Step 4: Verify ByComponent belongs to Statement
-	var existing relational.ByComponent
-	if err := h.db.Where("id = ? AND parent_id = ? AND parent_type = ?",
-		byComponentID, stmt.ID, "statements").
-		First(&existing).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("by-component not found")))
-		}
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
-	}
-
-	// Step 5: Parse request body
+// updateByComponentMetadata updates an already-resolved by-component's own scalar and
+// metadata fields, leaving its Export/Inherited/Satisfied subtrees strictly alone.
+//
+// Both by-component PUTs used to `db.Save()` a ByComponent freshly built by UnmarshalOscal
+// from the request body. That had two failure modes: any field the client omitted was zeroed
+// (a PUT sending only a new description silently wiped remarks, props, links, set-parameters
+// and implementation-status), and any nested export/inherited/satisfied in the body was
+// upserted as a GORM association with no cascade cleanup — diverging from the careful
+// deleteByComponentCascade path the DELETE routes use, and bypassing the leverage bookkeeping
+// (409-on-subscription-owned-inherited, satisfaction re-derivation) the sub-resource routes
+// enforce. So: only the fields this route owns are written, and nested subtrees in the body
+// are ignored rather than half-applied.
+func (h *SystemSecurityPlanHandler) updateByComponentMetadata(ctx echo.Context, bc *relational.ByComponent) error {
 	var oscalBC oscalTypes_1_1_3.ByComponent
 	if err := ctx.Bind(&oscalBC); err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 
-	// Step 6: Map and update
-	relBC := &relational.ByComponent{}
-	relBC.UnmarshalOscal(oscalBC)
+	// UnmarshalOscal MustParses both uuids; a body missing (or malformed in) either would
+	// panic rather than 400. Echoing the path-resolved by-component's own ids keeps the
+	// parse total without making uuid a required body field.
+	oscalBC.UUID = bc.ID.String()
+	if strings.TrimSpace(oscalBC.ComponentUuid) == "" {
+		oscalBC.ComponentUuid = bc.ComponentUUID.String()
+	} else if _, err := uuid.Parse(oscalBC.ComponentUuid); err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("component-uuid must be a valid UUID")))
+	}
 
-	if err := validateByComponentImplementationStatus(relBC); err != nil {
+	parsed := &relational.ByComponent{}
+	parsed.UnmarshalOscal(oscalBC)
+
+	if err := validateByComponentImplementationStatus(parsed); err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 
-	relBC.ID = &byComponentID
-	relBC.ParentID = stmt.ID
-	parentType := "statements"
-	relBC.ParentType = &parentType
-
-	if err := h.db.Save(relBC).Error; err != nil {
+	if err := h.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&relational.ByComponent{}).
+			Where("id = ?", bc.ID).
+			Updates(map[string]any{
+				"description":           parsed.Description,
+				"remarks":               parsed.Remarks,
+				"props":                 parsed.Props,
+				"links":                 parsed.Links,
+				"set_parameters":        parsed.SetParameters,
+				"implementation_status": parsed.ImplementationStatus,
+			}).Error; err != nil {
+			return err
+		}
+		return replaceResponsibleRoles(tx, bc, parsed.ResponsibleRoles)
+	}); err != nil {
+		h.sugar.Errorf("Failed to update by-component: %v", err)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
-	// Step 7: Return updated
+	updated, err := h.reloadByComponent(*bc.ID)
+	if err != nil {
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
 	return ctx.JSON(http.StatusOK,
-		handler.GenericDataResponse[oscalTypes_1_1_3.ByComponent]{Data: *relBC.MarshalOscal()},
+		handler.GenericDataResponse[oscalTypes_1_1_3.ByComponent]{Data: *updated.MarshalOscal()},
 	)
+}
+
+// replaceResponsibleRoles swaps a parent's polymorphic ResponsibleRoles for a new set. The
+// old rows go through deleteResponsibleRoles so their responsible_role_parties join rows are
+// cleared first (Party records themselves are shared and must survive); the new ones are
+// appended through the association so GORM fills in parent_id/parent_type — a plain Replace
+// would orphan the old rows rather than delete them.
+func replaceResponsibleRoles(tx *gorm.DB, parent any, roles []relational.ResponsibleRole) error {
+	// Read the current roles through the association so GORM supplies the polymorphic
+	// parent_type itself. deleteResponsibleRoles clears each role's Parties join rows by
+	// role id, so they don't need preloading here.
+	var existing []relational.ResponsibleRole
+	if err := tx.Model(parent).Association("ResponsibleRoles").Find(&existing); err != nil {
+		return err
+	}
+	if err := deleteResponsibleRoles(tx, existing); err != nil {
+		return err
+	}
+	if len(roles) == 0 {
+		return nil
+	}
+	return tx.Model(parent).Association("ResponsibleRoles").Append(roles)
+}
+
+// reloadByComponent re-fetches a by-component with every subtree the single-by-component GET
+// contract promises: export (with provided/responsibilities and their responsible-roles),
+// inherited, satisfied, and the by-component's own responsible-roles.
+func (h *SystemSecurityPlanHandler) reloadByComponent(byComponentID uuid.UUID) (*relational.ByComponent, error) {
+	var bc relational.ByComponent
+	err := h.db.
+		Preload("ResponsibleRoles.Parties").
+		Preload("Inherited.ResponsibleRoles.Parties").
+		Preload("Satisfied.ResponsibleRoles.Parties").
+		Preload("Export.Provided.ResponsibleRoles.Parties").
+		Preload("Export.Responsibilities.ResponsibleRoles.Parties").
+		First(&bc, "id = ?", byComponentID).Error
+	return &bc, err
 }
 
 // DeleteImplementedRequirementStatementByComponent godoc
@@ -5061,6 +5049,11 @@ func deleteByComponentCascade(tx *gorm.DB, byComponentID uuid.UUID) error {
 //
 //	@Summary		Get the export for a control-level by-component
 //	@Description	Retrieves the Export (with nested Provided and Responsibilities) for a by-component within an implemented requirement.
+//	@Description
+//	@Description	Deprecated: requirement-anchored exports are legacy. Shared responsibility is
+//	@Description	tracked per statement — use the statement-level equivalent under
+//	@Description	.../statements/{stmtId}/by-components/{byComponentId}/export. This route stays so
+//	@Description	existing requirement-anchored exports can be read and wound down.
 //	@Tags			System Security Plans
 //	@Produce		json
 //	@Param			id				path		string	true	"SSP ID"
@@ -5070,8 +5063,9 @@ func deleteByComponentCascade(tx *gorm.DB, byComponentID uuid.UUID) error {
 //	@Failure		400				{object}	api.Error
 //	@Failure		404				{object}	api.Error
 //	@Failure		500				{object}	api.Error
-//	@Security		OAuth2Password
-//	@Router			/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/by-components/{byComponentId}/export [get]
+//	@Deprecated
+//	@Security	OAuth2Password
+//	@Router		/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/by-components/{byComponentId}/export [get]
 func (h *SystemSecurityPlanHandler) GetImplementedRequirementByComponentExport(ctx echo.Context) error {
 	bc, ok := h.resolveByComponentForRequirement(ctx)
 	if !ok {
@@ -5084,6 +5078,11 @@ func (h *SystemSecurityPlanHandler) GetImplementedRequirementByComponentExport(c
 //
 //	@Summary		Create the export for a control-level by-component
 //	@Description	Creates the Export for a by-component within an implemented requirement. A by-component may have at most one Export.
+//	@Description
+//	@Description	Deprecated: requirement-anchored exports are legacy. Shared responsibility is
+//	@Description	tracked per statement — use the statement-level equivalent under
+//	@Description	.../statements/{stmtId}/by-components/{byComponentId}/export. This route stays so
+//	@Description	existing requirement-anchored exports can be read and wound down.
 //	@Tags			System Security Plans
 //	@Accept			json
 //	@Produce		json
@@ -5096,8 +5095,9 @@ func (h *SystemSecurityPlanHandler) GetImplementedRequirementByComponentExport(c
 //	@Failure		404				{object}	api.Error
 //	@Failure		409				{object}	api.Error
 //	@Failure		500				{object}	api.Error
-//	@Security		OAuth2Password
-//	@Router			/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/by-components/{byComponentId}/export [post]
+//	@Deprecated
+//	@Security	OAuth2Password
+//	@Router		/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/by-components/{byComponentId}/export [post]
 func (h *SystemSecurityPlanHandler) CreateImplementedRequirementByComponentExport(ctx echo.Context) error {
 	bc, ok := h.resolveByComponentForRequirement(ctx)
 	if !ok {
@@ -5110,6 +5110,11 @@ func (h *SystemSecurityPlanHandler) CreateImplementedRequirementByComponentExpor
 //
 //	@Summary		Update the export for a control-level by-component
 //	@Description	Updates the scalar fields of an existing Export for a by-component within an implemented requirement. Provided and Responsibilities entries are managed via their own routes.
+//	@Description
+//	@Description	Deprecated: requirement-anchored exports are legacy. Shared responsibility is
+//	@Description	tracked per statement — use the statement-level equivalent under
+//	@Description	.../statements/{stmtId}/by-components/{byComponentId}/export. This route stays so
+//	@Description	existing requirement-anchored exports can be read and wound down.
 //	@Tags			System Security Plans
 //	@Accept			json
 //	@Produce		json
@@ -5121,8 +5126,9 @@ func (h *SystemSecurityPlanHandler) CreateImplementedRequirementByComponentExpor
 //	@Failure		400				{object}	api.Error
 //	@Failure		404				{object}	api.Error
 //	@Failure		500				{object}	api.Error
-//	@Security		OAuth2Password
-//	@Router			/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/by-components/{byComponentId}/export [put]
+//	@Deprecated
+//	@Security	OAuth2Password
+//	@Router		/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/by-components/{byComponentId}/export [put]
 func (h *SystemSecurityPlanHandler) UpdateImplementedRequirementByComponentExport(ctx echo.Context) error {
 	bc, ok := h.resolveByComponentForRequirement(ctx)
 	if !ok {
@@ -5135,6 +5141,11 @@ func (h *SystemSecurityPlanHandler) UpdateImplementedRequirementByComponentExpor
 //
 //	@Summary		Delete the export for a control-level by-component
 //	@Description	Deletes the Export (and its Provided/Responsibilities entries) for a by-component within an implemented requirement.
+//	@Description
+//	@Description	Deprecated: requirement-anchored exports are legacy. Shared responsibility is
+//	@Description	tracked per statement — use the statement-level equivalent under
+//	@Description	.../statements/{stmtId}/by-components/{byComponentId}/export. This route stays so
+//	@Description	existing requirement-anchored exports can be read and wound down.
 //	@Tags			System Security Plans
 //	@Param			id				path	string	true	"SSP ID"
 //	@Param			reqId			path	string	true	"Requirement ID"
@@ -5143,8 +5154,9 @@ func (h *SystemSecurityPlanHandler) UpdateImplementedRequirementByComponentExpor
 //	@Failure		400				{object}	api.Error
 //	@Failure		404				{object}	api.Error
 //	@Failure		500				{object}	api.Error
-//	@Security		OAuth2Password
-//	@Router			/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/by-components/{byComponentId}/export [delete]
+//	@Deprecated
+//	@Security	OAuth2Password
+//	@Router		/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/by-components/{byComponentId}/export [delete]
 func (h *SystemSecurityPlanHandler) DeleteImplementedRequirementByComponentExport(ctx echo.Context) error {
 	bc, ok := h.resolveByComponentForRequirement(ctx)
 	if !ok {
@@ -5362,6 +5374,11 @@ func (h *SystemSecurityPlanHandler) deleteByComponentExportProvided(ctx echo.Con
 //
 //	@Summary		Create a provided entry on a control-level by-component's export
 //	@Description	Creates a ProvidedControlImplementation entry under the Export of a by-component within an implemented requirement.
+//	@Description
+//	@Description	Deprecated: requirement-anchored exports are legacy. Shared responsibility is
+//	@Description	tracked per statement — use the statement-level equivalent under
+//	@Description	.../statements/{stmtId}/by-components/{byComponentId}/export. This route stays so
+//	@Description	existing requirement-anchored exports can be read and wound down.
 //	@Tags			System Security Plans
 //	@Accept			json
 //	@Produce		json
@@ -5373,8 +5390,9 @@ func (h *SystemSecurityPlanHandler) deleteByComponentExportProvided(ctx echo.Con
 //	@Failure		400				{object}	api.Error
 //	@Failure		404				{object}	api.Error
 //	@Failure		500				{object}	api.Error
-//	@Security		OAuth2Password
-//	@Router			/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/by-components/{byComponentId}/export/provided [post]
+//	@Deprecated
+//	@Security	OAuth2Password
+//	@Router		/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/by-components/{byComponentId}/export/provided [post]
 func (h *SystemSecurityPlanHandler) CreateImplementedRequirementByComponentExportProvided(ctx echo.Context) error {
 	bc, ok := h.resolveByComponentForRequirement(ctx)
 	if !ok {
@@ -5387,6 +5405,11 @@ func (h *SystemSecurityPlanHandler) CreateImplementedRequirementByComponentExpor
 //
 //	@Summary		Update a provided entry on a control-level by-component's export
 //	@Description	Replaces an existing ProvidedControlImplementation entry under the Export of a by-component within an implemented requirement.
+//	@Description
+//	@Description	Deprecated: requirement-anchored exports are legacy. Shared responsibility is
+//	@Description	tracked per statement — use the statement-level equivalent under
+//	@Description	.../statements/{stmtId}/by-components/{byComponentId}/export. This route stays so
+//	@Description	existing requirement-anchored exports can be read and wound down.
 //	@Tags			System Security Plans
 //	@Accept			json
 //	@Produce		json
@@ -5399,8 +5422,9 @@ func (h *SystemSecurityPlanHandler) CreateImplementedRequirementByComponentExpor
 //	@Failure		400				{object}	api.Error
 //	@Failure		404				{object}	api.Error
 //	@Failure		500				{object}	api.Error
-//	@Security		OAuth2Password
-//	@Router			/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/by-components/{byComponentId}/export/provided/{providedId} [put]
+//	@Deprecated
+//	@Security	OAuth2Password
+//	@Router		/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/by-components/{byComponentId}/export/provided/{providedId} [put]
 func (h *SystemSecurityPlanHandler) UpdateImplementedRequirementByComponentExportProvided(ctx echo.Context) error {
 	bc, ok := h.resolveByComponentForRequirement(ctx)
 	if !ok {
@@ -5413,6 +5437,11 @@ func (h *SystemSecurityPlanHandler) UpdateImplementedRequirementByComponentExpor
 //
 //	@Summary		Delete a provided entry on a control-level by-component's export
 //	@Description	Deletes an existing ProvidedControlImplementation entry under the Export of a by-component within an implemented requirement.
+//	@Description
+//	@Description	Deprecated: requirement-anchored exports are legacy. Shared responsibility is
+//	@Description	tracked per statement — use the statement-level equivalent under
+//	@Description	.../statements/{stmtId}/by-components/{byComponentId}/export. This route stays so
+//	@Description	existing requirement-anchored exports can be read and wound down.
 //	@Tags			System Security Plans
 //	@Param			id				path	string	true	"SSP ID"
 //	@Param			reqId			path	string	true	"Requirement ID"
@@ -5422,8 +5451,9 @@ func (h *SystemSecurityPlanHandler) UpdateImplementedRequirementByComponentExpor
 //	@Failure		400				{object}	api.Error
 //	@Failure		404				{object}	api.Error
 //	@Failure		500				{object}	api.Error
-//	@Security		OAuth2Password
-//	@Router			/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/by-components/{byComponentId}/export/provided/{providedId} [delete]
+//	@Deprecated
+//	@Security	OAuth2Password
+//	@Router		/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/by-components/{byComponentId}/export/provided/{providedId} [delete]
 func (h *SystemSecurityPlanHandler) DeleteImplementedRequirementByComponentExportProvided(ctx echo.Context) error {
 	bc, ok := h.resolveByComponentForRequirement(ctx)
 	if !ok {
@@ -5603,6 +5633,11 @@ func (h *SystemSecurityPlanHandler) deleteByComponentExportResponsibility(ctx ec
 //
 //	@Summary		Create a responsibility entry on a control-level by-component's export
 //	@Description	Creates a ControlImplementationResponsibility entry under the Export of a by-component within an implemented requirement.
+//	@Description
+//	@Description	Deprecated: requirement-anchored exports are legacy. Shared responsibility is
+//	@Description	tracked per statement — use the statement-level equivalent under
+//	@Description	.../statements/{stmtId}/by-components/{byComponentId}/export. This route stays so
+//	@Description	existing requirement-anchored exports can be read and wound down.
 //	@Tags			System Security Plans
 //	@Accept			json
 //	@Produce		json
@@ -5614,8 +5649,9 @@ func (h *SystemSecurityPlanHandler) deleteByComponentExportResponsibility(ctx ec
 //	@Failure		400				{object}	api.Error
 //	@Failure		404				{object}	api.Error
 //	@Failure		500				{object}	api.Error
-//	@Security		OAuth2Password
-//	@Router			/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/by-components/{byComponentId}/export/responsibilities [post]
+//	@Deprecated
+//	@Security	OAuth2Password
+//	@Router		/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/by-components/{byComponentId}/export/responsibilities [post]
 func (h *SystemSecurityPlanHandler) CreateImplementedRequirementByComponentExportResponsibility(ctx echo.Context) error {
 	bc, ok := h.resolveByComponentForRequirement(ctx)
 	if !ok {
@@ -5628,6 +5664,11 @@ func (h *SystemSecurityPlanHandler) CreateImplementedRequirementByComponentExpor
 //
 //	@Summary		Update a responsibility entry on a control-level by-component's export
 //	@Description	Replaces an existing ControlImplementationResponsibility entry under the Export of a by-component within an implemented requirement.
+//	@Description
+//	@Description	Deprecated: requirement-anchored exports are legacy. Shared responsibility is
+//	@Description	tracked per statement — use the statement-level equivalent under
+//	@Description	.../statements/{stmtId}/by-components/{byComponentId}/export. This route stays so
+//	@Description	existing requirement-anchored exports can be read and wound down.
 //	@Tags			System Security Plans
 //	@Accept			json
 //	@Produce		json
@@ -5640,8 +5681,9 @@ func (h *SystemSecurityPlanHandler) CreateImplementedRequirementByComponentExpor
 //	@Failure		400					{object}	api.Error
 //	@Failure		404					{object}	api.Error
 //	@Failure		500					{object}	api.Error
-//	@Security		OAuth2Password
-//	@Router			/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/by-components/{byComponentId}/export/responsibilities/{responsibilityId} [put]
+//	@Deprecated
+//	@Security	OAuth2Password
+//	@Router		/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/by-components/{byComponentId}/export/responsibilities/{responsibilityId} [put]
 func (h *SystemSecurityPlanHandler) UpdateImplementedRequirementByComponentExportResponsibility(ctx echo.Context) error {
 	bc, ok := h.resolveByComponentForRequirement(ctx)
 	if !ok {
@@ -5654,6 +5696,11 @@ func (h *SystemSecurityPlanHandler) UpdateImplementedRequirementByComponentExpor
 //
 //	@Summary		Delete a responsibility entry on a control-level by-component's export
 //	@Description	Deletes an existing ControlImplementationResponsibility entry under the Export of a by-component within an implemented requirement.
+//	@Description
+//	@Description	Deprecated: requirement-anchored exports are legacy. Shared responsibility is
+//	@Description	tracked per statement — use the statement-level equivalent under
+//	@Description	.../statements/{stmtId}/by-components/{byComponentId}/export. This route stays so
+//	@Description	existing requirement-anchored exports can be read and wound down.
 //	@Tags			System Security Plans
 //	@Param			id					path	string	true	"SSP ID"
 //	@Param			reqId				path	string	true	"Requirement ID"
@@ -5663,8 +5710,9 @@ func (h *SystemSecurityPlanHandler) UpdateImplementedRequirementByComponentExpor
 //	@Failure		400					{object}	api.Error
 //	@Failure		404					{object}	api.Error
 //	@Failure		500					{object}	api.Error
-//	@Security		OAuth2Password
-//	@Router			/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/by-components/{byComponentId}/export/responsibilities/{responsibilityId} [delete]
+//	@Deprecated
+//	@Security	OAuth2Password
+//	@Router		/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/by-components/{byComponentId}/export/responsibilities/{responsibilityId} [delete]
 func (h *SystemSecurityPlanHandler) DeleteImplementedRequirementByComponentExportResponsibility(ctx echo.Context) error {
 	bc, ok := h.resolveByComponentForRequirement(ctx)
 	if !ok {

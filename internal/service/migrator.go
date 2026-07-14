@@ -17,6 +17,7 @@ import (
 	suggestionrel "github.com/compliance-framework/api/internal/service/relational/suggestions"
 	templaterel "github.com/compliance-framework/api/internal/service/relational/templates"
 	"github.com/compliance-framework/api/internal/service/relational/workflows"
+	"github.com/google/uuid"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -234,6 +235,9 @@ func MigrateUpWithConfig(db *gorm.DB, cfg *config.Config) error {
 		return err
 	}
 	if err := migrateBackfillCatalogActive(db); err != nil {
+		return err
+	}
+	if err := migrateBackfillOfferingItemStatementIDs(db); err != nil {
 		return err
 	}
 
@@ -703,6 +707,128 @@ func migrateBackfillCatalogActive(db *gorm.DB) error {
 	return db.Model(&relational.Catalog{}).
 		Where("active IS NULL").
 		Update("active", true).Error
+}
+
+// migrateBackfillOfferingItemStatementIDs normalizes legacy ssp_export_offering_items
+// rows written before the statement became the canonical anchor for shared responsibility.
+// For each item with a NULL statement_id it walks provided_uuid -> export -> by_component
+// and, when that by-component is statement-anchored, copies the parent Statement's
+// statement-id onto the item.
+//
+// A requirement-anchored by-component has no statement to derive, so those rows keep a NULL
+// statement_id: they stay readable and deletable, but Subscribe now rejects them with a 422
+// rather than silently falling back to requirement-anchoring. The count of both outcomes is
+// logged so an operator can see how much legacy data still needs winding down.
+//
+// The DB column stays nullable on purpose — statement_id is enforced on the write path
+// (createExportOfferingItemRequest.validate), not by the schema, so legacy rows survive.
+func migrateBackfillOfferingItemStatementIDs(db *gorm.DB) error {
+	if !db.Migrator().HasTable(&relational.SSPExportOfferingItem{}) {
+		return nil
+	}
+
+	var items []relational.SSPExportOfferingItem
+	if err := db.Where("statement_id IS NULL").Find(&items).Error; err != nil {
+		return fmt.Errorf("failed to load legacy offering items: %w", err)
+	}
+	if len(items) == 0 {
+		return nil
+	}
+
+	providedUUIDs := make([]uuid.UUID, 0, len(items))
+	seen := make(map[uuid.UUID]bool, len(items))
+	for _, item := range items {
+		if !seen[item.ProvidedUUID] {
+			seen[item.ProvidedUUID] = true
+			providedUUIDs = append(providedUUIDs, item.ProvidedUUID)
+		}
+	}
+
+	var provided []relational.ProvidedControlImplementation
+	if err := db.Where("id IN ?", providedUUIDs).Find(&provided).Error; err != nil {
+		return fmt.Errorf("failed to load provided control implementations: %w", err)
+	}
+	exportIDByProvided := make(map[uuid.UUID]uuid.UUID, len(provided))
+	exportIDs := make([]uuid.UUID, 0, len(provided))
+	for _, p := range provided {
+		exportIDByProvided[*p.ID] = p.ExportId
+		exportIDs = append(exportIDs, p.ExportId)
+	}
+
+	var exports []relational.Export
+	if err := db.Where("id IN ?", exportIDs).Find(&exports).Error; err != nil {
+		return fmt.Errorf("failed to load exports: %w", err)
+	}
+	byComponentIDByExport := make(map[uuid.UUID]uuid.UUID, len(exports))
+	byComponentIDs := make([]uuid.UUID, 0, len(exports))
+	for _, e := range exports {
+		byComponentIDByExport[*e.ID] = e.ByComponentId
+		byComponentIDs = append(byComponentIDs, e.ByComponentId)
+	}
+
+	var byComponents []relational.ByComponent
+	if err := db.Where("id IN ?", byComponentIDs).Find(&byComponents).Error; err != nil {
+		return fmt.Errorf("failed to load by-components: %w", err)
+	}
+	statementIDByComponent := make(map[uuid.UUID]uuid.UUID, len(byComponents))
+	statementRowIDs := make([]uuid.UUID, 0, len(byComponents))
+	for _, bc := range byComponents {
+		if bc.ParentType == nil || *bc.ParentType != "statements" || bc.ParentID == nil {
+			continue
+		}
+		statementIDByComponent[*bc.ID] = *bc.ParentID
+		statementRowIDs = append(statementRowIDs, *bc.ParentID)
+	}
+
+	var statements []relational.Statement
+	if len(statementRowIDs) > 0 {
+		if err := db.Where("id IN ?", statementRowIDs).Find(&statements).Error; err != nil {
+			return fmt.Errorf("failed to load statements: %w", err)
+		}
+	}
+	statementIDByRow := make(map[uuid.UUID]string, len(statements))
+	for _, s := range statements {
+		statementIDByRow[*s.ID] = s.StatementId
+	}
+
+	backfilled, undeterminable := 0, 0
+	for _, item := range items {
+		exportID, ok := exportIDByProvided[item.ProvidedUUID]
+		if !ok {
+			undeterminable++
+			continue
+		}
+		byComponentID, ok := byComponentIDByExport[exportID]
+		if !ok {
+			undeterminable++
+			continue
+		}
+		statementRowID, ok := statementIDByComponent[byComponentID]
+		if !ok {
+			undeterminable++
+			continue
+		}
+		statementID, ok := statementIDByRow[statementRowID]
+		if !ok || statementID == "" {
+			undeterminable++
+			continue
+		}
+
+		if err := db.Model(&relational.SSPExportOfferingItem{}).
+			Where("id = ?", item.ID).
+			Update("statement_id", statementID).Error; err != nil {
+			return fmt.Errorf("failed to backfill statement_id on offering item %s: %w", item.ID, err)
+		}
+		backfilled++
+	}
+
+	db.Logger.Info(
+		context.Background(),
+		"Backfilled statement_id on %d legacy export offering item(s); %d could not be derived (requirement-anchored or dangling provided-uuid) and remain NULL",
+		backfilled,
+		undeterminable,
+	)
+	return nil
 }
 
 // migrateSSPProfileIDToJoinTable copies the legacy single profile_id FK from
