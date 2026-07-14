@@ -1,0 +1,32 @@
+lisa-selfreview:
+Pass 1 (strict) — 3 findings, all fixed before push:
+
+- [high] responsible-roles-untested (ssp_by_components.go): replaceResponsibleRoles — the
+  polymorphic ResponsibleRole + responsible_role_parties m2m write path — was load-bearing and
+  had ZERO test coverage, despite the spec explicitly requiring "responsible-roles survive
+  create/update and their m2m join is cleared on delete". Writing that test exposed a REAL BUG:
+  `Association("ResponsibleRoles").Append(roles)` writes the role rows but does NOT cascade into
+  each role's own Parties many2many, so every responsible_role_parties join row was silently
+  never written. Fixed by switching to `tx.Create(&roles)` with an explicitly-set
+  parent_id/parent_type (parent_type derived from the parsed GORM schema's table name rather than
+  hardcoded), which is the same cascade path the nested by-component create already relies on.
+  Covered by TestInherited/TestSatisfiedResponsibleRolesSurviveCreateUpdateAndClearOnDelete and
+  TestUpdateByComponentReplacesResponsibleRoles, which assert the join rows exist, are replaced
+  (not orphaned) on PUT, are cleared on DELETE, and that the shared Party row survives.
+
+- [medium] bycontrol-allowlist-n+1 (ssp_export_offerings.go ByControl): the ?downstreamSspId=
+  filter called isDownstreamAllowed once per offering — 2 queries per offering. Replaced with
+  bulkAllowedOfferings (2 queries total), placed next to isDownstreamAllowed so the one rule
+  isn't encoded twice, and pinned by TestBulkAllowedOfferingsMatchesIsDownstreamAllowed which
+  asserts the batched and per-offering paths agree offering-for-offering.
+
+- [low] misleading-lock-name: lockByComponentExportCreate is now also used for Inherited/Satisfied
+  creates. Renamed to lockByComponentSubtreeCreate. The advisory-lock KEY STRING deliberately
+  stays "export-create:" — it is only meaningful as a value all writers agree on, and changing it
+  would stop old and new pods serializing against each other during a rolling deploy.
+
+Noted, out of scope (pre-existing, not introduced here):
+- relational.Party.BeforeCreate (metadata.go:446) overrides UUIDModel.BeforeCreate to add an
+  OnConflict-DoNothing clause, which SHADOWS the id-assigning hook — so db.Create(&Party{}) with
+  no explicit id leaves ID nil. Every production path sets it from the OSCAL uuid, so it is latent,
+  not live. Flagged separately rather than fixed here.
