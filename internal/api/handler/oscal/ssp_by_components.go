@@ -955,7 +955,18 @@ func (h *SystemSecurityPlanHandler) inheritableResponsibilities(byComponentID uu
 //
 // Runs inside the caller's transaction so the satisfied write and the satisfaction it implies
 // commit together.
+//
+// It takes lockByComponentSubtreeWrite itself rather than trusting every caller to remember. This
+// function IS the read-modify-write the lock exists to serialize (it reads the satisfied set and
+// UPDATEs link satisfaction with a value computed in Go), and "every writer must take the lock" is
+// an invariant that has already been half-missed twice — the satisfied DELETE, then Subscribe.
+// Postgres advisory locks are re-entrant within a transaction, so callers that correctly take it
+// earlier (to cover their own writes too, which they should) pay nothing for taking it twice.
 func resyncLeverageSatisfaction(tx *gorm.DB, downstreamSSPID, byComponentID uuid.UUID) error {
+	if err := lockByComponentSubtreeWrite(tx, byComponentID); err != nil {
+		return err
+	}
+
 	var inherited []relational.InheritedControlImplementation
 	if err := tx.Where("by_component_id = ?", byComponentID).Find(&inherited).Error; err != nil {
 		return err

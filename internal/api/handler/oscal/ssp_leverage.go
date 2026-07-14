@@ -755,6 +755,27 @@ func (h *SSPLeverageHandler) Subscribe(ctx echo.Context) error {
 			if err != nil {
 				return err
 			}
+
+			// Subscribe is the fourth read-modify-write over this by-component's subtree: the
+			// resyncLeverageSatisfaction below reads its satisfied set and UPDATEs link
+			// satisfaction with a value computed in Go, so it takes the same lock the satisfied
+			// CREATE/DELETE and ReAttest take.
+			//
+			// findOrCreateByComponent REUSES an existing by-component, so subscribing to a second
+			// provided-uuid on the same (statement, component) pair lands on one that may already
+			// carry inherited entries and satisfied rows — and resyncLeverageSatisfaction rewrites
+			// the satisfaction of EVERY link inherited on that by-component, not just the one being
+			// created here. Skipping the lock would therefore let a stale value from this
+			// transaction clobber a concurrent satisfied write's freshly-derived one on a
+			// PRE-EXISTING link, which is a corruption that doesn't even point back at the subscribe
+			// that caused it.
+			//
+			// Postgres advisory locks are re-entrant within a transaction, so taking it once per
+			// item is safe when several items in one subscribe share a by-component.
+			if err := lockByComponentSubtreeWrite(tx, *byComponent.ID); err != nil {
+				return err
+			}
+
 			tracker.addByComponent(byComponent, *stmt.ID, bcCreated)
 
 			inherited := relational.InheritedControlImplementation{

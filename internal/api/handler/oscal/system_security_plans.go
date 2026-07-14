@@ -4938,6 +4938,13 @@ func (h *SystemSecurityPlanHandler) createByComponentExport(ctx echo.Context, bc
 // ReAttest's `WHERE status = drifted` guard is not a substitute — it defends against a concurrent
 // re-attest, not against a concurrent satisfied write, which never touches status.
 //
+// Three of those four writers reach the derivation through resyncLeverageSatisfaction, which now
+// takes this lock ITSELF — so the invariant is enforced by construction on that path rather than by
+// everyone remembering. (It was half-missed twice: first the satisfied DELETE, then Subscribe.)
+// Callers still take it explicitly and earlier, to cover their own inserts/deletes as well as the
+// derivation; advisory locks are re-entrant within a transaction, so the double take is free.
+// ReAttest derives inline rather than via resync, so its lock is genuinely load-bearing.
+//
 // The cached Satisfaction is what the drift detector and the notification path read, which is the
 // whole reason resyncLeverageSatisfaction exists.
 //
