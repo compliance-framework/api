@@ -13,3 +13,28 @@ lisa-design:
   control" — every imported SSP is full of them — and reporting those as debt would invite users to
   delete their own control implementation. Reason is "requirement-anchored export", or
   "requirement-anchored inherited/satisfied" when it carries consumer-side rows but no export.
+
+lisa-addressed:
+Human review round 2 (gusfcarvalho, PR #456) — 6 further findings, all valid, all fixed:
+
+- [Medium] legacy arm over-reported: it appended EVERY requirement-anchored by-component, so any
+  normally-imported SSP had its entire control implementation returned as "requirement-anchored
+  export" debt. The test fixture pinned the bug (a bare ByComponent with no export). FIXED: only
+  report when the by-component carries an export / inherited / satisfied row; reason distinguishes
+  the two cases. Fixture now seeds a real export, plus a bare one asserted NOT to be reported.
+- [Low] Subscribe derived satisfaction from a narrower input (this request's satisfiedSet) than
+  every reader (all satisfied rows on the by-component), so a pre-existing hand-authored satisfied
+  row made the STORED value disagree with the projection — and the stored value is what the drift
+  detector consumes. FIXED: Subscribe now calls resyncLeverageSatisfaction after creating each link,
+  and re-reads the links before responding, so "derived in exactly one place" is literally true.
+- [Low] Inherited POST validated that provided-uuid PARSES but not that it RESOLVES, creating inert
+  rows that can never have a satisfied entry accepted against them. FIXED: 400 when it doesn't
+  resolve, mirroring the satisfied POST. Two existing fixtures had to stop inventing provided-uuids.
+- [Low] ByControl's ?downstreamSspId= leaks allow-list membership. Reviewer offered "authz or
+  document it". DOCUMENTED as an explicit, accepted trade-off (see design note).
+- [Low] TestSharedResponsibilityFiltersByControl's helper dropped the status assertion its sibling
+  has, so an error body unmarshalled to a zero-value rollup and its three negative assertions passed
+  on a 500. FIXED: assert 200.
+- [Low] The route-absence loop asserted PUT/DELETE against a collection path no router would ever
+  register, so it would keep passing if someone added the real item routes. FIXED: assert all four
+  methods against BOTH the collection and the :inheritedId/:satisfiedId item shapes.
