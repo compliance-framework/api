@@ -1,0 +1,14 @@
+lisa-addressed:
+Pass 2 (strict) — 1 finding, fixed:
+- [medium] bycontrol-route-shadowing: /ssp-export-offerings/by-control/:controlId shares a prefix
+  with /ssp-export-offerings/:id, and ByControl was only ever exercised by calling the handler
+  directly — so a router that resolved :id first would have sent "by-control" to GetByID and
+  failed with "invalid offering id", silently, with both routes still registered and both
+  reachable in isolation. Added TestByControlRouteIsNotShadowedByGetByID, which drives the real
+  echo router and pins both dispatches. (Echo does prefer the static segment; the test guarantees
+  it stays that way.)
+- Also pinned: a by-component with no implementation-status must not gain an empty {"state": ""}
+  from a PUT that omits it (asserted in the blind-Save regression test).
+No further findings. Verified: gofmt, go build, go vet (both tags), unit, full integration suite,
+golangci-lint (0 issues), swagger regenerated.
+(internal/authz/cedar_test.go is gofmt-dirty on main already — untouched by this branch.)
