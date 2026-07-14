@@ -459,7 +459,7 @@ func (h *SystemSecurityPlanHandler) CreateImplementedRequirementStatementByCompo
 		// Same advisory-lock guard the Export create uses: nothing in the schema stops two
 		// concurrent creates from racing on the same by-component, and the satisfaction
 		// re-derivation below reads the rows this write produces.
-		if err := lockByComponentExportCreate(tx, *bc.ID); err != nil {
+		if err := lockByComponentSubtreeCreate(tx, *bc.ID); err != nil {
 			return err
 		}
 		return tx.Create(relInherited).Error
@@ -542,7 +542,7 @@ func (h *SystemSecurityPlanHandler) UpdateImplementedRequirementStatementByCompo
 			}).Error; err != nil {
 			return err
 		}
-		return replaceResponsibleRoles(tx, &existing, parsed.ResponsibleRoles)
+		return replaceResponsibleRoles(tx, &existing, *existing.ID, parsed.ResponsibleRoles)
 	}); err != nil {
 		h.sugar.Errorf("Failed to update inherited control implementation: %v", err)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
@@ -722,7 +722,7 @@ func (h *SystemSecurityPlanHandler) CreateImplementedRequirementStatementByCompo
 	relSatisfied.ByComponentId = *bc.ID
 
 	if err := h.db.Transaction(func(tx *gorm.DB) error {
-		if err := lockByComponentExportCreate(tx, *bc.ID); err != nil {
+		if err := lockByComponentSubtreeCreate(tx, *bc.ID); err != nil {
 			return err
 		}
 		if err := tx.Create(relSatisfied).Error; err != nil {
@@ -809,7 +809,7 @@ func (h *SystemSecurityPlanHandler) UpdateImplementedRequirementStatementByCompo
 			}).Error; err != nil {
 			return err
 		}
-		return replaceResponsibleRoles(tx, &existing, parsed.ResponsibleRoles)
+		return replaceResponsibleRoles(tx, &existing, *existing.ID, parsed.ResponsibleRoles)
 	}); err != nil {
 		h.sugar.Errorf("Failed to update satisfied responsibility: %v", err)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))

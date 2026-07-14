@@ -1030,3 +1030,243 @@ func TestSharedResponsibilityFiltersByControl(t *testing.T) {
 	require.Empty(t, downUnmatched.Inherits)
 	require.Empty(t, downUnmatched.Satisfies)
 }
+
+// --- responsible-roles: the polymorphic m2m nobody was exercising ------------------------
+
+// countRoleParties reports how many responsible_role_parties join rows exist for the
+// responsible-roles hanging off one polymorphic parent. Party rows themselves are shared and
+// must never be deleted — only the join rows and the roles.
+func countRoleParties(t *testing.T, db *gorm.DB, parentID uuid.UUID) int64 {
+	t.Helper()
+	var count int64
+	require.NoError(t, db.Table("responsible_role_parties").
+		Joins("JOIN responsible_roles ON responsible_roles.id = responsible_role_parties.responsible_role_id").
+		Where("responsible_roles.parent_id = ?", parentID).
+		Count(&count).Error)
+	return count
+}
+
+// seedParty creates a Party with an explicit id. Party overrides BeforeCreate to add an
+// OnConflict-DoNothing clause, which shadows UUIDModel's id-assigning hook — so a Party created
+// without an id never gets one. Every production path sets it from the OSCAL uuid; so does this.
+func seedParty(t *testing.T, db *gorm.DB) uuid.UUID {
+	t.Helper()
+	id := uuid.New()
+	name := "Acme"
+	party := relational.Party{
+		UUIDModel: relational.UUIDModel{ID: &id},
+		Type:      "organization",
+		Name:      &name,
+	}
+	require.NoError(t, db.Create(&party).Error)
+	return *party.ID
+}
+
+// TestInheritedResponsibleRolesSurviveCreateUpdateAndClearOnDelete exercises the polymorphic
+// ResponsibleRole + responsible_role_parties m2m under an inherited entry: roles land on create,
+// a PUT replaces them (deleting the old rows and their join rows rather than orphaning them),
+// and a DELETE clears both the roles and the join rows while leaving the shared Party alone.
+func TestInheritedResponsibleRolesSurviveCreateUpdateAndClearOnDelete(t *testing.T) {
+	db := newSSPLeverageTestDB(t)
+	fx := newSharedResponsibilityFixture(t, db)
+	h := newSSPHandler(db)
+	partyID := seedParty(t, db)
+
+	createBody := fmt.Sprintf(`{
+		"provided-uuid": %q,
+		"description": "inherited with roles",
+		"responsible-roles": [{"role-id": "provider", "party-uuids": [%q]}]
+	}`, uuid.New().String(), partyID.String())
+
+	ctx, rec := newByComponentContext(http.MethodPost, createBody, fx.upstreamSSPID, fx.requirementID, fx.statementID, fx.byComponentID)
+	require.NoError(t, h.CreateImplementedRequirementStatementByComponentInherited(ctx))
+	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+
+	var created handler.GenericDataResponse[oscalTypes_1_1_3.InheritedControlImplementation]
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &created))
+	require.NotNil(t, created.Data.ResponsibleRoles)
+	require.Len(t, *created.Data.ResponsibleRoles, 1)
+	require.Equal(t, "provider", (*created.Data.ResponsibleRoles)[0].RoleId)
+
+	inheritedID := uuid.MustParse(created.Data.UUID)
+	require.Equal(t, int64(1), countRows(t, db, &relational.ResponsibleRole{}, "parent_id = ?", inheritedID))
+	require.Equal(t, int64(1), countRoleParties(t, db, inheritedID))
+
+	// A PUT replaces the role set: the old role and its join row go, the new one lands.
+	updateBody := fmt.Sprintf(`{
+		"description": "revised",
+		"responsible-roles": [{"role-id": "auditor", "party-uuids": [%q]}]
+	}`, partyID.String())
+
+	ctx, rec = newByComponentContext(http.MethodPut, updateBody, fx.upstreamSSPID, fx.requirementID, fx.statementID, fx.byComponentID,
+		[2]string{"inheritedId", inheritedID.String()})
+	require.NoError(t, h.UpdateImplementedRequirementStatementByComponentInherited(ctx))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	var updated handler.GenericDataResponse[oscalTypes_1_1_3.InheritedControlImplementation]
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &updated))
+	require.NotNil(t, updated.Data.ResponsibleRoles)
+	require.Len(t, *updated.Data.ResponsibleRoles, 1, "the replaced role set must not accumulate")
+	require.Equal(t, "auditor", (*updated.Data.ResponsibleRoles)[0].RoleId)
+
+	require.Equal(t, int64(1), countRows(t, db, &relational.ResponsibleRole{}, "parent_id = ?", inheritedID),
+		"the superseded role must be deleted, not orphaned")
+	require.Equal(t, int64(1), countRoleParties(t, db, inheritedID))
+
+	// DELETE clears the roles and their join rows...
+	ctx, rec = newByComponentContext(http.MethodDelete, "", fx.upstreamSSPID, fx.requirementID, fx.statementID, fx.byComponentID,
+		[2]string{"inheritedId", inheritedID.String()})
+	require.NoError(t, h.DeleteImplementedRequirementStatementByComponentInherited(ctx))
+	require.Equal(t, http.StatusNoContent, rec.Code)
+
+	require.Zero(t, countRows(t, db, &relational.ResponsibleRole{}, "parent_id = ?", inheritedID))
+	require.Zero(t, countRoleParties(t, db, inheritedID))
+
+	// ...but the Party is shared and must survive.
+	require.Equal(t, int64(1), countRows(t, db, &relational.Party{}, "id = ?", partyID))
+}
+
+// TestSatisfiedResponsibleRolesSurviveCreateUpdateAndClearOnDelete is the same contract on the
+// satisfied side.
+func TestSatisfiedResponsibleRolesSurviveCreateUpdateAndClearOnDelete(t *testing.T) {
+	db := newSSPLeverageTestDB(t)
+	fx := newSharedResponsibilityFixture(t, db)
+	h := newSSPHandler(db)
+	partyID := seedParty(t, db)
+
+	// Hand-authored inherited entry so respA is a legitimate thing to satisfy.
+	inherited := relational.InheritedControlImplementation{
+		ByComponentId: fx.byComponentID, ProvidedUuid: fx.providedID, Description: "hand-authored",
+	}
+	require.NoError(t, db.Create(&inherited).Error)
+
+	createBody := fmt.Sprintf(`{
+		"responsibility-uuid": %q,
+		"description": "we do this",
+		"responsible-roles": [{"role-id": "operator", "party-uuids": [%q]}]
+	}`, fx.respAID.String(), partyID.String())
+
+	ctx, rec := newByComponentContext(http.MethodPost, createBody, fx.upstreamSSPID, fx.requirementID, fx.statementID, fx.byComponentID)
+	require.NoError(t, h.CreateImplementedRequirementStatementByComponentSatisfied(ctx))
+	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+
+	var created handler.GenericDataResponse[oscalTypes_1_1_3.SatisfiedControlImplementationResponsibility]
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &created))
+	require.NotNil(t, created.Data.ResponsibleRoles)
+	require.Len(t, *created.Data.ResponsibleRoles, 1)
+
+	satisfiedID := uuid.MustParse(created.Data.UUID)
+	require.Equal(t, int64(1), countRows(t, db, &relational.ResponsibleRole{}, "parent_id = ?", satisfiedID))
+	require.Equal(t, int64(1), countRoleParties(t, db, satisfiedID))
+
+	updateBody := fmt.Sprintf(`{
+		"description": "revised",
+		"responsible-roles": [
+			{"role-id": "operator", "party-uuids": [%q]},
+			{"role-id": "reviewer", "party-uuids": [%q]}
+		]
+	}`, partyID.String(), partyID.String())
+
+	ctx, rec = newByComponentContext(http.MethodPut, updateBody, fx.upstreamSSPID, fx.requirementID, fx.statementID, fx.byComponentID,
+		[2]string{"satisfiedId", satisfiedID.String()})
+	require.NoError(t, h.UpdateImplementedRequirementStatementByComponentSatisfied(ctx))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	var updated handler.GenericDataResponse[oscalTypes_1_1_3.SatisfiedControlImplementationResponsibility]
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &updated))
+	require.NotNil(t, updated.Data.ResponsibleRoles)
+	require.Len(t, *updated.Data.ResponsibleRoles, 2)
+	require.Equal(t, int64(2), countRows(t, db, &relational.ResponsibleRole{}, "parent_id = ?", satisfiedID))
+	require.Equal(t, int64(2), countRoleParties(t, db, satisfiedID))
+
+	ctx, rec = newByComponentContext(http.MethodDelete, "", fx.upstreamSSPID, fx.requirementID, fx.statementID, fx.byComponentID,
+		[2]string{"satisfiedId", satisfiedID.String()})
+	require.NoError(t, h.DeleteImplementedRequirementStatementByComponentSatisfied(ctx))
+	require.Equal(t, http.StatusNoContent, rec.Code)
+
+	require.Zero(t, countRows(t, db, &relational.ResponsibleRole{}, "parent_id = ?", satisfiedID))
+	require.Zero(t, countRoleParties(t, db, satisfiedID))
+	require.Equal(t, int64(1), countRows(t, db, &relational.Party{}, "id = ?", partyID))
+}
+
+// TestUpdateByComponentReplacesResponsibleRoles: the by-component PUT owns responsible-roles, so
+// it replaces them — and the superseded rows (and their join rows) are deleted, not orphaned.
+func TestUpdateByComponentReplacesResponsibleRoles(t *testing.T) {
+	db := newSSPLeverageTestDB(t)
+	fx := newSharedResponsibilityFixture(t, db)
+	h := newSSPHandler(db)
+	partyID := seedParty(t, db)
+
+	put := func(body string) *httptest.ResponseRecorder {
+		ctx, rec := newByComponentContext(http.MethodPut, body, fx.upstreamSSPID, fx.requirementID, fx.statementID, fx.byComponentID)
+		require.NoError(t, h.UpdateImplementedRequirementStatementByComponent(ctx))
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+		return rec
+	}
+
+	put(fmt.Sprintf(`{
+		"uuid": %q, "component-uuid": %q, "description": "with roles",
+		"responsible-roles": [{"role-id": "owner", "party-uuids": [%q]}]
+	}`, fx.byComponentID.String(), fx.componentID.String(), partyID.String()))
+
+	require.Equal(t, int64(1), countRows(t, db, &relational.ResponsibleRole{}, "parent_id = ?", fx.byComponentID))
+	require.Equal(t, int64(1), countRoleParties(t, db, fx.byComponentID))
+
+	// A PUT with no responsible-roles clears them — the field is one this route owns.
+	rec := put(fmt.Sprintf(`{"uuid": %q, "component-uuid": %q, "description": "no roles"}`,
+		fx.byComponentID.String(), fx.componentID.String()))
+
+	var updated handler.GenericDataResponse[oscalTypes_1_1_3.ByComponent]
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &updated))
+	require.Nil(t, updated.Data.ResponsibleRoles)
+
+	require.Zero(t, countRows(t, db, &relational.ResponsibleRole{}, "parent_id = ?", fx.byComponentID))
+	require.Zero(t, countRoleParties(t, db, fx.byComponentID))
+	require.Equal(t, int64(1), countRows(t, db, &relational.Party{}, "id = ?", partyID), "Party rows are shared and must survive")
+
+	// The export subtree is still untouched by any of this.
+	require.Equal(t, int64(1), countRows(t, db, &relational.Export{}, "by_component_id = ?", fx.byComponentID))
+}
+
+// TestBulkAllowedOfferingsMatchesIsDownstreamAllowed: the batched allow-list resolution the
+// by-control catalog uses must agree, offering for offering, with the per-offering rule Subscribe
+// enforces. Two encodings of one rule is exactly how they drift.
+func TestBulkAllowedOfferingsMatchesIsDownstreamAllowed(t *testing.T) {
+	db := newSSPLeverageTestDB(t)
+
+	downstream := uuid.New()
+	other := uuid.New()
+
+	noAllowList := relational.SSPExportOffering{Title: "open to all"}
+	require.NoError(t, db.Create(&noAllowList).Error)
+
+	allowsDownstream := relational.SSPExportOffering{Title: "allows our downstream"}
+	require.NoError(t, db.Create(&allowsDownstream).Error)
+	require.NoError(t, db.Create(&relational.SSPExportOfferingAllowedDownstream{
+		OfferingID: *allowsDownstream.ID, DownstreamSSPID: downstream,
+	}).Error)
+
+	excludesDownstream := relational.SSPExportOffering{Title: "allows someone else"}
+	require.NoError(t, db.Create(&excludesDownstream).Error)
+	require.NoError(t, db.Create(&relational.SSPExportOfferingAllowedDownstream{
+		OfferingID: *excludesDownstream.ID, DownstreamSSPID: other,
+	}).Error)
+
+	offeringIDs := []uuid.UUID{*noAllowList.ID, *allowsDownstream.ID, *excludesDownstream.ID}
+	bulk, err := bulkAllowedOfferings(db, offeringIDs, downstream)
+	require.NoError(t, err)
+
+	for _, offeringID := range offeringIDs {
+		single, err := isDownstreamAllowed(db, offeringID, downstream)
+		require.NoError(t, err)
+		require.Equalf(t, single, bulk[offeringID], "batched and per-offering allow-list disagree for %s", offeringID)
+	}
+
+	require.True(t, bulk[*noAllowList.ID], "no allow-list rows means the type-level default: any downstream")
+	require.True(t, bulk[*allowsDownstream.ID])
+	require.False(t, bulk[*excludesDownstream.ID])
+
+	empty, err := bulkAllowedOfferings(db, nil, downstream)
+	require.NoError(t, err)
+	require.Empty(t, empty)
+}

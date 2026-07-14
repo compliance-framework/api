@@ -1321,14 +1321,10 @@ func (h *SSPExportOfferingHandler) ByControl(ctx echo.Context) error {
 	// Drop items whose offering the downstream isn't allow-listed for, before spending any
 	// further resolution on them.
 	if downstreamSSPID != nil {
-		allowedOfferings := make(map[uuid.UUID]bool, len(offerings))
-		for _, o := range offerings {
-			allowed, err := isDownstreamAllowed(h.db, *o.ID, *downstreamSSPID)
-			if err != nil {
-				h.sugar.Errorf("Failed to check offering allow-list: %v", err)
-				return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
-			}
-			allowedOfferings[*o.ID] = allowed
+		allowedOfferings, err := bulkAllowedOfferings(h.db, offeringIDs, *downstreamSSPID)
+		if err != nil {
+			h.sugar.Errorf("Failed to check offering allow-list: %v", err)
+			return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 		}
 		filtered := make([]relational.SSPExportOfferingItem, 0, len(items))
 		for _, item := range items {

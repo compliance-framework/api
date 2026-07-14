@@ -4435,7 +4435,7 @@ func (h *SystemSecurityPlanHandler) updateByComponentMetadata(ctx echo.Context, 
 			}).Error; err != nil {
 			return err
 		}
-		return replaceResponsibleRoles(tx, bc, parsed.ResponsibleRoles)
+		return replaceResponsibleRoles(tx, bc, *bc.ID, parsed.ResponsibleRoles)
 	}); err != nil {
 		h.sugar.Errorf("Failed to update by-component: %v", err)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
@@ -4455,12 +4455,19 @@ func (h *SystemSecurityPlanHandler) updateByComponentMetadata(ctx echo.Context, 
 // cleared first (Party records themselves are shared and must survive); the new ones are
 // appended through the association so GORM fills in parent_id/parent_type — a plain Replace
 // would orphan the old rows rather than delete them.
-func replaceResponsibleRoles(tx *gorm.DB, parent any, roles []relational.ResponsibleRole) error {
-	// Read the current roles through the association so GORM supplies the polymorphic
-	// parent_type itself. deleteResponsibleRoles clears each role's Parties join rows by
-	// role id, so they don't need preloading here.
+func replaceResponsibleRoles(tx *gorm.DB, parent any, parentID uuid.UUID, roles []relational.ResponsibleRole) error {
+	// A polymorphic parent_type is filled with the owner's table name. Derive it from the parsed
+	// schema rather than hardcoding "by_components" / "inherited_control_implementations" / ...
+	// at each call site, so a table rename can't silently strand a role set.
+	stmt := &gorm.Statement{DB: tx}
+	if err := stmt.Parse(parent); err != nil {
+		return err
+	}
+	parentType := stmt.Schema.Table
+
 	var existing []relational.ResponsibleRole
-	if err := tx.Model(parent).Association("ResponsibleRoles").Find(&existing); err != nil {
+	if err := tx.Where("parent_id = ? AND parent_type = ?", parentID, parentType).
+		Find(&existing).Error; err != nil {
 		return err
 	}
 	if err := deleteResponsibleRoles(tx, existing); err != nil {
@@ -4469,7 +4476,17 @@ func replaceResponsibleRoles(tx *gorm.DB, parent any, roles []relational.Respons
 	if len(roles) == 0 {
 		return nil
 	}
-	return tx.Model(parent).Association("ResponsibleRoles").Append(roles)
+
+	for i := range roles {
+		roles[i].ID = nil
+		roles[i].ParentID = &parentID
+		roles[i].ParentType = parentType
+	}
+	// Create, not Association("ResponsibleRoles").Append: Append writes the role rows but does
+	// NOT cascade into each role's own Parties many2many, silently leaving every
+	// responsible_role_parties join row unwritten. A plain Create does cascade — it is the same
+	// path the nested by-component create already relies on.
+	return tx.Create(&roles).Error
 }
 
 // reloadByComponent re-fetches a by-component with every subtree the single-by-component GET
@@ -4844,7 +4861,7 @@ func (h *SystemSecurityPlanHandler) createByComponentExport(ctx echo.Context, bc
 		// Export.ByComponentId has no unique DB constraint (this ticket makes no
 		// schema change), so an advisory lock keyed on the by-component closes the
 		// race between the existence check and the insert for concurrent creates.
-		if err := lockByComponentExportCreate(tx, *bc.ID); err != nil {
+		if err := lockByComponentSubtreeCreate(tx, *bc.ID); err != nil {
 			return err
 		}
 
@@ -4873,10 +4890,18 @@ func (h *SystemSecurityPlanHandler) createByComponentExport(ctx echo.Context, bc
 	return ctx.JSON(http.StatusCreated, handler.GenericDataResponse[oscalTypes_1_1_3.Export]{Data: *created.MarshalOscal()})
 }
 
-// lockByComponentExportCreate serializes concurrent Export creation for the same
-// by-component using a transaction-scoped Postgres advisory lock keyed on the
-// by-component's UUID. It is a no-op against non-Postgres test drivers.
-func lockByComponentExportCreate(tx *gorm.DB, byComponentID uuid.UUID) error {
+// lockByComponentSubtreeCreate serializes concurrent creates under the same by-component — its
+// singleton Export, and its Inherited/Satisfied entries — with a transaction-scoped Postgres
+// advisory lock keyed on the by-component's UUID. Nothing in the schema enforces
+// exports.by_component_id uniqueness, and the satisfaction re-derivation a satisfied-write does
+// reads rows a concurrent write is producing, so both need the same guard.
+//
+// The lock key string stays "export-create:" despite the now-wider scope: it is only meaningful
+// as a value all writers agree on, and changing it would stop old and new pods serializing
+// against each other during a rolling deploy.
+//
+// It is a no-op against non-Postgres test drivers.
+func lockByComponentSubtreeCreate(tx *gorm.DB, byComponentID uuid.UUID) error {
 	if tx.Name() != "postgres" {
 		return nil
 	}

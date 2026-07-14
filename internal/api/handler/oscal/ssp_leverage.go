@@ -247,6 +247,43 @@ func isDownstreamAllowed(db *gorm.DB, offeringID, downstreamSSPID uuid.UUID) (bo
 	return matching > 0, nil
 }
 
+// bulkAllowedOfferings is the batched form of isDownstreamAllowed: two queries total for any
+// number of offerings, rather than two per offering (the by-control catalog filters a whole
+// control's worth of offerings against one downstream in a single request).
+//
+// It encodes exactly the same rule — an offering with zero allow-list rows keeps the type-level
+// default (any downstream permitted); one with rows admits only the listed downstreams — and
+// lives next to isDownstreamAllowed so the two can't drift apart.
+func bulkAllowedOfferings(db *gorm.DB, offeringIDs []uuid.UUID, downstreamSSPID uuid.UUID) (map[uuid.UUID]bool, error) {
+	allowed := make(map[uuid.UUID]bool, len(offeringIDs))
+	if len(offeringIDs) == 0 {
+		return allowed, nil
+	}
+
+	var rows []relational.SSPExportOfferingAllowedDownstream
+	if err := db.Where("offering_id IN ?", offeringIDs).Find(&rows).Error; err != nil {
+		return nil, fmt.Errorf("failed to load offering allow-lists: %w", err)
+	}
+
+	hasAllowList := make(map[uuid.UUID]bool, len(offeringIDs))
+	listsDownstream := make(map[uuid.UUID]bool, len(offeringIDs))
+	for _, row := range rows {
+		hasAllowList[row.OfferingID] = true
+		if row.DownstreamSSPID == downstreamSSPID {
+			listsDownstream[row.OfferingID] = true
+		}
+	}
+
+	for _, offeringID := range offeringIDs {
+		if !hasAllowList[offeringID] {
+			allowed[offeringID] = true
+			continue
+		}
+		allowed[offeringID] = listsDownstream[offeringID]
+	}
+	return allowed, nil
+}
+
 // findOrCreateThisSystemComponent finds the downstream's placeholder "this-system"
 // component, creating one if none exists — not every SSP has one, and there's no
 // guarantee the subscribing downstream does either.
