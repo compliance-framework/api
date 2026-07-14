@@ -11,3 +11,18 @@ lisa-design:
   structurally via go/ast, because the lock is a Postgres advisory lock and a no-op under the sqlite
   unit driver — no unit test can observe the race it prevents. Verified the guard actually fails when
   the lock is removed from Subscribe.
+
+lisa-addressed:
+Human review round 4 (gusfcarvalho, PR #456) — 1 finding, valid, fixed:
+- [Medium] Subscribe still didn't take lockByComponentSubtreeWrite: the previous commit added it to
+  ReAttest but not Subscribe, WHILE rewriting the lock's doc to enumerate Subscribe as one of the
+  four writers and to declare partial adoption "worse than useless" — so the comment asserted an
+  invariant the code violated, which is exactly the failure mode it warns about. And I resolved the
+  thread. Reachable case is worse than it looks: findOrCreateByComponent REUSES an existing
+  by-component, and resyncLeverageSatisfaction rewrites the satisfaction of EVERY link inherited on
+  it, so a stale value from Subscribe corrupts a PRE-EXISTING link rather than the new one.
+  FIXED: (a) Subscribe takes the lock in the item loop right after findOrCreateByComponent;
+  (b) resyncLeverageSatisfaction now takes the lock ITSELF, so the invariant is enforced by
+  construction on the derivation path instead of by everyone remembering;
+  (c) TestEveryLeverageSatisfactionWriterTakesTheSubtreeLock pins all five writers via go/ast, and
+  was verified to fail when Subscribe's lock is removed.
