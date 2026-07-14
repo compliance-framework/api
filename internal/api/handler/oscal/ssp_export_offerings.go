@@ -1282,6 +1282,18 @@ type ControlExportOffer struct {
 //	@Description	trust boundary as the flat catalog: gated by ssp-export-offering:read only,
 //	@Description	never ssp:read on the upstream SSP. Pass downstreamSspId to narrow the result
 //	@Description	to offerings that SSP is actually allow-listed to subscribe to (BCH-1342).
+//	@Description
+//	@Description	downstreamSspId is a CONVENIENCE FILTER, not an authorization boundary: no
+//	@Description	permission is evaluated against the SSP it names — unlike Subscribe, which
+//	@Description	evaluates ssp:update on the downstream precisely because that id arrives in the
+//	@Description	payload rather than the URL. The filter cannot surface an offering the caller
+//	@Description	could not already list; it only removes rows. It does mean a catalog reader can
+//	@Description	infer an offering's allow-list membership by diffing the filtered and unfiltered
+//	@Description	responses. That is an accepted trade-off, decided rather than inherited by
+//	@Description	omission: allow-list membership (who may leverage whom) is treated as
+//	@Description	non-confidential topology, and a per-request PDP round-trip on a read path is not
+//	@Description	worth paying to hide it. If it ever must be confidential, evaluate ssp:read on
+//	@Description	downstreamSspId here the way Subscribe does.
 //	@Tags			SSP Export Offerings
 //	@Produce		json
 //	@Param			controlId		path		string	true	"Control ID (e.g. AC-2)"

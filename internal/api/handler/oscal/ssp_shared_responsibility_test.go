@@ -555,7 +555,8 @@ func TestInheritedCRUDRoundTrip(t *testing.T) {
 	fx := newSharedResponsibilityFixture(t, db)
 	h := newSSPHandler(db)
 
-	providedUUID := uuid.New()
+	// A provided-uuid that actually resolves — the create now rejects one that doesn't.
+	providedUUID := fx.providedID
 	body := fmt.Sprintf(`{"provided-uuid": %q, "description": "we inherit this"}`, providedUUID.String())
 	ctx, rec := newByComponentContext(http.MethodPost, body, fx.upstreamSSPID, fx.requirementID, fx.statementID, fx.byComponentID)
 	require.NoError(t, h.CreateImplementedRequirementStatementByComponentInherited(ctx))
@@ -935,12 +936,24 @@ func TestSharedResponsibilityRollup(t *testing.T) {
 	fx := newSharedResponsibilityFixture(t, db)
 	h := newSSPHandler(db)
 
-	// A legacy requirement-anchored by-component that must be reported, not silently dropped.
+	// A legacy requirement-anchored by-component that must be reported, not silently dropped —
+	// it carries an actual export, which is what makes it shared-responsibility debt.
 	requirementsType := "implemented_requirements"
 	legacyBC := relational.ByComponent{
 		ParentID: &fx.requirementID, ParentType: &requirementsType, ComponentUUID: fx.componentID,
 	}
 	require.NoError(t, db.Create(&legacyBC).Error)
+	legacyExport := relational.Export{ByComponentId: *legacyBC.ID, Description: "legacy export"}
+	require.NoError(t, db.Create(&legacyExport).Error)
+
+	// ...and a bare requirement-anchored by-component that carries NOTHING. This is the ordinary
+	// OSCAL shape for "this component implements this control", which every imported SSP is full
+	// of — it must NOT be reported as debt.
+	ordinaryBC := relational.ByComponent{
+		ParentID: &fx.requirementID, ParentType: &requirementsType, ComponentUUID: uuid.New(),
+		Description: "an ordinary requirement-level implementation",
+	}
+	require.NoError(t, db.Create(&ordinaryBC).Error)
 
 	rollup := func(sspID uuid.UUID, query string) SharedResponsibilityRollup {
 		e := echo.New()
@@ -968,7 +981,7 @@ func TestSharedResponsibilityRollup(t *testing.T) {
 	require.Len(t, up.Provides[0].Responsibilities, 2)
 	require.True(t, up.Provides[0].Offered, "an offering item points at this provided-uuid")
 
-	require.Len(t, up.Legacy, 1)
+	require.Len(t, up.Legacy, 1, "only the by-component actually carrying an export is debt")
 	require.Equal(t, *legacyBC.ID, up.Legacy[0].ByComponentUUID)
 	require.Equal(t, "requirement-anchored export", up.Legacy[0].Reason)
 
@@ -1015,6 +1028,10 @@ func TestSharedResponsibilityFiltersByControl(t *testing.T) {
 		ctx.SetParamNames("id")
 		ctx.SetParamValues(sspID.String())
 		require.NoError(t, h.SharedResponsibility(ctx))
+		// Without this, an error response still returns nil from the handler and its JSON body
+		// unmarshals into a ZERO-VALUE rollup — so every "Empty" assertion below would pass just
+		// as happily on a 500 as on a correctly-filtered 200.
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 
 		var resp handler.GenericDataResponse[SharedResponsibilityRollup]
 		require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
@@ -1083,7 +1100,7 @@ func TestInheritedResponsibleRolesSurviveCreateUpdateAndClearOnDelete(t *testing
 		"provided-uuid": %q,
 		"description": "inherited with roles",
 		"responsible-roles": [{"role-id": "provider", "party-uuids": [%q]}]
-	}`, uuid.New().String(), partyID.String())
+	}`, fx.providedID.String(), partyID.String())
 
 	ctx, rec := newByComponentContext(http.MethodPost, createBody, fx.upstreamSSPID, fx.requirementID, fx.statementID, fx.byComponentID)
 	require.NoError(t, h.CreateImplementedRequirementStatementByComponentInherited(ctx))
@@ -1524,4 +1541,149 @@ func TestOfferingItemStoresCanonicalControlIdCasing(t *testing.T) {
 		Where("control_implementation_id = ?", downstreamImpl.ID).Count(&count).Error)
 	require.Equal(t, int64(1), count,
 		"subscribe must reuse the downstream's existing ac-2 requirement, not insert a case-variant duplicate")
+}
+
+// TestSharedResponsibilityLegacyExcludesOrdinaryImplementations: a requirement-anchored
+// by-component that carries no export, no inherited and no satisfied row is NOT legacy debt — it
+// is the ordinary OSCAL shape for "this component implements this control", and every SSP created
+// or imported through POST /api/oscal/import is full of them. Reporting those would hand the UI an
+// SSP's entire control implementation as debt and invite the user to delete their own work.
+func TestSharedResponsibilityLegacyExcludesOrdinaryImplementations(t *testing.T) {
+	db := newSSPLeverageTestDB(t)
+	fx := newSharedResponsibilityFixture(t, db)
+	h := newSSPHandler(db)
+
+	requirementsType := "implemented_requirements"
+	newLegacyBC := func(desc string) relational.ByComponent {
+		bc := relational.ByComponent{
+			ParentID: &fx.requirementID, ParentType: &requirementsType,
+			ComponentUUID: uuid.New(), Description: desc,
+		}
+		require.NoError(t, db.Create(&bc).Error)
+		return bc
+	}
+
+	// Three ordinary requirement-level implementations — the shape a normal imported SSP is full of.
+	ordinaryA := newLegacyBC("ordinary a")
+	newLegacyBC("ordinary b")
+	newLegacyBC("ordinary c")
+
+	// One that carries an export, and one that carries only consumer-side rows.
+	withExport := newLegacyBC("carries an export")
+	require.NoError(t, db.Create(&relational.Export{ByComponentId: *withExport.ID}).Error)
+
+	withInherited := newLegacyBC("carries an inherited entry")
+	require.NoError(t, db.Create(&relational.InheritedControlImplementation{
+		ByComponentId: *withInherited.ID, ProvidedUuid: uuid.New(), Description: "inherited",
+	}).Error)
+
+	withSatisfied := newLegacyBC("carries a satisfied entry")
+	require.NoError(t, db.Create(&relational.SatisfiedControlImplementationResponsibility{
+		ByComponentId: *withSatisfied.ID, ResponsibilityUuid: uuid.New(), Description: "satisfied",
+	}).Error)
+
+	e := echo.New()
+	rec := httptest.NewRecorder()
+	ctx := e.NewContext(httptest.NewRequest(http.MethodGet, "/", nil), rec)
+	ctx.SetParamNames("id")
+	ctx.SetParamValues(fx.upstreamSSPID.String())
+	require.NoError(t, h.SharedResponsibility(ctx))
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	var resp handler.GenericDataResponse[SharedResponsibilityRollup]
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
+
+	reported := make(map[uuid.UUID]string, len(resp.Data.Legacy))
+	for _, l := range resp.Data.Legacy {
+		reported[l.ByComponentUUID] = l.Reason
+	}
+
+	require.Len(t, resp.Data.Legacy, 3, "only the three by-components actually carrying shared responsibility are debt")
+	require.Equal(t, "requirement-anchored export", reported[*withExport.ID])
+	require.Equal(t, "requirement-anchored inherited/satisfied", reported[*withInherited.ID])
+	require.Equal(t, "requirement-anchored inherited/satisfied", reported[*withSatisfied.ID])
+
+	require.NotContains(t, reported, *ordinaryA.ID,
+		"an ordinary requirement-level implementation is not shared-responsibility debt")
+}
+
+// TestCreateInheritedRejectsUnresolvableProvidedUuid: a well-formed but unresolvable provided-uuid
+// creates an inert row — inheritableResponsibilities resolves nothing for it, so no satisfied entry
+// can ever be accepted against it, yet it reads back as a real inherited capability. The satisfied
+// POST already validates its responsibility-uuid this way; this closes the same gap one layer down.
+func TestCreateInheritedRejectsUnresolvableProvidedUuid(t *testing.T) {
+	db := newSSPLeverageTestDB(t)
+	fx := newSharedResponsibilityFixture(t, db)
+	h := newSSPHandler(db)
+
+	body := fmt.Sprintf(`{"provided-uuid": %q, "description": "points at nothing"}`, uuid.New().String())
+	ctx, rec := newByComponentContext(http.MethodPost, body, fx.upstreamSSPID, fx.requirementID, fx.statementID, fx.byComponentID)
+	require.NoError(t, h.CreateImplementedRequirementStatementByComponentInherited(ctx))
+
+	require.Equal(t, http.StatusBadRequest, rec.Code)
+	require.Contains(t, rec.Body.String(), "does not resolve")
+	require.Zero(t, countRows(t, db, &relational.InheritedControlImplementation{}, "by_component_id = ?", fx.byComponentID))
+
+	// A provided-uuid that does resolve is accepted.
+	body = fmt.Sprintf(`{"provided-uuid": %q, "description": "real"}`, fx.providedID.String())
+	ctx, rec = newByComponentContext(http.MethodPost, body, fx.upstreamSSPID, fx.requirementID, fx.statementID, fx.byComponentID)
+	require.NoError(t, h.CreateImplementedRequirementStatementByComponentInherited(ctx))
+	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+	require.Equal(t, int64(1), countRows(t, db, &relational.InheritedControlImplementation{}, "by_component_id = ?", fx.byComponentID))
+}
+
+// TestSubscribeStoresSatisfactionAgreeingWithTheProjection: deriveSatisfaction is shared, but its
+// INPUT used to differ — Subscribe saw only the responsibilities this request asked to satisfy,
+// while every reader recomputes from all satisfied rows on the by-component. A pre-existing
+// hand-authored satisfied row therefore made the stored value ("partial") disagree with what the
+// projection reports ("full"), and the stored value is what the drift detector consumes.
+func TestSubscribeStoresSatisfactionAgreeingWithTheProjection(t *testing.T) {
+	db := newSSPLeverageTestDB(t)
+	fx := newSharedResponsibilityFixture(t, db)
+
+	// The downstream already hand-authored the whole tree for this statement, satisfying BOTH of
+	// the upstream's responsibilities — no leverage link, so the duplicate-link pre-check is silent.
+	var downstreamImpl relational.ControlImplementation
+	require.NoError(t, db.First(&downstreamImpl, "system_security_plan_id = ?", fx.downstreamSSPID).Error)
+	var downstreamSysImpl relational.SystemImplementation
+	require.NoError(t, db.First(&downstreamSysImpl, "system_security_plan_id = ?", fx.downstreamSSPID).Error)
+
+	thisSystem := relational.SystemComponent{
+		Type: thisSystemComponentType, Title: "This System",
+		SystemImplementationId: *downstreamSysImpl.ID,
+	}
+	require.NoError(t, db.Create(&thisSystem).Error)
+
+	req := relational.ImplementedRequirement{ControlImplementationId: *downstreamImpl.ID, ControlId: "ac-2"}
+	require.NoError(t, db.Create(&req).Error)
+	stmt := relational.Statement{ImplementedRequirementId: *req.ID, StatementId: "ac-2_smt.a"}
+	require.NoError(t, db.Create(&stmt).Error)
+
+	statementsType := "statements"
+	bc := relational.ByComponent{ParentID: stmt.ID, ParentType: &statementsType, ComponentUUID: *thisSystem.ID}
+	require.NoError(t, db.Create(&bc).Error)
+
+	for _, respID := range []uuid.UUID{fx.respAID, fx.respBID} {
+		require.NoError(t, db.Create(&relational.SatisfiedControlImplementationResponsibility{
+			ByComponentId: *bc.ID, ResponsibilityUuid: respID, Description: "hand-authored",
+		}).Error)
+	}
+
+	// Subscribe WITHOUT naming any responsibility to satisfy: the request's own satisfied set is
+	// empty, so the old code would have stored "partial".
+	link, _ := subscribeFixture(t, db, fx)
+
+	var stored relational.SSPLeverageLink
+	require.NoError(t, db.First(&stored, "id = ?", link.ID).Error)
+
+	projection, err := projectLeveragedControls(db, fx.downstreamSSPID)
+	require.NoError(t, err)
+	require.Len(t, projection, 1)
+
+	require.Equal(t, relational.SSPLeverageSatisfactionFull, projection[0].Satisfaction,
+		"the reader sees both responsibilities covered by the pre-existing satisfied rows")
+	require.Equal(t, projection[0].Satisfaction, stored.Satisfaction,
+		"the value Subscribe stored — what the drift detector reads — must agree with the projection")
+	require.Equal(t, projection[0].Satisfaction, link.Satisfaction,
+		"and the subscribe response must report what was actually committed")
 }

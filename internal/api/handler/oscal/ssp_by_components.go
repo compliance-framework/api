@@ -455,8 +455,23 @@ func (h *SystemSecurityPlanHandler) CreateImplementedRequirementStatementByCompo
 	if oscalInherited.ProvidedUuid == "" {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("provided-uuid is required")))
 	}
-	if _, err := uuid.Parse(oscalInherited.ProvidedUuid); err != nil {
+	providedUUID, err := uuid.Parse(oscalInherited.ProvidedUuid)
+	if err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("provided-uuid must be a valid UUID")))
+	}
+	// Well-formed is not enough: it has to resolve. An inherited row pointing at a
+	// ProvidedControlImplementation that doesn't exist is inert — inheritableResponsibilities
+	// resolves nothing for it, so no satisfied entry can ever be accepted against it — yet it
+	// still reads back as a real inherited capability. Same class of defect the offering-item
+	// coherence check rejects, one layer down. The satisfied POST already validates its
+	// responsibility-uuid this way.
+	if err := h.db.First(&relational.ProvidedControlImplementation{}, "id = ?", providedUUID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf(
+				"provided-uuid %q does not resolve to a provided control implementation", providedUUID)))
+		}
+		h.sugar.Errorf("Failed to resolve provided control implementation: %v", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
 	relInherited := &relational.InheritedControlImplementation{}

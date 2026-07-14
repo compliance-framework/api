@@ -75,14 +75,20 @@ type SharedResponsibilitySatisfies struct {
 	ResponsibleRoles []oscalTypes_1_1_3.ResponsibleRole `json:"responsibleRoles"`
 }
 
-// SharedResponsibilityLegacy is one requirement-anchored by-component still carrying shared
-// responsibility. These can't be expressed in the statement-anchored model, so they're
-// surfaced explicitly rather than silently dropped: they are exactly the rows the
-// requirement-level DELETE exists to wind down.
+// SharedResponsibilityLegacy is one requirement-anchored by-component that ACTUALLY CARRIES
+// shared responsibility — it has an export, an inherited entry, or a satisfied entry. These
+// can't be expressed in the statement-anchored model, so they're surfaced explicitly rather than
+// silently dropped: they are exactly the rows the requirement-level DELETE exists to wind down.
+//
+// A requirement-anchored by-component with none of those is NOT reported: it is the ordinary
+// OSCAL shape for "this component implements this control", which every normal SSP is full of,
+// and calling it legacy debt would invite the user to delete their own control implementation.
 type SharedResponsibilityLegacy struct {
 	ControlID       string    `json:"controlId"`
 	ByComponentUUID uuid.UUID `json:"byComponentUuid"`
-	Reason          string    `json:"reason"`
+	// Reason is "requirement-anchored export", or "requirement-anchored inherited/satisfied" when
+	// the by-component carries consumer-side rows but no export of its own.
+	Reason string `json:"reason"`
 }
 
 // SharedResponsibilityRollup is everything one SSP provides, inherits and satisfies —
@@ -234,6 +240,24 @@ func (h *SystemSecurityPlanHandler) collectOwnedSharedResponsibility(rollup *Sha
 		Find(&satisfiedRows).Error; err != nil {
 		return err
 	}
+	satisfiedByComponent := make(map[uuid.UUID]bool, len(satisfiedRows))
+	for i := range satisfiedRows {
+		satisfiedByComponent[satisfiedRows[i].ByComponentId] = true
+	}
+
+	// Presence only — used to tell a requirement-anchored by-component that carries shared
+	// responsibility (real legacy debt) from one that is merely an ordinary control implementation.
+	var inheritedRows []relational.InheritedControlImplementation
+	if err := h.db.
+		Select("id, by_component_id").
+		Where("by_component_id IN ?", byComponentIDs).
+		Find(&inheritedRows).Error; err != nil {
+		return err
+	}
+	inheritedByComponent := make(map[uuid.UUID]bool, len(inheritedRows))
+	for i := range inheritedRows {
+		inheritedByComponent[inheritedRows[i].ByComponentId] = true
+	}
 
 	componentUUIDs := uniqueUUIDs(byComponents, func(bc relational.ByComponent) uuid.UUID { return bc.ComponentUUID })
 	var components []relational.SystemComponent
@@ -299,10 +323,28 @@ func (h *SystemSecurityPlanHandler) collectOwnedSharedResponsibility(rollup *Sha
 		}
 
 		if a.legacy {
+			// Only a requirement-anchored by-component that ACTUALLY CARRIES shared responsibility
+			// is legacy debt. A requirement-anchored by-component with no export, no inherited and
+			// no satisfied row is just the ordinary OSCAL shape for "this component implements this
+			// control" — ImplementedRequirement.ByComponents is a first-class association, and every
+			// normal SSP created or imported through POST /api/oscal/import is full of them.
+			// Reporting those would hand the UI an SSP's entire control implementation as debt and
+			// invite the user to wind down their own work.
+			_, hasExport := exportByComponent[*bc.ID]
+			hasInherited := inheritedByComponent[*bc.ID]
+			hasSatisfied := satisfiedByComponent[*bc.ID]
+			if !hasExport && !hasInherited && !hasSatisfied {
+				continue
+			}
+
+			reason := "requirement-anchored export"
+			if !hasExport {
+				reason = "requirement-anchored inherited/satisfied"
+			}
 			rollup.Legacy = append(rollup.Legacy, SharedResponsibilityLegacy{
 				ControlID:       a.controlID,
 				ByComponentUUID: *bc.ID,
-				Reason:          "requirement-anchored export",
+				Reason:          reason,
 			})
 			continue
 		}

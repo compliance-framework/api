@@ -16213,7 +16213,7 @@
         },
         "/oscal/ssp-export-offerings/by-control/{controlId}": {
             "get": {
-                "description": "Cross-SSP catalog of what is exported for a control, by whom, and against\nwhich statement — every published offering item whose control-id matches\n(case-insensitively), with the offering, upstream SSP, component, provided\ncapability and responsibility set all resolved server-side. Honours the same\ntrust boundary as the flat catalog: gated by ssp-export-offering:read only,\nnever ssp:read on the upstream SSP. Pass downstreamSspId to narrow the result\nto offerings that SSP is actually allow-listed to subscribe to (BCH-1342).",
+                "description": "Cross-SSP catalog of what is exported for a control, by whom, and against\nwhich statement — every published offering item whose control-id matches\n(case-insensitively), with the offering, upstream SSP, component, provided\ncapability and responsibility set all resolved server-side. Honours the same\ntrust boundary as the flat catalog: gated by ssp-export-offering:read only,\nnever ssp:read on the upstream SSP. Pass downstreamSspId to narrow the result\nto offerings that SSP is actually allow-listed to subscribe to (BCH-1342).\n\ndownstreamSspId is a CONVENIENCE FILTER, not an authorization boundary: no\npermission is evaluated against the SSP it names — unlike Subscribe, which\nevaluates ssp:update on the downstream precisely because that id arrives in the\npayload rather than the URL. The filter cannot surface an offering the caller\ncould not already list; it only removes rows. It does mean a catalog reader can\ninfer an offering's allow-list membership by diffing the filtered and unfiltered\nresponses. That is an accepted trade-off, decided rather than inherited by\nomission: allow-list membership (who may leverage whom) is treated as\nnon-confidential topology, and a per-request PDP round-trip on a read path is not\nworth paying to hide it. If it ever must be confidential, evaluate ssp:read on\ndownstreamSspId here the way Subscribe does.",
                 "produces": [
                     "application/json"
                 ],
@@ -39991,6 +39991,7 @@
                     "type": "string"
                 },
                 "reason": {
+                    "description": "Reason is \"requirement-anchored export\", or \"requirement-anchored inherited/satisfied\" when\nthe by-component carries consumer-side rows but no export of its own.",
                     "type": "string"
                 }
             }

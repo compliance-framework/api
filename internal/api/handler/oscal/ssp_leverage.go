@@ -815,7 +815,28 @@ func (h *SSPLeverageHandler) Subscribe(ctx echo.Context) error {
 				}
 				return err
 			}
+
+			// deriveSatisfaction is shared, but its *input* was not: the satisfaction computed
+			// above sees only the responsibilities THIS request asked to satisfy, while every
+			// reader recomputes from ALL satisfied rows on the by-component. Those disagree when
+			// the by-component already carries a hand-authored satisfied row for one of this
+			// provided-uuid's responsibilities — the link would store "partial" while the
+			// projection reports "full", and the stored value is what the drift detector and the
+			// notification path consume. Re-deriving through the same helper the satisfied
+			// CRUD uses makes the "derived in exactly one place" claim literally true.
+			if err := resyncLeverageSatisfaction(tx, downstreamSSPID, *byComponent.ID); err != nil {
+				return err
+			}
+
 			links = append(links, link)
+		}
+
+		// The links slice was built from the pre-resync values; re-read so the response reports
+		// what was actually committed.
+		for i := range links {
+			if err := tx.First(&links[i], "id = ?", links[i].ID).Error; err != nil {
+				return err
+			}
 		}
 		return nil
 	}); err != nil {

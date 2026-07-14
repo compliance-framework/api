@@ -147,9 +147,19 @@ func TestStatementLevelInheritedAndSatisfiedRoutesExist(t *testing.T) {
 
 	// Inherited/Satisfied describe the downstream half of the export -> inherit -> satisfy loop,
 	// which is anchored on a statement — there is deliberately no requirement-level surface.
-	for _, suffix := range []string{"/inherited", "/satisfied"} {
+	//
+	// Assert BOTH the collection and the item shapes. A requirement-level PUT/DELETE would be
+	// registered at .../inherited/:inheritedId, never at .../inherited — so asserting PUT/DELETE
+	// only against the collection path proves nothing, and would keep passing even if someone
+	// added the item routes, which is the exact regression this guard exists to prevent.
+	for _, path := range []string{
+		requirementBC + "/inherited",
+		requirementBC + "/inherited/:inheritedId",
+		requirementBC + "/satisfied",
+		requirementBC + "/satisfied/:satisfiedId",
+	} {
 		for _, method := range []string{"GET", "POST", "PUT", "DELETE"} {
-			require.NotContains(t, routes, method+" "+requirementBC+suffix)
+			require.NotContains(t, routes, method+" "+path)
 		}
 	}
 }
