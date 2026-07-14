@@ -17312,7 +17312,7 @@ const docTemplate = `{
                 }
             },
             "delete": {
-                "description": "Deletes an existing implemented requirement for a given SSP.",
+                "description": "Deletes an existing implemented requirement for a given SSP.\n\nCascades through every by-component beneath the requirement, so it returns 409\nif any inherited entry under it is owned by a leverage subscription.",
                 "tags": [
                     "System Security Plans"
                 ],
@@ -17345,6 +17345,12 @@ const docTemplate = `{
                     },
                     "404": {
                         "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
                         "schema": {
                             "$ref": "#/definitions/api.Error"
                         }
@@ -17567,7 +17573,7 @@ const docTemplate = `{
                 ]
             },
             "delete": {
-                "description": "Deprecated: requirement-anchored by-components are legacy. This delete exists\npurely so legacy and orphaned requirement-anchored rows can be wound down —\nthere is deliberately no requirement-level POST to create new ones.\n\nCascades exactly like the statement-level delete: the by-component's own\nresponsible-roles, its inherited and satisfied entries (each with their\nresponsible-roles), and its export with nested provided/responsibilities are all\nremoved, along with the responsible_role_parties join rows.",
+                "description": "Deprecated: requirement-anchored by-components are legacy. This delete exists\npurely so legacy and orphaned requirement-anchored rows can be wound down —\nthere is deliberately no requirement-level POST to create new ones.\n\nCascades exactly like the statement-level delete: the by-component's own\nresponsible-roles, its inherited and satisfied entries (each with their\nresponsible-roles), and its export with nested provided/responsibilities are all\nremoved, along with the responsible_role_parties join rows.\n\nReturns 409 if any of the by-component's inherited entries is owned by a\nleverage subscription — deleting the parent must not be a way around the same\nguard the inherited sub-resource DELETE enforces. Unsubscribe first.",
                 "tags": [
                     "System Security Plans"
                 ],
@@ -17608,6 +17614,12 @@ const docTemplate = `{
                     },
                     "404": {
                         "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
                         "schema": {
                             "$ref": "#/definitions/api.Error"
                         }
@@ -19068,7 +19080,7 @@ const docTemplate = `{
                 ]
             },
             "delete": {
-                "description": "Deletes a by-component within an existing statement within an implemented requirement for a given SSP.",
+                "description": "Deletes a by-component within an existing statement within an implemented requirement for a given SSP.\n\nReturns 409 if any of the by-component's inherited entries is owned by a\nleverage subscription — deleting the parent must not be a way around the same\nguard the inherited sub-resource DELETE enforces. Unsubscribe first.",
                 "consumes": [
                     "application/json"
                 ],
@@ -19124,6 +19136,12 @@ const docTemplate = `{
                     },
                     "404": {
                         "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
                         "schema": {
                             "$ref": "#/definitions/api.Error"
                         }

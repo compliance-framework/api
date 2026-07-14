@@ -203,6 +203,10 @@ func (h *SystemSecurityPlanHandler) resolveStatement(ctx echo.Context) (stmt *re
 //	@Description	responsible-roles, its inherited and satisfied entries (each with their
 //	@Description	responsible-roles), and its export with nested provided/responsibilities are all
 //	@Description	removed, along with the responsible_role_parties join rows.
+//	@Description
+//	@Description	Returns 409 if any of the by-component's inherited entries is owned by a
+//	@Description	leverage subscription — deleting the parent must not be a way around the same
+//	@Description	guard the inherited sub-resource DELETE enforces. Unsubscribe first.
 //	@Tags			System Security Plans
 //	@Param			id				path	string	true	"SSP ID"
 //	@Param			reqId			path	string	true	"Requirement ID"
@@ -210,6 +214,7 @@ func (h *SystemSecurityPlanHandler) resolveStatement(ctx echo.Context) (stmt *re
 //	@Success		204				"No Content"
 //	@Failure		400				{object}	api.Error
 //	@Failure		404				{object}	api.Error
+//	@Failure		409				{object}	api.Error
 //	@Failure		500				{object}	api.Error
 //	@Deprecated
 //	@Security	OAuth2Password
@@ -223,6 +228,9 @@ func (h *SystemSecurityPlanHandler) DeleteImplementedRequirementByComponent(ctx 
 	if err := h.db.Transaction(func(tx *gorm.DB) error {
 		return deleteByComponentCascade(tx, *bc.ID)
 	}); err != nil {
+		if errors.Is(err, errInheritedOwnedBySubscription) {
+			return ctx.JSON(http.StatusConflict, api.NewError(err))
+		}
 		h.sugar.Errorf("Failed to delete by-component: %v", err)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
@@ -459,7 +467,7 @@ func (h *SystemSecurityPlanHandler) CreateImplementedRequirementStatementByCompo
 		// Same advisory-lock guard the Export create uses: nothing in the schema stops two
 		// concurrent creates from racing on the same by-component, and the satisfaction
 		// re-derivation below reads the rows this write produces.
-		if err := lockByComponentSubtreeCreate(tx, *bc.ID); err != nil {
+		if err := lockByComponentSubtreeWrite(tx, *bc.ID); err != nil {
 			return err
 		}
 		return tx.Create(relInherited).Error
@@ -722,7 +730,7 @@ func (h *SystemSecurityPlanHandler) CreateImplementedRequirementStatementByCompo
 	relSatisfied.ByComponentId = *bc.ID
 
 	if err := h.db.Transaction(func(tx *gorm.DB) error {
-		if err := lockByComponentSubtreeCreate(tx, *bc.ID); err != nil {
+		if err := lockByComponentSubtreeWrite(tx, *bc.ID); err != nil {
 			return err
 		}
 		if err := tx.Create(relSatisfied).Error; err != nil {
@@ -870,6 +878,15 @@ func (h *SystemSecurityPlanHandler) DeleteImplementedRequirementStatementByCompo
 	}
 
 	if err := h.db.Transaction(func(tx *gorm.DB) error {
+		// Same lock the satisfied CREATE takes, and for the same reason: this transaction is a
+		// read-modify-write over the by-component's satisfied set (delete a row, then re-derive
+		// the owning link's Satisfaction from what remains). If only the create side locked, a
+		// concurrent create and delete would each compute satisfaction from a snapshot taken
+		// before the other's write was visible, and the second UPDATE would overwrite the first
+		// with a stale value.
+		if err := lockByComponentSubtreeWrite(tx, *bc.ID); err != nil {
+			return err
+		}
 		if err := deleteResponsibleRoles(tx, existing.ResponsibleRoles); err != nil {
 			return err
 		}

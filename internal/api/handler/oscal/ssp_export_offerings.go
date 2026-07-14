@@ -545,7 +545,14 @@ func (r createExportOfferingItemRequest) validate() error {
 // resolveItemImplementationStatuses walks the first half of the same chain, but only ever
 // projects the ByComponent's implementation-status out of it — it discards the parent
 // identities this check exists to compare — so the walk is done explicitly here.
-func (h *SSPExportOfferingHandler) validateOfferingItemCoherence(sspID uuid.UUID, req createExportOfferingItemRequest) error {
+//
+// It also NORMALIZES req.ControlID to the requirement's catalog-canonical casing (hence the
+// pointer). Control-ids are matched case-insensitively but stored canonically; without this the
+// item would persist the client's casing, and Subscribe's findOrCreateImplementedRequirement —
+// which matches control_id EXACTLY — would miss a downstream requirement that differs only in
+// case and insert a duplicate, splitting the downstream's tree across two requirement rows for
+// the same control.
+func (h *SSPExportOfferingHandler) validateOfferingItemCoherence(sspID uuid.UUID, req *createExportOfferingItemRequest) error {
 	providedUUID := uuid.MustParse(req.ProvidedUUID)
 	componentUUID := uuid.MustParse(req.ComponentUUID)
 
@@ -587,8 +594,14 @@ func (h *SSPExportOfferingHandler) validateOfferingItemCoherence(sspID uuid.UUID
 		}
 		return err
 	}
+	// Statement-ids are compared byte-exactly, unlike control-ids below. That asymmetry is
+	// deliberate: a statement-id is a free-form OSCAL identifier the SSP author coins, with no
+	// catalog-canonical form to fold toward, and findOrCreateStatement matches it exactly — so
+	// accepting a case variant here would create exactly the split this function prevents for
+	// control-ids. Control-ids, by contrast, DO have a canonical catalog casing, which is why
+	// they fold on compare and are normalized on store.
 	if statement.StatementId != *req.StatementID {
-		return fmt.Errorf("statementId %q does not match the statement exporting providedUuid %q", *req.StatementID, req.ProvidedUUID)
+		return fmt.Errorf("statementId %q does not match the statement exporting providedUuid %q (statement-ids are matched exactly)", *req.StatementID, req.ProvidedUUID)
 	}
 
 	var requirement relational.ImplementedRequirement
@@ -601,6 +614,9 @@ func (h *SSPExportOfferingHandler) validateOfferingItemCoherence(sspID uuid.UUID
 	if !strings.EqualFold(requirement.ControlId, req.ControlID) {
 		return fmt.Errorf("controlId %q does not match the control exporting providedUuid %q", req.ControlID, req.ProvidedUUID)
 	}
+	// Adopt the requirement's catalog-canonical casing, so the item stores the same bytes
+	// findOrCreateImplementedRequirement will later match on exactly.
+	req.ControlID = requirement.ControlId
 
 	var ssp relational.SystemSecurityPlan
 	if err := h.db.Preload("ControlImplementation").First(&ssp, "id = ?", sspID).Error; err != nil {
@@ -645,7 +661,7 @@ func (h *SSPExportOfferingHandler) CreateItem(ctx echo.Context) error {
 	if err := req.validate(); err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
-	if err := h.validateOfferingItemCoherence(offering.SSPID, req); err != nil {
+	if err := h.validateOfferingItemCoherence(offering.SSPID, &req); err != nil {
 		h.sugar.Warnw("Incoherent export offering item", "offeringId", offering.ID, "error", err)
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
@@ -710,7 +726,7 @@ func (h *SSPExportOfferingHandler) UpdateItem(ctx echo.Context) error {
 	if err := req.validate(); err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
-	if err := h.validateOfferingItemCoherence(offering.SSPID, req); err != nil {
+	if err := h.validateOfferingItemCoherence(offering.SSPID, &req); err != nil {
 		h.sugar.Warnw("Incoherent export offering item", "offeringId", offering.ID, "itemId", itemID, "error", err)
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}

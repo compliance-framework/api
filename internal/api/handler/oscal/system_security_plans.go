@@ -3823,12 +3823,16 @@ func (h *SystemSecurityPlanHandler) UpdateImplementedRequirementByComponent(ctx 
 //
 //	@Summary		Delete an implemented requirement from a SSP
 //	@Description	Deletes an existing implemented requirement for a given SSP.
+//	@Description
+//	@Description	Cascades through every by-component beneath the requirement, so it returns 409
+//	@Description	if any inherited entry under it is owned by a leverage subscription.
 //	@Tags			System Security Plans
 //	@Param			id		path	string	true	"SSP ID"
 //	@Param			reqId	path	string	true	"Requirement ID"
 //	@Success		204		"No Content"
 //	@Failure		400		{object}	api.Error
 //	@Failure		404		{object}	api.Error
+//	@Failure		409		{object}	api.Error
 //	@Failure		500		{object}	api.Error
 //	@Router			/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId} [delete]
 func (h *SystemSecurityPlanHandler) DeleteImplementedRequirement(ctx echo.Context) error {
@@ -3894,6 +3898,11 @@ func (h *SystemSecurityPlanHandler) DeleteImplementedRequirement(ctx echo.Contex
 		}
 		return tx.Delete(&req).Error
 	}); err != nil {
+		// Deleting a requirement cascades through every by-component beneath it, so it inherits
+		// the same subscription guard: it cannot be used as a back door around the 409.
+		if errors.Is(err, errInheritedOwnedBySubscription) {
+			return ctx.JSON(http.StatusConflict, api.NewError(err))
+		}
 		h.sugar.Errorf("Failed to delete implemented requirement: %v", err)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
@@ -4523,6 +4532,10 @@ func (h *SystemSecurityPlanHandler) reloadByComponent(byComponentID uuid.UUID) (
 //
 //	@Summary		Delete a by-component within a statement (within an implemented requirement)
 //	@Description	Deletes a by-component within an existing statement within an implemented requirement for a given SSP.
+//	@Description
+//	@Description	Returns 409 if any of the by-component's inherited entries is owned by a
+//	@Description	leverage subscription — deleting the parent must not be a way around the same
+//	@Description	guard the inherited sub-resource DELETE enforces. Unsubscribe first.
 //	@Tags			System Security Plans
 //	@Accept			json
 //	@Produce		json
@@ -4533,6 +4546,7 @@ func (h *SystemSecurityPlanHandler) reloadByComponent(byComponentID uuid.UUID) (
 //	@Success		200				{object}	handler.GenericDataResponse[oscalTypes_1_1_3.ByComponent]
 //	@Failure		400				{object}	api.Error
 //	@Failure		404				{object}	api.Error
+//	@Failure		409				{object}	api.Error
 //	@Failure		500				{object}	api.Error
 //	@Router			/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/statements/{stmtId}/by-components/{byComponentId} [delete]
 func (h *SystemSecurityPlanHandler) DeleteImplementedRequirementStatementByComponent(ctx echo.Context) error {
@@ -4608,6 +4622,9 @@ func (h *SystemSecurityPlanHandler) DeleteImplementedRequirementStatementByCompo
 	if err := h.db.Transaction(func(tx *gorm.DB) error {
 		return deleteByComponentCascade(tx, *existing.ID)
 	}); err != nil {
+		if errors.Is(err, errInheritedOwnedBySubscription) {
+			return ctx.JSON(http.StatusConflict, api.NewError(err))
+		}
 		h.sugar.Errorf("Failed to delete by-component: %v", err)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
@@ -4876,7 +4893,7 @@ func (h *SystemSecurityPlanHandler) createByComponentExport(ctx echo.Context, bc
 		// Export.ByComponentId has no unique DB constraint (this ticket makes no
 		// schema change), so an advisory lock keyed on the by-component closes the
 		// race between the existence check and the insert for concurrent creates.
-		if err := lockByComponentSubtreeCreate(tx, *bc.ID); err != nil {
+		if err := lockByComponentSubtreeWrite(tx, *bc.ID); err != nil {
 			return err
 		}
 
@@ -4905,18 +4922,28 @@ func (h *SystemSecurityPlanHandler) createByComponentExport(ctx echo.Context, bc
 	return ctx.JSON(http.StatusCreated, handler.GenericDataResponse[oscalTypes_1_1_3.Export]{Data: *created.MarshalOscal()})
 }
 
-// lockByComponentSubtreeCreate serializes concurrent creates under the same by-component — its
+// lockByComponentSubtreeWrite serializes concurrent WRITES to one by-component's subtree — its
 // singleton Export, and its Inherited/Satisfied entries — with a transaction-scoped Postgres
-// advisory lock keyed on the by-component's UUID. Nothing in the schema enforces
-// exports.by_component_id uniqueness, and the satisfaction re-derivation a satisfied-write does
-// reads rows a concurrent write is producing, so both need the same guard.
+// advisory lock keyed on the by-component's UUID.
 //
-// The lock key string stays "export-create:" despite the now-wider scope: it is only meaningful
-// as a value all writers agree on, and changing it would stop old and new pods serializing
-// against each other during a rolling deploy.
+// Every writer that participates in a read-modify-write over that subtree must take it, not just
+// the creates: nothing in the schema enforces exports.by_component_id uniqueness, and both the
+// satisfied CREATE and the satisfied DELETE re-derive SSPLeverageLink.Satisfaction from the
+// satisfied set they just changed. If only one side locked, the lock would serialize
+// create-vs-create and nothing else, and a concurrent create and delete could each compute
+// satisfaction from a snapshot taken before the other's write was visible — the SET value is
+// computed in Go, so the second UPDATE would simply overwrite the first with a stale value (a
+// plain lost update). The cached Satisfaction is what the drift detector and the notification
+// path read, which is the whole reason resyncLeverageSatisfaction exists.
+//
+// (Named "...Create" until a delete needed it too — the name is why it got missed.)
+//
+// The lock key string stays "export-create:" despite the wider scope: it is only meaningful as a
+// value all writers agree on, and changing it would stop old and new pods serializing against
+// each other during a rolling deploy.
 //
 // It is a no-op against non-Postgres test drivers.
-func lockByComponentSubtreeCreate(tx *gorm.DB, byComponentID uuid.UUID) error {
+func lockByComponentSubtreeWrite(tx *gorm.DB, byComponentID uuid.UUID) error {
 	if tx.Name() != "postgres" {
 		return nil
 	}
@@ -5052,6 +5079,31 @@ func deleteByComponentCascade(tx *gorm.DB, byComponentID uuid.UUID) error {
 		Preload("Export.Responsibilities.ResponsibleRoles.Parties").
 		First(&bc, "id = ?", byComponentID).Error; err != nil {
 		return err
+	}
+
+	// An SSPLeverageLink must never be left pointing at nothing: the drift detector and the
+	// notification path both read through link.InheritedUUID, and InheritedUUID is a bare value
+	// with no FK, so nothing at the DB level stops the row vanishing underneath it.
+	//
+	// The guard lives HERE rather than in the inherited sub-resource DELETE alone, because every
+	// path that destroys a by-component destroys its Inherited rows with it — the statement-level
+	// and requirement-level by-component DELETEs, and the requirement DELETE that cascades through
+	// them. Guarding only the sub-resource route left the invariant trivially bypassable by
+	// deleting the parent instead. Callers map this to 409, same as the sub-resource route.
+	if len(bc.Inherited) > 0 {
+		inheritedIDs := make([]uuid.UUID, 0, len(bc.Inherited))
+		for i := range bc.Inherited {
+			inheritedIDs = append(inheritedIDs, *bc.Inherited[i].ID)
+		}
+		var linkCount int64
+		if err := tx.Model(&relational.SSPLeverageLink{}).
+			Where("inherited_uuid IN ?", inheritedIDs).
+			Count(&linkCount).Error; err != nil {
+			return err
+		}
+		if linkCount > 0 {
+			return errInheritedOwnedBySubscription
+		}
 	}
 
 	if err := deleteResponsibleRoles(tx, bc.ResponsibleRoles); err != nil {

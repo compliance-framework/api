@@ -23009,7 +23009,11 @@ paths:
       - System Security Plans
   /oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}:
     delete:
-      description: Deletes an existing implemented requirement for a given SSP.
+      description: |-
+        Deletes an existing implemented requirement for a given SSP.
+
+        Cascades through every by-component beneath the requirement, so it returns 409
+        if any inherited entry under it is owned by a leverage subscription.
       parameters:
       - description: SSP ID
         in: path
@@ -23030,6 +23034,10 @@ paths:
             $ref: '#/definitions/api.Error'
         "404":
           description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "409":
+          description: Conflict
           schema:
             $ref: '#/definitions/api.Error'
         "500":
@@ -23137,6 +23145,10 @@ paths:
         responsible-roles, its inherited and satisfied entries (each with their
         responsible-roles), and its export with nested provided/responsibilities are all
         removed, along with the responsible_role_parties join rows.
+
+        Returns 409 if any of the by-component's inherited entries is owned by a
+        leverage subscription — deleting the parent must not be a way around the same
+        guard the inherited sub-resource DELETE enforces. Unsubscribe first.
       parameters:
       - description: SSP ID
         in: path
@@ -23162,6 +23174,10 @@ paths:
             $ref: '#/definitions/api.Error'
         "404":
           description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "409":
+          description: Conflict
           schema:
             $ref: '#/definitions/api.Error'
         "500":
@@ -24211,8 +24227,12 @@ paths:
   : delete:
       consumes:
       - application/json
-      description: Deletes a by-component within an existing statement within an implemented
-        requirement for a given SSP.
+      description: |-
+        Deletes a by-component within an existing statement within an implemented requirement for a given SSP.
+
+        Returns 409 if any of the by-component's inherited entries is owned by a
+        leverage subscription — deleting the parent must not be a way around the same
+        guard the inherited sub-resource DELETE enforces. Unsubscribe first.
       parameters:
       - description: SSP ID
         in: path
@@ -24247,6 +24267,10 @@ paths:
             $ref: '#/definitions/api.Error'
         "404":
           description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "409":
+          description: Conflict
           schema:
             $ref: '#/definitions/api.Error'
         "500":

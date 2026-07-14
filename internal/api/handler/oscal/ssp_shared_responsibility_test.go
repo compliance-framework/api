@@ -206,29 +206,29 @@ func TestOfferingItemCoherenceRejectsIncoherentTuples(t *testing.T) {
 		ComponentUUID: fx.componentID.String(),
 		ProvidedUUID:  fx.providedID.String(),
 	}
-	require.NoError(t, h.validateOfferingItemCoherence(fx.upstreamSSPID, coherent))
+	require.NoError(t, h.validateOfferingItemCoherence(fx.upstreamSSPID, &coherent))
 
 	wrongControl := coherent
 	wrongControl.ControlID = "ac-3"
-	require.ErrorContains(t, h.validateOfferingItemCoherence(fx.upstreamSSPID, wrongControl), "controlId")
+	require.ErrorContains(t, h.validateOfferingItemCoherence(fx.upstreamSSPID, &wrongControl), "controlId")
 
 	wrongStatement := coherent
 	wrongStatement.StatementID = statementID("ac-2_smt.b")
-	require.ErrorContains(t, h.validateOfferingItemCoherence(fx.upstreamSSPID, wrongStatement), "statementId")
+	require.ErrorContains(t, h.validateOfferingItemCoherence(fx.upstreamSSPID, &wrongStatement), "statementId")
 
 	wrongComponent := coherent
 	wrongComponent.ComponentUUID = uuid.New().String()
-	require.ErrorContains(t, h.validateOfferingItemCoherence(fx.upstreamSSPID, wrongComponent), "componentUuid")
+	require.ErrorContains(t, h.validateOfferingItemCoherence(fx.upstreamSSPID, &wrongComponent), "componentUuid")
 
 	unknownProvided := coherent
 	unknownProvided.ProvidedUUID = uuid.New().String()
-	require.ErrorContains(t, h.validateOfferingItemCoherence(fx.upstreamSSPID, unknownProvided), "does not exist")
+	require.ErrorContains(t, h.validateOfferingItemCoherence(fx.upstreamSSPID, &unknownProvided), "does not exist")
 
 	// Coherent in itself, but belonging to a different SSP entirely.
 	otherSSP := relational.SystemSecurityPlan{}
 	require.NoError(t, db.Create(&otherSSP).Error)
 	require.NoError(t, db.Create(&relational.ControlImplementation{SystemSecurityPlanId: *otherSSP.ID}).Error)
-	require.ErrorContains(t, h.validateOfferingItemCoherence(*otherSSP.ID, coherent), "does not resolve inside this SSP")
+	require.ErrorContains(t, h.validateOfferingItemCoherence(*otherSSP.ID, &coherent), "does not resolve inside this SSP")
 }
 
 // TestOfferingItemCoherenceRejectsRequirementAnchoredProvided: a provided capability exported
@@ -249,7 +249,7 @@ func TestOfferingItemCoherenceRejectsRequirementAnchoredProvided(t *testing.T) {
 	legacyProvided := relational.ProvidedControlImplementation{ExportId: *legacyExport.ID}
 	require.NoError(t, db.Create(&legacyProvided).Error)
 
-	err := h.validateOfferingItemCoherence(fx.upstreamSSPID, createExportOfferingItemRequest{
+	err := h.validateOfferingItemCoherence(fx.upstreamSSPID, &createExportOfferingItemRequest{
 		ControlID:     "ac-2",
 		StatementID:   statementID("ac-2_smt.a"),
 		ComponentUUID: fx.componentID.String(),
@@ -1394,4 +1394,134 @@ func TestUpdateByComponentRejectsComponentUuidChange(t *testing.T) {
 	require.NoError(t, db.First(&stored, "id = ?", fx.byComponentID).Error)
 	require.Equal(t, fx.componentID, stored.ComponentUUID)
 	require.Equal(t, "renamed", stored.Description)
+}
+
+// --- the guard must hold on EVERY delete path, not just the sub-resource route -------------
+
+// TestDeletingByComponentWithSubscribedInheritedConflicts: the 409 that protects a
+// subscription-owned inherited entry must not be bypassable by deleting its PARENT. Every path
+// that destroys a by-component destroys its Inherited rows with it, and SSPLeverageLink.InheritedUUID
+// is a bare value with no FK — so an unguarded parent delete leaves the link pointing at nothing.
+//
+// A link with a dangling InheritedUUID is not merely untidy: projectLeveragedControls finds no
+// inherited row, falls back to the zero by-component id, and derives satisfaction against an empty
+// satisfied set — silently reporting `partial` with every responsibility outstanding on a link that
+// was fully satisfied. ReAttest, meanwhile, 500s on the missing row and the link can never be
+// re-attested.
+func TestDeletingByComponentWithSubscribedInheritedConflicts(t *testing.T) {
+	db := newSSPLeverageTestDB(t)
+	fx := newSharedResponsibilityFixture(t, db)
+
+	link, created := subscribeFixture(t, db, fx, fx.respAID)
+	reqID := created.ImplementedRequirements[0].UUID
+	stmtID := created.Statements[0].UUID
+	bcID := created.ByComponents[0].UUID
+
+	h := newSSPHandler(db)
+
+	// The statement-level by-component DELETE — this is the by-component Subscribe always creates.
+	ctx, rec := newByComponentContext(http.MethodDelete, "", fx.downstreamSSPID, reqID, stmtID, bcID)
+	require.NoError(t, h.DeleteImplementedRequirementStatementByComponent(ctx))
+	require.Equal(t, http.StatusConflict, rec.Code, rec.Body.String())
+	require.Contains(t, rec.Body.String(), "unsubscribe")
+
+	// The requirement DELETE, which cascades through every by-component beneath it.
+	e := echo.New()
+	rec = httptest.NewRecorder()
+	ctx = e.NewContext(httptest.NewRequest(http.MethodDelete, "/", nil), rec)
+	ctx.SetParamNames("id", "reqId")
+	ctx.SetParamValues(fx.downstreamSSPID.String(), reqID.String())
+	require.NoError(t, h.DeleteImplementedRequirement(ctx))
+	require.Equal(t, http.StatusConflict, rec.Code, rec.Body.String())
+
+	// Nothing was destroyed, and the link still resolves to its inherited row.
+	require.Equal(t, int64(1), countRows(t, db, &relational.ByComponent{}, "id = ?", bcID))
+	require.Equal(t, int64(1), countRows(t, db, &relational.InheritedControlImplementation{}, "id = ?", link.InheritedUUID))
+	require.Equal(t, int64(1), countRows(t, db, &relational.ImplementedRequirement{}, "id = ?", reqID))
+
+	projection, err := projectLeveragedControls(db, fx.downstreamSSPID)
+	require.NoError(t, err)
+	require.Len(t, projection, 1)
+	require.NotNil(t, projection[0].Inherited, "the link must still resolve to a live inherited row")
+	require.Equal(t, bcID, projection[0].ByComponentID)
+}
+
+// TestDeletingByComponentWithHandAuthoredInheritedSucceeds is the control for the test above: the
+// guard keys on an actual SSPLeverageLink, so a hand-authored inherited entry (no link) does not
+// block the delete — otherwise the cascade would be unusable.
+func TestDeletingByComponentWithHandAuthoredInheritedSucceeds(t *testing.T) {
+	db := newSSPLeverageTestDB(t)
+	fx := newSharedResponsibilityFixture(t, db)
+
+	inherited := relational.InheritedControlImplementation{
+		ByComponentId: fx.byComponentID, ProvidedUuid: uuid.New(), Description: "hand-authored",
+	}
+	require.NoError(t, db.Create(&inherited).Error)
+
+	h := newSSPHandler(db)
+	ctx, rec := newByComponentContext(http.MethodDelete, "", fx.upstreamSSPID, fx.requirementID, fx.statementID, fx.byComponentID)
+	require.NoError(t, h.DeleteImplementedRequirementStatementByComponent(ctx))
+	require.Equal(t, http.StatusNoContent, rec.Code, rec.Body.String())
+
+	require.Zero(t, countRows(t, db, &relational.ByComponent{}, "id = ?", fx.byComponentID))
+	require.Zero(t, countRows(t, db, &relational.InheritedControlImplementation{}, "id = ?", inherited.ID))
+}
+
+// TestOfferingItemStoresCanonicalControlIdCasing: coherence folds case when matching a control-id,
+// but the stored item must carry the requirement's catalog-canonical casing — because Subscribe's
+// findOrCreateImplementedRequirement matches control_id EXACTLY. Store the client's casing and a
+// downstream that already implements the control under the canonical casing gets a SECOND
+// requirement row, splitting its tree across two rows for the same control.
+func TestOfferingItemStoresCanonicalControlIdCasing(t *testing.T) {
+	db := newSSPLeverageTestDB(t)
+	fx := newSharedResponsibilityFixture(t, db)
+	h := NewSSPExportOfferingHandler(zap.NewNop().Sugar(), db, nil)
+
+	// The upstream requirement is stored as "ac-2"; the curator sends "AC-2".
+	req := createExportOfferingItemRequest{
+		ControlID:     "AC-2",
+		StatementID:   statementID("ac-2_smt.a"),
+		ComponentUUID: fx.componentID.String(),
+		ProvidedUUID:  fx.providedID.String(),
+	}
+	require.NoError(t, h.validateOfferingItemCoherence(fx.upstreamSSPID, &req))
+	require.Equal(t, "ac-2", req.ControlID,
+		"coherence must normalize the control-id to the requirement's canonical casing before it is stored")
+
+	// End-to-end through the write path: the persisted item carries the canonical casing...
+	e := echo.New()
+	body := `{"controlId":"AC-2","statementId":"ac-2_smt.a","componentUuid":"` + fx.componentID.String() +
+		`","providedUuid":"` + fx.providedID.String() + `"}`
+	httpReq := httptest.NewRequest(http.MethodPost, "/", bytes.NewBufferString(body))
+	httpReq.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+	ctx := e.NewContext(httpReq, rec)
+	ctx.SetParamNames("id", "offeringId")
+	ctx.SetParamValues(fx.upstreamSSPID.String(), fx.offeringID.String())
+
+	require.NoError(t, h.CreateItem(ctx))
+	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+
+	var createdItem handler.GenericDataResponse[relational.SSPExportOfferingItem]
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &createdItem))
+	require.Equal(t, "ac-2", createdItem.Data.ControlID)
+
+	// ...so Subscribe's exact match finds the downstream's existing requirement rather than
+	// inserting a duplicate for the same control.
+	var downstreamImpl relational.ControlImplementation
+	require.NoError(t, db.First(&downstreamImpl, "system_security_plan_id = ?", fx.downstreamSSPID).Error)
+	existing := relational.ImplementedRequirement{ControlImplementationId: *downstreamImpl.ID, ControlId: "ac-2"}
+	require.NoError(t, db.Create(&existing).Error)
+
+	pdp := &stubPDP{allow: true}
+	lh := NewSSPLeverageHandler(zap.NewNop().Sugar(), db, pdp, authz.FailClosed)
+	sctx, _, srec := newSubscribeRequestContext(fx.offeringID, subscribeBody(fx.downstreamSSPID, *createdItem.Data.ID))
+	require.NoError(t, lh.Subscribe(sctx))
+	require.Equal(t, http.StatusCreated, srec.Code, srec.Body.String())
+
+	var count int64
+	require.NoError(t, db.Model(&relational.ImplementedRequirement{}).
+		Where("control_implementation_id = ?", downstreamImpl.ID).Count(&count).Error)
+	require.Equal(t, int64(1), count,
+		"subscribe must reuse the downstream's existing ac-2 requirement, not insert a case-variant duplicate")
 }
