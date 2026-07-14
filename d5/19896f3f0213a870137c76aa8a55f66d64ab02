@@ -64,3 +64,40 @@ Rewrite the doc comment to state what the code actually does and, critically, WH
 The in-body comment on the `tx.Create(&roles)` line already explains this — make the doc comment agree with it rather than duplicating it at length. Comment-only change; no behaviour change, and the existing responsible-role tests already cover the behaviour.
 
 <!-- lisa-guidance-posted -->
+
+lisa-addressed:
+Human review (gusfcarvalho, PR #456) — 3 findings, all valid, all fixed:
+
+- [High] deleteByComponentCascade orphaned leverage links: the 409 guard protecting a
+  subscription-owned Inherited row lived only on the inherited sub-resource DELETE, so deleting
+  the PARENT walked around it. SSPLeverageLink.InheritedUUID is a bare value with no FK. Three
+  routes reach the cascade (requirement-level BC delete, statement-level BC delete — which is the
+  by-component Subscribe always creates — and the requirement delete). A dangling InheritedUUID
+  makes projectLeveragedControls silently report `partial` with everything outstanding (it falls
+  back to the zero by-component id) and makes ReAttest 500 forever. FIXED by hoisting the link
+  check INTO deleteByComponentCascade, so all three paths inherit it; each handler maps
+  errInheritedOwnedBySubscription -> 409. SSP delete does NOT route through the cascade, so
+  deleting an SSP is unaffected.
+
+- [High] control-id casing split the downstream tree: validateOfferingItemCoherence folded case
+  (EqualFold) but CreateItem/UpdateItem stored req.ControlID VERBATIM, while Subscribe's
+  findOrCreateImplementedRequirement matches control_id EXACTLY. Item stored "ac-2" against a
+  requirement of "AC-2" => a downstream already implementing "AC-2" got a SECOND requirement row,
+  splitting statements/by-components/rollup across two rows for one control. FIXED by
+  canonicalizing in the validator (`req.ControlID = requirement.ControlId`; req now passed by
+  pointer), so what is stored is what findOrCreateImplementedRequirement will later match on.
+  Upholds the repo's control-id invariant: store catalog-canonical casing, fold only when matching.
+  The exact-match in findOrCreateImplementedRequirement predates this PR and is left alone.
+
+- [Medium] satisfied DELETE skipped the advisory lock its CREATE takes, so the Satisfaction
+  read-modify-write was not serialized — the lock only ever serialized create-vs-create. A
+  concurrent create and delete each compute satisfaction from a snapshot taken before the other's
+  write is visible, and since the SET value is computed in Go the second UPDATE is a plain lost
+  update. FIXED by taking the lock at the top of the delete transaction, and renaming
+  lockByComponentSubtreeCreate -> lockByComponentSubtreeWrite (the create-only name is why it got
+  missed). The advisory-lock KEY STRING deliberately stays "export-create:" — it is only meaningful
+  as a value all writers agree on, and changing it would break serialization across a rolling deploy.
+
+Also: made the statement-id exact-compare vs control-id fold-compare asymmetry deliberate and
+documented (statement-ids are author-coined with no canonical form and findOrCreateStatement matches
+them exactly; control-ids have a catalog-canonical casing).
