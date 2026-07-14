@@ -1,0 +1,41 @@
+lisa-design:
+- Subscribe's `created` block rides in GenericDataListResponse's EXISTING `Meta any` field
+  (handler/response.go already had it) rather than changing the response envelope. `data` stays
+  exactly the SSPLeverageLink[] every current caller reads; `meta.created` is purely additive.
+  Do not "fix" this by wrapping data in a new struct — it would break every existing subscribe caller.
+- Import's no-op path keeps Success=true and only changes the *message* ("already exists; nothing
+  was written"). Flipping Success=false would make FailedCount++ and turn a single-file idempotent
+  re-import into an HTTP 400 — a behaviour break well beyond what was asked. The requirement was
+  that the caller not be *told* "successfully imported" for a write that never happened.
+- Offering-item coherence uses a dedicated walker (validateOfferingItemCoherence), NOT
+  resolveItemImplementationStatuses. The latter walks the same provided->export->by-component prefix
+  but only ever projects the ByComponent's implementation-status out of it — it discards the parent
+  identities (statement-id, control-id, component-uuid, owning SSP) that coherence exists to compare.
+- Both by-component PUTs are now metadata-only and IGNORE (do not 400 on) nested
+  export/inherited/satisfied in the body. Ignoring, not rejecting, is deliberate: a client
+  round-tripping a GET response back into a PUT must not start failing. The subtrees have their own
+  sub-resource routes, which enforce the leverage bookkeeping a blind Save bypassed.
+- component-uuid is immutable on the by-component PUT (it identifies which component the row is
+  about, and the offering-item coherence check joins on it). provided-uuid / responsibility-uuid are
+  immutable on the Inherited/Satisfied PUTs and rejected with 400 — they are the identities the
+  leverage link and the drift detector join on.
+- LeveragedControls was refactored into projectLeveragedControls(db, sspID), shared with the
+  shared-responsibility rollup's `inherits` arm. Satisfaction is therefore derived in exactly one
+  place and the two surfaces cannot disagree. It is a fixed ~6 queries regardless of link count —
+  do not reintroduce a per-link lookup.
+- resyncLeverageSatisfaction runs INSIDE the caller's transaction on satisfied POST/DELETE, and
+  finds the link via the by-component's inherited rows keyed on (downstream_ssp_id, provided_uuid) —
+  the pair the unique index is built on. Hand-authored inherited entries (no link) are skipped
+  silently, by design. PUT needs no resync: the responsibility-uuid can't change, so satisfaction can't.
+- Control-id matching in the new read models (by-control, shared-responsibility ?controlId=) folds
+  case via UPPER(...)=UPPER(...), consistent with the repo's control-id casing invariant: stored
+  values keep catalog-canonical casing, matching is case-insensitive.
+- The statement_id column on ssp_export_offering_items stays NULLABLE. Statement-anchoring is a
+  WRITE-PATH constraint (createExportOfferingItemRequest.validate + the 422 in Subscribe), not a
+  schema change — legacy requirement-anchored rows must remain readable and deletable.
+  migrateBackfillOfferingItemStatementIDs derives what it can and leaves the rest NULL, logging both counts.
+- No new authz actions. by-control reuses ssp-export-offering:read and (like the flat catalog) never
+  evaluates ssp:read on the upstream — that trust boundary is load-bearing for Subscribe.
+- Test fixtures across the leverage/offering suites were migrated from requirement-anchored to
+  statement-anchored exports. That is not incidental churn: an offering item whose providedUuid was
+  invented out of thin air is exactly the incoherent tuple the new coherence check rejects.
