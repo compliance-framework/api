@@ -15,6 +15,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/compliance-framework/api/internal/api/handler"
+	"github.com/compliance-framework/api/internal/api/middleware"
 	"github.com/compliance-framework/api/internal/authz"
 	"github.com/compliance-framework/api/internal/service/relational"
 	oscalTypes_1_1_3 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
@@ -513,6 +514,12 @@ func TestUpdateByComponentDoesNotClobberSubtreesOrOmittedFields(t *testing.T) {
 	var stored relational.ByComponent
 	require.NoError(t, db.First(&stored, "id = ?", fx.byComponentID).Error)
 	require.Equal(t, "updated description", stored.Description)
+
+	// implementation-status is optional: a by-component that never had one must not gain an
+	// empty {"state": ""} from a PUT that doesn't mention it.
+	var updatedBC handler.GenericDataResponse[oscalTypes_1_1_3.ByComponent]
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &updatedBC))
+	require.Nil(t, updatedBC.Data.ImplementationStatus)
 
 	// The export subtree is untouched: still exactly one export with its original description,
 	// one provided, two responsibilities. The smuggled export was not upserted.
@@ -1269,4 +1276,38 @@ func TestBulkAllowedOfferingsMatchesIsDownstreamAllowed(t *testing.T) {
 	empty, err := bulkAllowedOfferings(db, nil, downstream)
 	require.NoError(t, err)
 	require.Empty(t, empty)
+}
+
+// TestByControlRouteIsNotShadowedByGetByID: /ssp-export-offerings/by-control/:controlId lives under
+// the same prefix as /ssp-export-offerings/:id, so a router that resolved the param route first
+// would send "by-control" to GetByID and fail with "invalid offering id" — silently, since both
+// routes are registered and both are reachable in isolation. This drives the real echo router to
+// pin the dispatch.
+func TestByControlRouteIsNotShadowedByGetByID(t *testing.T) {
+	db := newSSPLeverageTestDB(t)
+	fx := newSharedResponsibilityFixture(t, db)
+
+	pep := middleware.NewPEP(&stubPDP{allow: true}, authz.FailClosed, zap.NewNop().Sugar())
+	e := echo.New()
+	NewSSPExportOfferingHandler(zap.NewNop().Sugar(), db, nil).
+		Register(e.Group("/api/oscal/ssp-export-offerings"), pep.For(authz.ResourceSSPExportOffering))
+
+	// The static by-control segment must win over :id.
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/oscal/ssp-export-offerings/by-control/ac-2", nil))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	var byControl handler.GenericDataListResponse[ControlExportOffer]
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &byControl))
+	require.Len(t, byControl.Data, 1)
+	require.Equal(t, fx.itemID, byControl.Data[0].ItemID)
+
+	// ...and a real offering id still reaches GetByID.
+	rec = httptest.NewRecorder()
+	e.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/oscal/ssp-export-offerings/"+fx.offeringID.String(), nil))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	var byID handler.GenericDataResponse[catalogOffering]
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &byID))
+	require.Equal(t, fx.offeringID, *byID.Data.ID)
 }
