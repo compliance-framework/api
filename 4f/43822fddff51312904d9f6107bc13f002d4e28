@@ -1,0 +1,92 @@
+lisa-addressed:
+Human review round 5 (gusfcarvalho, PR #456) — 21 findings, all valid, all fixed.
+
+- [Blocker] Integration build broken: risk_evidence_worker_test_helpers_test.go:49 still assigned
+  LeveragedAuthUUID: uuid.New() after the field became *uuid.UUID. FIXED: dropped the field (it is
+  optional now and the test never reads it). Verified with `go vet -tags integration`. Also fixed
+  the stale SSPLeverageHandler type doc (ssp_leverage.go:158) still claiming subscribe records a
+  leveraged-authorization.
+- [High] resyncLeverageSatisfaction found links by (downstream_ssp_id, provided_uuid). The unique
+  index on that pair is what ENABLES the bug rather than preventing it: exactly one link exists per
+  pair, but InheritedControlImplementation has NO unique index, so two by-components in one SSP can
+  each hold an inherited row for the same provided-uuid — and resync for B would rewrite A's link
+  from B's satisfied set. FIXED: one query keyed on `inherited_uuid IN (this bc's inherited ids)`,
+  which disambiguates AND removes the N+1 First() loop. Also added a 409 on a provided-uuid already
+  inherited elsewhere in the same SSP (new byComponentIDsForSSP helper walks
+  control_implementations -> implemented_requirements -> statements -> by_components; there is no
+  SSP id below control_implementations).
+- [High] deleteByComponentCascade was TOCTOU: guard counted links against the PRELOADED inherited
+  set while the deletes were bulk `by_component_id = ?`, and it took no lock (nor did any of its
+  three callers). FIXED: takes lockByComponentSubtreeWrite BEFORE the preload, and deletes are
+  scoped to `id IN (checked ids)` so the rows destroyed are exactly the rows guarded — which also
+  fixes the orphaned responsible_roles. NOTE for the reviewer: the `len(bc.Inherited) > 0` gate was
+  NOT an independent hole (empty IN ? renders as no-match, so linkCount is 0 and the guard passes
+  either way) — the missing lock plus fixed-set-vs-bulk-delete is the real defect.
+- [High] filter.go:522 resolved controls by `LOWER(id)` alone, ignoring Control's composite PK
+  (catalog_id, id). FIXED with resolveCatalogIDForSSPControl: resolve via the SSP's own profiles
+  first (authoritative), else fall back to the catalogs defining the control — exactly one resolves,
+  more than one is a 400 (errAmbiguousControlCatalog). DESIGN NOTE: a hard 404 when the SSP's
+  profiles don't import the control was rejected — resolveCatalogIDForControl's own doc says a
+  downstream need not have the leveraged control in its profile, and the existing fixture seeds no
+  ssp_profiles, so a hard 404 would break legitimate use. The point is that NO arbitrary choice is
+  ever made. The join carries no CAST (per the sqlite/uuid trap; matches
+  system_component_suggestions.go's precedent).
+- [Medium] filter.go:547 co-ownership count not catalog-scoped. FIXED: + control_catalog_id.
+- [Medium] filter.go:623 unwind count missing BOTH control_catalog_id AND control_link_created=true.
+  FIXED. The control_link_created half was the damaging one (a non-claiming row stranded the link
+  permanently). Regression test added: TestDetachUnwindsLinkDespiteUnowningSibling.
+- [Low] filter.go inheritance check ignored link status. DECIDED EXPLICITLY: `status NOT IN
+  (revoked, superseded)` — a drifted link still qualifies (subscription exists, being reconciled);
+  terminal states do not. Comment states the reasoning.
+- [Medium] ByControl unbounded. FIXED: extracted parseExportOfferingPagination, shared with ListAll
+  so the two cannot drift; same 100/1000 bounds. Swagger documents limit/offset.
+- [Medium] Satisfied create validated inheritability on h.db, outside the tx and before the lock.
+  FIXED: inheritableResponsibilities now takes a *gorm.DB and runs inside the tx after the lock;
+  400 preserved via errResponsibilityNotInheritable sentinel.
+- [Medium] Inherited DELETE took no lock. FIXED: locks on existing.ByComponentId before the count.
+- [Medium] By-component PUT zeroed omitted fields (map-form Updates writes every key). FIXED with
+  real MERGE semantics — the update map is built from the keys actually present in the raw body
+  (read before Bind consumes it). Chose merge over weakening the docs because the swagger claim is
+  already published. NOTE: responsible-roles deliberately stays REPLACE — an omitted roles list
+  clears them, pinned by the existing TestUpdateByComponentReplacesResponsibleRoles. I had gated it
+  too at first; that test correctly caught it as scope creep.
+- [Medium] migrator ALTER TABLE ran unconditionally every boot (ACCESS EXCLUSIVE, no lock_timeout
+  anywhere). FIXED with the information_schema is_nullable='NO' guard, matching the eight existing
+  DO $$ ... IF EXISTS blocks in the same function.
+- [Medium] Backfill: unbounded load, unbounded IN-lists (65535 bind ceiling -> fatal at boot),
+  un-deduped id lists, one implicit tx per row. FIXED: FindInBatches, local uniqueUUIDs +
+  findByIDsInChunks helpers (uniqueUUIDs in handler/oscal is unexported, so unreachable from
+  internal/service regardless of cycles), all writes in one db.Transaction.
+- [Low] undeterminable counter collapsed 4 causes. FIXED: four named counters, log distinguishes
+  corruption (dangling provided-uuid / missing export) from expected legacy (requirement-anchored),
+  plus the item ids.
+- [Low] Duplicate exports silently dropped. FIXED: exportsByComponent is now a slice map and every
+  export is reported; Offered unions across them. Deliberately did NOT add the unique index —
+  existing data may violate it and AutoMigrate would fail at boot (same fatal-migration hazard).
+- [Medium] Client-supplied UUID collision returned 500. FIXED: reuses the existing isUniqueViolation
+  and maps to 409 on both create paths via errDuplicateInheritedUUID / errDuplicateSatisfiedUUID.
+- [Low] Stale comment claiming a re-derivation that isn't there. FIXED: comment now says the lock
+  serializes concurrent creates. No resync added — creating an inherited row changes what is
+  inheritable, not what is satisfied, exactly as the reviewer reasoned.
+- [Medium] TestSubscribeReportsReusedRowsAsNotCreated asserted created:TRUE. FIXED: it now makes a
+  SECOND subscribe call and asserts Created==false for requirement, statement AND by-component
+  (previously asserted nowhere in the repo). The dedup assertions moved to
+  TestSubscribeDedupesReportedRowsWithinOneCall.
+- [Medium] subtree_lock_invariant_test was a hand-maintained allowlist. FIXED: INVERTED to
+  discovery — AST-walks the package for functions calling resyncLeverageSatisfaction or writing
+  SSPLeverageLink.Satisfaction, and requires each DISCOVERED writer to take the lock; the known-five
+  map is now only a superset assertion against a vacuous walk. callsFunc handles *ast.SelectorExpr.
+  VERIFIED BOTH WAYS: fails when the lock is removed from resync, AND fails for a newly added
+  unlocked writer (the exact regression the allowlist could not catch). Also added
+  subtree_lock_concurrency_integration_test.go (//go:build integration, real Postgres, two
+  concurrent goroutines) per the reviewer's request. NOTE: the comment said no *unit* test can
+  observe the lock, which is literally true — but the substantive point stood.
+- [Low] gofmt-dirty ssp_leverage_drift_test.go. FIXED. Only cedar_test.go remains, pre-existing on
+  main as the reviewer noted.
+- [Low] Duplicated subscription-ownership guard. FIXED: extracted assertInheritedNotSubscribed,
+  called from both the cascade and the sub-resource DELETE.
+
+VERIFICATION: go build ./... clean; go vet -tags integration ./... clean; full unit suite 37/37 ok;
+gofmt clean except pre-existing cedar_test.go; swagger regenerated (make swag) so check-diff stays
+clean. The new integration suites could NOT be run locally (no Docker daemon available) — they
+compile under -tags integration and CI must exercise them.
