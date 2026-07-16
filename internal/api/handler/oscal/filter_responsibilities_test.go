@@ -277,6 +277,84 @@ func (suite *FilterResponsibilityIntegrationSuite) TestCoOwnedControlLinkRemoved
 	suite.Equal(int64(0), suite.controlLinkCount(*filter.ID, "ac-1"))
 }
 
+// TestDetachUnwindsLinkDespiteUnowningSibling: a filter_responsibilities row with
+// ControlLinkCreated=false is not a claim on the link, so it must not block the unwind.
+//
+// The sequence is the reachable one: an independent link makes R1 unowned; the independent link is
+// then removed; R2 attaches and creates the link itself. Detaching R2 must unwind the link R2
+// created — counting R1 (same filter+control, but never a claimant) would strand it forever.
+func (suite *FilterResponsibilityIntegrationSuite) TestDetachUnwindsLinkDespiteUnowningSibling() {
+	fx := suite.setupFilterResponsibilityFixture()
+	filter := suite.makeFilter("unwind filter", fx.downstreamSSPID)
+	controlID := "ac-1"
+
+	// An independently created link (as POST/PUT /filters would make).
+	var control relational.Control
+	suite.Require().NoError(suite.DB.First(&control, "id = ?", "ac-1").Error)
+	suite.Require().NoError(suite.DB.Model(&filter).Association("Controls").Append(&control))
+
+	// R1 attaches while that link exists, so it never owns it.
+	rec := authedRequest(&suite.IntegrationTestSuite, fx.server, "POST",
+		fmt.Sprintf("/api/filters/%s/responsibilities", filter.ID), fx.contributorToken,
+		map[string]any{"responsibilityUuid": fx.respAUUID, "sspId": fx.downstreamSSPID, "controlId": controlID})
+	suite.Require().Equal(http.StatusCreated, rec.Code, rec.Body.String())
+	var r1 handler.GenericDataResponse[relational.FilterResponsibility]
+	suite.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &r1))
+	suite.Require().False(r1.Data.ControlLinkCreated)
+
+	// The independent link goes away.
+	suite.Require().NoError(suite.DB.Model(&filter).Association("Controls").Delete(&control))
+	suite.Require().Equal(int64(0), suite.controlLinkCount(*filter.ID, "ac-1"))
+
+	// R2 attaches with no link present, so R2 creates and owns it.
+	rec = authedRequest(&suite.IntegrationTestSuite, fx.server, "POST",
+		fmt.Sprintf("/api/filters/%s/responsibilities", filter.ID), fx.contributorToken,
+		map[string]any{"responsibilityUuid": fx.respBUUID, "sspId": fx.downstreamSSPID, "controlId": controlID})
+	suite.Require().Equal(http.StatusCreated, rec.Code, rec.Body.String())
+	var r2 handler.GenericDataResponse[relational.FilterResponsibility]
+	suite.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &r2))
+	suite.Require().True(r2.Data.ControlLinkCreated, "no link existed, so R2 created it")
+	suite.Require().Equal(int64(1), suite.controlLinkCount(*filter.ID, "ac-1"))
+
+	// Detaching R2 must unwind the link it created: R1 is not a claimant.
+	rec = authedRequest(&suite.IntegrationTestSuite, fx.server, "DELETE",
+		fmt.Sprintf("/api/filters/%s/responsibilities/%s?sspId=%s", filter.ID, fx.respBUUID, fx.downstreamSSPID),
+		fx.contributorToken, nil)
+	suite.Require().Equal(http.StatusNoContent, rec.Code, rec.Body.String())
+	suite.Equal(int64(0), suite.controlLinkCount(*filter.ID, "ac-1"),
+		"a ControlLinkCreated=false row is not a claim, so it must not strand the link R2 created")
+}
+
+// TestAttachRejectsAmbiguousControlAcrossCatalogs: Control's PK is composite (catalog_id, id), and
+// two catalogs routinely define the same id (NIST 800-53 rev4 and rev5 both have AC-2). With
+// nothing to disambiguate, attach must refuse rather than resolve to an arbitrary catalog's
+// control — the old `First(LOWER(id) = ...)` returned whichever row the planner happened to yield
+// and recorded that catalog on the row.
+func (suite *FilterResponsibilityIntegrationSuite) TestAttachRejectsAmbiguousControlAcrossCatalogs() {
+	fx := suite.setupFilterResponsibilityFixture()
+
+	// A second catalog defining the very same control id as the fixture's.
+	secondCatalog := relational.Catalog{}
+	suite.Require().NoError(suite.DB.Create(&secondCatalog).Error)
+	suite.Require().NoError(suite.DB.Create(&relational.Control{
+		CatalogID: *secondCatalog.ID, ID: "ac-1", Title: "Access Control Policy (rev 2)",
+	}).Error)
+
+	filter := suite.makeFilter("ambiguous filter", fx.downstreamSSPID)
+	rec := authedRequest(&suite.IntegrationTestSuite, fx.server, "POST",
+		fmt.Sprintf("/api/filters/%s/responsibilities", filter.ID), fx.contributorToken,
+		map[string]any{"responsibilityUuid": fx.respAUUID, "sspId": fx.downstreamSSPID, "controlId": "AC-1"})
+	suite.Require().Equal(http.StatusBadRequest, rec.Code, rec.Body.String())
+	suite.Contains(rec.Body.String(), "multiple catalogs")
+
+	// And nothing was half-written.
+	var rows int64
+	suite.Require().NoError(suite.DB.Model(&relational.FilterResponsibility{}).
+		Where("filter_id = ?", filter.ID).Count(&rows).Error)
+	suite.Zero(rows, "a rejected attach must not leave a filter_responsibilities row")
+	suite.Equal(int64(0), suite.controlLinkCount(*filter.ID, "ac-1"))
+}
+
 func (suite *FilterResponsibilityIntegrationSuite) TestAttachValidation() {
 	fx := suite.setupFilterResponsibilityFixture()
 	filter := suite.makeFilter("validation filter", fx.downstreamSSPID)

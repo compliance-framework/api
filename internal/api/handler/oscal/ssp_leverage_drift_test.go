@@ -38,10 +38,10 @@ func seedLeverageLinkForDrift(t *testing.T, db *gorm.DB, offeringVersion int) (*
 	require.NoError(t, db.Create(&offering).Error)
 
 	link := relational.SSPLeverageLink{
-		DownstreamSSPID:   *downstreamSSP.ID,
-		UpstreamSSPID:     *upstreamSSP.ID,
-		OfferingID:        *offering.ID,
-		OfferingVersion:   1,
+		DownstreamSSPID: *downstreamSSP.ID,
+		UpstreamSSPID:   *upstreamSSP.ID,
+		OfferingID:      *offering.ID,
+		OfferingVersion: 1,
 		ControlID:       "ac-1",
 		ProvidedUUID:    *provided.ID,
 		InheritedUUID:   uuid.New(),

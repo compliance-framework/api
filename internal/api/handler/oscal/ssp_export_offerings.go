@@ -1151,12 +1151,16 @@ func (h *SSPExportOfferingHandler) withResolvedResponsibilities(offerings []rela
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/ssp-export-offerings [get]
-func (h *SSPExportOfferingHandler) ListAll(ctx echo.Context) error {
-	limit := defaultExportOfferingCatalogLimit
+//
+// parseExportOfferingPagination reads the shared limit/offset params for the export-offering
+// catalog reads, capping limit at maxExportOfferingCatalogLimit. Shared by ListAll and ByControl
+// so the two cannot drift into different bounds — or, as ByControl did, into none at all.
+func parseExportOfferingPagination(ctx echo.Context) (limit int, offset int, err error) {
+	limit = defaultExportOfferingCatalogLimit
 	if raw := strings.TrimSpace(ctx.QueryParam("limit")); raw != "" {
-		parsed, err := strconv.Atoi(raw)
-		if err != nil || parsed < 1 {
-			return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("invalid limit parameter")))
+		parsed, convErr := strconv.Atoi(raw)
+		if convErr != nil || parsed < 1 {
+			return 0, 0, fmt.Errorf("invalid limit parameter")
 		}
 		if parsed > maxExportOfferingCatalogLimit {
 			parsed = maxExportOfferingCatalogLimit
@@ -1164,13 +1168,20 @@ func (h *SSPExportOfferingHandler) ListAll(ctx echo.Context) error {
 		limit = parsed
 	}
 
-	offset := 0
 	if raw := strings.TrimSpace(ctx.QueryParam("offset")); raw != "" {
-		parsed, err := strconv.Atoi(raw)
-		if err != nil || parsed < 0 {
-			return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("invalid offset parameter")))
+		parsed, convErr := strconv.Atoi(raw)
+		if convErr != nil || parsed < 0 {
+			return 0, 0, fmt.Errorf("invalid offset parameter")
 		}
 		offset = parsed
+	}
+	return limit, offset, nil
+}
+
+func (h *SSPExportOfferingHandler) ListAll(ctx echo.Context) error {
+	limit, offset, err := parseExportOfferingPagination(ctx)
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 
 	var offerings []relational.SSPExportOffering
@@ -1298,6 +1309,8 @@ type ControlExportOffer struct {
 //	@Produce		json
 //	@Param			controlId		path		string	true	"Control ID (e.g. AC-2)"
 //	@Param			downstreamSspId	query		string	false	"Only return offerings this downstream SSP may subscribe to"
+//	@Param			limit			query		int		false	"Max items to return (default 100, max 1000)"
+//	@Param			offset			query		int		false	"Items to skip"
 //	@Success		200				{object}	handler.GenericDataListResponse[ControlExportOffer]
 //	@Failure		400				{object}	api.Error
 //	@Failure		500				{object}	api.Error
@@ -1307,6 +1320,15 @@ func (h *SSPExportOfferingHandler) ByControl(ctx echo.Context) error {
 	controlID := strings.TrimSpace(ctx.Param("controlId"))
 	if controlID == "" {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("controlId is required")))
+	}
+
+	// Same bounds as ListAll. A widely-offered control (AC-2 across a large tenant) would
+	// otherwise return every published item plus the batched resolution queries behind it in one
+	// unpaginated response; downstreamSspId does not bound it, being optional and applied after
+	// the fetch.
+	limit, offset, err := parseExportOfferingPagination(ctx)
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 
 	var downstreamSSPID *uuid.UUID
@@ -1327,6 +1349,7 @@ func (h *SSPExportOfferingHandler) ByControl(ctx echo.Context) error {
 		Where("ssp_export_offerings.status = ? AND UPPER(ssp_export_offering_items.control_id) = UPPER(?)",
 			relational.SSPExportOfferingStatusPublished, controlID).
 		Order("ssp_export_offering_items.id ASC").
+		Limit(limit).Offset(offset).
 		Find(&items).Error; err != nil {
 		h.sugar.Errorf("Failed to list export offering items by control: %v", err)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))

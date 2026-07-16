@@ -1,11 +1,14 @@
 package oscal
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/binary"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"sync"
@@ -4408,7 +4411,26 @@ func (h *SystemSecurityPlanHandler) UpdateImplementedRequirementStatementByCompo
 // (409-on-subscription-owned-inherited, satisfaction re-derivation) the sub-resource routes
 // enforce. So: only the fields this route owns are written, and nested subtrees in the body
 // are ignored rather than half-applied.
+//
+// The omitted-field half is merge semantics, and it has to be driven by the raw body: a decoded
+// struct cannot distinguish "absent" from "present and empty", and GORM's map-form Updates writes
+// every key it is given unconditionally (the zero-value skipping people expect applies only to
+// struct-form Updates). So the update map is built from the keys the client actually sent.
 func (h *SystemSecurityPlanHandler) updateByComponentMetadata(ctx echo.Context, bc *relational.ByComponent) error {
+	// Read the body before Bind consumes it, then hand it back for binding.
+	rawBody, err := io.ReadAll(ctx.Request().Body)
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	ctx.Request().Body = io.NopCloser(bytes.NewReader(rawBody))
+
+	present := map[string]json.RawMessage{}
+	if len(bytes.TrimSpace(rawBody)) > 0 {
+		if err := json.Unmarshal(rawBody, &present); err != nil {
+			return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+		}
+	}
+
 	var oscalBC oscalTypes_1_1_3.ByComponent
 	if err := ctx.Bind(&oscalBC); err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
@@ -4442,19 +4464,39 @@ func (h *SystemSecurityPlanHandler) updateByComponentMetadata(ctx echo.Context, 
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 
+	// Only the fields the body actually carried. An omitted key is left as stored; sending an
+	// explicit null/empty value still clears it, which is how a client asks for that.
+	updates := map[string]any{}
+	if _, ok := present["description"]; ok {
+		updates["description"] = parsed.Description
+	}
+	if _, ok := present["remarks"]; ok {
+		updates["remarks"] = parsed.Remarks
+	}
+	if _, ok := present["props"]; ok {
+		updates["props"] = parsed.Props
+	}
+	if _, ok := present["links"]; ok {
+		updates["links"] = parsed.Links
+	}
+	if _, ok := present["set-parameters"]; ok {
+		updates["set_parameters"] = parsed.SetParameters
+	}
+	if _, ok := present["implementation-status"]; ok {
+		updates["implementation_status"] = parsed.ImplementationStatus
+	}
+
 	if err := h.db.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Model(&relational.ByComponent{}).
-			Where("id = ?", bc.ID).
-			Updates(map[string]any{
-				"description":           parsed.Description,
-				"remarks":               parsed.Remarks,
-				"props":                 parsed.Props,
-				"links":                 parsed.Links,
-				"set_parameters":        parsed.SetParameters,
-				"implementation_status": parsed.ImplementationStatus,
-			}).Error; err != nil {
-			return err
+		if len(updates) > 0 {
+			if err := tx.Model(&relational.ByComponent{}).
+				Where("id = ?", bc.ID).
+				Updates(updates).Error; err != nil {
+				return err
+			}
 		}
+		// responsible-roles stays REPLACE, not merge: an omitted roles list clears the stored
+		// roles. That is deliberate and pinned by TestUpdateByComponentReplacesResponsibleRoles —
+		// it is a collection this route owns outright, unlike the scalars above.
 		return replaceResponsibleRoles(tx, bc, *bc.ID, parsed.ResponsibleRoles)
 	}); err != nil {
 		h.sugar.Errorf("Failed to update by-component: %v", err)
@@ -5083,6 +5125,16 @@ func deleteResponsibleRoles(tx *gorm.DB, roles []relational.ResponsibleRole) err
 // cascades at the DB level, so it is deleted explicitly, leaves-first, inside
 // the caller's transaction.
 func deleteByComponentCascade(tx *gorm.DB, byComponentID uuid.UUID) error {
+	// Taken before the preload, so the set this function reads is the set it deletes. Without it
+	// the guard below is a pre-check against a snapshot while the deletes take a fresh one: a
+	// Subscribe committing in between would have its inherited row destroyed and its link left
+	// dangling, which is the exact invariant the guard exists to hold. Subscribe takes this same
+	// lock, so the two serialize; advisory locks are re-entrant within a transaction, so callers
+	// already holding it pay nothing.
+	if err := lockByComponentSubtreeWrite(tx, byComponentID); err != nil {
+		return err
+	}
+
 	var bc relational.ByComponent
 	if err := tx.
 		Preload("ResponsibleRoles.Parties").
@@ -5103,42 +5155,46 @@ func deleteByComponentCascade(tx *gorm.DB, byComponentID uuid.UUID) error {
 	// and requirement-level by-component DELETEs, and the requirement DELETE that cascades through
 	// them. Guarding only the sub-resource route left the invariant trivially bypassable by
 	// deleting the parent instead. Callers map this to 409, same as the sub-resource route.
-	if len(bc.Inherited) > 0 {
-		inheritedIDs := make([]uuid.UUID, 0, len(bc.Inherited))
-		for i := range bc.Inherited {
-			inheritedIDs = append(inheritedIDs, *bc.Inherited[i].ID)
-		}
-		var linkCount int64
-		if err := tx.Model(&relational.SSPLeverageLink{}).
-			Where("inherited_uuid IN ?", inheritedIDs).
-			Count(&linkCount).Error; err != nil {
-			return err
-		}
-		if linkCount > 0 {
-			return errInheritedOwnedBySubscription
-		}
+	inheritedIDs := make([]uuid.UUID, 0, len(bc.Inherited))
+	for i := range bc.Inherited {
+		inheritedIDs = append(inheritedIDs, *bc.Inherited[i].ID)
+	}
+	if err := assertInheritedNotSubscribed(tx, inheritedIDs); err != nil {
+		return err
 	}
 
 	if err := deleteResponsibleRoles(tx, bc.ResponsibleRoles); err != nil {
 		return err
 	}
 
+	// Deletes are scoped to the ids checked above rather than to by_component_id, so the rows
+	// destroyed are exactly the rows guarded — and exactly the rows whose responsible_roles were
+	// cleaned up. A bulk delete would take a fresh snapshot, orphaning the roles of any row that
+	// appeared after the preload.
 	for _, inherited := range bc.Inherited {
 		if err := deleteResponsibleRoles(tx, inherited.ResponsibleRoles); err != nil {
 			return err
 		}
 	}
-	if err := tx.Where("by_component_id = ?", bc.ID).Delete(&relational.InheritedControlImplementation{}).Error; err != nil {
-		return err
+	if len(inheritedIDs) > 0 {
+		if err := tx.Where("id IN ?", inheritedIDs).Delete(&relational.InheritedControlImplementation{}).Error; err != nil {
+			return err
+		}
 	}
 
+	satisfiedIDs := make([]uuid.UUID, 0, len(bc.Satisfied))
+	for i := range bc.Satisfied {
+		satisfiedIDs = append(satisfiedIDs, *bc.Satisfied[i].ID)
+	}
 	for _, satisfied := range bc.Satisfied {
 		if err := deleteResponsibleRoles(tx, satisfied.ResponsibleRoles); err != nil {
 			return err
 		}
 	}
-	if err := tx.Where("by_component_id = ?", bc.ID).Delete(&relational.SatisfiedControlImplementationResponsibility{}).Error; err != nil {
-		return err
+	if len(satisfiedIDs) > 0 {
+		if err := tx.Where("id IN ?", satisfiedIDs).Delete(&relational.SatisfiedControlImplementationResponsibility{}).Error; err != nil {
+			return err
+		}
 	}
 
 	if bc.Export != nil {

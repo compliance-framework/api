@@ -227,9 +227,16 @@ func (h *SystemSecurityPlanHandler) collectOwnedSharedResponsibility(rollup *Sha
 		Find(&exports).Error; err != nil {
 		return err
 	}
-	exportByComponent := make(map[uuid.UUID]relational.Export, len(exports))
+	// Keyed to a slice, not a single export: exports.by_component_id carries no unique
+	// constraint (that absence is why lockByComponentSubtreeWrite exists), and the lock is a
+	// no-op off Postgres and cannot retroactively fix rows written before it landed — so
+	// duplicates are possible in existing data. Last-write-wins would silently drop one, making a
+	// genuinely published capability render as not offered. The unique index is the eventual
+	// answer, but it cannot be added until existing data is cleaned: AutoMigrate would fail on
+	// boot against violating rows.
+	exportsByComponent := make(map[uuid.UUID][]relational.Export, len(exports))
 	for _, e := range exports {
-		exportByComponent[e.ByComponentId] = e
+		exportsByComponent[e.ByComponentId] = append(exportsByComponent[e.ByComponentId], e)
 	}
 
 	var satisfiedRows []relational.SatisfiedControlImplementationResponsibility
@@ -330,7 +337,7 @@ func (h *SystemSecurityPlanHandler) collectOwnedSharedResponsibility(rollup *Sha
 			// normal SSP created or imported through POST /api/oscal/import is full of them.
 			// Reporting those would hand the UI an SSP's entire control implementation as debt and
 			// invite the user to wind down their own work.
-			_, hasExport := exportByComponent[*bc.ID]
+			hasExport := len(exportsByComponent[*bc.ID]) > 0
 			hasInherited := inheritedByComponent[*bc.ID]
 			hasSatisfied := satisfiedByComponent[*bc.ID]
 			if !hasExport && !hasInherited && !hasSatisfied {
@@ -349,40 +356,45 @@ func (h *SystemSecurityPlanHandler) collectOwnedSharedResponsibility(rollup *Sha
 			continue
 		}
 
-		export, hasExport := exportByComponent[*bc.ID]
-		if !hasExport {
+		bcExports := exportsByComponent[*bc.ID]
+		if len(bcExports) == 0 {
 			continue
 		}
 
-		provided := make([]controlExportProvided, 0, len(export.Provided))
-		offered := false
-		for _, p := range export.Provided {
-			provided = append(provided, controlExportProvided{UUID: *p.ID, Description: p.Description})
-			if offeredProvidedUUIDs[*p.ID] {
-				offered = true
+		// One entry per export. Duplicates on a by-component are malformed data rather than a
+		// supported shape, but reporting each is what makes them visible instead of silently
+		// halving the rollup.
+		for _, export := range bcExports {
+			provided := make([]controlExportProvided, 0, len(export.Provided))
+			offered := false
+			for _, p := range export.Provided {
+				provided = append(provided, controlExportProvided{UUID: *p.ID, Description: p.Description})
+				if offeredProvidedUUIDs[*p.ID] {
+					offered = true
+				}
 			}
-		}
 
-		responsibilities := make([]controlExportResponsibility, 0, len(export.Responsibilities))
-		for _, r := range export.Responsibilities {
-			responsibilities = append(responsibilities, controlExportResponsibility{
-				UUID:         *r.ID,
-				Description:  r.Description,
-				ProvidedUUID: r.ProvidedUuid,
+			responsibilities := make([]controlExportResponsibility, 0, len(export.Responsibilities))
+			for _, r := range export.Responsibilities {
+				responsibilities = append(responsibilities, controlExportResponsibility{
+					UUID:         *r.ID,
+					Description:  r.Description,
+					ProvidedUUID: r.ProvidedUuid,
+				})
+			}
+
+			rollup.Provides = append(rollup.Provides, SharedResponsibilityProvides{
+				ControlID:        a.controlID,
+				StatementID:      a.statementID,
+				ByComponentUUID:  *bc.ID,
+				ComponentUUID:    bc.ComponentUUID,
+				ComponentTitle:   componentTitleByID[bc.ComponentUUID],
+				ExportUUID:       *export.ID,
+				Provided:         provided,
+				Responsibilities: responsibilities,
+				Offered:          offered,
 			})
 		}
-
-		rollup.Provides = append(rollup.Provides, SharedResponsibilityProvides{
-			ControlID:        a.controlID,
-			StatementID:      a.statementID,
-			ByComponentUUID:  *bc.ID,
-			ComponentUUID:    bc.ComponentUUID,
-			ComponentTitle:   componentTitleByID[bc.ComponentUUID],
-			ExportUUID:       *export.ID,
-			Provided:         provided,
-			Responsibilities: responsibilities,
-			Offered:          offered,
-		})
 	}
 
 	for i := range satisfiedRows {

@@ -4454,61 +4454,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/filters/{id}/responsibilities/{responsibilityUuid}": {
-            "delete": {
-                "description": "Removes the filter↔responsibility association for the given downstream SSP\n(sspId query param — the association's key is the full triple). The filter's\ncontrol link is removed only if it was created by a responsibility attachment\nand no other attachment on this filter still claims that control.",
-                "tags": [
-                    "Filters"
-                ],
-                "summary": "Detach a filter from an inherited responsibility",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Filter ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Responsibility UUID",
-                        "name": "responsibilityUuid",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Downstream SSP ID",
-                        "name": "sspId",
-                        "in": "query",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "204": {
-                        "description": "No Content"
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    }
-                }
-            }
-        },
         "/lineage/nodes/{key}/children": {
             "get": {
                 "description": "Returns one level of children for a node. Key is a composite like catalog:\u003cuuid\u003e, group:\u003ccatalogId\u003e/\u003cgroupId\u003e, control:\u003ccatalogId\u003e/\u003ccontrolId\u003e, linkcat:\u003cchildCatalogId\u003e/\u003crelationship\u003e/\u003cparentCatalogId\u003e/\u003cparentControlId\u003e, risk:\u003criskId\u003e, evidence:\u003cstreamUuid\u003e. A control expands to synthetic linkcat catalog nodes (its implementing/documenting controls grouped by their catalog) plus its directly-linked risks; a linkcat node expands to that group's controls; a risk expands to its latest evidence per linked stream; evidence is a leaf.",
@@ -16360,6 +16305,18 @@ const docTemplate = `{
                         "description": "Only return offerings this downstream SSP may subscribe to",
                         "name": "downstreamSspId",
                         "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Max items to return (default 100, max 1000)",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Items to skip",
+                        "name": "offset",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -20367,6 +20324,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
@@ -20689,6 +20652,12 @@ const docTemplate = `{
                     },
                     "404": {
                         "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
                         "schema": {
                             "$ref": "#/definitions/api.Error"
                         }

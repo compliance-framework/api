@@ -14718,47 +14718,6 @@ paths:
       summary: Attach a filter to an inherited responsibility
       tags:
       - Filters
-  /filters/{id}/responsibilities/{responsibilityUuid}:
-    delete:
-      description: |-
-        Removes the filter↔responsibility association for the given downstream SSP
-        (sspId query param — the association's key is the full triple). The filter's
-        control link is removed only if it was created by a responsibility attachment
-        and no other attachment on this filter still claims that control.
-      parameters:
-      - description: Filter ID
-        in: path
-        name: id
-        required: true
-        type: string
-      - description: Responsibility UUID
-        in: path
-        name: responsibilityUuid
-        required: true
-        type: string
-      - description: Downstream SSP ID
-        in: query
-        name: sspId
-        required: true
-        type: string
-      responses:
-        "204":
-          description: No Content
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/api.Error'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/api.Error'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/api.Error'
-      summary: Detach a filter from an inherited responsibility
-      tags:
-      - Filters
   /filters/import:
     post:
       consumes:
@@ -22643,6 +22602,14 @@ paths:
         in: query
         name: downstreamSspId
         type: string
+      - description: Max items to return (default 100, max 1000)
+        in: query
+        name: limit
+        type: integer
+      - description: Items to skip
+        in: query
+        name: offset
+        type: integer
       produces:
       - application/json
       responses:
@@ -25347,6 +25314,10 @@ paths:
           description: Not Found
           schema:
             $ref: '#/definitions/api.Error'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/api.Error'
         "500":
           description: Internal Server Error
           schema:
@@ -25574,6 +25545,10 @@ paths:
             $ref: '#/definitions/api.Error'
         "404":
           description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "409":
+          description: Conflict
           schema:
             $ref: '#/definitions/api.Error'
         "500":

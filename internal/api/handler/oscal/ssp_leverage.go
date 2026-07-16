@@ -156,9 +156,10 @@ func deriveSatisfaction(full []upstreamResponsibility, satisfiedUUIDs map[uuid.U
 }
 
 // SSPLeverageHandler serves the downstream side of BCH-1338 Phase 2: subscribing to a
-// published SSPExportOffering (recording OSCAL inherited + satisfied + a
-// leveraged-authorization on the downstream SSP) and the read-only projection over what
-// a downstream SSP has subscribed to.
+// published SSPExportOffering (recording OSCAL inherited + satisfied rows on the
+// downstream SSP) and the read-only projection over what a downstream SSP has subscribed
+// to. Subscribe deliberately does NOT record a leveraged-authorization — sharing is
+// decoupled from authorizations; see LeveragedAuthUUID on relational.SSPLeverageLink.
 type SSPLeverageHandler struct {
 	sugar    *zap.SugaredLogger
 	db       *gorm.DB

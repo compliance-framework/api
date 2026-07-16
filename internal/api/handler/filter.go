@@ -482,11 +482,17 @@ func (h *FilterHandler) AttachResponsibility(ctx echo.Context) error {
 	// tolerate junk rows, but writes are validated. This replicates the
 	// bulkResolveUpstreamResponsibilities join (handler/oscal cannot be imported from
 	// here — it imports this package for the response envelopes).
+	//
+	// Terminal link states are excluded deliberately, not by omission: a revoked or superseded
+	// link means the SSP no longer inherits the responsibility, so attaching a filter to it would
+	// target something that isn't there. A drifted link still qualifies — the subscription exists
+	// and is being reconciled, so filtering on it remains meaningful.
 	var inherits int64
 	if err := h.db.Table("ssp_leverage_links AS l").
 		Joins("JOIN provided_control_implementations p ON p.id = l.provided_uuid").
 		Joins("JOIN control_implementation_responsibilities r ON r.provided_uuid = p.id AND r.export_id = p.export_id").
-		Where("l.downstream_ssp_id = ? AND r.id = ?", req.SSPID, req.ResponsibilityUUID).
+		Where("l.downstream_ssp_id = ? AND r.id = ? AND l.status NOT IN ?", req.SSPID, req.ResponsibilityUUID,
+			[]relational.SSPLeverageStatus{relational.SSPLeverageStatusRevoked, relational.SSPLeverageStatusSuperseded}).
 		Count(&inherits).Error; err != nil {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
@@ -516,10 +522,28 @@ func (h *FilterHandler) AttachResponsibility(ctx echo.Context) error {
 
 	var controlToLink *relational.Control
 	if req.ControlID != nil && strings.TrimSpace(*req.ControlID) != "" {
+		// Control's PK is composite (catalog_id, id), so a control id alone does not identify a
+		// control — NIST 800-53 rev4 and rev5 both define AC-2. Resolve the catalog through the
+		// SSP's own profiles first; matching on id alone would pick an arbitrary catalog's row and
+		// pin this filter (and every control-level compliance surface reading ControlCatalogID) to
+		// a catalog the SSP may not even use.
+		controlID := strings.TrimSpace(*req.ControlID)
+		catalogID, err := h.resolveCatalogIDForSSPControl(req.SSPID, controlID)
+		if errors.Is(err, errAmbiguousControlCatalog) {
+			return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf(
+				"control %q is defined in multiple catalogs and this SSP's profiles do not disambiguate it", controlID)))
+		}
+		if err != nil {
+			return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		}
+		if catalogID == nil {
+			return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("control %q not found", controlID)))
+		}
+
 		// The caller passes the SSP's casing of the control id, which is not reliably
 		// the catalog's — match case-insensitively, like the leverage joins do.
 		var control relational.Control
-		if err := h.db.First(&control, "LOWER(id) = LOWER(?)", strings.TrimSpace(*req.ControlID)).Error; err != nil {
+		if err := h.db.First(&control, "catalog_id = ? AND LOWER(id) = LOWER(?)", *catalogID, controlID).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("control %q not found", *req.ControlID)))
 			}
@@ -542,9 +566,12 @@ func (h *FilterHandler) AttachResponsibility(ctx echo.Context) error {
 			// Co-ownership: if the existing link was itself created by a responsibility
 			// attachment, this row claims it too, so the LAST detacher removes it. An
 			// independently created link (POST/PUT /filters) is never owned.
+			// Scoped by catalog as well as id: control_id alone spans catalogs, so a claim on
+			// another catalog's AC-2 would otherwise read as a claim on this one.
 			var owners int64
 			if err := h.db.Model(&relational.FilterResponsibility{}).
-				Where("filter_id = ? AND control_id = ? AND control_link_created = true", filterID, control.ID).
+				Where("filter_id = ? AND control_id = ? AND control_catalog_id = ? AND control_link_created = true",
+					filterID, control.ID, control.CatalogID).
 				Count(&owners).Error; err != nil {
 				return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 			}
@@ -582,6 +609,68 @@ func (h *FilterHandler) AttachResponsibility(ctx echo.Context) error {
 //	@Failure		404					{object}	api.Error
 //	@Failure		500					{object}	api.Error
 //	@Router			/filters/{id}/responsibilities/{responsibilityUuid} [delete]
+//
+// errAmbiguousControlCatalog is returned when a control id matches controls in more than one
+// catalog and nothing narrows the choice. Mapped to 400: picking one arbitrarily is the bug this
+// resolution exists to prevent, so the caller has to say which catalog it means.
+var errAmbiguousControlCatalog = errors.New("control id matches controls in multiple catalogs")
+
+// resolveCatalogIDForSSPControl resolves controlID to exactly one catalog. Control's PK is
+// composite (catalog_id, id), so a bare control id does not identify a control — NIST 800-53 rev4
+// and rev5 both define AC-2.
+//
+// Two steps, in order:
+//  1. The SSP's own profiles, which are authoritative about which catalog it means. This mirrors
+//     handler/oscal's resolveCatalogIDForControl; it is replicated rather than shared because
+//     handler/oscal imports this package for the response envelopes, so it cannot be imported back.
+//  2. If the profiles don't import the control — which is legitimate and common, since a downstream
+//     may rely on a leveraged capability without implementing the control itself — fall back to the
+//     catalogs that define it. Exactly one match resolves; more than one is ambiguous and errors.
+//
+// The point is that no arbitrary choice is ever made: the previous `First(id = ?)` returned
+// whichever row the planner yielded, silently pinning the filter (and every control-level
+// compliance surface reading ControlCatalogID) to a catalog the SSP may not even use.
+//
+// The join deliberately carries no CAST: ssp_profiles.profile_id and profile_controls.profile_id
+// compare directly, matching the precedent in relational/system_component_suggestions.go, and
+// casting to uuid would break the sqlite-backed unit suites. control_id stays free text, hence the
+// UPPER() fold. A nil return with a nil error means no catalog defines the control at all — a 404.
+func (h *FilterHandler) resolveCatalogIDForSSPControl(sspID uuid.UUID, controlID string) (*uuid.UUID, error) {
+	var profileCatalogIDs []uuid.UUID
+	if err := h.db.
+		Table("profile_controls").
+		Joins("JOIN ssp_profiles ON ssp_profiles.profile_id = profile_controls.profile_id").
+		Where("ssp_profiles.system_security_plan_id = ? AND UPPER(profile_controls.control_id) = UPPER(?)", sspID, controlID).
+		Distinct().
+		Pluck("profile_controls.control_catalog_id", &profileCatalogIDs).Error; err != nil {
+		return nil, err
+	}
+	switch len(profileCatalogIDs) {
+	case 1:
+		return &profileCatalogIDs[0], nil
+	case 0:
+		// Fall through to the catalog-wide lookup below.
+	default:
+		return nil, errAmbiguousControlCatalog
+	}
+
+	var catalogIDs []uuid.UUID
+	if err := h.db.Model(&relational.Control{}).
+		Where("UPPER(id) = UPPER(?)", controlID).
+		Distinct().
+		Pluck("catalog_id", &catalogIDs).Error; err != nil {
+		return nil, err
+	}
+	switch len(catalogIDs) {
+	case 1:
+		return &catalogIDs[0], nil
+	case 0:
+		return nil, nil
+	default:
+		return nil, errAmbiguousControlCatalog
+	}
+}
+
 func (h *FilterHandler) DetachResponsibility(ctx echo.Context) error {
 	filterID, err := uuid.Parse(ctx.Param("id"))
 	if err != nil {
@@ -617,10 +706,16 @@ func (h *FilterHandler) DetachResponsibility(ctx echo.Context) error {
 
 		// Unwind the control link only when this row owned it and nobody else claims it —
 		// see the provenance comment on relational.FilterResponsibility.
+		//
+		// A claim is a row that CREATED the link (control_link_created), on this exact control
+		// (catalog_id, id). Counting rows with control_link_created = false would count rows that
+		// never claimed the link, blocking the unwind and leaking the link permanently; counting
+		// across catalogs would do the same via an unrelated catalog's same-named control.
 		if row.ControlLinkCreated && row.ControlID != nil && row.ControlCatalogID != nil {
 			var claims int64
 			if err := tx.Model(&relational.FilterResponsibility{}).
-				Where("filter_id = ? AND control_id = ?", filterID, *row.ControlID).
+				Where("filter_id = ? AND control_id = ? AND control_catalog_id = ? AND control_link_created = true",
+					filterID, *row.ControlID, *row.ControlCatalogID).
 				Count(&claims).Error; err != nil {
 				return err
 			}

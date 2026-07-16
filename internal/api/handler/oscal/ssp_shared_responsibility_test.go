@@ -71,11 +71,16 @@ func newSharedResponsibilityFixture(t *testing.T, db *gorm.DB) sharedResponsibil
 	require.NoError(t, db.Create(&statement).Error)
 
 	statementsType := "statements"
+	// Every scalar the PUT owns is populated, so a PUT that omits them has something to wipe:
+	// leaving props/links/set-parameters empty made the omitted-field regression invisible.
 	byComponent := relational.ByComponent{
 		ParentID: statement.ID, ParentType: &statementsType,
 		ComponentUUID: *component.ID,
 		Description:   "original description",
 		Remarks:       "original remarks",
+		Props:         datatypes.NewJSONSlice([]relational.Prop{{Name: "original-prop", Value: "original-value"}}),
+		Links:         datatypes.NewJSONSlice([]relational.Link{{Href: "https://example.com/original", Rel: "reference"}}),
+		SetParameters: datatypes.NewJSONSlice([]relational.SetParameter{{ParamId: "original-param", Values: []string{"original"}}}),
 	}
 	require.NoError(t, db.Create(&byComponent).Error)
 
@@ -326,21 +331,15 @@ func TestSubscribeReportsCreatedTree(t *testing.T) {
 	require.Equal(t, relational.SSPLeverageSatisfactionPartial, link.Satisfaction)
 }
 
-// TestSubscribeReportsReusedRowsAsNotCreated: a second item on the same statement reuses the
-// requirement, statement and by-component already materialized, and reports created:false.
-func TestSubscribeReportsReusedRowsAsNotCreated(t *testing.T) {
+// TestSubscribeDedupesReportedRowsWithinOneCall: two items landing on the same
+// requirement/statement/by-component report each row once — as created, since the first item
+// inserted it — rather than once per item.
+func TestSubscribeDedupesReportedRowsWithinOneCall(t *testing.T) {
 	db := newSSPLeverageTestDB(t)
 	fx := newSharedResponsibilityFixture(t, db)
 
-	// A second provided capability on the same statement-anchored by-component, offered as a
-	// second item in the same offering.
-	provided2 := relational.ProvidedControlImplementation{ExportId: fx.exportID, Description: "second capability"}
-	require.NoError(t, db.Create(&provided2).Error)
-	item2 := relational.SSPExportOfferingItem{
-		OfferingID: fx.offeringID, ControlID: "ac-2", StatementID: statementID("ac-2_smt.a"),
-		ComponentUUID: fx.componentID, ProvidedUUID: *provided2.ID,
-	}
-	require.NoError(t, db.Create(&item2).Error)
+	provided2, item2 := secondOfferingItemOnSameStatement(t, db, fx)
+	_ = provided2
 
 	pdp := &stubPDP{allow: true}
 	h := NewSSPLeverageHandler(zap.NewNop().Sugar(), db, pdp, authz.FailClosed)
@@ -358,12 +357,68 @@ func TestSubscribeReportsReusedRowsAsNotCreated(t *testing.T) {
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
 	require.Len(t, resp.Data, 2, "two items subscribed, two links")
 
-	// Both items land on the same requirement/statement/by-component: each is reported once,
-	// as created (the first item inserted it), not duplicated per item.
 	require.Len(t, resp.Meta.Created.ImplementedRequirements, 1)
 	require.Len(t, resp.Meta.Created.Statements, 1)
 	require.Len(t, resp.Meta.Created.ByComponents, 1)
 	require.True(t, resp.Meta.Created.ByComponents[0].Created)
+}
+
+// TestSubscribeReportsReusedRowsAsNotCreated: a SECOND subscribe call reuses the requirement,
+// statement and by-component the first call materialized, and reports created:false for each.
+//
+// It has to be a second call: within one call the rows genuinely are created, so created:true is
+// correct there and cannot pin the negative.
+func TestSubscribeReportsReusedRowsAsNotCreated(t *testing.T) {
+	db := newSSPLeverageTestDB(t)
+	fx := newSharedResponsibilityFixture(t, db)
+
+	_, item2 := secondOfferingItemOnSameStatement(t, db, fx)
+
+	pdp := &stubPDP{allow: true}
+	h := NewSSPLeverageHandler(zap.NewNop().Sugar(), db, pdp, authz.FailClosed)
+
+	// First call materializes the requirement, statement and by-component.
+	firstBody := fmt.Sprintf(`{"downstreamSspId":%q,"items":[{"itemId":%q}]}`,
+		fx.downstreamSSPID.String(), fx.itemID.String())
+	firstCtx, _, firstRec := newSubscribeRequestContext(fx.offeringID, firstBody)
+	require.NoError(t, h.Subscribe(firstCtx))
+	require.Equal(t, http.StatusCreated, firstRec.Code)
+
+	// Second call subscribes a different item that lands on the same statement — every reported
+	// row is a reuse.
+	secondBody := fmt.Sprintf(`{"downstreamSspId":%q,"items":[{"itemId":%q}]}`,
+		fx.downstreamSSPID.String(), item2.ID.String())
+	secondCtx, _, secondRec := newSubscribeRequestContext(fx.offeringID, secondBody)
+	require.NoError(t, h.Subscribe(secondCtx))
+	require.Equal(t, http.StatusCreated, secondRec.Code)
+
+	var resp struct {
+		Data []relational.SSPLeverageLink `json:"data"`
+		Meta subscribeMeta                `json:"meta"`
+	}
+	require.NoError(t, json.Unmarshal(secondRec.Body.Bytes(), &resp))
+	require.Len(t, resp.Data, 1)
+
+	require.Len(t, resp.Meta.Created.ImplementedRequirements, 1)
+	require.False(t, resp.Meta.Created.ImplementedRequirements[0].Created, "the requirement was created by the first call")
+	require.Len(t, resp.Meta.Created.Statements, 1)
+	require.False(t, resp.Meta.Created.Statements[0].Created, "the statement was created by the first call")
+	require.Len(t, resp.Meta.Created.ByComponents, 1)
+	require.False(t, resp.Meta.Created.ByComponents[0].Created, "the by-component was created by the first call")
+}
+
+// secondOfferingItemOnSameStatement adds a second provided capability on the same
+// statement-anchored by-component, offered as a second item in the same offering.
+func secondOfferingItemOnSameStatement(t *testing.T, db *gorm.DB, fx sharedResponsibilityFixture) (relational.ProvidedControlImplementation, relational.SSPExportOfferingItem) {
+	t.Helper()
+	provided2 := relational.ProvidedControlImplementation{ExportId: fx.exportID, Description: "second capability"}
+	require.NoError(t, db.Create(&provided2).Error)
+	item2 := relational.SSPExportOfferingItem{
+		OfferingID: fx.offeringID, ControlID: "ac-2", StatementID: statementID("ac-2_smt.a"),
+		ComponentUUID: fx.componentID, ProvidedUUID: *provided2.ID,
+	}
+	require.NoError(t, db.Create(&item2).Error)
+	return provided2, item2
 }
 
 // TestSubscribeReportsExistingRequirementAsNotCreated: when the downstream already implements
@@ -515,6 +570,17 @@ func TestUpdateByComponentDoesNotClobberSubtreesOrOmittedFields(t *testing.T) {
 	var stored relational.ByComponent
 	require.NoError(t, db.First(&stored, "id = ?", fx.byComponentID).Error)
 	require.Equal(t, "updated description", stored.Description)
+
+	// Omitted SCALARS survive. This is the half the test's name promised but never checked: the
+	// PUT above sends only a description, so every one of these would be zeroed by a blind Save —
+	// or by a map-form Updates listing them unconditionally.
+	require.Equal(t, "original remarks", stored.Remarks, "an omitted scalar must not be wiped")
+	require.Len(t, stored.Props, 1, "omitted props must not be wiped")
+	require.Equal(t, "original-prop", stored.Props[0].Name)
+	require.Len(t, stored.Links, 1, "omitted links must not be wiped")
+	require.Equal(t, "https://example.com/original", stored.Links[0].Href)
+	require.Len(t, stored.SetParameters, 1, "omitted set-parameters must not be wiped")
+	require.Equal(t, "original-param", stored.SetParameters[0].ParamId)
 
 	// implementation-status is optional: a by-component that never had one must not gain an
 	// empty {"state": ""} from a PUT that doesn't mention it.

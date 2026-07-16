@@ -32,6 +32,78 @@ import (
 // unsubscribe path as the way out. Hand-authored inherited entries (no link row) delete freely.
 var errInheritedOwnedBySubscription = errors.New("inherited entry is owned by a leverage subscription; unsubscribe instead of deleting it")
 
+// errResponsibilityNotInheritable is returned from inside the satisfied-create transaction when
+// the responsibility-uuid isn't on any export this by-component inherits. It exists so the check
+// can run under the subtree lock and still surface as a 400 rather than a 500.
+var errResponsibilityNotInheritable = errors.New("responsibility is not inheritable by this by-component")
+
+// errProvidedAlreadyInherited is returned when a provided-uuid is already inherited by another
+// by-component in the same SSP. See the check in the inherited create for why that is ambiguous
+// rather than merely redundant. Mapped to 409.
+var errProvidedAlreadyInherited = errors.New("provided-uuid is already inherited in this system security plan")
+
+// errDuplicateInheritedUUID / errDuplicateSatisfiedUUID turn a client-supplied uuid that collides
+// with an existing row into a 409 instead of leaking a raw driver error as a 500. ensureBodyUUID
+// accepts any well-formed uuid, so replaying a create — or copying a uuid off another
+// by-component — is trivially reachable.
+var errDuplicateInheritedUUID = errors.New("an inherited entry with this uuid already exists")
+var errDuplicateSatisfiedUUID = errors.New("a satisfied entry with this uuid already exists")
+
+// byComponentIDsForSSP lists every by-component id under an SSP, across both anchoring levels
+// (statement-anchored, and the legacy requirement-anchored shape). The chain is
+// control_implementations -> implemented_requirements -> statements -> by_components; nothing
+// carries an SSP id further down, so it has to be walked.
+func byComponentIDsForSSP(db *gorm.DB, sspID uuid.UUID) ([]uuid.UUID, error) {
+	var requirementIDs []uuid.UUID
+	if err := db.Model(&relational.ImplementedRequirement{}).
+		Joins("JOIN control_implementations ON control_implementations.id = implemented_requirements.control_implementation_id").
+		Where("control_implementations.system_security_plan_id = ?", sspID).
+		Pluck("implemented_requirements.id", &requirementIDs).Error; err != nil {
+		return nil, err
+	}
+	if len(requirementIDs) == 0 {
+		return nil, nil
+	}
+
+	var statementIDs []uuid.UUID
+	if err := db.Model(&relational.Statement{}).
+		Where("implemented_requirement_id IN ?", requirementIDs).
+		Pluck("id", &statementIDs).Error; err != nil {
+		return nil, err
+	}
+
+	query := db.Model(&relational.ByComponent{}).
+		Where("parent_id IN ? AND parent_type = ?", requirementIDs, "implemented_requirements")
+	if len(statementIDs) > 0 {
+		query = query.Or("parent_id IN ? AND parent_type = ?", statementIDs, "statements")
+	}
+	var byComponentIDs []uuid.UUID
+	if err := query.Pluck("id", &byComponentIDs).Error; err != nil {
+		return nil, err
+	}
+	return byComponentIDs, nil
+}
+
+// assertInheritedNotSubscribed enforces errInheritedOwnedBySubscription over a set of inherited
+// ids. Both delete paths — the sub-resource route and the by-component cascade — must apply the
+// same rule; guarding only one left the invariant bypassable by deleting the parent, and the two
+// copies had already drifted into different queries.
+func assertInheritedNotSubscribed(tx *gorm.DB, inheritedIDs []uuid.UUID) error {
+	if len(inheritedIDs) == 0 {
+		return nil
+	}
+	var linkCount int64
+	if err := tx.Model(&relational.SSPLeverageLink{}).
+		Where("inherited_uuid IN ?", inheritedIDs).
+		Count(&linkCount).Error; err != nil {
+		return err
+	}
+	if linkCount > 0 {
+		return errInheritedOwnedBySubscription
+	}
+	return nil
+}
+
 // GetImplementedRequirementByComponent godoc
 //
 //	@Summary		Get a by-component within an implemented requirement
@@ -436,10 +508,16 @@ func (h *SystemSecurityPlanHandler) GetImplementedRequirementStatementByComponen
 //	@Success		201				{object}	handler.GenericDataResponse[oscalTypes_1_1_3.InheritedControlImplementation]
 //	@Failure		400				{object}	api.Error
 //	@Failure		404				{object}	api.Error
+//	@Failure		409				{object}	api.Error
 //	@Failure		500				{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/statements/{stmtId}/by-components/{byComponentId}/inherited [post]
 func (h *SystemSecurityPlanHandler) CreateImplementedRequirementStatementByComponentInherited(ctx echo.Context) error {
+	sspID, _, _, err := parseSSPReqStmtIDs(ctx)
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
 	bc, ok := h.resolveByComponentForStatement(ctx)
 	if !ok {
 		return nil
@@ -480,13 +558,40 @@ func (h *SystemSecurityPlanHandler) CreateImplementedRequirementStatementByCompo
 
 	if err := h.db.Transaction(func(tx *gorm.DB) error {
 		// Same advisory-lock guard the Export create uses: nothing in the schema stops two
-		// concurrent creates from racing on the same by-component, and the satisfaction
-		// re-derivation below reads the rows this write produces.
+		// concurrent creates from racing on the same by-component. No satisfaction re-derivation
+		// belongs here — creating an inherited row changes what is inheritable, not what is
+		// satisfied — so the lock is purely to serialize concurrent creates against the
+		// already-inherited check below.
 		if err := lockByComponentSubtreeWrite(tx, *bc.ID); err != nil {
 			return err
 		}
+		// One provided-uuid may be inherited only once per SSP. A subscription's link is reached
+		// through its inherited row, and satisfaction is derived from the owning by-component's
+		// satisfied set — so a second by-component inheriting the same provided-uuid would make
+		// "which satisfied set governs this capability" ambiguous. Nothing in the schema forbids
+		// it, so it is enforced here, across both anchoring levels.
+		inSSP, err := byComponentIDsForSSP(tx, sspID)
+		if err != nil {
+			return err
+		}
+		var dupe int64
+		if err := tx.Model(&relational.InheritedControlImplementation{}).
+			Where("provided_uuid = ? AND by_component_id IN ?", providedUUID, inSSP).
+			Count(&dupe).Error; err != nil {
+			return err
+		}
+		if dupe > 0 {
+			return errProvidedAlreadyInherited
+		}
 		return tx.Create(relInherited).Error
 	}); err != nil {
+		if errors.Is(err, errProvidedAlreadyInherited) {
+			return ctx.JSON(http.StatusConflict, api.NewError(fmt.Errorf(
+				"provided-uuid %q is already inherited elsewhere in this system security plan", providedUUID)))
+		}
+		if isUniqueViolation(err) {
+			return ctx.JSON(http.StatusConflict, api.NewError(errDuplicateInheritedUUID))
+		}
 		h.sugar.Errorf("Failed to create inherited control implementation: %v", err)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
@@ -622,14 +727,14 @@ func (h *SystemSecurityPlanHandler) DeleteImplementedRequirementStatementByCompo
 	}
 
 	if err := h.db.Transaction(func(tx *gorm.DB) error {
-		var linkCount int64
-		if err := tx.Model(&relational.SSPLeverageLink{}).
-			Where("inherited_uuid = ?", existing.ID).
-			Count(&linkCount).Error; err != nil {
+		// Without the lock the count below is a pre-check-then-delete: a concurrent Subscribe can
+		// create a link for this row between the two, leaving link.InheritedUUID dangling. This
+		// path never calls resyncLeverageSatisfaction, so nothing takes the lock on its behalf.
+		if err := lockByComponentSubtreeWrite(tx, existing.ByComponentId); err != nil {
 			return err
 		}
-		if linkCount > 0 {
-			return errInheritedOwnedBySubscription
+		if err := assertInheritedNotSubscribed(tx, []uuid.UUID{*existing.ID}); err != nil {
+			return err
 		}
 
 		if err := deleteResponsibleRoles(tx, existing.ResponsibleRoles); err != nil {
@@ -704,6 +809,7 @@ func (h *SystemSecurityPlanHandler) GetImplementedRequirementStatementByComponen
 //	@Success		201				{object}	handler.GenericDataResponse[oscalTypes_1_1_3.SatisfiedControlImplementationResponsibility]
 //	@Failure		400				{object}	api.Error
 //	@Failure		404				{object}	api.Error
+//	@Failure		409				{object}	api.Error
 //	@Failure		500				{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/statements/{stmtId}/by-components/{byComponentId}/satisfied [post]
@@ -730,16 +836,6 @@ func (h *SystemSecurityPlanHandler) CreateImplementedRequirementStatementByCompo
 		return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("responsibility-uuid must be a valid UUID")))
 	}
 
-	inheritable, err := h.inheritableResponsibilities(*bc.ID)
-	if err != nil {
-		h.sugar.Errorf("Failed to resolve inheritable responsibilities: %v", err)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
-	}
-	if !inheritable[responsibilityUUID] {
-		return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf(
-			"responsibility-uuid %q is not a responsibility on any export this by-component inherits from", responsibilityUUID)))
-	}
-
 	relSatisfied := &relational.SatisfiedControlImplementationResponsibility{}
 	relSatisfied.UnmarshalOscal(oscalSatisfied)
 	relSatisfied.ByComponentId = *bc.ID
@@ -748,11 +844,28 @@ func (h *SystemSecurityPlanHandler) CreateImplementedRequirementStatementByCompo
 		if err := lockByComponentSubtreeWrite(tx, *bc.ID); err != nil {
 			return err
 		}
+		// Inside the tx and after the lock: read on h.db before either, and a concurrent
+		// inherited DELETE could retire the responsibility between the check and the insert,
+		// leaving a satisfied row that is no longer inheritable and can never be re-derived away.
+		inheritable, err := inheritableResponsibilities(tx, *bc.ID)
+		if err != nil {
+			return err
+		}
+		if !inheritable[responsibilityUUID] {
+			return errResponsibilityNotInheritable
+		}
 		if err := tx.Create(relSatisfied).Error; err != nil {
 			return err
 		}
 		return resyncLeverageSatisfaction(tx, sspID, *bc.ID)
 	}); err != nil {
+		if errors.Is(err, errResponsibilityNotInheritable) {
+			return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf(
+				"responsibility-uuid %q is not a responsibility on any export this by-component inherits from", responsibilityUUID)))
+		}
+		if isUniqueViolation(err) {
+			return ctx.JSON(http.StatusConflict, api.NewError(errDuplicateSatisfiedUUID))
+		}
 		h.sugar.Errorf("Failed to create satisfied responsibility: %v", err)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
@@ -923,14 +1036,18 @@ func (h *SystemSecurityPlanHandler) DeleteImplementedRequirementStatementByCompo
 // bulkResolveUpstreamResponsibilities, because provided-uuid values are only unique within one
 // upstream's Export — a provided_uuid-only match could pick up a same-valued responsibility
 // from an unrelated Export.
-func (h *SystemSecurityPlanHandler) inheritableResponsibilities(byComponentID uuid.UUID) (map[uuid.UUID]bool, error) {
+//
+// Takes the caller's db handle so a writer can run it inside its transaction, after taking
+// lockByComponentSubtreeWrite: the answer is only trustworthy for a write if the inherited set
+// it reads cannot change between the check and the insert.
+func inheritableResponsibilities(db *gorm.DB, byComponentID uuid.UUID) (map[uuid.UUID]bool, error) {
 	var inherited []relational.InheritedControlImplementation
-	if err := h.db.Where("by_component_id = ?", byComponentID).Find(&inherited).Error; err != nil {
+	if err := db.Where("by_component_id = ?", byComponentID).Find(&inherited).Error; err != nil {
 		return nil, err
 	}
 
 	providedUUIDs := uniqueUUIDs(inherited, func(i relational.InheritedControlImplementation) uuid.UUID { return i.ProvidedUuid })
-	byProvided, err := bulkResolveUpstreamResponsibilities(h.db, providedUUIDs)
+	byProvided, err := bulkResolveUpstreamResponsibilities(db, providedUUIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -948,10 +1065,14 @@ func (h *SystemSecurityPlanHandler) inheritableResponsibilities(byComponentID uu
 // owns an Inherited row on this by-component, after its satisfied set changed.
 //
 // LeveragedControls recomputes satisfaction live, so the stored value is bookkeeping — but the
-// drift detector and the notification path read it, so it must not rot. The link is found the
-// only way it can be: through the by-component's inherited rows, keyed on
-// (downstream_ssp_id, provided_uuid) — the pair the unique index is built on. A hand-authored
-// inherited entry has no link and is skipped silently.
+// drift detector and the notification path read it, so it must not rot. Links are found by
+// inherited_uuid, NOT by (downstream_ssp_id, provided_uuid). That pair carries a unique index on
+// ssp_leverage_links, so it identifies at most one link — but it does not identify which
+// by-component's satisfied set governs that link. Nothing constrains InheritedControlImplementation,
+// so two by-components in one SSP can each hold an inherited row for the same provided-uuid while
+// only one link exists; keying on the pair would let this by-component's satisfied set overwrite a
+// sibling's link. inherited_uuid is unambiguous: it names the exact row the link was created for.
+// A hand-authored inherited entry has no link and is skipped silently.
 //
 // Runs inside the caller's transaction so the satisfied write and the satisfaction it implies
 // commit together.
@@ -993,17 +1114,26 @@ func resyncLeverageSatisfaction(tx *gorm.DB, downstreamSSPID, byComponentID uuid
 		return err
 	}
 
-	for _, providedUUID := range providedUUIDs {
-		var link relational.SSPLeverageLink
-		err := tx.Where("downstream_ssp_id = ? AND provided_uuid = ?", downstreamSSPID, providedUUID).
-			First(&link).Error
-		if errors.Is(err, gorm.ErrRecordNotFound) {
+	// The inherited row names the provided-impl its link is derived from; the link is reached
+	// through the row's id, so a sibling by-component holding the same provided-uuid is untouched.
+	providedByInherited := make(map[uuid.UUID]uuid.UUID, len(inherited))
+	inheritedIDs := make([]uuid.UUID, 0, len(inherited))
+	for _, i := range inherited {
+		providedByInherited[*i.ID] = i.ProvidedUuid
+		inheritedIDs = append(inheritedIDs, *i.ID)
+	}
+
+	var links []relational.SSPLeverageLink
+	if err := tx.Where("downstream_ssp_id = ? AND inherited_uuid IN ?", downstreamSSPID, inheritedIDs).
+		Find(&links).Error; err != nil {
+		return err
+	}
+
+	for _, link := range links {
+		providedUUID, ok := providedByInherited[link.InheritedUUID]
+		if !ok {
 			continue
 		}
-		if err != nil {
-			return err
-		}
-
 		satisfaction, _ := deriveSatisfaction(fullSetByProvided[providedUUID], satisfiedUUIDs)
 		if satisfaction == link.Satisfaction {
 			continue
