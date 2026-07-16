@@ -12,6 +12,7 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
+	"gorm.io/datatypes"
 	"gorm.io/gorm"
 
 	"github.com/compliance-framework/api/internal/api/handler"
@@ -344,8 +345,8 @@ func TestSubscribeReportsReusedRowsAsNotCreated(t *testing.T) {
 	pdp := &stubPDP{allow: true}
 	h := NewSSPLeverageHandler(zap.NewNop().Sugar(), db, pdp, authz.FailClosed)
 	body := fmt.Sprintf(
-		`{"downstreamSspId":%q,"leveragedAuthorization":{"title":"Trust","partyUuid":%q},"items":[{"itemId":%q},{"itemId":%q}]}`,
-		fx.downstreamSSPID.String(), uuid.New().String(), fx.itemID.String(), item2.ID.String())
+		`{"downstreamSspId":%q,"items":[{"itemId":%q},{"itemId":%q}]}`,
+		fx.downstreamSSPID.String(), fx.itemID.String(), item2.ID.String())
 	ctx, _, rec := newSubscribeRequestContext(fx.offeringID, body)
 	require.NoError(t, h.Subscribe(ctx))
 	require.Equal(t, http.StatusCreated, rec.Code)
@@ -1641,18 +1642,24 @@ func TestSubscribeStoresSatisfactionAgreeingWithTheProjection(t *testing.T) {
 	db := newSSPLeverageTestDB(t)
 	fx := newSharedResponsibilityFixture(t, db)
 
-	// The downstream already hand-authored the whole tree for this statement, satisfying BOTH of
-	// the upstream's responsibilities — no leverage link, so the duplicate-link pre-check is silent.
+	// The downstream already carries the whole tree for this statement — anchored, as a
+	// PREVIOUS subscribe would have left it, on the component representing the upstream
+	// system (identified by the leveraged-system-uuid prop, which is what Subscribe's
+	// find-or-create keys on) — with satisfied rows covering BOTH of the upstream's
+	// responsibilities. No leverage link, so the duplicate-link pre-check is silent.
 	var downstreamImpl relational.ControlImplementation
 	require.NoError(t, db.First(&downstreamImpl, "system_security_plan_id = ?", fx.downstreamSSPID).Error)
 	var downstreamSysImpl relational.SystemImplementation
 	require.NoError(t, db.First(&downstreamSysImpl, "system_security_plan_id = ?", fx.downstreamSSPID).Error)
 
-	thisSystem := relational.SystemComponent{
-		Type: thisSystemComponentType, Title: "This System",
+	upstreamComponent := relational.SystemComponent{
+		Type: "system", Title: "Upstream Provider",
+		Props: datatypes.NewJSONSlice([]relational.Prop{
+			{Name: leveragedSystemUUIDProp, Value: fx.upstreamSSPID.String()},
+		}),
 		SystemImplementationId: *downstreamSysImpl.ID,
 	}
-	require.NoError(t, db.Create(&thisSystem).Error)
+	require.NoError(t, db.Create(&upstreamComponent).Error)
 
 	req := relational.ImplementedRequirement{ControlImplementationId: *downstreamImpl.ID, ControlId: "ac-2"}
 	require.NoError(t, db.Create(&req).Error)
@@ -1660,7 +1667,7 @@ func TestSubscribeStoresSatisfactionAgreeingWithTheProjection(t *testing.T) {
 	require.NoError(t, db.Create(&stmt).Error)
 
 	statementsType := "statements"
-	bc := relational.ByComponent{ParentID: stmt.ID, ParentType: &statementsType, ComponentUUID: *thisSystem.ID}
+	bc := relational.ByComponent{ParentID: stmt.ID, ParentType: &statementsType, ComponentUUID: *upstreamComponent.ID}
 	require.NoError(t, db.Create(&bc).Error)
 
 	for _, respID := range []uuid.UUID{fx.respAID, fx.respBID} {

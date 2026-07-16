@@ -84,10 +84,6 @@ func (suite *SubscribeAllowlistIntegrationSuite) createDownstreamSSP(contributor
 func (suite *SubscribeAllowlistIntegrationSuite) subscribeRequestBody(downstreamSSPID, itemID string) map[string]any {
 	return map[string]any{
 		"downstreamSspId": downstreamSSPID,
-		"leveragedAuthorization": map[string]string{
-			"title":     "Trust",
-			"partyUuid": uuid.New().String(),
-		},
 		"items": []map[string]any{
 			{"itemId": itemID, "satisfiedResponsibilityUuids": []string{}},
 		},

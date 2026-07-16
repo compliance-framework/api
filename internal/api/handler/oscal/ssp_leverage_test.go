@@ -152,10 +152,6 @@ func (suite *SSPLeverageIntegrationSuite) TestSubscribePartialThenProjection() {
 	// Subscribe as the ssp-subscriber user, satisfying only 1 of the 2 responsibilities.
 	subscribeReqBody := map[string]any{
 		"downstreamSspId": downstreamSSP.UUID,
-		"leveragedAuthorization": map[string]string{
-			"title":     "Trust in upstream provider",
-			"partyUuid": uuid.New().String(),
-		},
 		"items": []map[string]any{
 			{"itemId": itemID, "satisfiedResponsibilityUuids": []string{respAUUID}},
 		},
@@ -192,8 +188,8 @@ func (suite *SSPLeverageIntegrationSuite) TestSubscribePartialThenProjection() {
 	suite.Equal(respBUUID, projection.Data[0].OutstandingResponsibilities[0].ResponsibilityUUID.String())
 
 	// AC #4: the downstream's OSCAL subtree, marshaled with zero new export code, contains the
-	// inherited/satisfied/leveraged-authorization entries subscribe wrote — and the tree it
-	// materialized is requirement -> statement -> by-component, never requirement-anchored.
+	// inherited/satisfied entries subscribe wrote — and the tree it materialized is
+	// requirement -> statement -> by-component, never requirement-anchored.
 	var downstream relational.SystemSecurityPlan
 	suite.Require().NoError(suite.DB.
 		Preload("SystemImplementation.LeveragedAuthorizations").
@@ -203,9 +199,11 @@ func (suite *SSPLeverageIntegrationSuite) TestSubscribePartialThenProjection() {
 		First(&downstream, "id = ?", downstreamSSP.UUID).Error)
 
 	marshaled := downstream.MarshalOscal()
-	suite.Require().NotNil(marshaled.SystemImplementation.LeveragedAuthorizations)
-	suite.Require().Len(*marshaled.SystemImplementation.LeveragedAuthorizations, 1)
-	suite.Equal("Trust in upstream provider", (*marshaled.SystemImplementation.LeveragedAuthorizations)[0].Title)
+	// Sharing is decoupled from authorizations: subscribe creates NO leveraged-authorization,
+	// and the leverage link references none.
+	suite.Nil(marshaled.SystemImplementation.LeveragedAuthorizations,
+		"subscribe must not create a leveraged authorization")
+	suite.Nil(links.Data[0].LeveragedAuthUUID, "the leverage link carries no leveraged-auth reference")
 
 	var foundInherited, foundSatisfied bool
 	for _, req := range marshaled.ControlImplementation.ImplementedRequirements {
@@ -290,9 +288,8 @@ func (suite *SSPLeverageIntegrationSuite) TestSubscribeRequiresSSPUpdateOnDownst
 	// the handler's downstream ssp:update check.
 	rec = authedRequest(&suite.IntegrationTestSuite, server, "POST",
 		"/api/oscal/ssp-export-offerings/"+offeringID+"/subscribe", viewerToken, map[string]any{
-			"downstreamSspId":        downstreamSSP.UUID,
-			"leveragedAuthorization": map[string]string{"title": "Trust", "partyUuid": uuid.New().String()},
-			"items":                  []map[string]any{{"itemId": createdItem.Data.ID.String(), "satisfiedResponsibilityUuids": []string{respUUID}}},
+			"downstreamSspId": downstreamSSP.UUID,
+			"items":           []map[string]any{{"itemId": createdItem.Data.ID.String(), "satisfiedResponsibilityUuids": []string{respUUID}}},
 		})
 	suite.Require().Equal(http.StatusForbidden, rec.Code, rec.Body.String())
 }
@@ -350,8 +347,7 @@ func (suite *SSPLeverageIntegrationSuite) TestResponsibilityFilterFlipsPosture()
 
 	rec = authedRequest(&suite.IntegrationTestSuite, server, "POST",
 		"/api/oscal/ssp-export-offerings/"+offeringID+"/subscribe", subscriberToken, map[string]any{
-			"downstreamSspId":        downstreamSSP.UUID,
-			"leveragedAuthorization": map[string]string{"title": "Trust in upstream provider", "partyUuid": uuid.New().String()},
+			"downstreamSspId": downstreamSSP.UUID,
 			"items": []map[string]any{
 				{"itemId": itemID, "satisfiedResponsibilityUuids": []string{respAUUID}},
 			},

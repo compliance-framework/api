@@ -36,6 +36,20 @@ type createFilterRequest struct {
 	Components *[]string          `json:"components" yaml:"components"`
 }
 
+// attachFilterResponsibilityRequest is the body for POST /filters/:id/responsibilities.
+// camelCase JSON, the filters-API convention — clients must NOT kebab-case this body.
+type attachFilterResponsibilityRequest struct {
+	// The upstream ControlImplementationResponsibility this filter should evidence.
+	ResponsibilityUUID uuid.UUID `json:"responsibilityUuid" validate:"required" swaggertype:"string" format:"uuid"`
+	// The DOWNSTREAM SSP that inherits the responsibility (matched against
+	// ssp_leverage_links.downstream_ssp_id).
+	SSPID uuid.UUID `json:"sspId" validate:"required" swaggertype:"string" format:"uuid"`
+	// Optional control to also link the filter to (so control-level compliance
+	// surfaces include it). The link's provenance is recorded: detaching the
+	// responsibility removes the control link only if this attach created it.
+	ControlID *string `json:"controlId"`
+}
+
 // SetCatalogActiveRequest is the body for toggling a catalog's active state.
 // Active is a pointer so a missing field is rejected rather than defaulting to
 // false and silently deactivating the catalog.

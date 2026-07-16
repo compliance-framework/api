@@ -477,6 +477,15 @@ func MigrateUpWithConfig(db *gorm.DB, cfg *config.Config) error {
 		`).Error; err != nil {
 			return err
 		}
+
+		// Sharing is decoupled from Leveraged Authorizations: subscribe no longer creates
+		// an LA, so ssp_leverage_links.leveraged_auth_uuid must be nullable. AutoMigrate
+		// never relaxes an existing NOT NULL, so drop it explicitly (idempotent).
+		if err := db.Exec(`
+			ALTER TABLE ssp_leverage_links ALTER COLUMN leveraged_auth_uuid DROP NOT NULL
+		`).Error; err != nil {
+			return err
+		}
 	}
 	// For SQLite and other databases we do not create functional/unique indexes here.
 	// They will rely on their default query plans; a plain index on control_id

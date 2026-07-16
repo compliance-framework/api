@@ -230,14 +230,28 @@ func (suite *LeverageDriftIntegrationSuite) TestDeprecateOfferingDriftsAndNotifi
 }
 
 // TestLeveragedAuthorizationDeleteDriftsAndNotifies covers the "leveraged authorization
-// lapsed" trigger.
+// lapsed" trigger. Sharing no longer creates an LA, so this exercises a LEGACY link: one
+// that references a hand-authored leveraged authorization (as pre-decoupling links did).
+// Deleting that LA must still lapse the link.
 func (suite *LeverageDriftIntegrationSuite) TestLeveragedAuthorizationDeleteDriftsAndNotifies() {
 	fx := seedDriftFixture(suite)
 	link := suite.subscribe(fx)
 
+	// Attach a leveraged authorization to the link, simulating a legacy subscription.
+	var downstreamSysImpl relational.SystemImplementation
+	suite.Require().NoError(suite.DB.First(&downstreamSysImpl, "system_security_plan_id = ?", fx.downstreamSSPID).Error)
+	auth := relational.LeveragedAuthorization{
+		Title:                  "Legacy authorization",
+		PartyUUID:              uuid.New(),
+		SystemImplementationId: *downstreamSysImpl.ID,
+	}
+	suite.Require().NoError(suite.DB.Create(&auth).Error)
+	suite.Require().NoError(suite.DB.Model(&relational.SSPLeverageLink{}).
+		Where("id = ?", link.ID).Update("leveraged_auth_uuid", auth.ID).Error)
+
 	spy := &spyJobEnqueuer{}
 	sspHandler := NewSystemSecurityPlanHandler(zap.NewNop().Sugar(), suite.DB, nil, spy)
-	ctx, rec := newDeleteLeveragedAuthRequestContext(fx.downstreamSSPID, link.LeveragedAuthUUID)
+	ctx, rec := newDeleteLeveragedAuthRequestContext(fx.downstreamSSPID, *auth.ID)
 	suite.Require().NoError(sspHandler.DeleteSystemImplementationLeveragedAuthorization(ctx))
 	suite.Equal(http.StatusNoContent, rec.Code)
 

@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/labstack/echo/v4"
 	"go.uber.org/zap"
+	"gorm.io/datatypes"
 	"gorm.io/gorm"
 
 	"github.com/compliance-framework/api/internal/api"
@@ -20,12 +21,6 @@ import (
 	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/compliance-framework/api/internal/service/relational/risks"
 )
-
-// thisSystemComponentType is the OSCAL convention for a placeholder component
-// representing the system itself, used to anchor by-components that aren't tied to any
-// specific local component (e.g. purely-inherited capabilities). There's no existing Go
-// constant for this — it only appears in JSON test fixtures — so it's declared here.
-const thisSystemComponentType = "this-system"
 
 // errDuplicateLeverageLink signals a UNIQUE(downstream_ssp_id, provided_uuid) violation
 // caught inside the subscribe transaction — a concurrent request racing the same insert
@@ -193,6 +188,7 @@ func (h *SSPLeverageHandler) RegisterReAttest(g *echo.Group, guard middleware.Re
 // route group, gated by the standard ssp:read.
 func (h *SSPLeverageHandler) RegisterProjection(g *echo.Group, guard middleware.ResourceGuard) {
 	g.GET("/:id/leveraged-controls", h.LeveragedControls, guard.Read())
+	g.GET("/:id/responsibility-filters", h.ResponsibilityFilters, guard.Read())
 }
 
 // authorizeDownstreamUpdate enforces ssp:update on the downstream SSP identified by
@@ -284,24 +280,46 @@ func bulkAllowedOfferings(db *gorm.DB, offeringIDs []uuid.UUID, downstreamSSPID 
 	return allowed, nil
 }
 
-// findOrCreateThisSystemComponent finds the downstream's placeholder "this-system"
-// component, creating one if none exists — not every SSP has one, and there's no
-// guarantee the subscribing downstream does either.
-func findOrCreateThisSystemComponent(tx *gorm.DB, systemImplementationID uuid.UUID) (*relational.SystemComponent, error) {
-	var existing relational.SystemComponent
-	err := tx.Where("system_implementation_id = ? AND type = ?", systemImplementationID, thisSystemComponentType).
-		First(&existing).Error
-	if err == nil {
-		return &existing, nil
-	}
-	if !errors.Is(err, gorm.ErrRecordNotFound) {
+// leveragedSystemUUIDProp is the namespacing-free identity prop stamped on the downstream
+// component that represents an upstream system: its value is the upstream SSP's uuid, so
+// repeat imports from the same provider reuse one component even if the provider renames
+// itself. (Props are queried in Go rather than with a jsonb operator so the helper works
+// on the sqlite unit-test driver too.)
+const leveragedSystemUUIDProp = "leveraged-system-uuid"
+
+// findOrCreateLeveragedSystemComponent finds (or creates) the downstream component that
+// REPRESENTS THE UPSTREAM SYSTEM an import consumes — "Platform exports control 1 → App
+// imports it and gains a Platform component on that implementation". The component is an
+// OSCAL `system` component (this-system is reserved for the SSP's own system) named after
+// the upstream SSP and flagged implementation-point=external, identified across imports by
+// the leveraged-system-uuid prop.
+func findOrCreateLeveragedSystemComponent(tx *gorm.DB, systemImplementationID uuid.UUID, upstreamSSPID uuid.UUID, upstreamTitle string) (*relational.SystemComponent, error) {
+	var candidates []relational.SystemComponent
+	if err := tx.Where("system_implementation_id = ? AND type = ?", systemImplementationID, "system").
+		Find(&candidates).Error; err != nil {
 		return nil, err
 	}
+	for i := range candidates {
+		for _, prop := range candidates[i].Props {
+			if prop.Name == leveragedSystemUUIDProp && prop.Value == upstreamSSPID.String() {
+				return &candidates[i], nil
+			}
+		}
+	}
 
+	title := strings.TrimSpace(upstreamTitle)
+	if title == "" {
+		title = "Leveraged system " + upstreamSSPID.String()
+	}
 	created := relational.SystemComponent{
-		Type:                   thisSystemComponentType,
-		Title:                  "This System",
-		Description:            "Placeholder component representing the system itself, used to anchor leveraged/inherited capabilities not tied to a specific local component.",
+		Type:        "system",
+		Title:       title,
+		Description: fmt.Sprintf("The %s system this plan leverages — capabilities inherited from it anchor here.", title),
+		Status:      datatypes.NewJSONType(relational.SystemComponentStatus{State: "operational"}),
+		Props: datatypes.NewJSONSlice([]relational.Prop{
+			{Name: "implementation-point", Value: "external"},
+			{Name: leveragedSystemUUIDProp, Value: upstreamSSPID.String()},
+		}),
 		SystemImplementationId: systemImplementationID,
 	}
 	if err := tx.Create(&created).Error; err != nil {
@@ -488,32 +506,22 @@ func (t *subscribeCreationTracker) addByComponent(bc *relational.ByComponent, st
 	})
 }
 
-type subscribeLeveragedAuthorizationRequest struct {
-	Title          string `json:"title"`
-	PartyUUID      string `json:"partyUuid"`
-	DateAuthorized string `json:"dateAuthorized,omitempty"`
-}
-
 type subscribeItemRequest struct {
 	ItemID                       string   `json:"itemId"`
 	SatisfiedResponsibilityUUIDs []string `json:"satisfiedResponsibilityUuids,omitempty"`
 }
 
+// subscribeRequest carries no leveraged-authorization: sharing is decoupled from an
+// Authority to Operate. An old client may still send a `leveragedAuthorization` object —
+// Echo's binder ignores unknown JSON fields, so it is silently dropped rather than an error.
 type subscribeRequest struct {
-	DownstreamSSPID        string                                 `json:"downstreamSspId"`
-	LeveragedAuthorization subscribeLeveragedAuthorizationRequest `json:"leveragedAuthorization"`
-	Items                  []subscribeItemRequest                 `json:"items"`
+	DownstreamSSPID string                 `json:"downstreamSspId"`
+	Items           []subscribeItemRequest `json:"items"`
 }
 
 func (r subscribeRequest) validate() error {
 	if _, err := uuid.Parse(r.DownstreamSSPID); err != nil {
 		return fmt.Errorf("downstreamSspId must be a valid UUID")
-	}
-	if r.LeveragedAuthorization.Title == "" {
-		return fmt.Errorf("leveragedAuthorization.title is required")
-	}
-	if _, err := uuid.Parse(r.LeveragedAuthorization.PartyUUID); err != nil {
-		return fmt.Errorf("leveragedAuthorization.partyUuid must be a valid UUID")
 	}
 	if len(r.Items) == 0 {
 		return fmt.Errorf("items must not be empty")
@@ -536,11 +544,14 @@ func (r subscribeRequest) validate() error {
 //	@Summary		Subscribe to a published export offering
 //	@Description	Records, on the downstream SSP named in the request body, an OSCAL
 //	@Description	inherited-control-implementation and (optionally) satisfied-responsibility
-//	@Description	entries per chosen offering item, plus one leveraged-authorization for the
-//	@Description	whole request — all in a single atomic write. Never checks ssp:read on the
-//	@Description	upstream SSP: the trust boundary is that subscribing to a published offering
-//	@Description	only requires ssp-export-offering:subscribe on the offering and ssp:update on
-//	@Description	the downstream SSP.
+//	@Description	entries per chosen offering item — all in a single atomic write. Never checks
+//	@Description	ssp:read on the upstream SSP: the trust boundary is that subscribing to a
+//	@Description	published offering only requires ssp-export-offering:subscribe on the offering
+//	@Description	and ssp:update on the downstream SSP.
+//	@Description
+//	@Description	No leveraged-authorization is created: sharing is decoupled from an Authority
+//	@Description	to Operate. A Leveraged Authorization is an independent, human-authored record
+//	@Description	of the downstream's real ATO and never gates importing.
 //	@Description
 //	@Description	Every subscribed item must be statement-anchored: a legacy offering item with
 //	@Description	no statement-id is rejected with 422. The materialized downstream tree is
@@ -693,13 +704,15 @@ func (h *SSPLeverageHandler) Subscribe(ctx echo.Context) error {
 		}
 	}
 
-	dateAuthorized := time.Now()
-	if req.LeveragedAuthorization.DateAuthorized != "" {
-		parsed, err := time.Parse(time.RFC3339, req.LeveragedAuthorization.DateAuthorized)
-		if err != nil {
-			return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("leveragedAuthorization.dateAuthorized must be RFC3339")))
-		}
-		dateAuthorized = parsed
+	// The downstream materializes a component NAMED AFTER THE UPSTREAM SYSTEM to anchor
+	// what it inherits ("Platform exports control 1 → the importer gains a Platform
+	// component on that implementation"). Only the title is read — a server-side DB read
+	// of upstream metadata, not an authorized read of the upstream SSP resource, so the
+	// subscribe trust boundary is unchanged.
+	var upstream relational.SystemSecurityPlan
+	if err := h.db.Preload("Metadata").First(&upstream, "id = ?", offering.SSPID).Error; err != nil {
+		h.sugar.Errorf("Failed to load upstream SSP metadata: %v", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 	attestedBy := actorUserID(ctx)
 	now := time.Now()
@@ -719,18 +732,9 @@ func (h *SSPLeverageHandler) Subscribe(ctx echo.Context) error {
 			return errDownstreamNotAllowed
 		}
 
-		thisSystemComponent, err := findOrCreateThisSystemComponent(tx, *downstream.SystemImplementation.ID)
+		leveragedComponent, err := findOrCreateLeveragedSystemComponent(
+			tx, *downstream.SystemImplementation.ID, offering.SSPID, upstream.Metadata.Title)
 		if err != nil {
-			return err
-		}
-
-		leveragedAuth := relational.LeveragedAuthorization{
-			Title:                  req.LeveragedAuthorization.Title,
-			PartyUUID:              uuid.MustParse(req.LeveragedAuthorization.PartyUUID),
-			DateAuthorized:         dateAuthorized,
-			SystemImplementationId: *downstream.SystemImplementation.ID,
-		}
-		if err := tx.Create(&leveragedAuth).Error; err != nil {
 			return err
 		}
 
@@ -751,7 +755,7 @@ func (h *SSPLeverageHandler) Subscribe(ctx echo.Context) error {
 			}
 			tracker.addStatement(stmt, stmtCreated)
 
-			byComponent, bcCreated, err := findOrCreateByComponent(tx, *stmt.ID, "statements", *thisSystemComponent.ID)
+			byComponent, bcCreated, err := findOrCreateByComponent(tx, *stmt.ID, "statements", *leveragedComponent.ID)
 			if err != nil {
 				return err
 			}
@@ -815,20 +819,20 @@ func (h *SSPLeverageHandler) Subscribe(ctx echo.Context) error {
 
 			satisfaction, _ := deriveSatisfaction(fullSet, satisfiedSet)
 
+			// No LeveragedAuthUUID: sharing is decoupled from an Authority to Operate.
 			link := relational.SSPLeverageLink{
-				DownstreamSSPID:   downstreamSSPID,
-				UpstreamSSPID:     offering.SSPID,
-				OfferingID:        *offering.ID,
-				OfferingVersion:   offering.Version,
-				ControlID:         item.ControlID,
-				StatementID:       item.StatementID,
-				ProvidedUUID:      item.ProvidedUUID,
-				InheritedUUID:     *inherited.ID,
-				LeveragedAuthUUID: *leveragedAuth.ID,
-				Satisfaction:      satisfaction,
-				Status:            relational.SSPLeverageStatusActive,
-				AttestedAt:        &now,
-				AttestedByID:      attestedBy,
+				DownstreamSSPID: downstreamSSPID,
+				UpstreamSSPID:   offering.SSPID,
+				OfferingID:      *offering.ID,
+				OfferingVersion: offering.Version,
+				ControlID:       item.ControlID,
+				StatementID:     item.StatementID,
+				ProvidedUUID:    item.ProvidedUUID,
+				InheritedUUID:   *inherited.ID,
+				Satisfaction:    satisfaction,
+				Status:          relational.SSPLeverageStatusActive,
+				AttestedAt:      &now,
+				AttestedByID:    attestedBy,
 			}
 			if err := tx.Create(&link).Error; err != nil {
 				if isUniqueViolation(err) {
@@ -885,13 +889,26 @@ type leveragedControlInheritedFrom struct {
 }
 
 type leveragedControlResponse struct {
-	ID                          uuid.UUID                          `json:"id"`
-	ControlID                   string                             `json:"controlId"`
-	StatementID                 *string                            `json:"statementId,omitempty"`
-	InheritedFrom               leveragedControlInheritedFrom      `json:"inheritedFrom"`
-	Satisfaction                relational.SSPLeverageSatisfaction `json:"satisfaction"`
-	Status                      relational.SSPLeverageStatus       `json:"status"`
-	OutstandingResponsibilities []upstreamResponsibility           `json:"outstandingResponsibilities"`
+	ID            uuid.UUID                     `json:"id"`
+	ControlID     string                        `json:"controlId"`
+	StatementID   *string                       `json:"statementId,omitempty"`
+	InheritedFrom leveragedControlInheritedFrom `json:"inheritedFrom"`
+	// ProvidedUuid is the upstream provided capability this link consumes — the key the
+	// downstream's inherited entries reference.
+	ProvidedUuid uuid.UUID `json:"providedUuid"`
+	// ByComponentId is the downstream by-component the link's inherited entry hangs off —
+	// the anchor for authoring satisfied entries against this link's responsibilities.
+	// Nil only if the inherited row was deleted out from under the link.
+	ByComponentId *uuid.UUID                         `json:"byComponentId,omitempty"`
+	Satisfaction  relational.SSPLeverageSatisfaction `json:"satisfaction"`
+	Status        relational.SSPLeverageStatus       `json:"status"`
+	// Responsibilities is the FULL upstream responsibility set under this link (uuid +
+	// description). Downstream surfaces label every responsibility from this — including ones
+	// already satisfied — so the responsibility's own text is never replaced by a satisfied
+	// entry's "how we handle this" wording. OutstandingResponsibilities is the not-yet-covered
+	// subset (unchanged).
+	Responsibilities            []upstreamResponsibility `json:"responsibilities"`
+	OutstandingResponsibilities []upstreamResponsibility `json:"outstandingResponsibilities"`
 	// ResponsibilityPosture is the live, evidence-backed posture (satisfied /
 	// not-satisfied / unknown) per upstream responsibility uuid under this link's
 	// provided-uuid — computed via filter_responsibilities (BCH-1339), independent of
@@ -903,6 +920,87 @@ type leveragedControlResponse struct {
 	// matching risk is still open — nil otherwise (including for Revoked, which has no
 	// re-attest path and thus no risk to link).
 	DriftRiskID *uuid.UUID `json:"driftRiskId,omitempty"`
+}
+
+// responsibilityFilterResponse is one filter↔responsibility attachment for a downstream
+// SSP (a filter_responsibilities row with the filter's name resolved), keyed the way the
+// consumer reads it: by responsibility uuid.
+type responsibilityFilterResponse struct {
+	ResponsibilityUUID uuid.UUID `json:"responsibilityUuid"`
+	FilterID           uuid.UUID `json:"filterId"`
+	FilterName         string    `json:"filterName"`
+	ControlID          *string   `json:"controlId,omitempty"`
+	// ControlLinkCreated reports whether the attachment created (or co-owns) the
+	// filter→control link — detaching such an attachment may also unlink the control.
+	ControlLinkCreated bool `json:"controlLinkCreated"`
+}
+
+// ResponsibilityFilters godoc
+//
+//	@Summary		List a downstream SSP's filter↔responsibility attachments
+//	@Description	Every filter attached to an upstream responsibility this SSP inherits
+//	@Description	(BCH-1339's filter_responsibilities), with filter names resolved — one call
+//	@Description	for the whole SSP so per-responsibility evidence bars need no N+1. Writes
+//	@Description	are on the filters API (POST/DELETE /filters/:id/responsibilities).
+//	@Tags			SSP Export Offerings
+//	@Produce		json
+//	@Param			id	path		string	true	"Downstream SSP ID"
+//	@Success		200	{object}	handler.GenericDataListResponse[responsibilityFilterResponse]
+//	@Failure		400	{object}	api.Error
+//	@Failure		404	{object}	api.Error
+//	@Failure		500	{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/oscal/system-security-plans/{id}/responsibility-filters [get]
+func (h *SSPLeverageHandler) ResponsibilityFilters(ctx echo.Context) error {
+	sspIdParam := ctx.Param("id")
+	sspID, err := uuid.Parse(sspIdParam)
+	if err != nil {
+		h.sugar.Warnw("Invalid SSP id", "id", sspIdParam, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	if err := h.db.Select("id").First(&relational.SystemSecurityPlan{}, "id = ?", sspID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("SSP not found")))
+		}
+		h.sugar.Errorf("Failed to load SSP: %v", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	var rows []relational.FilterResponsibility
+	if err := h.db.Where("ssp_id = ?", sspID).Find(&rows).Error; err != nil {
+		h.sugar.Errorf("Failed to list filter responsibilities: %v", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	nameByFilter := map[uuid.UUID]string{}
+	if len(rows) > 0 {
+		filterIDs := make([]uuid.UUID, 0, len(rows))
+		for _, row := range rows {
+			filterIDs = append(filterIDs, row.FilterID)
+		}
+		var filters []relational.Filter
+		if err := h.db.Select("id, name").Where("id IN ?", filterIDs).Find(&filters).Error; err != nil {
+			h.sugar.Errorf("Failed to resolve filter names: %v", err)
+			return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		}
+		for _, filter := range filters {
+			nameByFilter[*filter.ID] = filter.Name
+		}
+	}
+
+	result := make([]responsibilityFilterResponse, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, responsibilityFilterResponse{
+			ResponsibilityUUID: row.ResponsibilityUUID,
+			FilterID:           row.FilterID,
+			FilterName:         nameByFilter[row.FilterID],
+			ControlID:          row.ControlID,
+			ControlLinkCreated: row.ControlLinkCreated,
+		})
+	}
+
+	return ctx.JSON(http.StatusOK, handler.GenericDataListResponse[responsibilityFilterResponse]{Data: result})
 }
 
 // LeveragedControls godoc
@@ -949,6 +1047,11 @@ func (h *SSPLeverageHandler) LeveragedControls(ctx echo.Context) error {
 
 	result := make([]leveragedControlResponse, 0, len(projection))
 	for _, p := range projection {
+		var byComponentID *uuid.UUID
+		if p.ByComponentID != uuid.Nil {
+			id := p.ByComponentID
+			byComponentID = &id
+		}
 		result = append(result, leveragedControlResponse{
 			ID:          *p.Link.ID,
 			ControlID:   p.Link.ControlID,
@@ -959,8 +1062,11 @@ func (h *SSPLeverageHandler) LeveragedControls(ctx echo.Context) error {
 				OfferingTitle:   p.OfferingTitle,
 				OfferingVersion: p.Link.OfferingVersion,
 			},
+			ProvidedUuid:                p.Link.ProvidedUUID,
+			ByComponentId:               byComponentID,
 			Satisfaction:                p.Satisfaction,
 			Status:                      p.Link.Status,
+			Responsibilities:            p.Responsibilities,
 			OutstandingResponsibilities: p.Outstanding,
 			ResponsibilityPosture:       p.Posture,
 			DriftRiskID:                 p.DriftRiskID,
@@ -986,8 +1092,13 @@ type leveragedControlProjection struct {
 	Inherited    *relational.InheritedControlImplementation
 	Satisfaction relational.SSPLeverageSatisfaction
 	Outstanding  []upstreamResponsibility
-	Posture      map[uuid.UUID]string
-	DriftRiskID  *uuid.UUID
+	// Responsibilities is the FULL upstream responsibility set under this link (uuid +
+	// description), so downstream surfaces can label every responsibility — including ones
+	// already satisfied — with the upstream's own text. Outstanding is the subset of this
+	// with no matching downstream satisfied entry.
+	Responsibilities []upstreamResponsibility
+	Posture          map[uuid.UUID]string
+	DriftRiskID      *uuid.UUID
 }
 
 // projectLeveragedControls builds the projection for every leverage link on one downstream
@@ -1108,14 +1219,15 @@ func projectLeveragedControls(db *gorm.DB, sspID uuid.UUID) ([]leveragedControlP
 		}
 
 		result = append(result, leveragedControlProjection{
-			Link:          link,
-			OfferingTitle: offeringTitleByID[link.OfferingID],
-			ByComponentID: byComponentID,
-			Inherited:     inherited,
-			Satisfaction:  satisfaction,
-			Outstanding:   outstanding,
-			Posture:       linkPosture,
-			DriftRiskID:   driftRiskID,
+			Link:             link,
+			OfferingTitle:    offeringTitleByID[link.OfferingID],
+			ByComponentID:    byComponentID,
+			Inherited:        inherited,
+			Satisfaction:     satisfaction,
+			Outstanding:      outstanding,
+			Responsibilities: full,
+			Posture:          linkPosture,
+			DriftRiskID:      driftRiskID,
 		})
 	}
 

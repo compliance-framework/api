@@ -790,6 +790,15 @@ definitions:
         type: array
       meta: {}
     type: object
+  handler.GenericDataListResponse-oscal_responsibilityFilterResponse:
+    properties:
+      data:
+        description: Items from the list response
+        items:
+          $ref: '#/definitions/oscal.responsibilityFilterResponse'
+        type: array
+      meta: {}
+    type: object
   handler.GenericDataListResponse-oscalTypes_1_1_3_AssessmentPlan:
     properties:
       data:
@@ -1958,6 +1967,13 @@ definitions:
         - $ref: '#/definitions/relational.Filter'
         description: Wrapped response data
     type: object
+  handler.GenericDataResponse-relational_FilterResponsibility:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/relational.FilterResponsibility'
+        description: Wrapped response data
+    type: object
   handler.GenericDataResponse-relational_SSOGroupMapping:
     properties:
       data:
@@ -2381,6 +2397,29 @@ definitions:
     properties:
       subject-id:
         type: string
+    type: object
+  handler.attachFilterResponsibilityRequest:
+    properties:
+      controlId:
+        description: |-
+          Optional control to also link the filter to (so control-level compliance
+          surfaces include it). The link's provenance is recorded: detaching the
+          responsibility removes the control link only if this attach created it.
+        type: string
+      responsibilityUuid:
+        description: The upstream ControlImplementationResponsibility this filter
+          should evidence.
+        format: uuid
+        type: string
+      sspId:
+        description: |-
+          The DOWNSTREAM SSP that inherits the responsibility (matched against
+          ssp_leverage_links.downstream_ssp_id).
+        format: uuid
+        type: string
+    required:
+    - responsibilityUuid
+    - sspId
     type: object
   handler.availableNotificationProviderResponse:
     properties:
@@ -4631,6 +4670,12 @@ definitions:
     type: object
   oscal.leveragedControlResponse:
     properties:
+      byComponentId:
+        description: |-
+          ByComponentId is the downstream by-component the link's inherited entry hangs off —
+          the anchor for authoring satisfied entries against this link's responsibilities.
+          Nil only if the inherited row was deleted out from under the link.
+        type: string
       controlId:
         type: string
       driftRiskId:
@@ -4645,6 +4690,21 @@ definitions:
       inheritedFrom:
         $ref: '#/definitions/oscal.leveragedControlInheritedFrom'
       outstandingResponsibilities:
+        items:
+          $ref: '#/definitions/oscal.upstreamResponsibility'
+        type: array
+      providedUuid:
+        description: |-
+          ProvidedUuid is the upstream provided capability this link consumes — the key the
+          downstream's inherited entries reference.
+        type: string
+      responsibilities:
+        description: |-
+          Responsibilities is the FULL upstream responsibility set under this link (uuid +
+          description). Downstream surfaces label every responsibility from this — including ones
+          already satisfied — so the responsibility's own text is never replaced by a satisfied
+          entry's "how we handle this" wording. OutstandingResponsibilities is the not-yet-covered
+          subset (unchanged).
         items:
           $ref: '#/definitions/oscal.upstreamResponsibility'
         type: array
@@ -4683,6 +4743,22 @@ definitions:
       title:
         type: string
     type: object
+  oscal.responsibilityFilterResponse:
+    properties:
+      controlId:
+        type: string
+      controlLinkCreated:
+        description: |-
+          ControlLinkCreated reports whether the attachment created (or co-owns) the
+          filter→control link — detaching such an attachment may also unlink the control.
+        type: boolean
+      filterId:
+        type: string
+      filterName:
+        type: string
+      responsibilityUuid:
+        type: string
+    type: object
   oscal.rule:
     properties:
       name:
@@ -4704,15 +4780,6 @@ definitions:
           type: string
         type: array
     type: object
-  oscal.subscribeLeveragedAuthorizationRequest:
-    properties:
-      dateAuthorized:
-        type: string
-      partyUuid:
-        type: string
-      title:
-        type: string
-    type: object
   oscal.subscribeRequest:
     properties:
       downstreamSspId:
@@ -4721,8 +4788,6 @@ definitions:
         items:
           $ref: '#/definitions/oscal.subscribeItemRequest'
         type: array
-      leveragedAuthorization:
-        $ref: '#/definitions/oscal.subscribeLeveragedAuthorizationRequest'
     type: object
   oscal.suggestionEventActor:
     properties:
@@ -8423,6 +8488,46 @@ definitions:
       id:
         type: string
       name:
+        type: string
+      sspId:
+        type: string
+    type: object
+  relational.FilterResponsibility:
+    properties:
+      controlId:
+        description: |-
+          Provenance of the filter→control association this attachment created. Attaching a
+          filter to a responsibility also links it to the responsibility's control (so the
+          existing control-level compliance surfaces include it); detaching must undo ONLY a
+          link the responsibility machinery itself created, never one a user made
+          independently via POST/PUT /api/filters. Semantics:
+            - attach, link absent            → append filter_controls, ControlLinkCreated=true
+            - attach, link present and some existing row on (filter_id, control_id) has
+              ControlLinkCreated=true        → the link is responsibility-owned; the new row
+              co-owns it (true), so the last detacher removes it
+            - attach, link present otherwise → independently created, ControlLinkCreated=false
+            - detach                         → remove the filter_controls row iff this row had
+              ControlLinkCreated=true AND no other filter_responsibilities row on the same
+              (filter_id, control_id) remains
+          Control's primary key is composite (catalog_id, id) — both parts are recorded so
+          detach can delete the exact association row.
+
+          Rows are create/delete-only. Never Save()/Updates() this model: with a composite
+          primary key GORM's upsert semantics on partial keys are a footgun.
+        type: string
+      controlLinkCreated:
+        description: |-
+          ControlLinkCreated reports whether this attachment created (or co-owns) the
+          filter→control link — see the provenance comment above.
+        type: boolean
+      filterId:
+        type: string
+      responsibilityUuid:
+        description: |-
+          ResponsibilityUUID and SSPID also carry idx_filter_responsibilities_ssp_lookup, a
+          composite index leading with ssp_id — the (filter_id, responsibility_uuid, ssp_id)
+          primary key leads with filter_id, which doesn't serve ResponsibilityPosture's
+          "WHERE ssp_id = ? AND responsibility_uuid IN ?" lookup (profile_compliance.go).
         type: string
       sspId:
         type: string
@@ -14562,6 +14667,96 @@ paths:
           schema:
             $ref: '#/definitions/api.Error'
       summary: Update a filter
+      tags:
+      - Filters
+  /filters/{id}/responsibilities:
+    post:
+      consumes:
+      - application/json
+      description: |-
+        Associates this filter with an upstream responsibility the given downstream
+        SSP inherits (BCH-1339's filter_responsibilities), so the responsibility's
+        posture is computed live from the filter's evidence. When controlId is given,
+        the filter is also linked to that control (so control-level compliance
+        surfaces include it) with provenance recorded: detaching removes the control
+        link only if this attach created it.
+      parameters:
+      - description: Filter ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Responsibility to attach
+        in: body
+        name: attachment
+        required: true
+        schema:
+          $ref: '#/definitions/handler.attachFilterResponsibilityRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-relational_FilterResponsibility'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Attach a filter to an inherited responsibility
+      tags:
+      - Filters
+  /filters/{id}/responsibilities/{responsibilityUuid}:
+    delete:
+      description: |-
+        Removes the filter↔responsibility association for the given downstream SSP
+        (sspId query param — the association's key is the full triple). The filter's
+        control link is removed only if it was created by a responsibility attachment
+        and no other attachment on this filter still claims that control.
+      parameters:
+      - description: Filter ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Responsibility UUID
+        in: path
+        name: responsibilityUuid
+        required: true
+        type: string
+      - description: Downstream SSP ID
+        in: query
+        name: sspId
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Detach a filter from an inherited responsibility
       tags:
       - Filters
   /filters/import:
@@ -22353,11 +22548,14 @@ paths:
       description: |-
         Records, on the downstream SSP named in the request body, an OSCAL
         inherited-control-implementation and (optionally) satisfied-responsibility
-        entries per chosen offering item, plus one leveraged-authorization for the
-        whole request — all in a single atomic write. Never checks ssp:read on the
-        upstream SSP: the trust boundary is that subscribing to a published offering
-        only requires ssp-export-offering:subscribe on the offering and ssp:update on
-        the downstream SSP.
+        entries per chosen offering item — all in a single atomic write. Never checks
+        ssp:read on the upstream SSP: the trust boundary is that subscribing to a
+        published offering only requires ssp-export-offering:subscribe on the offering
+        and ssp:update on the downstream SSP.
+
+        No leveraged-authorization is created: sharing is decoupled from an Authority
+        to Operate. A Leveraged Authorization is an independent, human-authored record
+        of the downstream's real ATO and never gates importing.
 
         Every subscribed item must be statement-anchored: a legacy offering item with
         no statement-id is rejected with 422. The materialized downstream tree is
@@ -27083,6 +27281,43 @@ paths:
       summary: Remove a Profile binding from an SSP
       tags:
       - System Security Plans
+  /oscal/system-security-plans/{id}/responsibility-filters:
+    get:
+      description: |-
+        Every filter attached to an upstream responsibility this SSP inherits
+        (BCH-1339's filter_responsibilities), with filter names resolved — one call
+        for the whole SSP so per-responsibility evidence bars need no N+1. Writes
+        are on the filters API (POST/DELETE /filters/:id/responsibilities).
+      parameters:
+      - description: Downstream SSP ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-oscal_responsibilityFilterResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: List a downstream SSP's filter↔responsibility attachments
+      tags:
+      - SSP Export Offerings
   /oscal/system-security-plans/{id}/shared-responsibility:
     get:
       description: |-

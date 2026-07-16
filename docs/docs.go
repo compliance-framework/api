@@ -4389,6 +4389,126 @@ const docTemplate = `{
                 }
             }
         },
+        "/filters/{id}/responsibilities": {
+            "post": {
+                "description": "Associates this filter with an upstream responsibility the given downstream\nSSP inherits (BCH-1339's filter_responsibilities), so the responsibility's\nposture is computed live from the filter's evidence. When controlId is given,\nthe filter is also linked to that control (so control-level compliance\nsurfaces include it) with provenance recorded: detaching removes the control\nlink only if this attach created it.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Filters"
+                ],
+                "summary": "Attach a filter to an inherited responsibility",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Filter ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Responsibility to attach",
+                        "name": "attachment",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.attachFilterResponsibilityRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-relational_FilterResponsibility"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/filters/{id}/responsibilities/{responsibilityUuid}": {
+            "delete": {
+                "description": "Removes the filter↔responsibility association for the given downstream SSP\n(sspId query param — the association's key is the full triple). The filter's\ncontrol link is removed only if it was created by a responsibility attachment\nand no other attachment on this filter still claims that control.",
+                "tags": [
+                    "Filters"
+                ],
+                "summary": "Detach a filter from an inherited responsibility",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Filter ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Responsibility UUID",
+                        "name": "responsibilityUuid",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Downstream SSP ID",
+                        "name": "sspId",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
         "/lineage/nodes/{key}/children": {
             "get": {
                 "description": "Returns one level of children for a node. Key is a composite like catalog:\u003cuuid\u003e, group:\u003ccatalogId\u003e/\u003cgroupId\u003e, control:\u003ccatalogId\u003e/\u003ccontrolId\u003e, linkcat:\u003cchildCatalogId\u003e/\u003crelationship\u003e/\u003cparentCatalogId\u003e/\u003cparentControlId\u003e, risk:\u003criskId\u003e, evidence:\u003cstreamUuid\u003e. A control expands to synthetic linkcat catalog nodes (its implementing/documenting controls grouped by their catalog) plus its directly-linked risks; a linkcat node expands to that group's controls; a risk expands to its latest evidence per linked stream; evidence is a leaf.",
@@ -16323,7 +16443,7 @@ const docTemplate = `{
         },
         "/oscal/ssp-export-offerings/{id}/subscribe": {
             "post": {
-                "description": "Records, on the downstream SSP named in the request body, an OSCAL\ninherited-control-implementation and (optionally) satisfied-responsibility\nentries per chosen offering item, plus one leveraged-authorization for the\nwhole request — all in a single atomic write. Never checks ssp:read on the\nupstream SSP: the trust boundary is that subscribing to a published offering\nonly requires ssp-export-offering:subscribe on the offering and ssp:update on\nthe downstream SSP.\n\nEvery subscribed item must be statement-anchored: a legacy offering item with\nno statement-id is rejected with 422. The materialized downstream tree is\nalways requirement -\u003e statement -\u003e by-component -\u003e inherited + satisfied, and is\nreported back in meta.created (each row flagged created:true when inserted,\nfalse when an existing row was reused) so the caller can render newly-created\nrequirements without re-walking the SSP. The data payload is unchanged.",
+                "description": "Records, on the downstream SSP named in the request body, an OSCAL\ninherited-control-implementation and (optionally) satisfied-responsibility\nentries per chosen offering item — all in a single atomic write. Never checks\nssp:read on the upstream SSP: the trust boundary is that subscribing to a\npublished offering only requires ssp-export-offering:subscribe on the offering\nand ssp:update on the downstream SSP.\n\nNo leveraged-authorization is created: sharing is decoupled from an Authority\nto Operate. A Leveraged Authorization is an independent, human-authored record\nof the downstream's real ATO and never gates importing.\n\nEvery subscribed item must be statement-anchored: a legacy offering item with\nno statement-id is rejected with 422. The materialized downstream tree is\nalways requirement -\u003e statement -\u003e by-component -\u003e inherited + satisfied, and is\nreported back in meta.created (each row flagged created:true when inserted,\nfalse when an existing row was reused) so the caller can render newly-created\nrequirements without re-walking the SSP. The data payload is unchanged.",
                 "consumes": [
                     "application/json"
                 ],
@@ -23093,6 +23213,58 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/handler.GenericDataListResponse-oscal_profileSummary"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/oscal/system-security-plans/{id}/responsibility-filters": {
+            "get": {
+                "description": "Every filter attached to an upstream responsibility this SSP inherits\n(BCH-1339's filter_responsibilities), with filter names resolved — one call\nfor the whole SSP so per-responsibility evidence bars need no N+1. Writes\nare on the filters API (POST/DELETE /filters/:id/responsibilities).",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "SSP Export Offerings"
+                ],
+                "summary": "List a downstream SSP's filter↔responsibility attachments",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Downstream SSP ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataListResponse-oscal_responsibilityFilterResponse"
                         }
                     },
                     "400": {
@@ -35341,6 +35513,19 @@ const docTemplate = `{
                 "meta": {}
             }
         },
+        "handler.GenericDataListResponse-oscal_responsibilityFilterResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscal.responsibilityFilterResponse"
+                    }
+                },
+                "meta": {}
+            }
+        },
         "handler.GenericDataListResponse-poam_PoamItemControlLink": {
             "type": "object",
             "properties": {
@@ -36845,6 +37030,19 @@ const docTemplate = `{
                 }
             }
         },
+        "handler.GenericDataResponse-relational_FilterResponsibility": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Wrapped response data",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/relational.FilterResponsibility"
+                        }
+                    ]
+                }
+            }
+        },
         "handler.GenericDataResponse-relational_SSOGroupMapping": {
             "type": "object",
             "properties": {
@@ -37488,6 +37686,29 @@ const docTemplate = `{
             "properties": {
                 "subject-id": {
                     "type": "string"
+                }
+            }
+        },
+        "handler.attachFilterResponsibilityRequest": {
+            "type": "object",
+            "required": [
+                "responsibilityUuid",
+                "sspId"
+            ],
+            "properties": {
+                "controlId": {
+                    "description": "Optional control to also link the filter to (so control-level compliance\nsurfaces include it). The link's provenance is recorded: detaching the\nresponsibility removes the control link only if this attach created it.",
+                    "type": "string"
+                },
+                "responsibilityUuid": {
+                    "description": "The upstream ControlImplementationResponsibility this filter should evidence.",
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "sspId": {
+                    "description": "The DOWNSTREAM SSP that inherits the responsibility (matched against\nssp_leverage_links.downstream_ssp_id).",
+                    "type": "string",
+                    "format": "uuid"
                 }
             }
         },
@@ -40825,6 +41046,10 @@ const docTemplate = `{
         "oscal.leveragedControlResponse": {
             "type": "object",
             "properties": {
+                "byComponentId": {
+                    "description": "ByComponentId is the downstream by-component the link's inherited entry hangs off —\nthe anchor for authoring satisfied entries against this link's responsibilities.\nNil only if the inherited row was deleted out from under the link.",
+                    "type": "string"
+                },
                 "controlId": {
                     "type": "string"
                 },
@@ -40839,6 +41064,17 @@ const docTemplate = `{
                     "$ref": "#/definitions/oscal.leveragedControlInheritedFrom"
                 },
                 "outstandingResponsibilities": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscal.upstreamResponsibility"
+                    }
+                },
+                "providedUuid": {
+                    "description": "ProvidedUuid is the upstream provided capability this link consumes — the key the\ndownstream's inherited entries reference.",
+                    "type": "string"
+                },
+                "responsibilities": {
+                    "description": "Responsibilities is the FULL upstream responsibility set under this link (uuid +\ndescription). Downstream surfaces label every responsibility from this — including ones\nalready satisfied — so the responsibility's own text is never replaced by a satisfied\nentry's \"how we handle this\" wording. OutstandingResponsibilities is the not-yet-covered\nsubset (unchanged).",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/oscal.upstreamResponsibility"
@@ -40890,6 +41126,27 @@ const docTemplate = `{
                 }
             }
         },
+        "oscal.responsibilityFilterResponse": {
+            "type": "object",
+            "properties": {
+                "controlId": {
+                    "type": "string"
+                },
+                "controlLinkCreated": {
+                    "description": "ControlLinkCreated reports whether the attachment created (or co-owns) the\nfilter→control link — detaching such an attachment may also unlink the control.",
+                    "type": "boolean"
+                },
+                "filterId": {
+                    "type": "string"
+                },
+                "filterName": {
+                    "type": "string"
+                },
+                "responsibilityUuid": {
+                    "type": "string"
+                }
+            }
+        },
         "oscal.rule": {
             "type": "object",
             "properties": {
@@ -40922,20 +41179,6 @@ const docTemplate = `{
                 }
             }
         },
-        "oscal.subscribeLeveragedAuthorizationRequest": {
-            "type": "object",
-            "properties": {
-                "dateAuthorized": {
-                    "type": "string"
-                },
-                "partyUuid": {
-                    "type": "string"
-                },
-                "title": {
-                    "type": "string"
-                }
-            }
-        },
         "oscal.subscribeRequest": {
             "type": "object",
             "properties": {
@@ -40947,9 +41190,6 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/oscal.subscribeItemRequest"
                     }
-                },
-                "leveragedAuthorization": {
-                    "$ref": "#/definitions/oscal.subscribeLeveragedAuthorizationRequest"
                 }
             }
         },
@@ -46540,6 +46780,29 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "name": {
+                    "type": "string"
+                },
+                "sspId": {
+                    "type": "string"
+                }
+            }
+        },
+        "relational.FilterResponsibility": {
+            "type": "object",
+            "properties": {
+                "controlId": {
+                    "description": "Provenance of the filter→control association this attachment created. Attaching a\nfilter to a responsibility also links it to the responsibility's control (so the\nexisting control-level compliance surfaces include it); detaching must undo ONLY a\nlink the responsibility machinery itself created, never one a user made\nindependently via POST/PUT /api/filters. Semantics:\n  - attach, link absent            → append filter_controls, ControlLinkCreated=true\n  - attach, link present and some existing row on (filter_id, control_id) has\n    ControlLinkCreated=true        → the link is responsibility-owned; the new row\n    co-owns it (true), so the last detacher removes it\n  - attach, link present otherwise → independently created, ControlLinkCreated=false\n  - detach                         → remove the filter_controls row iff this row had\n    ControlLinkCreated=true AND no other filter_responsibilities row on the same\n    (filter_id, control_id) remains\nControl's primary key is composite (catalog_id, id) — both parts are recorded so\ndetach can delete the exact association row.\n\nRows are create/delete-only. Never Save()/Updates() this model: with a composite\nprimary key GORM's upsert semantics on partial keys are a footgun.",
+                    "type": "string"
+                },
+                "controlLinkCreated": {
+                    "description": "ControlLinkCreated reports whether this attachment created (or co-owns) the\nfilter→control link — see the provenance comment above.",
+                    "type": "boolean"
+                },
+                "filterId": {
+                    "type": "string"
+                },
+                "responsibilityUuid": {
+                    "description": "ResponsibilityUUID and SSPID also carry idx_filter_responsibilities_ssp_lookup, a\ncomposite index leading with ssp_id — the (filter_id, responsibility_uuid, ssp_id)\nprimary key leads with filter_id, which doesn't serve ResponsibilityPosture's\n\"WHERE ssp_id = ? AND responsibility_uuid IN ?\" lookup (profile_compliance.go).",
                     "type": "string"
                 },
                 "sspId": {

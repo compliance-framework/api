@@ -35,6 +35,30 @@ type FilterResponsibility struct {
 	ResponsibilityUUID uuid.UUID `json:"responsibilityUuid" gorm:"type:uuid;primaryKey;index:idx_filter_responsibilities_ssp_lookup,priority:2"`
 	SSPID              uuid.UUID `json:"sspId" gorm:"type:uuid;primaryKey;index:idx_filter_responsibilities_ssp_lookup,priority:1"`
 
+	// Provenance of the filter→control association this attachment created. Attaching a
+	// filter to a responsibility also links it to the responsibility's control (so the
+	// existing control-level compliance surfaces include it); detaching must undo ONLY a
+	// link the responsibility machinery itself created, never one a user made
+	// independently via POST/PUT /api/filters. Semantics:
+	//   - attach, link absent            → append filter_controls, ControlLinkCreated=true
+	//   - attach, link present and some existing row on (filter_id, control_id) has
+	//     ControlLinkCreated=true        → the link is responsibility-owned; the new row
+	//     co-owns it (true), so the last detacher removes it
+	//   - attach, link present otherwise → independently created, ControlLinkCreated=false
+	//   - detach                         → remove the filter_controls row iff this row had
+	//     ControlLinkCreated=true AND no other filter_responsibilities row on the same
+	//     (filter_id, control_id) remains
+	// Control's primary key is composite (catalog_id, id) — both parts are recorded so
+	// detach can delete the exact association row.
+	//
+	// Rows are create/delete-only. Never Save()/Updates() this model: with a composite
+	// primary key GORM's upsert semantics on partial keys are a footgun.
+	ControlID        *string    `json:"controlId,omitempty" gorm:"column:control_id;index:idx_filter_responsibilities_control"`
+	ControlCatalogID *uuid.UUID `json:"-" gorm:"column:control_catalog_id;type:uuid"`
+	// ControlLinkCreated reports whether this attachment created (or co-owns) the
+	// filter→control link — see the provenance comment above.
+	ControlLinkCreated bool `json:"controlLinkCreated" gorm:"not null;default:false"`
+
 	Filter             *Filter             `json:"-" gorm:"foreignKey:FilterID;references:ID;constraint:OnDelete:CASCADE"`
 	SystemSecurityPlan *SystemSecurityPlan `json:"-" gorm:"foreignKey:SSPID;references:ID;constraint:OnDelete:CASCADE"`
 }
