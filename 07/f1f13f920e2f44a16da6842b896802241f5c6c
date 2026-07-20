@@ -1,0 +1,40 @@
+lisa-addressed:
+Human review round 7 (gusfcarvalho, PR #456) — 1 finding, valid, fixed.
+
+- [Medium] ensureProvidedUUIDNotAlreadyInherited (added in round 6) called byComponentIDsForSSP per
+  subscribe item: ~4 queries each, re-deriving the SSP's whole requirement/statement/by-component id
+  sets from scratch and passing them back as unbounded `IN ?` lists — inside the advisory lock's
+  critical section, so it lengthened it too. Tail risk was the sharper half: `IN ?` binds one
+  parameter per element against the 65535 ceiling, which is exactly the hazard this same commit
+  reasons about for allowedDownstreamSQL and that round 5 worked around with findByIDsInChunks. The
+  path just did not follow its own established precedent.
+  FIXED: the helper now walks control_implementations -> implemented_requirements -> statements ->
+  by_components -> inherited_control_implementations in ONE correlated query with two bind
+  parameters, regardless of SSP size. No CAST (ByComponent.ParentID and
+  Statement.ImplementedRequirementId are both uuid, and casting to uuid breaks the sqlite unit
+  suites); parent_type literals match the previous walker's. Both creation paths still share the one
+  helper, so the invariant stays enforced in a single place.
+  Kept the call INSIDE the item loop as requested.
+
+  CORRECTION TO THE FINDING'S PREMISE, worth recording: the reviewer asked for a test pinning "two
+  items in one subscribe carrying the same provided_uuid", on the reasoning that per-item evaluation
+  is what makes the intra-request case work. It turns out that case never reaches the item loop —
+  Subscribe already rejects it at request level with 400 ("duplicate provided-uuid %q in request
+  items", the seenProvidedUUIDs check, ssp_leverage.go:637). That guard predates the per-SSP
+  invariant and exists for its own reason: a repeated provided-uuid would slip past the
+  existing-link pre-check (committed rows only) and hit UNIQUE(downstream_ssp_id, provided_uuid)
+  mid-transaction. So the per-item placement is defence in depth, not the only thing standing
+  between that input and a duplicate. I discovered this by writing the test the reviewer asked for
+  and watching it fail with 400 instead of 409.
+  Test added anyway as TestSubscribeRejectsDuplicateProvidedUUIDWithinOneRequest, asserting the
+  ACTUAL behaviour (400 + the request-level message) and documenting which guard catches it, so the
+  next reader is not left with the same wrong assumption. If the request-level guard is ever
+  relaxed, that test goes red first and names the reason.
+
+- byComponentIDsForSSP lost its only production caller and golangci-lint flagged it unused. MOVED to
+  ssp_leverage_test.go (its two remaining callers are both tests) rather than kept as dead
+  production code or silenced with a lint exclusion. Its doc now says it is test-only and why the
+  production path stopped materializing the id set.
+
+VERIFICATION: go build clean; golangci-lint 0 issues; go vet -tags integration clean; full unit
+suite green; FULL integration suite green (oscal 152s, all other packages ok).
