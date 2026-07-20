@@ -76,21 +76,32 @@ func TestEveryLeverageSatisfactionWriterTakesTheSubtreeLock(t *testing.T) {
 }
 
 // parsePackageFiles parses every non-test .go file in this package.
+//
+// Files are enumerated and parsed individually rather than via parser.ParseDir, which is deprecated
+// as of Go 1.25. The go/packages alternative the deprecation points at would pull a full load
+// (and its build-tag handling) into a test that only needs this one directory's syntax trees.
 func parsePackageFiles(t *testing.T) []*ast.File {
 	t.Helper()
 	fset := token.NewFileSet()
-	pkgs, err := parser.ParseDir(fset, ".", func(fi os.FileInfo) bool {
-		return !strings.HasSuffix(fi.Name(), "_test.go")
-	}, 0)
-	require.NoError(t, err, "parsing package")
 
-	pkg, ok := pkgs["oscal"]
-	require.True(t, ok, "package oscal not found in current directory")
+	entries, err := os.ReadDir(".")
+	require.NoError(t, err, "reading package directory")
 
-	files := make([]*ast.File, 0, len(pkg.Files))
-	for _, f := range pkg.Files {
-		files = append(files, f)
+	files := make([]*ast.File, 0, len(entries))
+	for _, entry := range entries {
+		name := entry.Name()
+		if entry.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
+			continue
+		}
+		file, err := parser.ParseFile(fset, name, nil, 0)
+		require.NoErrorf(t, err, "parsing %s", name)
+		// Guard against a stray file declaring another package (e.g. an oscal_test variant).
+		if file.Name.Name != "oscal" {
+			continue
+		}
+		files = append(files, file)
 	}
+	require.NotEmpty(t, files, "package oscal not found in current directory")
 	return files
 }
 
