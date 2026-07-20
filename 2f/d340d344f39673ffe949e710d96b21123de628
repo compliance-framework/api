@@ -1,0 +1,11 @@
+lisa-addressed:
+- [CI/lint] staticcheck SA1019: parser.ParseDir deprecated since Go 1.25
+  (subtree_lock_invariant_test.go:82, the only lint issue; unit + integration + check-diff all passed).
+  FIXED: parsePackageFiles now enumerates with os.ReadDir and parses each non-test .go file via
+  parser.ParseFile, filtering on file.Name.Name == "oscal" to preserve the old pkgs["oscal"] behaviour.
+  Deliberately did NOT move to golang.org/x/tools/go/packages (what the deprecation suggests): it would
+  add a full package load + build-tag resolution to a test that only needs this one directory's syntax
+  trees. Build tags do not matter here — the invariant walk wants every file in the package regardless.
+  The require.NotEmpty(files) replaces the old "package oscal not found" assertion, so the test still
+  fails loudly rather than going vacuous if enumeration breaks. Verified: golangci-lint 0 issues,
+  invariant test passes, and the known-five superset assertion still holds (proves the walk sees all files).
