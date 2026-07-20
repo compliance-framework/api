@@ -407,3 +407,91 @@ func (suite *SSPLeverageIntegrationSuite) TestResponsibilityFilterFlipsPosture()
 	entry = fetchProjection()
 	suite.Equal("satisfied", entry.ResponsibilityPosture[uuid.MustParse(respBUUID)])
 }
+
+// TestSubscribeRejectsProvidedUUIDAlreadyHandAuthored covers the second creation path of the
+// "one provided-uuid may be inherited only once per SSP" invariant. The leverage link's
+// uniqueIndex on (downstream_ssp_id, provided_uuid) only stops a second SUBSCRIBE, so the
+// ambiguous state was reachable in this order: hand-author an inherited row for provided X
+// (no link exists yet), then subscribe to the offering item carrying X — which lands on a
+// DIFFERENT (statement, component) pair and would otherwise create a second inherited row.
+func (suite *SSPLeverageIntegrationSuite) TestSubscribeRejectsProvidedUUIDAlreadyHandAuthored() {
+	suite.Require().NoError(suite.Migrator.Refresh())
+
+	contributorToken := createRoledUser(&suite.IntegrationTestSuite, "dupe-contributor@example.com", "contributor")
+	server := newCedarServer(&suite.IntegrationTestSuite)
+
+	upstreamComponentUUID := uuid.New().String()
+	providedUUID := uuid.New().String()
+	respAUUID := uuid.New().String()
+	upstreamSSP := sspWithLeverageableCapability(upstreamComponentUUID, providedUUID, respAUUID, uuid.New().String())
+	rec := authedRequest(&suite.IntegrationTestSuite, server, "POST", "/api/oscal/system-security-plans", contributorToken, upstreamSSP)
+	suite.Require().Equal(http.StatusCreated, rec.Code, rec.Body.String())
+
+	rec = authedRequest(&suite.IntegrationTestSuite, server, "POST",
+		fmt.Sprintf("/api/oscal/system-security-plans/%s/export-offerings", upstreamSSP.UUID),
+		contributorToken, map[string]string{"title": "Offering"})
+	suite.Require().Equal(http.StatusCreated, rec.Code, rec.Body.String())
+	var createdOffering handler.GenericDataResponse[relational.SSPExportOffering]
+	suite.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &createdOffering))
+	offeringID := createdOffering.Data.ID.String()
+
+	rec = authedRequest(&suite.IntegrationTestSuite, server, "POST",
+		fmt.Sprintf("/api/oscal/system-security-plans/%s/export-offerings/%s/items", upstreamSSP.UUID, offeringID),
+		contributorToken, leverageOfferingItemBody(upstreamComponentUUID, providedUUID))
+	suite.Require().Equal(http.StatusCreated, rec.Code, rec.Body.String())
+	var createdItem handler.GenericDataResponse[relational.SSPExportOfferingItem]
+	suite.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &createdItem))
+
+	rec = authedRequest(&suite.IntegrationTestSuite, server, "POST",
+		fmt.Sprintf("/api/oscal/system-security-plans/%s/export-offerings/%s/publish", upstreamSSP.UUID, offeringID),
+		contributorToken, nil)
+	suite.Require().Equal(http.StatusOK, rec.Code, rec.Body.String())
+
+	// Downstream carries its OWN statement-anchored by-component (its own component, not the
+	// leveraged-system component Subscribe materializes) — so the hand-authored inherited row
+	// and the one Subscribe would create sit on different by-components.
+	downstreamComponentUUID := uuid.New().String()
+	downstreamSSP := sspWithLeverageableCapability(downstreamComponentUUID, uuid.New().String(), uuid.New().String(), uuid.New().String())
+	rec = authedRequest(&suite.IntegrationTestSuite, server, "POST", "/api/oscal/system-security-plans", contributorToken, downstreamSSP)
+	suite.Require().Equal(http.StatusCreated, rec.Code, rec.Body.String())
+
+	downstreamReq := downstreamSSP.ControlImplementation.ImplementedRequirements[0]
+	downstreamStmt := (*downstreamReq.Statements)[0]
+	downstreamBC := (*downstreamStmt.ByComponents)[0]
+
+	// Hand-author an inherited row for the upstream's provided-uuid. No link exists yet, so
+	// nothing else forbids it.
+	rec = authedRequest(&suite.IntegrationTestSuite, server, "POST",
+		fmt.Sprintf("/api/oscal/system-security-plans/%s/control-implementation/implemented-requirements/%s/statements/%s/by-components/%s/inherited",
+			downstreamSSP.UUID, downstreamReq.UUID, downstreamStmt.UUID, downstreamBC.UUID),
+		contributorToken, map[string]any{
+			"uuid":          uuid.New().String(),
+			"provided-uuid": providedUUID,
+			"description":   "Hand-authored inherited entry",
+		})
+	suite.Require().Equal(http.StatusCreated, rec.Code, rec.Body.String())
+
+	// Subscribing to the item carrying the same provided-uuid must now be refused, not
+	// silently create a second inherited row for it.
+	rec = authedRequest(&suite.IntegrationTestSuite, server, "POST",
+		"/api/oscal/ssp-export-offerings/"+offeringID+"/subscribe", contributorToken, map[string]any{
+			"downstreamSspId": downstreamSSP.UUID,
+			"items":           []map[string]any{{"itemId": createdItem.Data.ID.String(), "satisfiedResponsibilityUuids": []string{respAUUID}}},
+		})
+	suite.Require().Equal(http.StatusConflict, rec.Code, rec.Body.String())
+
+	// Exactly one inherited row for the provided-uuid survives anywhere in the downstream SSP,
+	// and the failed subscribe left no link behind.
+	inSSP, err := byComponentIDsForSSP(suite.DB, uuid.MustParse(downstreamSSP.UUID))
+	suite.Require().NoError(err)
+	var inheritedCount int64
+	suite.Require().NoError(suite.DB.Model(&relational.InheritedControlImplementation{}).
+		Where("provided_uuid = ? AND by_component_id IN ?", providedUUID, inSSP).
+		Count(&inheritedCount).Error)
+	suite.Equal(int64(1), inheritedCount, "the provided-uuid must be inherited exactly once in the SSP")
+
+	var linkCount int64
+	suite.Require().NoError(suite.DB.Model(&relational.SSPLeverageLink{}).
+		Where("downstream_ssp_id = ?", downstreamSSP.UUID).Count(&linkCount).Error)
+	suite.Equal(int64(0), linkCount, "the rejected subscribe must not leave a leverage link")
+}

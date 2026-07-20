@@ -74,6 +74,10 @@ type filterResponsibilityFixture struct {
 	providedUUID    string
 	respAUUID       string
 	respBUUID       string
+
+	// catalogID is the ACTIVE catalog defining "ac-1", so tests can assert which catalog a
+	// control resolved through rather than merely that resolution succeeded.
+	catalogID uuid.UUID
 }
 
 // setupFilterResponsibilityFixture materializes a real leverage link: upstream SSP with a
@@ -139,6 +143,7 @@ func (suite *FilterResponsibilityIntegrationSuite) setupFilterResponsibilityFixt
 		providedUUID:     providedUUID,
 		respAUUID:        respAUUID,
 		respBUUID:        respBUUID,
+		catalogID:        *catalog.ID,
 	}
 }
 
@@ -353,6 +358,111 @@ func (suite *FilterResponsibilityIntegrationSuite) TestAttachRejectsAmbiguousCon
 		Where("filter_id = ?", filter.ID).Count(&rows).Error)
 	suite.Zero(rows, "a rejected attach must not leave a filter_responsibilities row")
 	suite.Equal(int64(0), suite.controlLinkCount(*filter.ID, "ac-1"))
+}
+
+// TestAttachRejectsFilterOwnedByAnotherSSP pins the ownership boundary on attach. Authorization is
+// evaluated on the FILTER id (the route is guarded by guard.Update() on :id), so sspId is
+// body-supplied and never authorized on its own. Without the check, a principal with update rights
+// on their own filter could write a filter_responsibilities row scoped to any other SSP, and that
+// SSP's ResponsibilityPosture would then be computed from a filter it does not own.
+//
+// Every other fixture in this file builds the filter with fx.downstreamSSPID, so the cross-SSP case
+// was previously unexercised.
+func (suite *FilterResponsibilityIntegrationSuite) TestAttachRejectsFilterOwnedByAnotherSSP() {
+	fx := suite.setupFilterResponsibilityFixture()
+
+	// A real, unrelated SSP to own the filter — Filter.SSPID is a foreign key, so an invented
+	// uuid would fail on insert rather than exercising the handler.
+	otherSSP := minimalSSP(uuid.New().String())
+	rec := authedRequest(&suite.IntegrationTestSuite, fx.server, "POST",
+		"/api/oscal/system-security-plans", fx.contributorToken, otherSSP)
+	suite.Require().Equal(http.StatusCreated, rec.Code, rec.Body.String())
+
+	foreign := suite.makeFilter("filter owned elsewhere", otherSSP.UUID)
+
+	rec = authedRequest(&suite.IntegrationTestSuite, fx.server, "POST",
+		fmt.Sprintf("/api/filters/%s/responsibilities", foreign.ID), fx.contributorToken,
+		map[string]any{"responsibilityUuid": fx.respAUUID, "sspId": fx.downstreamSSPID})
+	suite.Require().Equal(http.StatusBadRequest, rec.Code, rec.Body.String())
+	suite.Contains(rec.Body.String(), "different system security plan")
+
+	var rows int64
+	suite.Require().NoError(suite.DB.Model(&relational.FilterResponsibility{}).
+		Where("filter_id = ?", foreign.ID).Count(&rows).Error)
+	suite.Zero(rows, "a cross-SSP attach must not write a filter_responsibilities row")
+}
+
+// TestAttachAllowsGlobalFilter pins the other half of the ownership rule: a global filter
+// (SSPID == nil) stays attachable for any SSP. That is deliberate existing behaviour, and the
+// cross-SSP guard must not tighten it.
+func (suite *FilterResponsibilityIntegrationSuite) TestAttachAllowsGlobalFilter() {
+	fx := suite.setupFilterResponsibilityFixture()
+
+	global := relational.Filter{
+		Name:  "global filter",
+		SSPID: nil,
+		Filter: datatypes.NewJSONType(labelfilter.Filter{
+			Scope: &labelfilter.Scope{Condition: &labelfilter.Condition{Label: "env", Operator: "=", Value: "prod"}},
+		}),
+	}
+	suite.Require().NoError(suite.DB.Create(&global).Error)
+
+	rec := authedRequest(&suite.IntegrationTestSuite, fx.server, "POST",
+		fmt.Sprintf("/api/filters/%s/responsibilities", global.ID), fx.contributorToken,
+		map[string]any{"responsibilityUuid": fx.respAUUID, "sspId": fx.downstreamSSPID})
+	suite.Require().Equal(http.StatusCreated, rec.Code, rec.Body.String())
+}
+
+// TestAttachPrefersActiveCatalogOverArchived pins the catalog fallback tier. Control ids like AC-1
+// recur in essentially every catalog, so counting archived, superseded or draft catalogs would let
+// a dead catalog manufacture ambiguity among live ones and turn a legitimate attach into a 400 the
+// client cannot resolve from its side.
+func (suite *FilterResponsibilityIntegrationSuite) TestAttachPrefersActiveCatalogOverArchived() {
+	fx := suite.setupFilterResponsibilityFixture()
+
+	// An ARCHIVED catalog defining the same control id as the fixture's active one. Before the
+	// active-first fallback this made resolution ambiguous and produced a 400.
+	archived := false
+	archivedCatalog := relational.Catalog{Active: &archived}
+	suite.Require().NoError(suite.DB.Create(&archivedCatalog).Error)
+	suite.Require().NoError(suite.DB.Create(&relational.Control{
+		CatalogID: *archivedCatalog.ID, ID: "ac-1", Title: "Access Control Policy (retired)",
+	}).Error)
+
+	filter := suite.makeFilter("active catalog filter", fx.downstreamSSPID)
+	controlID := "AC-1"
+	suite.attach(fx, *filter.ID, fx.respAUUID, &controlID)
+
+	// It resolved, and specifically through the ACTIVE catalog — asserting the stored catalog id
+	// rather than just a 201, since picking the archived one would also return 201.
+	var row relational.FilterResponsibility
+	suite.Require().NoError(suite.DB.First(&row, "filter_id = ?", filter.ID).Error)
+	suite.Require().NotNil(row.ControlCatalogID)
+	suite.Equal(fx.catalogID, *row.ControlCatalogID,
+		"control must resolve through the active catalog, not the archived one")
+}
+
+// TestAttachResolvesControlDefinedOnlyInArchivedCatalog pins the fallback's second tier: when NO
+// active catalog defines the control, the archived one is still reachable. Restricting the fallback
+// to active catalogs outright would have turned this into a spurious 404.
+func (suite *FilterResponsibilityIntegrationSuite) TestAttachResolvesControlDefinedOnlyInArchivedCatalog() {
+	fx := suite.setupFilterResponsibilityFixture()
+
+	archived := false
+	archivedCatalog := relational.Catalog{Active: &archived}
+	suite.Require().NoError(suite.DB.Create(&archivedCatalog).Error)
+	suite.Require().NoError(suite.DB.Create(&relational.Control{
+		CatalogID: *archivedCatalog.ID, ID: "au-9", Title: "Protection of Audit Information (retired)",
+	}).Error)
+
+	filter := suite.makeFilter("archived only filter", fx.downstreamSSPID)
+	controlID := "AU-9"
+	suite.attach(fx, *filter.ID, fx.respAUUID, &controlID)
+
+	var row relational.FilterResponsibility
+	suite.Require().NoError(suite.DB.First(&row, "filter_id = ?", filter.ID).Error)
+	suite.Require().NotNil(row.ControlCatalogID)
+	suite.Equal(*archivedCatalog.ID, *row.ControlCatalogID)
 }
 
 func (suite *FilterResponsibilityIntegrationSuite) TestAttachValidation() {

@@ -84,6 +84,37 @@ func byComponentIDsForSSP(db *gorm.DB, sspID uuid.UUID) ([]uuid.UUID, error) {
 	return byComponentIDs, nil
 }
 
+// ensureProvidedUUIDNotAlreadyInherited enforces "one provided-uuid may be inherited only once
+// per SSP". A subscription's link is reached through its inherited row, and satisfaction is
+// derived from the owning by-component's satisfied set — so a second by-component inheriting the
+// same provided-uuid would make "which satisfied set governs this capability" ambiguous. Nothing
+// in the schema forbids it (the leverage link's uniqueIndex only stops a second SUBSCRIBE), so it
+// is enforced here, across both anchoring levels AND both creation paths: the hand-authored
+// inherited create and Subscribe. Guarding only one left the invariant reachable by hand-authoring
+// the row first and subscribing second.
+//
+// tx must be the caller's transaction, holding the by-component subtree lock — checking outside it
+// races the very concurrent create the lock exists to serialize.
+func ensureProvidedUUIDNotAlreadyInherited(tx *gorm.DB, sspID uuid.UUID, providedUUID uuid.UUID) error {
+	inSSP, err := byComponentIDsForSSP(tx, sspID)
+	if err != nil {
+		return err
+	}
+	if len(inSSP) == 0 {
+		return nil
+	}
+	var dupe int64
+	if err := tx.Model(&relational.InheritedControlImplementation{}).
+		Where("provided_uuid = ? AND by_component_id IN ?", providedUUID, inSSP).
+		Count(&dupe).Error; err != nil {
+		return err
+	}
+	if dupe > 0 {
+		return errProvidedAlreadyInherited
+	}
+	return nil
+}
+
 // assertInheritedNotSubscribed enforces errInheritedOwnedBySubscription over a set of inherited
 // ids. Both delete paths — the sub-resource route and the by-component cascade — must apply the
 // same rule; guarding only one left the invariant bypassable by deleting the parent, and the two
@@ -168,7 +199,8 @@ func (h *SystemSecurityPlanHandler) getByComponent(ctx echo.Context, bc *relatio
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("by-component not found")))
 		}
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		h.sugar.Errorw("Failed to reload by-component", "byComponentId", *bc.ID, "error", err)
+		return ctx.JSON(http.StatusInternalServerError, api.InternalServerError())
 	}
 	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[oscalTypes_1_1_3.ByComponent]{Data: *loaded.MarshalOscal()})
 }
@@ -235,7 +267,8 @@ func (h *SystemSecurityPlanHandler) resolveStatement(ctx echo.Context) (stmt *re
 			_ = ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("SSP not found")))
 			return nil, false
 		}
-		_ = ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		h.sugar.Errorw("Failed to get ssp", "sspId", sspID, "error", err)
+		_ = ctx.JSON(http.StatusInternalServerError, api.InternalServerError())
 		return nil, false
 	}
 
@@ -246,7 +279,8 @@ func (h *SystemSecurityPlanHandler) resolveStatement(ctx echo.Context) (stmt *re
 			_ = ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("requirement not found")))
 			return nil, false
 		}
-		_ = ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		h.sugar.Errorw("Failed to get implemented requirement", "reqId", reqID, "error", err)
+		_ = ctx.JSON(http.StatusInternalServerError, api.InternalServerError())
 		return nil, false
 	}
 
@@ -257,7 +291,8 @@ func (h *SystemSecurityPlanHandler) resolveStatement(ctx echo.Context) (stmt *re
 			_ = ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("statement not found")))
 			return nil, false
 		}
-		_ = ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		h.sugar.Errorw("Failed to get statement", "stmtId", stmtID, "error", err)
+		_ = ctx.JSON(http.StatusInternalServerError, api.InternalServerError())
 		return nil, false
 	}
 
@@ -323,7 +358,8 @@ func (h *SystemSecurityPlanHandler) getByComponentExportProvided(ctx echo.Contex
 		Where("export_id = ?", export.ID).
 		Order("id ASC").
 		Find(&provided).Error; err != nil {
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		h.sugar.Errorw("Failed to list export provided", "exportId", export.ID, "error", err)
+		return ctx.JSON(http.StatusInternalServerError, api.InternalServerError())
 	}
 
 	result := make([]oscalTypes_1_1_3.ProvidedControlImplementation, 0, len(provided))
@@ -347,7 +383,8 @@ func (h *SystemSecurityPlanHandler) getByComponentExportResponsibilities(ctx ech
 		Where("export_id = ?", export.ID).
 		Order("id ASC").
 		Find(&responsibilities).Error; err != nil {
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		h.sugar.Errorw("Failed to list export responsibilities", "exportId", export.ID, "error", err)
+		return ctx.JSON(http.StatusInternalServerError, api.InternalServerError())
 	}
 
 	result := make([]oscalTypes_1_1_3.ControlImplementationResponsibility, 0, len(responsibilities))
@@ -481,7 +518,8 @@ func (h *SystemSecurityPlanHandler) GetImplementedRequirementStatementByComponen
 		Where("by_component_id = ?", bc.ID).
 		Order("id ASC").
 		Find(&inherited).Error; err != nil {
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		h.sugar.Errorw("Failed to list inherited control implementations", "byComponentId", bc.ID, "error", err)
+		return ctx.JSON(http.StatusInternalServerError, api.InternalServerError())
 	}
 
 	result := make([]oscalTypes_1_1_3.InheritedControlImplementation, 0, len(inherited))
@@ -543,6 +581,26 @@ func (h *SystemSecurityPlanHandler) CreateImplementedRequirementStatementByCompo
 	// still reads back as a real inherited capability. Same class of defect the offering-item
 	// coherence check rejects, one layer down. The satisfied POST already validates its
 	// responsibility-uuid this way.
+	//
+	// This lookup is GLOBAL BY DESIGN. It asks only whether the provided-uuid exists anywhere in
+	// the database, and deliberately does NOT apply isDownstreamAllowed. Subscribe does enforce
+	// the allow-list — it returns 403 (errDownstreamNotAllowed) when the downstream is not
+	// allow-listed for the offering — so the asymmetry between the two paths is a decision, not
+	// an oversight: a hand-authored inherited row is the author's own assertion about their own
+	// system, and holding it to the subscription trust boundary would block recording inheritance
+	// that is real but not modelled as a subscription.
+	//
+	// What that exposes, stated plainly: a caller with create rights on their own SSP gets a
+	// 201-vs-400 existence oracle over every provided-uuid in the installation, and can make
+	// inheritableResponsibilities resolve the responsibility set of an upstream they have no
+	// relationship with.
+	//
+	// What it does NOT expose: this path creates no SSPLeverageLink, so nothing recorded here
+	// reaches the drift detector or the inherits arm of the rollup. The effect stops at this
+	// SSP's own hand-authored rows.
+	//
+	// Revisit if provided-uuid existence ever becomes confidential: at that point scope this
+	// lookup to provided-uuids reachable through an offering this SSP is allow-listed for.
 	if err := h.db.First(&relational.ProvidedControlImplementation{}, "id = ?", providedUUID).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf(
@@ -565,23 +623,8 @@ func (h *SystemSecurityPlanHandler) CreateImplementedRequirementStatementByCompo
 		if err := lockByComponentSubtreeWrite(tx, *bc.ID); err != nil {
 			return err
 		}
-		// One provided-uuid may be inherited only once per SSP. A subscription's link is reached
-		// through its inherited row, and satisfaction is derived from the owning by-component's
-		// satisfied set — so a second by-component inheriting the same provided-uuid would make
-		// "which satisfied set governs this capability" ambiguous. Nothing in the schema forbids
-		// it, so it is enforced here, across both anchoring levels.
-		inSSP, err := byComponentIDsForSSP(tx, sspID)
-		if err != nil {
+		if err := ensureProvidedUUIDNotAlreadyInherited(tx, sspID, providedUUID); err != nil {
 			return err
-		}
-		var dupe int64
-		if err := tx.Model(&relational.InheritedControlImplementation{}).
-			Where("provided_uuid = ? AND by_component_id IN ?", providedUUID, inSSP).
-			Count(&dupe).Error; err != nil {
-			return err
-		}
-		if dupe > 0 {
-			return errProvidedAlreadyInherited
 		}
 		return tx.Create(relInherited).Error
 	}); err != nil {
@@ -596,9 +639,17 @@ func (h *SystemSecurityPlanHandler) CreateImplementedRequirementStatementByCompo
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
+	// The transaction above has COMMITTED. A failure to re-read the row must not be reported as
+	// a 5xx: the resource exists, and a client retrying what looked like a failed create would
+	// either duplicate it or bounce off the 409. The reload only re-fetches what we already hold
+	// — UnmarshalOscal populated ResponsibleRoles and their Parties from the request body, which
+	// is what MarshalOscal renders — so the in-memory value is the same resource. Log loudly and
+	// serve it rather than downgrading a committed write.
 	created, err := h.reloadInherited(*relInherited.ID)
 	if err != nil {
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		h.sugar.Errorw("Failed to reload inherited control implementation after a committed create; serving the in-memory value",
+			"inheritedId", *relInherited.ID, "byComponentId", *bc.ID, "error", err)
+		created = relInherited
 	}
 	return ctx.JSON(http.StatusCreated, handler.GenericDataResponse[oscalTypes_1_1_3.InheritedControlImplementation]{Data: *created.MarshalOscal()})
 }
@@ -641,16 +692,26 @@ func (h *SystemSecurityPlanHandler) UpdateImplementedRequirementStatementByCompo
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("inherited entry not found")))
 		}
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		h.sugar.Errorw("Failed to get inherited control implementation", "inheritedId", inheritedID, "error", err)
+		return ctx.JSON(http.StatusInternalServerError, api.InternalServerError())
 	}
 
 	var oscalInherited oscalTypes_1_1_3.InheritedControlImplementation
 	if err := ctx.Bind(&oscalInherited); err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
-	if oscalInherited.ProvidedUuid != "" && oscalInherited.ProvidedUuid != existing.ProvidedUuid.String() {
-		return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf(
-			"provided-uuid is immutable: it is the identity the leverage link and drift detector join on")))
+	// Compared as parsed uuid VALUES, not strings: uuid.UUID.String() always emits lowercase,
+	// but RFC 4122 permits uppercase and plenty of JSON/UI toolchains preserve whatever casing
+	// they were handed. A client round-tripping a GET into a PUT with a canonically-uppercase
+	// provided-uuid is sending a semantically identical value and must not be told it tried to
+	// mutate an immutable field. An empty string still means "omitted, leave unchanged"; a
+	// malformed value deliberately falls into the same 400.
+	if s := oscalInherited.ProvidedUuid; s != "" {
+		parsed, err := uuid.Parse(s)
+		if err != nil || parsed != existing.ProvidedUuid {
+			return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf(
+				"provided-uuid is immutable: it is the identity the leverage link and drift detector join on")))
+		}
 	}
 	// Echo back the stored identities so UnmarshalOscal's MustParse can't panic on a body
 	// that legitimately omits them.
@@ -678,7 +739,8 @@ func (h *SystemSecurityPlanHandler) UpdateImplementedRequirementStatementByCompo
 
 	updated, err := h.reloadInherited(*existing.ID)
 	if err != nil {
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		h.sugar.Errorw("Failed to reload inherited control implementation", "inheritedId", *existing.ID, "error", err)
+		return ctx.JSON(http.StatusInternalServerError, api.InternalServerError())
 	}
 	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[oscalTypes_1_1_3.InheritedControlImplementation]{Data: *updated.MarshalOscal()})
 }
@@ -723,7 +785,8 @@ func (h *SystemSecurityPlanHandler) DeleteImplementedRequirementStatementByCompo
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("inherited entry not found")))
 		}
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		h.sugar.Errorw("Failed to get inherited control implementation", "inheritedId", inheritedID, "error", err)
+		return ctx.JSON(http.StatusInternalServerError, api.InternalServerError())
 	}
 
 	if err := h.db.Transaction(func(tx *gorm.DB) error {
@@ -780,7 +843,8 @@ func (h *SystemSecurityPlanHandler) GetImplementedRequirementStatementByComponen
 		Where("by_component_id = ?", bc.ID).
 		Order("id ASC").
 		Find(&satisfied).Error; err != nil {
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		h.sugar.Errorw("Failed to list satisfied responsibilities", "byComponentId", bc.ID, "error", err)
+		return ctx.JSON(http.StatusInternalServerError, api.InternalServerError())
 	}
 
 	result := make([]oscalTypes_1_1_3.SatisfiedControlImplementationResponsibility, 0, len(satisfied))
@@ -870,9 +934,13 @@ func (h *SystemSecurityPlanHandler) CreateImplementedRequirementStatementByCompo
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
+	// Committed already — same reasoning as the inherited create above: a post-commit reload
+	// failure must not become a 5xx that invites a duplicate-creating retry.
 	created, err := h.reloadSatisfied(*relSatisfied.ID)
 	if err != nil {
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		h.sugar.Errorw("Failed to reload satisfied responsibility after a committed create; serving the in-memory value",
+			"satisfiedId", *relSatisfied.ID, "byComponentId", *bc.ID, "error", err)
+		created = relSatisfied
 	}
 	return ctx.JSON(http.StatusCreated, handler.GenericDataResponse[oscalTypes_1_1_3.SatisfiedControlImplementationResponsibility]{Data: *created.MarshalOscal()})
 }
@@ -917,16 +985,23 @@ func (h *SystemSecurityPlanHandler) UpdateImplementedRequirementStatementByCompo
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("satisfied entry not found")))
 		}
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		h.sugar.Errorw("Failed to get satisfied responsibility", "satisfiedId", satisfiedID, "error", err)
+		return ctx.JSON(http.StatusInternalServerError, api.InternalServerError())
 	}
 
 	var oscalSatisfied oscalTypes_1_1_3.SatisfiedControlImplementationResponsibility
 	if err := ctx.Bind(&oscalSatisfied); err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
-	if oscalSatisfied.ResponsibilityUuid != "" && oscalSatisfied.ResponsibilityUuid != existing.ResponsibilityUuid.String() {
-		return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf(
-			"responsibility-uuid is immutable: it is the identity satisfaction derivation and the drift detector join on")))
+	// Parsed-value comparison for the same reason as provided-uuid on the inherited PUT: an
+	// uppercase round-trip of the stored uuid is the same uuid. Empty stays "omitted, leave
+	// unchanged"; malformed falls into the same 400.
+	if s := oscalSatisfied.ResponsibilityUuid; s != "" {
+		parsed, err := uuid.Parse(s)
+		if err != nil || parsed != existing.ResponsibilityUuid {
+			return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf(
+				"responsibility-uuid is immutable: it is the identity satisfaction derivation and the drift detector join on")))
+		}
 	}
 	oscalSatisfied.UUID = existing.ID.String()
 	oscalSatisfied.ResponsibilityUuid = existing.ResponsibilityUuid.String()
@@ -953,7 +1028,8 @@ func (h *SystemSecurityPlanHandler) UpdateImplementedRequirementStatementByCompo
 
 	updated, err := h.reloadSatisfied(*existing.ID)
 	if err != nil {
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		h.sugar.Errorw("Failed to reload satisfied responsibility", "satisfiedId", *existing.ID, "error", err)
+		return ctx.JSON(http.StatusInternalServerError, api.InternalServerError())
 	}
 	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[oscalTypes_1_1_3.SatisfiedControlImplementationResponsibility]{Data: *updated.MarshalOscal()})
 }
@@ -1002,7 +1078,8 @@ func (h *SystemSecurityPlanHandler) DeleteImplementedRequirementStatementByCompo
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("satisfied entry not found")))
 		}
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		h.sugar.Errorw("Failed to get satisfied responsibility", "satisfiedId", satisfiedID, "error", err)
+		return ctx.JSON(http.StatusInternalServerError, api.InternalServerError())
 	}
 
 	if err := h.db.Transaction(func(tx *gorm.DB) error {

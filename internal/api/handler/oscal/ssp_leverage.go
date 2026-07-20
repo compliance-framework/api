@@ -783,6 +783,17 @@ func (h *SSPLeverageHandler) Subscribe(ctx echo.Context) error {
 
 			tracker.addByComponent(byComponent, *stmt.ID, bcCreated)
 
+			// Same "one provided-uuid inherited once per SSP" invariant the hand-authored
+			// inherited create enforces, applied on this creation path too. The link's
+			// uniqueIndex on (downstream_ssp_id, provided_uuid) only blocks a second SUBSCRIBE:
+			// a hand-authored inherited row for this provided-uuid leaves no link behind, so
+			// without this check the subscribe would land on a different (statement, component)
+			// pair and create a SECOND inherited row for it. Runs under the subtree lock taken
+			// just above, which is what makes it race-free.
+			if err := ensureProvidedUUIDNotAlreadyInherited(tx, downstreamSSPID, item.ProvidedUUID); err != nil {
+				return err
+			}
+
 			inherited := relational.InheritedControlImplementation{
 				ByComponentId: *byComponent.ID,
 				ProvidedUuid:  item.ProvidedUUID,
@@ -867,6 +878,9 @@ func (h *SSPLeverageHandler) Subscribe(ctx echo.Context) error {
 		return nil
 	}); err != nil {
 		if errors.Is(err, errDuplicateLeverageLink) {
+			return ctx.JSON(http.StatusConflict, api.NewError(err))
+		}
+		if errors.Is(err, errProvidedAlreadyInherited) {
 			return ctx.JSON(http.StatusConflict, api.NewError(err))
 		}
 		if errors.Is(err, errDownstreamNotAllowed) {
@@ -1103,9 +1117,19 @@ type leveragedControlProjection struct {
 }
 
 // projectLeveragedControls builds the projection for every leverage link on one downstream
-// SSP in a fixed number of queries (six), independent of link count — the batching that
-// replaced this code's original four-queries-per-link loop, preserved here so neither caller
-// can regress it into an N+1.
+// SSP in six queries at THIS level, independent of link count — the batching that replaced
+// this code's original four-queries-per-link loop, preserved here so neither caller can
+// regress it into an N+1. In particular the ResponsibilityPosture(db, sspID,
+// allResponsibilityUUIDs) call below must stay a single call for every uuid, never one per
+// link.
+//
+// The end-to-end cost is ~6 + N, not six: ResponsibilityPosture finishes with a
+// per-responsibility loop (profile_compliance.go, getStatusCountsForFilters) that issues one
+// evidence aggregate — count(DISTINCT uuid) grouped by status->>state, over the
+// latest-evidence-stream subquery and the label-filter joins — for every responsibility
+// carrying at least one FilterResponsibility link. Those N queries are the expensive ones, and
+// both /leveraged-controls and GET /:id/shared-responsibility pay them. Hoisting that loop
+// rewrites evidence aggregation and belongs in its own change.
 func projectLeveragedControls(db *gorm.DB, sspID uuid.UUID) ([]leveragedControlProjection, error) {
 	var links []relational.SSPLeverageLink
 	if err := db.Where("downstream_ssp_id = ?", sspID).Order("id ASC").Find(&links).Error; err != nil {

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -674,13 +675,37 @@ func TestInheritedPutRejectsProvidedUuidChange(t *testing.T) {
 	}
 	require.NoError(t, db.Create(&inherited).Error)
 
-	body := fmt.Sprintf(`{"provided-uuid": %q, "description": "sneaky"}`, uuid.New().String())
-	ctx, rec := newByComponentContext(http.MethodPut, body, fx.upstreamSSPID, fx.requirementID, fx.statementID, fx.byComponentID,
-		[2]string{"inheritedId", inherited.ID.String()})
-	require.NoError(t, h.UpdateImplementedRequirementStatementByComponentInherited(ctx))
+	put := func(body string) *httptest.ResponseRecorder {
+		ctx, rec := newByComponentContext(http.MethodPut, body, fx.upstreamSSPID, fx.requirementID, fx.statementID, fx.byComponentID,
+			[2]string{"inheritedId", inherited.ID.String()})
+		require.NoError(t, h.UpdateImplementedRequirementStatementByComponentInherited(ctx))
+		return rec
+	}
 
+	// A genuinely different provided-uuid is rejected.
+	rec := put(fmt.Sprintf(`{"provided-uuid": %q, "description": "sneaky"}`, uuid.New().String()))
 	require.Equal(t, http.StatusBadRequest, rec.Code)
 	require.Contains(t, rec.Body.String(), "immutable")
+
+	// A malformed provided-uuid is rejected too, with the same message: it cannot be shown to be
+	// the stored value, so it is treated as an attempt to change it.
+	rec = put(`{"provided-uuid": "not-a-uuid", "description": "sneaky"}`)
+	require.Equal(t, http.StatusBadRequest, rec.Code)
+	require.Contains(t, rec.Body.String(), "immutable")
+
+	var stored relational.InheritedControlImplementation
+	require.NoError(t, db.First(&stored, "id = ?", inherited.ID).Error)
+	require.Equal(t, "inherited", stored.Description, "the rejected PUTs must not have written anything")
+
+	// RFC 4122 permits uppercase, and toolchains that round-trip a GET into a PUT preserve
+	// whatever casing they were handed. The same uuid in uppercase is the same uuid.
+	rec = put(fmt.Sprintf(`{"provided-uuid": %q, "description": "revised"}`,
+		strings.ToUpper(inherited.ProvidedUuid.String())))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	require.NoError(t, db.First(&stored, "id = ?", inherited.ID).Error)
+	require.Equal(t, inherited.ProvidedUuid, stored.ProvidedUuid, "an uppercase round-trip must not mutate provided-uuid")
+	require.Equal(t, "revised", stored.Description)
 }
 
 // TestDeleteSubscriptionOwnedInheritedConflicts: an inherited entry an SSPLeverageLink still
@@ -791,13 +816,34 @@ func TestSatisfiedPutRejectsResponsibilityUuidChange(t *testing.T) {
 	}
 	require.NoError(t, db.Create(&satisfied).Error)
 
-	body := fmt.Sprintf(`{"responsibility-uuid": %q}`, uuid.New().String())
-	ctx, rec := newByComponentContext(http.MethodPut, body, fx.upstreamSSPID, fx.requirementID, fx.statementID, fx.byComponentID,
-		[2]string{"satisfiedId", satisfied.ID.String()})
-	require.NoError(t, h.UpdateImplementedRequirementStatementByComponentSatisfied(ctx))
+	put := func(body string) *httptest.ResponseRecorder {
+		ctx, rec := newByComponentContext(http.MethodPut, body, fx.upstreamSSPID, fx.requirementID, fx.statementID, fx.byComponentID,
+			[2]string{"satisfiedId", satisfied.ID.String()})
+		require.NoError(t, h.UpdateImplementedRequirementStatementByComponentSatisfied(ctx))
+		return rec
+	}
 
+	rec := put(fmt.Sprintf(`{"responsibility-uuid": %q}`, uuid.New().String()))
 	require.Equal(t, http.StatusBadRequest, rec.Code)
 	require.Contains(t, rec.Body.String(), "immutable")
+
+	// Malformed folds into the same 400 — it cannot be shown to be the stored value.
+	rec = put(`{"responsibility-uuid": "not-a-uuid"}`)
+	require.Equal(t, http.StatusBadRequest, rec.Code)
+	require.Contains(t, rec.Body.String(), "immutable")
+
+	var stored relational.SatisfiedControlImplementationResponsibility
+	require.NoError(t, db.First(&stored, "id = ?", satisfied.ID).Error)
+	require.Equal(t, "satisfied", stored.Description, "the rejected PUTs must not have written anything")
+
+	// The stored uuid in canonical uppercase is the same uuid, not a mutation.
+	rec = put(fmt.Sprintf(`{"responsibility-uuid": %q, "description": "revised"}`,
+		strings.ToUpper(satisfied.ResponsibilityUuid.String())))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	require.NoError(t, db.First(&stored, "id = ?", satisfied.ID).Error)
+	require.Equal(t, satisfied.ResponsibilityUuid, stored.ResponsibilityUuid, "an uppercase round-trip must not mutate responsibility-uuid")
+	require.Equal(t, "revised", stored.Description)
 }
 
 // TestSatisfiedWritesOnHandAuthoredEntriesSkipLeverageResync: a by-component with no leverage

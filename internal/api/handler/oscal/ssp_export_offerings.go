@@ -1178,6 +1178,29 @@ func parseExportOfferingPagination(ctx echo.Context) (limit int, offset int, err
 	return limit, offset, nil
 }
 
+// allowedDownstreamSQL is bulkAllowedOfferings' rule expressed as a SQL predicate on
+// ssp_export_offerings.id, so a paginated query can be constrained by the allow-list BEFORE
+// LIMIT/OFFSET is applied: an offering with no allow-list rows is open to every downstream
+// (the type-level default), one with rows is open only to those it lists.
+//
+// Deliberately correlated subqueries rather than a `WHERE id IN (?)` over a pre-resolved set:
+// the permitted set is UNBOUNDED — every offering lacking allow-list rows is in it — so an IN
+// list would grow with the tenant's offering count and eventually blow the 65535 bind-parameter
+// ceiling, the same hazard findByIDsInChunks works around in the migrator backfill. The single
+// bound parameter here is the downstream SSP id. Written with EXISTS/NOT EXISTS (not a LEFT
+// JOIN or a jsonb/array trick) so it runs identically on Postgres and the sqlite unit-test
+// driver.
+const allowedDownstreamSQL = `(
+	NOT EXISTS (
+		SELECT 1 FROM ssp_export_offering_allowed_downstreams ad
+		WHERE ad.offering_id = ssp_export_offerings.id
+	)
+	OR EXISTS (
+		SELECT 1 FROM ssp_export_offering_allowed_downstreams ad
+		WHERE ad.offering_id = ssp_export_offerings.id AND ad.downstream_ssp_id = ?
+	)
+)`
+
 func (h *SSPExportOfferingHandler) ListAll(ctx echo.Context) error {
 	limit, offset, err := parseExportOfferingPagination(ctx)
 	if err != nil {
@@ -1324,8 +1347,10 @@ func (h *SSPExportOfferingHandler) ByControl(ctx echo.Context) error {
 
 	// Same bounds as ListAll. A widely-offered control (AC-2 across a large tenant) would
 	// otherwise return every published item plus the batched resolution queries behind it in one
-	// unpaginated response; downstreamSspId does not bound it, being optional and applied after
-	// the fetch.
+	// unpaginated response. downstreamSspId narrows it further and is applied IN SQL, not after
+	// the fetch, so that LIMIT/OFFSET page over the FILTERED set: filtering a fetched page
+	// post-hoc makes a page whose rows are all filtered out look like the end of the collection,
+	// and a client paginating from offset 0 silently stops before every later match.
 	limit, offset, err := parseExportOfferingPagination(ctx)
 	if err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
@@ -1344,10 +1369,14 @@ func (h *SSPExportOfferingHandler) ByControl(ctx echo.Context) error {
 	// casing across the codebase (fixtures use "ac-2", catalogs "AC-2"), so match the way
 	// every other control lookup here does: fold case rather than compare bytes.
 	var items []relational.SSPExportOfferingItem
-	if err := h.db.
+	query := h.db.
 		Joins("JOIN ssp_export_offerings ON ssp_export_offerings.id = ssp_export_offering_items.offering_id").
 		Where("ssp_export_offerings.status = ? AND UPPER(ssp_export_offering_items.control_id) = UPPER(?)",
-			relational.SSPExportOfferingStatusPublished, controlID).
+			relational.SSPExportOfferingStatusPublished, controlID)
+	if downstreamSSPID != nil {
+		query = query.Where(allowedDownstreamSQL, *downstreamSSPID)
+	}
+	if err := query.
 		Order("ssp_export_offering_items.id ASC").
 		Limit(limit).Offset(offset).
 		Find(&items).Error; err != nil {
@@ -1367,26 +1396,6 @@ func (h *SSPExportOfferingHandler) ByControl(ctx echo.Context) error {
 	offeringByID := make(map[uuid.UUID]relational.SSPExportOffering, len(offerings))
 	for _, o := range offerings {
 		offeringByID[*o.ID] = o
-	}
-
-	// Drop items whose offering the downstream isn't allow-listed for, before spending any
-	// further resolution on them.
-	if downstreamSSPID != nil {
-		allowedOfferings, err := bulkAllowedOfferings(h.db, offeringIDs, *downstreamSSPID)
-		if err != nil {
-			h.sugar.Errorf("Failed to check offering allow-list: %v", err)
-			return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
-		}
-		filtered := make([]relational.SSPExportOfferingItem, 0, len(items))
-		for _, item := range items {
-			if allowedOfferings[item.OfferingID] {
-				filtered = append(filtered, item)
-			}
-		}
-		items = filtered
-		if len(items) == 0 {
-			return ctx.JSON(http.StatusOK, handler.GenericDataListResponse[ControlExportOffer]{Data: []ControlExportOffer{}})
-		}
 	}
 
 	sspIDs := uniqueUUIDs(offerings, func(o relational.SSPExportOffering) uuid.UUID { return o.SSPID })

@@ -740,6 +740,9 @@ const (
 	// bind-parameter ceiling per statement. Well under it, since several IN-lists are built
 	// per batch and a migration error is fatal to boot.
 	inClauseChunkSize = 1000
+	// maxUndeterminableSample bounds how many undeterminable row IDs are retained for logging,
+	// so the diagnostic list cannot grow with the size of the legacy table.
+	maxUndeterminableSample = 100
 )
 
 // uniqueUUIDs extracts the deduplicated set of UUIDs from items, preserving first-seen order.
@@ -805,7 +808,10 @@ func migrateBackfillOfferingItemStatementIDs(db *gorm.DB) error {
 	}
 
 	var backfilled, danglingProvided, missingExport, requirementAnchored, emptyStatementID int
-	var undeterminableIDs []uuid.UUID
+	// Only a bounded sample of the undeterminable IDs is kept: requirement-anchored rows are the
+	// expected legacy shape, so a legacy table can produce millions of them and this runs on the
+	// boot path. The per-cause counters below carry the full totals.
+	var undeterminableSample []uuid.UUID
 
 	if err := db.Transaction(func(tx *gorm.DB) error {
 		var items []relational.SSPExportOfferingItem
@@ -857,25 +863,33 @@ func migrateBackfillOfferingItemStatementIDs(db *gorm.DB) error {
 				exportID, ok := exportIDByProvided[item.ProvidedUUID]
 				if !ok {
 					danglingProvided++
-					undeterminableIDs = append(undeterminableIDs, *item.ID)
+					if len(undeterminableSample) < maxUndeterminableSample {
+						undeterminableSample = append(undeterminableSample, *item.ID)
+					}
 					continue
 				}
 				byComponentID, ok := byComponentIDByExport[exportID]
 				if !ok {
 					missingExport++
-					undeterminableIDs = append(undeterminableIDs, *item.ID)
+					if len(undeterminableSample) < maxUndeterminableSample {
+						undeterminableSample = append(undeterminableSample, *item.ID)
+					}
 					continue
 				}
 				statementRowID, ok := statementIDByComponent[byComponentID]
 				if !ok {
 					requirementAnchored++
-					undeterminableIDs = append(undeterminableIDs, *item.ID)
+					if len(undeterminableSample) < maxUndeterminableSample {
+						undeterminableSample = append(undeterminableSample, *item.ID)
+					}
 					continue
 				}
 				statementID, ok := statementIDByRow[statementRowID]
 				if !ok || statementID == "" {
 					emptyStatementID++
-					undeterminableIDs = append(undeterminableIDs, *item.ID)
+					if len(undeterminableSample) < maxUndeterminableSample {
+						undeterminableSample = append(undeterminableSample, *item.ID)
+					}
 					continue
 				}
 
@@ -892,7 +906,8 @@ func migrateBackfillOfferingItemStatementIDs(db *gorm.DB) error {
 		return err
 	}
 
-	if backfilled == 0 && len(undeterminableIDs) == 0 {
+	undeterminable := requirementAnchored + danglingProvided + missingExport + emptyStatementID
+	if backfilled == 0 && undeterminable == 0 {
 		return nil
 	}
 
@@ -902,17 +917,19 @@ func migrateBackfillOfferingItemStatementIDs(db *gorm.DB) error {
 			"(%d requirement-anchored [expected legacy], %d dangling provided-uuid [data corruption], "+
 			"%d export missing [data corruption], %d statement has empty statement-id)",
 		backfilled,
-		len(undeterminableIDs),
+		undeterminable,
 		requirementAnchored,
 		danglingProvided,
 		missingExport,
 		emptyStatementID,
 	)
-	if len(undeterminableIDs) > 0 {
+	if len(undeterminableSample) > 0 {
 		db.Logger.Info(
 			context.Background(),
-			"Offering items with a statement_id that could not be derived: %v",
-			undeterminableIDs,
+			"Offering items with a statement_id that could not be derived (showing first %d of %d): %v",
+			len(undeterminableSample),
+			undeterminable,
+			undeterminableSample,
 		)
 	}
 	return nil
