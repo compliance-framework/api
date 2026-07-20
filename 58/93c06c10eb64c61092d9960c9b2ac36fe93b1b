@@ -1,0 +1,92 @@
+lisa-addressed:
+Human review round 6 (gusfcarvalho, PR #456) — 14 findings, all valid, all fixed.
+
+- [High] AttachResponsibility never checked that the filter belongs to req.SSPID, and authz is
+  evaluated on the FILTER id (guard.Update() on :id) so body-supplied sspId was never authorized —
+  a cross-tenant write. FIXED: 400 when filter.SSPID != nil && *filter.SSPID != req.SSPID; global
+  filters (SSPID == nil) stay attachable anywhere. ORDERING NOTE: placed AFTER the SSP-existence
+  check, not before it as the guidance said — hoisting it above turned "unknown sspId" from 404
+  into a misleading 400 and broke TestAttachValidation. Caught by running the suite; comment
+  records why the order matters. Tests: cross-SSP filter -> 400 + no row written; global filter
+  -> 201.
+- [Medium] Subscribe created inherited rows with no duplicate-provided-uuid guard, so
+  hand-author-then-subscribe reached the ambiguous state the sub-resource guard forbids. FIXED:
+  extracted ensureProvidedUUIDNotAlreadyInherited(tx, sspID, providedUUID) next to
+  byComponentIDsForSSP; called in Subscribe after lockByComponentSubtreeWrite and before
+  tx.Create(&inherited); mapped errProvidedAlreadyInherited to 409. Both paths now call the helper
+  so they cannot drift. Dropped the suggested excludeByComponentID param — neither call site needs
+  it. Test verified to fail before the fix.
+- [Medium x3] The three subtree-lock concurrency tests were vacuous or unasserted. FIXED:
+  (a) lost-update test got a started/release rendezvous placed BEFORE the advisory lock (after it
+  would self-deadlock, since the second tx cannot reach the barrier while the first holds the lock),
+  20 iterations over fresh fixtures; (b) both goroutines now collect into errs[] and assert, plus
+  satisfied-table post-conditions; (c) the dangle test now seeds a SECOND inherited row with no
+  leverage link and races ITS delete, so the delete genuinely runs — assertions are coherence-based
+  (both tx succeed, unlinked row gone, linked row survives, a fresh resync is a no-op) rather than
+  ordering-based. B's expectation flipped to NoError as a consequence.
+  BOTH-WAYS VERIFIED (I ran this myself; the earlier attempt was blocked): with
+  lockByComponentSubtreeWrite neutered, TestConcurrentSatisfiedWritesConvergeOnProjection FAILS with
+  expected "full" / actual "partial" — a genuine lost update. Lock restored, file sha unchanged,
+  green again. HONEST LIMIT: the dangle test still PASSES with the lock neutered. It is no longer
+  vacuous (it can fail on a dangling satisfied row or a stale satisfaction) but it is NOT
+  lock-discriminating, and its doc comment now says so explicitly and points at the test that is.
+- [Medium] migrator undeterminableIDs accumulated across every batch, defeating the batching's
+  memory bound on the boot path where requirement-anchored is the EXPECTED shape. FIXED: capped
+  100-item sample, per-cause counters kept, log now reads "(showing first 100 of 4000000)" so the
+  truncation is explicit rather than silent.
+- [Medium] "a fixed number of queries (six), independent of link count" was wrong — ResponsibilityPosture
+  ends in a per-responsibility loop calling getStatusCountsForFilters (profile_compliance.go:516-522),
+  an evidence aggregate per filter-linked responsibility. FIXED THE COMMENT, not the cost: it now
+  states ~6 + N, names where N comes from, notes both /leveraged-controls and
+  GET /:id/shared-responsibility pay it, and KEEPS the still-true instruction that callers must make
+  one batched ResponsibilityPosture call. Hoisting that loop rewrites evidence aggregation and
+  belongs in its own PR.
+- [Medium] Control-link ownership (linkExists + owners) was read on h.db before the tx opened, so a
+  concurrent attach could invalidate the provenance flag ControlLinkCreated — which nothing later
+  repairs — and strand or strip a link. FIXED: both reads moved inside the tx under
+  clause.Locking{Strength:"UPDATE"} on the filter row; linkExists re-derived with an explicit
+  filter_controls count rather than reusing the preloaded slice (moving the query but keeping the
+  stale snapshot would fix nothing). The round-5 catalog scoping is untouched.
+- [Medium] The catalog fallback scanned archived catalogs, so any dead catalog defining AC-2
+  manufactured ambiguity among live ones and turned legitimate attaches into unresolvable 400s.
+  FIXED: active-only fallback first; only if that yields ZERO does it re-run unfiltered, so a
+  control living solely in an archived catalog stays reachable. Tests both tiers.
+- [Medium] UpdateItem was entirely untested including the casing invariant round 5 fixed on the
+  create path. FIXED: table test over BOTH CreateItem and UpdateItem for canonical casing and
+  incoherent tuples. NO production bug found — UpdateItem already passes &req so the pointer
+  canonicalization takes effect; the test poisons the stored value to "AC-2" first so a handler
+  writing the pre-canonicalization value fails rather than coincidentally matching, and asserts
+  what is on disk rather than the response.
+- [Low] Immutability guards compared uuid STRINGS, so a valid uppercase round-trip of a GET was
+  rejected as an attempted mutation. FIXED at both sites (provided-uuid, responsibility-uuid) by
+  comparing parsed values; folds malformed-uuid rejection into the same 400 by intent.
+  updateByComponentMetadata already compared parsed values, so it was left alone. New uppercase
+  tests fail against the old string comparison.
+- [Low] New 500 paths returned raw driver errors (api.NewError(err) serializes err.Error() verbatim,
+  leaking constraint/column names and SQL state) and left no log trace. FIXED at all 26 sites (16 in
+  ssp_by_components.go, 10 in filter.go): h.sugar.Errorw + a new api.InternalServerError() helper,
+  added alongside the existing NotFound()/AccessForbidden() in internal/api/error.go rather than a
+  per-package sentinel. No test pinned a driver-level string. SCOPE NOTE: the post-commit reload at
+  :601 now returns the in-memory value instead of downgrading a committed write to a 5xx that
+  invites a duplicate-creating retry — and the satisfied create had the IDENTICAL defect, so it got
+  the same treatment. That second one was NOT in the thread; flagging it explicitly.
+- [Low] LIMIT/OFFSET ran before the downstreamSspId allow-list filter, so a fully-filtered page read
+  as end-of-collection and a paginating client silently missed every later match. FIXED: allow-list
+  pushed into SQL via allowedDownstreamSQL, a correlated EXISTS/NOT EXISTS predicate — deliberately
+  not WHERE id IN (?), because the permitted set is UNBOUNDED (every offering with no allow-list rows
+  is in it) and an IN list would hit the 65535 bind ceiling. I verified the predicate is a faithful
+  translation of bulkAllowedOfferings. Post-fetch filter and the 200 [] early return deleted. Test
+  seeds matches onto page 3 with deterministic ids and was verified to fail against the old ordering.
+  The documented downstreamSspId authorization trade-off is untouched — the reviewer explicitly did
+  not reopen it.
+- [Low] Hand-authored inherited rows resolve any provided-uuid globally, bypassing the allow-list
+  Subscribe enforces. DOCUMENTED rather than changed, per the reviewer's second option: the comment
+  states it is global by design, that Subscribe enforces isDownstreamAllowed and 403s, exactly what
+  the asymmetry exposes (existence oracle + inheritableResponsibilities resolution) and what it does
+  not (no SSPLeverageLink, so nothing reaches the drift detector or the inherits arm), and the
+  condition for revisiting. Modelled on the documented trade-off at ssp_export_offerings.go:1297-1307.
+
+VERIFICATION: go build ./... clean; golangci-lint 0 issues; go vet -tags integration ./... clean;
+full unit suite green; FULL integration suite green across every package (handler 129s, oscal 178s).
+One regression was introduced and caught during this pass (the AttachValidation 404->400 ordering,
+above) — it is fixed and the suite is green.
