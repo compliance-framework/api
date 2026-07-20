@@ -49,41 +49,6 @@ var errProvidedAlreadyInherited = errors.New("provided-uuid is already inherited
 var errDuplicateInheritedUUID = errors.New("an inherited entry with this uuid already exists")
 var errDuplicateSatisfiedUUID = errors.New("a satisfied entry with this uuid already exists")
 
-// byComponentIDsForSSP lists every by-component id under an SSP, across both anchoring levels
-// (statement-anchored, and the legacy requirement-anchored shape). The chain is
-// control_implementations -> implemented_requirements -> statements -> by_components; nothing
-// carries an SSP id further down, so it has to be walked.
-func byComponentIDsForSSP(db *gorm.DB, sspID uuid.UUID) ([]uuid.UUID, error) {
-	var requirementIDs []uuid.UUID
-	if err := db.Model(&relational.ImplementedRequirement{}).
-		Joins("JOIN control_implementations ON control_implementations.id = implemented_requirements.control_implementation_id").
-		Where("control_implementations.system_security_plan_id = ?", sspID).
-		Pluck("implemented_requirements.id", &requirementIDs).Error; err != nil {
-		return nil, err
-	}
-	if len(requirementIDs) == 0 {
-		return nil, nil
-	}
-
-	var statementIDs []uuid.UUID
-	if err := db.Model(&relational.Statement{}).
-		Where("implemented_requirement_id IN ?", requirementIDs).
-		Pluck("id", &statementIDs).Error; err != nil {
-		return nil, err
-	}
-
-	query := db.Model(&relational.ByComponent{}).
-		Where("parent_id IN ? AND parent_type = ?", requirementIDs, "implemented_requirements")
-	if len(statementIDs) > 0 {
-		query = query.Or("parent_id IN ? AND parent_type = ?", statementIDs, "statements")
-	}
-	var byComponentIDs []uuid.UUID
-	if err := query.Pluck("id", &byComponentIDs).Error; err != nil {
-		return nil, err
-	}
-	return byComponentIDs, nil
-}
-
 // ensureProvidedUUIDNotAlreadyInherited enforces "one provided-uuid may be inherited only once
 // per SSP". A subscription's link is reached through its inherited row, and satisfaction is
 // derived from the owning by-component's satisfied set — so a second by-component inheriting the
@@ -95,18 +60,35 @@ func byComponentIDsForSSP(db *gorm.DB, sspID uuid.UUID) ([]uuid.UUID, error) {
 //
 // tx must be the caller's transaction, holding the by-component subtree lock — checking outside it
 // races the very concurrent create the lock exists to serialize.
+//
+// Subscribe calls this once PER ITEM, which is what catches two items in one request carrying the
+// same provided-uuid — hoisting it out of that loop would resolve the SSP once and miss exactly
+// that case. So it has to be cheap per call: this walks the chain in ONE query with two bind
+// parameters, rather than materializing the SSP's requirement/statement/by-component id sets and
+// passing them back as `IN ?` lists. Those lists are unbounded in SSP size, and `IN ?` expands to
+// one bind parameter per element — the same 65535-bind ceiling allowedDownstreamSQL avoids for the
+// offering allow-list and findByIDsInChunks works around in the migrator backfill. An N-item
+// subscribe also re-derived those sets N times, inside the advisory lock's critical section.
+//
+// No CAST anywhere: ByComponent.ParentID and Statement.ImplementedRequirementId are both uuid, so
+// the joins compare like types. Casting to uuid here would break the sqlite-backed unit suites.
+// The parent_type literals match byComponentIDsForSSP's, which are GORM's polymorphic table names.
 func ensureProvidedUUIDNotAlreadyInherited(tx *gorm.DB, sspID uuid.UUID, providedUUID uuid.UUID) error {
-	inSSP, err := byComponentIDsForSSP(tx, sspID)
-	if err != nil {
-		return err
-	}
-	if len(inSSP) == 0 {
-		return nil
-	}
+	const dupeSQL = `
+		SELECT COUNT(*)
+		FROM inherited_control_implementations i
+		JOIN by_components bc ON bc.id = i.by_component_id
+		LEFT JOIN statements s
+			ON bc.parent_type = 'statements' AND s.id = bc.parent_id
+		JOIN implemented_requirements ir
+			ON ir.id = CASE WHEN bc.parent_type = 'statements'
+			                THEN s.implemented_requirement_id
+			                ELSE bc.parent_id END
+		JOIN control_implementations ci ON ci.id = ir.control_implementation_id
+		WHERE ci.system_security_plan_id = ? AND i.provided_uuid = ?`
+
 	var dupe int64
-	if err := tx.Model(&relational.InheritedControlImplementation{}).
-		Where("provided_uuid = ? AND by_component_id IN ?", providedUUID, inSSP).
-		Count(&dupe).Error; err != nil {
+	if err := tx.Raw(dupeSQL, sspID, providedUUID).Scan(&dupe).Error; err != nil {
 		return err
 	}
 	if dupe > 0 {
