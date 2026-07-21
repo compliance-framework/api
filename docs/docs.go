@@ -3914,6 +3914,64 @@ const docTemplate = `{
                 }
             }
         },
+        "/evidence/{id}/risks": {
+            "get": {
+                "description": "Retrieves every risk register entry linked to the evidence record's stream, across all System Security Plans.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Evidence"
+                ],
+                "summary": "List Risks linked to an Evidence stream",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Evidence ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataListResponse-handler_EvidenceRiskResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
         "/evidence/{id}/signature": {
             "get": {
                 "description": "Retrieves the stored signature envelope for a single Evidence record.",
@@ -4318,6 +4376,71 @@ const docTemplate = `{
                     },
                     "404": {
                         "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/filters/{id}/responsibilities": {
+            "post": {
+                "description": "Associates this filter with an upstream responsibility the given downstream\nSSP inherits (BCH-1339's filter_responsibilities), so the responsibility's\nposture is computed live from the filter's evidence. When controlId is given,\nthe filter is also linked to that control (so control-level compliance\nsurfaces include it) with provenance recorded: detaching removes the control\nlink only if this attach created it.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Filters"
+                ],
+                "summary": "Attach a filter to an inherited responsibility",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Filter ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Responsibility to attach",
+                        "name": "attachment",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.attachFilterResponsibilityRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-relational_FilterResponsibility"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
                         "schema": {
                             "$ref": "#/definitions/api.Error"
                         }
@@ -16159,6 +16282,70 @@ const docTemplate = `{
                 ]
             }
         },
+        "/oscal/ssp-export-offerings/by-control/{controlId}": {
+            "get": {
+                "description": "Cross-SSP catalog of what is exported for a control, by whom, and against\nwhich statement — every published offering item whose control-id matches\n(case-insensitively), with the offering, upstream SSP, component, provided\ncapability and responsibility set all resolved server-side. Honours the same\ntrust boundary as the flat catalog: gated by ssp-export-offering:read only,\nnever ssp:read on the upstream SSP. Pass downstreamSspId to narrow the result\nto offerings that SSP is actually allow-listed to subscribe to (BCH-1342).\n\ndownstreamSspId is a CONVENIENCE FILTER, not an authorization boundary: no\npermission is evaluated against the SSP it names — unlike Subscribe, which\nevaluates ssp:update on the downstream precisely because that id arrives in the\npayload rather than the URL. The filter cannot surface an offering the caller\ncould not already list; it only removes rows. It does mean a catalog reader can\ninfer an offering's allow-list membership by diffing the filtered and unfiltered\nresponses. That is an accepted trade-off, decided rather than inherited by\nomission: allow-list membership (who may leverage whom) is treated as\nnon-confidential topology, and a per-request PDP round-trip on a read path is not\nworth paying to hide it. If it ever must be confidential, evaluate ssp:read on\ndownstreamSspId here the way Subscribe does.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "SSP Export Offerings"
+                ],
+                "summary": "List every published export offering for one control",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Control ID (e.g. AC-2)",
+                        "name": "controlId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Only return offerings this downstream SSP may subscribe to",
+                        "name": "downstreamSspId",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Max items to return (default 100, max 1000)",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Items to skip",
+                        "name": "offset",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataListResponse-oscal_ControlExportOffer"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
         "/oscal/ssp-export-offerings/{id}": {
             "get": {
                 "description": "Retrieves a single published export offering by its own ID (no parent SSP scoping). Draft/deprecated/revoked offerings are only visible via the SSP-nested curation routes.",
@@ -16213,7 +16400,7 @@ const docTemplate = `{
         },
         "/oscal/ssp-export-offerings/{id}/subscribe": {
             "post": {
-                "description": "Records, on the downstream SSP named in the request body, an OSCAL\ninherited-control-implementation and (optionally) satisfied-responsibility\nentries per chosen offering item, plus one leveraged-authorization for the\nwhole request — all in a single atomic write. Never checks ssp:read on the\nupstream SSP: the trust boundary is that subscribing to a published offering\nonly requires ssp-export-offering:subscribe on the offering and ssp:update on\nthe downstream SSP.",
+                "description": "Records, on the downstream SSP named in the request body, an OSCAL\ninherited-control-implementation and (optionally) satisfied-responsibility\nentries per chosen offering item — all in a single atomic write. Never checks\nssp:read on the upstream SSP: the trust boundary is that subscribing to a\npublished offering only requires ssp-export-offering:subscribe on the offering\nand ssp:update on the downstream SSP.\n\nNo leveraged-authorization is created: sharing is decoupled from an Authority\nto Operate. A Leveraged Authorization is an independent, human-authored record\nof the downstream's real ATO and never gates importing.\n\nEvery subscribed item must be statement-anchored: a legacy offering item with\nno statement-id is rejected with 422. The materialized downstream tree is\nalways requirement -\u003e statement -\u003e by-component -\u003e inherited + satisfied, and is\nreported back in meta.created (each row flagged created:true when inserted,\nfalse when an existing row was reused) so the caller can render newly-created\nrequirements without re-walking the SSP. The data payload is unchanged.",
                 "consumes": [
                     "application/json"
                 ],
@@ -16269,6 +16456,12 @@ const docTemplate = `{
                     },
                     "409": {
                         "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
                         "schema": {
                             "$ref": "#/definitions/api.Error"
                         }
@@ -17196,7 +17389,7 @@ const docTemplate = `{
                 }
             },
             "delete": {
-                "description": "Deletes an existing implemented requirement for a given SSP.",
+                "description": "Deletes an existing implemented requirement for a given SSP.\n\nCascades through every by-component beneath the requirement, so it returns 409\nif any inherited entry under it is owned by a leverage subscription.",
                 "tags": [
                     "System Security Plans"
                 ],
@@ -17229,6 +17422,12 @@ const docTemplate = `{
                     },
                     "404": {
                         "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
                         "schema": {
                             "$ref": "#/definitions/api.Error"
                         }
@@ -17308,8 +17507,73 @@ const docTemplate = `{
             }
         },
         "/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/by-components/{byComponentId}": {
+            "get": {
+                "description": "Deprecated: requirement-anchored by-components are legacy — read-only here so\nthe UI can display and wind them down. New by-components must be created\nagainst a statement.\n\nReturns the by-component with its export (including provided and\nresponsibilities), inherited and satisfied entries, responsible-roles and\nimplementation-status.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "System Security Plans"
+                ],
+                "summary": "Get a by-component within an implemented requirement",
+                "deprecated": true,
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "SSP ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Requirement ID",
+                        "name": "reqId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "By-Component ID",
+                        "name": "byComponentId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_ByComponent"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            },
             "put": {
-                "description": "Updates an existing by-component that belongs to an implemented requirement for a given SSP.",
+                "description": "Deprecated: requirement-anchored by-components are legacy — the statement is\nthe canonical anchor for shared responsibility. Use\nPUT .../statements/{stmtId}/by-components/{byComponentId} instead. This route\nremains so existing requirement-anchored rows can be edited and wound down;\nthere is no requirement-level POST.\n\nUpdates metadata only — description, props, links, set-parameters, remarks,\nimplementation-status and responsible-roles. Any export, inherited or\nsatisfied entries in the body are IGNORED (they have their own sub-resource\nroutes); component-uuid is immutable. Previously this blind-Saved a struct\nrebuilt from the request body, which zeroed every omitted field and upserted\nnested associations with no cascade cleanup.",
                 "consumes": [
                     "application/json"
                 ],
@@ -17320,6 +17584,7 @@ const docTemplate = `{
                     "System Security Plans"
                 ],
                 "summary": "Update a by-component within an implemented requirement",
+                "deprecated": true,
                 "parameters": [
                     {
                         "type": "string",
@@ -17377,12 +17642,82 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            },
+            "delete": {
+                "description": "Deprecated: requirement-anchored by-components are legacy. This delete exists\npurely so legacy and orphaned requirement-anchored rows can be wound down —\nthere is deliberately no requirement-level POST to create new ones.\n\nCascades exactly like the statement-level delete: the by-component's own\nresponsible-roles, its inherited and satisfied entries (each with their\nresponsible-roles), and its export with nested provided/responsibilities are all\nremoved, along with the responsible_role_parties join rows.\n\nReturns 409 if any of the by-component's inherited entries is owned by a\nleverage subscription — deleting the parent must not be a way around the same\nguard the inherited sub-resource DELETE enforces. Unsubscribe first.",
+                "tags": [
+                    "System Security Plans"
+                ],
+                "summary": "Delete a by-component within an implemented requirement",
+                "deprecated": true,
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "SSP ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Requirement ID",
+                        "name": "reqId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "By-Component ID",
+                        "name": "byComponentId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
             }
         },
         "/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/by-components/{byComponentId}/export": {
             "get": {
-                "description": "Retrieves the Export (with nested Provided and Responsibilities) for a by-component within an implemented requirement.",
+                "description": "Retrieves the Export (with nested Provided and Responsibilities) for a by-component within an implemented requirement.\n\nDeprecated: requirement-anchored exports are legacy. Shared responsibility is\ntracked per statement — use the statement-level equivalent under\n.../statements/{stmtId}/by-components/{byComponentId}/export. This route stays so\nexisting requirement-anchored exports can be read and wound down.",
                 "produces": [
                     "application/json"
                 ],
@@ -17390,6 +17725,7 @@ const docTemplate = `{
                     "System Security Plans"
                 ],
                 "summary": "Get the export for a control-level by-component",
+                "deprecated": true,
                 "parameters": [
                     {
                         "type": "string",
@@ -17446,7 +17782,7 @@ const docTemplate = `{
                 ]
             },
             "put": {
-                "description": "Updates the scalar fields of an existing Export for a by-component within an implemented requirement. Provided and Responsibilities entries are managed via their own routes.",
+                "description": "Updates the scalar fields of an existing Export for a by-component within an implemented requirement. Provided and Responsibilities entries are managed via their own routes.\n\nDeprecated: requirement-anchored exports are legacy. Shared responsibility is\ntracked per statement — use the statement-level equivalent under\n.../statements/{stmtId}/by-components/{byComponentId}/export. This route stays so\nexisting requirement-anchored exports can be read and wound down.",
                 "consumes": [
                     "application/json"
                 ],
@@ -17457,6 +17793,7 @@ const docTemplate = `{
                     "System Security Plans"
                 ],
                 "summary": "Update the export for a control-level by-component",
+                "deprecated": true,
                 "parameters": [
                     {
                         "type": "string",
@@ -17522,7 +17859,7 @@ const docTemplate = `{
                 ]
             },
             "post": {
-                "description": "Creates the Export for a by-component within an implemented requirement. A by-component may have at most one Export.",
+                "description": "Creates the Export for a by-component within an implemented requirement. A by-component may have at most one Export.\n\nDeprecated: requirement-anchored exports are legacy. Shared responsibility is\ntracked per statement — use the statement-level equivalent under\n.../statements/{stmtId}/by-components/{byComponentId}/export. This route stays so\nexisting requirement-anchored exports can be read and wound down.",
                 "consumes": [
                     "application/json"
                 ],
@@ -17533,6 +17870,7 @@ const docTemplate = `{
                     "System Security Plans"
                 ],
                 "summary": "Create the export for a control-level by-component",
+                "deprecated": true,
                 "parameters": [
                     {
                         "type": "string",
@@ -17604,11 +17942,12 @@ const docTemplate = `{
                 ]
             },
             "delete": {
-                "description": "Deletes the Export (and its Provided/Responsibilities entries) for a by-component within an implemented requirement.",
+                "description": "Deletes the Export (and its Provided/Responsibilities entries) for a by-component within an implemented requirement.\n\nDeprecated: requirement-anchored exports are legacy. Shared responsibility is\ntracked per statement — use the statement-level equivalent under\n.../statements/{stmtId}/by-components/{byComponentId}/export. This route stays so\nexisting requirement-anchored exports can be read and wound down.",
                 "tags": [
                     "System Security Plans"
                 ],
                 "summary": "Delete the export for a control-level by-component",
+                "deprecated": true,
                 "parameters": [
                     {
                         "type": "string",
@@ -17663,8 +18002,73 @@ const docTemplate = `{
             }
         },
         "/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/by-components/{byComponentId}/export/provided": {
+            "get": {
+                "description": "Deprecated: use the statement-level equivalent. Requirement-anchored exports are legacy.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "System Security Plans"
+                ],
+                "summary": "List the provided entries on a control-level by-component's export",
+                "deprecated": true,
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "SSP ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Requirement ID",
+                        "name": "reqId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "By-Component ID",
+                        "name": "byComponentId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataListResponse-oscalTypes_1_1_3_ProvidedControlImplementation"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            },
             "post": {
-                "description": "Creates a ProvidedControlImplementation entry under the Export of a by-component within an implemented requirement.",
+                "description": "Creates a ProvidedControlImplementation entry under the Export of a by-component within an implemented requirement.\n\nDeprecated: requirement-anchored exports are legacy. Shared responsibility is\ntracked per statement — use the statement-level equivalent under\n.../statements/{stmtId}/by-components/{byComponentId}/export. This route stays so\nexisting requirement-anchored exports can be read and wound down.",
                 "consumes": [
                     "application/json"
                 ],
@@ -17675,6 +18079,7 @@ const docTemplate = `{
                     "System Security Plans"
                 ],
                 "summary": "Create a provided entry on a control-level by-component's export",
+                "deprecated": true,
                 "parameters": [
                     {
                         "type": "string",
@@ -17742,7 +18147,7 @@ const docTemplate = `{
         },
         "/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/by-components/{byComponentId}/export/provided/{providedId}": {
             "put": {
-                "description": "Replaces an existing ProvidedControlImplementation entry under the Export of a by-component within an implemented requirement.",
+                "description": "Replaces an existing ProvidedControlImplementation entry under the Export of a by-component within an implemented requirement.\n\nDeprecated: requirement-anchored exports are legacy. Shared responsibility is\ntracked per statement — use the statement-level equivalent under\n.../statements/{stmtId}/by-components/{byComponentId}/export. This route stays so\nexisting requirement-anchored exports can be read and wound down.",
                 "consumes": [
                     "application/json"
                 ],
@@ -17753,6 +18158,7 @@ const docTemplate = `{
                     "System Security Plans"
                 ],
                 "summary": "Update a provided entry on a control-level by-component's export",
+                "deprecated": true,
                 "parameters": [
                     {
                         "type": "string",
@@ -17825,11 +18231,12 @@ const docTemplate = `{
                 ]
             },
             "delete": {
-                "description": "Deletes an existing ProvidedControlImplementation entry under the Export of a by-component within an implemented requirement.",
+                "description": "Deletes an existing ProvidedControlImplementation entry under the Export of a by-component within an implemented requirement.\n\nDeprecated: requirement-anchored exports are legacy. Shared responsibility is\ntracked per statement — use the statement-level equivalent under\n.../statements/{stmtId}/by-components/{byComponentId}/export. This route stays so\nexisting requirement-anchored exports can be read and wound down.",
                 "tags": [
                     "System Security Plans"
                 ],
                 "summary": "Delete a provided entry on a control-level by-component's export",
+                "deprecated": true,
                 "parameters": [
                     {
                         "type": "string",
@@ -17891,8 +18298,73 @@ const docTemplate = `{
             }
         },
         "/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/by-components/{byComponentId}/export/responsibilities": {
+            "get": {
+                "description": "Deprecated: use the statement-level equivalent. Requirement-anchored exports are legacy.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "System Security Plans"
+                ],
+                "summary": "List the responsibility entries on a control-level by-component's export",
+                "deprecated": true,
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "SSP ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Requirement ID",
+                        "name": "reqId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "By-Component ID",
+                        "name": "byComponentId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataListResponse-oscalTypes_1_1_3_ControlImplementationResponsibility"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            },
             "post": {
-                "description": "Creates a ControlImplementationResponsibility entry under the Export of a by-component within an implemented requirement.",
+                "description": "Creates a ControlImplementationResponsibility entry under the Export of a by-component within an implemented requirement.\n\nDeprecated: requirement-anchored exports are legacy. Shared responsibility is\ntracked per statement — use the statement-level equivalent under\n.../statements/{stmtId}/by-components/{byComponentId}/export. This route stays so\nexisting requirement-anchored exports can be read and wound down.",
                 "consumes": [
                     "application/json"
                 ],
@@ -17903,6 +18375,7 @@ const docTemplate = `{
                     "System Security Plans"
                 ],
                 "summary": "Create a responsibility entry on a control-level by-component's export",
+                "deprecated": true,
                 "parameters": [
                     {
                         "type": "string",
@@ -17970,7 +18443,7 @@ const docTemplate = `{
         },
         "/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/by-components/{byComponentId}/export/responsibilities/{responsibilityId}": {
             "put": {
-                "description": "Replaces an existing ControlImplementationResponsibility entry under the Export of a by-component within an implemented requirement.",
+                "description": "Replaces an existing ControlImplementationResponsibility entry under the Export of a by-component within an implemented requirement.\n\nDeprecated: requirement-anchored exports are legacy. Shared responsibility is\ntracked per statement — use the statement-level equivalent under\n.../statements/{stmtId}/by-components/{byComponentId}/export. This route stays so\nexisting requirement-anchored exports can be read and wound down.",
                 "consumes": [
                     "application/json"
                 ],
@@ -17981,6 +18454,7 @@ const docTemplate = `{
                     "System Security Plans"
                 ],
                 "summary": "Update a responsibility entry on a control-level by-component's export",
+                "deprecated": true,
                 "parameters": [
                     {
                         "type": "string",
@@ -18053,11 +18527,12 @@ const docTemplate = `{
                 ]
             },
             "delete": {
-                "description": "Deletes an existing ControlImplementationResponsibility entry under the Export of a by-component within an implemented requirement.",
+                "description": "Deletes an existing ControlImplementationResponsibility entry under the Export of a by-component within an implemented requirement.\n\nDeprecated: requirement-anchored exports are legacy. Shared responsibility is\ntracked per statement — use the statement-level equivalent under\n.../statements/{stmtId}/by-components/{byComponentId}/export. This route stays so\nexisting requirement-anchored exports can be read and wound down.",
                 "tags": [
                     "System Security Plans"
                 ],
                 "summary": "Delete a responsibility entry on a control-level by-component's export",
+                "deprecated": true,
                 "parameters": [
                     {
                         "type": "string",
@@ -18390,6 +18865,70 @@ const docTemplate = `{
             }
         },
         "/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/statements/{stmtId}/by-components": {
+            "get": {
+                "description": "Returns every by-component attached to the statement, each with its export\n(including provided and responsibilities), inherited and satisfied entries,\nresponsible-roles and implementation-status.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "System Security Plans"
+                ],
+                "summary": "List the by-components on a statement",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "SSP ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Requirement ID",
+                        "name": "reqId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Statement ID",
+                        "name": "stmtId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataListResponse-oscalTypes_1_1_3_ByComponent"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            },
             "post": {
                 "description": "Create a by-component within an existing statement within an implemented requirement for a given SSP.",
                 "consumes": [
@@ -18463,8 +19002,79 @@ const docTemplate = `{
             }
         },
         "/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/statements/{stmtId}/by-components/{byComponentId}": {
+            "get": {
+                "description": "Returns the by-component with its export (including provided and\nresponsibilities), inherited and satisfied entries, responsible-roles and\nimplementation-status — everything needed to refetch one by-component after\nediting any of its sub-resources.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "System Security Plans"
+                ],
+                "summary": "Get a by-component within a statement",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "SSP ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Requirement ID",
+                        "name": "reqId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Statement ID",
+                        "name": "stmtId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "By-Component ID",
+                        "name": "byComponentId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_ByComponent"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            },
             "put": {
-                "description": "Updates a by-component within an existing statement within an implemented requirement for a given SSP.",
+                "description": "Updates metadata only — description, props, links, set-parameters, remarks,\nimplementation-status and responsible-roles. Any export, inherited or\nsatisfied entries in the body are IGNORED: those subtrees are managed through\ntheir own sub-resource routes, which enforce the leverage bookkeeping this\nroute cannot. component-uuid is immutable. Previously this blind-Saved a\nstruct rebuilt from the request body, which zeroed every omitted field and\nupserted nested associations with no cascade cleanup.",
                 "consumes": [
                     "application/json"
                 ],
@@ -18539,10 +19149,15 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
             },
             "delete": {
-                "description": "Deletes a by-component within an existing statement within an implemented requirement for a given SSP.",
+                "description": "Deletes a by-component within an existing statement within an implemented requirement for a given SSP.\n\nReturns 409 if any of the by-component's inherited entries is owned by a\nleverage subscription — deleting the parent must not be a way around the same\nguard the inherited sub-resource DELETE enforces. Unsubscribe first.",
                 "consumes": [
                     "application/json"
                 ],
@@ -18598,6 +19213,12 @@ const docTemplate = `{
                     },
                     "404": {
                         "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
                         "schema": {
                             "$ref": "#/definitions/api.Error"
                         }
@@ -18922,6 +19543,77 @@ const docTemplate = `{
             }
         },
         "/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/statements/{stmtId}/by-components/{byComponentId}/export/provided": {
+            "get": {
+                "description": "Retrieves every ProvidedControlImplementation under the Export of a by-component within a statement.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "System Security Plans"
+                ],
+                "summary": "List the provided entries on a statement-level by-component's export",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "SSP ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Requirement ID",
+                        "name": "reqId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Statement ID",
+                        "name": "stmtId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "By-Component ID",
+                        "name": "byComponentId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataListResponse-oscalTypes_1_1_3_ProvidedControlImplementation"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            },
             "post": {
                 "description": "Creates a ProvidedControlImplementation entry under the Export of a by-component within a statement.",
                 "consumes": [
@@ -19171,6 +19863,77 @@ const docTemplate = `{
             }
         },
         "/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/statements/{stmtId}/by-components/{byComponentId}/export/responsibilities": {
+            "get": {
+                "description": "Retrieves every ControlImplementationResponsibility under the Export of a by-component within a statement.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "System Security Plans"
+                ],
+                "summary": "List the responsibility entries on a statement-level by-component's export",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "SSP ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Requirement ID",
+                        "name": "reqId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Statement ID",
+                        "name": "stmtId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "By-Component ID",
+                        "name": "byComponentId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataListResponse-oscalTypes_1_1_3_ControlImplementationResponsibility"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            },
             "post": {
                 "description": "Creates a ControlImplementationResponsibility entry under the Export of a by-component within a statement.",
                 "consumes": [
@@ -19385,6 +20148,664 @@ const docTemplate = `{
                         "type": "string",
                         "description": "Responsibility entry ID",
                         "name": "responsibilityId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/statements/{stmtId}/by-components/{byComponentId}/inherited": {
+            "get": {
+                "description": "Retrieves what this system consumes from an upstream under this statement.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "System Security Plans"
+                ],
+                "summary": "List the inherited control implementations on a statement-level by-component",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "SSP ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Requirement ID",
+                        "name": "reqId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Statement ID",
+                        "name": "stmtId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "By-Component ID",
+                        "name": "byComponentId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataListResponse-oscalTypes_1_1_3_InheritedControlImplementation"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            },
+            "post": {
+                "description": "Records that this system consumes an upstream's provided capability under this\nstatement. Hand-authored entries carry no leverage link; entries created by\nSubscribe do, and are protected from deletion (409) while that subscription lives.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "System Security Plans"
+                ],
+                "summary": "Create an inherited control implementation on a statement-level by-component",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "SSP ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Requirement ID",
+                        "name": "reqId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Statement ID",
+                        "name": "stmtId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "By-Component ID",
+                        "name": "byComponentId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Inherited data",
+                        "name": "inherited",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/oscalTypes_1_1_3.InheritedControlImplementation"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_InheritedControlImplementation"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/statements/{stmtId}/by-components/{byComponentId}/inherited/{inheritedId}": {
+            "put": {
+                "description": "Metadata only — description, props, links and responsible-roles. provided-uuid\nis immutable and a body attempting to change it is rejected with 400: it is the\nidentity the leverage link and the drift detector join on.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "System Security Plans"
+                ],
+                "summary": "Update an inherited control implementation on a statement-level by-component",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "SSP ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Requirement ID",
+                        "name": "reqId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Statement ID",
+                        "name": "stmtId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "By-Component ID",
+                        "name": "byComponentId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Inherited ID",
+                        "name": "inheritedId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Inherited data",
+                        "name": "inherited",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/oscalTypes_1_1_3.InheritedControlImplementation"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_InheritedControlImplementation"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            },
+            "delete": {
+                "description": "Hand-authored entries delete freely. An entry created by a subscription is owned\nby that subscription — an SSPLeverageLink still references it, and both drift\ndetection and notifications read through that reference — so deleting it returns\n409; unsubscribe instead.",
+                "tags": [
+                    "System Security Plans"
+                ],
+                "summary": "Delete an inherited control implementation on a statement-level by-component",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "SSP ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Requirement ID",
+                        "name": "reqId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Statement ID",
+                        "name": "stmtId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "By-Component ID",
+                        "name": "byComponentId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Inherited ID",
+                        "name": "inheritedId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/statements/{stmtId}/by-components/{byComponentId}/satisfied": {
+            "get": {
+                "description": "Retrieves how this system discharges its upstream's responsibilities under this statement.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "System Security Plans"
+                ],
+                "summary": "List the satisfied responsibilities on a statement-level by-component",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "SSP ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Requirement ID",
+                        "name": "reqId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Statement ID",
+                        "name": "stmtId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "By-Component ID",
+                        "name": "byComponentId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataListResponse-oscalTypes_1_1_3_SatisfiedControlImplementationResponsibility"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            },
+            "post": {
+                "description": "Records that this system discharges one of its upstream's responsibilities. The\nresponsibility-uuid must resolve to a ControlImplementationResponsibility on an\nExport this by-component actually inherits from (400 otherwise). If the owning\nSSPLeverageLink exists, its cached Satisfaction is re-derived in the same\ntransaction, so partial can flip to full atomically with the write that causes it.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "System Security Plans"
+                ],
+                "summary": "Create a satisfied responsibility on a statement-level by-component",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "SSP ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Requirement ID",
+                        "name": "reqId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Statement ID",
+                        "name": "stmtId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "By-Component ID",
+                        "name": "byComponentId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Satisfied data",
+                        "name": "satisfied",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/oscalTypes_1_1_3.SatisfiedControlImplementationResponsibility"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_SatisfiedControlImplementationResponsibility"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/statements/{stmtId}/by-components/{byComponentId}/satisfied/{satisfiedId}": {
+            "put": {
+                "description": "Metadata only — description, remarks, props, links and responsible-roles.\nresponsibility-uuid is immutable and a body attempting to change it is rejected\nwith 400: it is what deriveSatisfaction and the drift detector match on. Because\nthe identity can't change, the owning link's Satisfaction cannot change either,\nso no re-derivation is needed here.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "System Security Plans"
+                ],
+                "summary": "Update a satisfied responsibility on a statement-level by-component",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "SSP ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Requirement ID",
+                        "name": "reqId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Statement ID",
+                        "name": "stmtId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "By-Component ID",
+                        "name": "byComponentId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Satisfied ID",
+                        "name": "satisfiedId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Satisfied data",
+                        "name": "satisfied",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/oscalTypes_1_1_3.SatisfiedControlImplementationResponsibility"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_SatisfiedControlImplementationResponsibility"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            },
+            "delete": {
+                "description": "Removes the entry and, in the same transaction, re-derives the owning\nSSPLeverageLink's cached Satisfaction — so dropping the last satisfied entry\nflips full back to partial atomically rather than leaving the link's bookkeeping\nstale for the drift detector to read.",
+                "tags": [
+                    "System Security Plans"
+                ],
+                "summary": "Delete a satisfied responsibility on a statement-level by-component",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "SSP ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Requirement ID",
+                        "name": "reqId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Statement ID",
+                        "name": "stmtId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "By-Component ID",
+                        "name": "byComponentId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Satisfied ID",
+                        "name": "satisfiedId",
                         "in": "path",
                         "required": true
                     }
@@ -21761,6 +23182,116 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/handler.GenericDataListResponse-oscal_profileSummary"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/oscal/system-security-plans/{id}/responsibility-filters": {
+            "get": {
+                "description": "Every filter attached to an upstream responsibility this SSP inherits\n(BCH-1339's filter_responsibilities), with filter names resolved — one call\nfor the whole SSP so per-responsibility evidence bars need no N+1. Writes\nare on the filters API (POST/DELETE /filters/:id/responsibilities).",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "SSP Export Offerings"
+                ],
+                "summary": "List a downstream SSP's filter↔responsibility attachments",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Downstream SSP ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataListResponse-oscal_responsibilityFilterResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/oscal/system-security-plans/{id}/shared-responsibility": {
+            "get": {
+                "description": "A flat, statement-keyed projection of this SSP's shared-responsibility posture:\nwhat it exports (with the provided capabilities and the responsibilities it\npushes onto consumers, and whether each is offered on a *published* offering —\na draft/deprecated/revoked one does not count, since no downstream can reach\nit), what it inherits\nfrom upstreams (with live-recomputed satisfaction and link status), how it\ndischarges upstream responsibilities, and any legacy requirement-anchored\nby-components still to be migrated.\n\nThe inherits arm reuses the same batched projection GET /leveraged-controls\nserves, so the two can never disagree about satisfaction. Optionally filter the\nwhole rollup to one control with controlId.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "System Security Plans"
+                ],
+                "summary": "Roll up everything one SSP provides, inherits and satisfies",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "SSP ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Only include rows for this control",
+                        "name": "controlId",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-oscal_SharedResponsibilityRollup"
                         }
                     },
                     "400": {
@@ -32936,6 +34467,38 @@ const docTemplate = `{
                 }
             }
         },
+        "handler.EvidenceRiskResponse": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "impact": {
+                    "type": "string"
+                },
+                "likelihood": {
+                    "type": "string"
+                },
+                "source-type": {
+                    "type": "string"
+                },
+                "ssp-id": {
+                    "type": "string"
+                },
+                "ssp-title": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
         "handler.EvidenceSignatureResponse": {
             "type": "object",
             "properties": {
@@ -33108,6 +34671,19 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/evidence.StatusCount"
+                    }
+                },
+                "meta": {}
+            }
+        },
+        "handler.GenericDataListResponse-handler_EvidenceRiskResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handler.EvidenceRiskResponse"
                     }
                 },
                 "meta": {}
@@ -33347,6 +34923,19 @@ const docTemplate = `{
                 "meta": {}
             }
         },
+        "handler.GenericDataListResponse-oscalTypes_1_1_3_ByComponent": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.ByComponent"
+                    }
+                },
+                "meta": {}
+            }
+        },
         "handler.GenericDataListResponse-oscalTypes_1_1_3_Capability": {
             "type": "object",
             "properties": {
@@ -33394,6 +34983,19 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/oscalTypes_1_1_3.Control"
+                    }
+                },
+                "meta": {}
+            }
+        },
+        "handler.GenericDataListResponse-oscalTypes_1_1_3_ControlImplementationResponsibility": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.ControlImplementationResponsibility"
                     }
                 },
                 "meta": {}
@@ -33529,6 +35131,19 @@ const docTemplate = `{
                 "meta": {}
             }
         },
+        "handler.GenericDataListResponse-oscalTypes_1_1_3_InheritedControlImplementation": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.InheritedControlImplementation"
+                    }
+                },
+                "meta": {}
+            }
+        },
         "handler.GenericDataListResponse-oscalTypes_1_1_3_InventoryItem": {
             "type": "object",
             "properties": {
@@ -33607,6 +35222,19 @@ const docTemplate = `{
                 "meta": {}
             }
         },
+        "handler.GenericDataListResponse-oscalTypes_1_1_3_ProvidedControlImplementation": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.ProvidedControlImplementation"
+                    }
+                },
+                "meta": {}
+            }
+        },
         "handler.GenericDataListResponse-oscalTypes_1_1_3_Resource": {
             "type": "object",
             "properties": {
@@ -33659,6 +35287,19 @@ const docTemplate = `{
                 "meta": {}
             }
         },
+        "handler.GenericDataListResponse-oscalTypes_1_1_3_SatisfiedControlImplementationResponsibility": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.SatisfiedControlImplementationResponsibility"
+                    }
+                },
+                "meta": {}
+            }
+        },
         "handler.GenericDataListResponse-oscalTypes_1_1_3_SystemComponent": {
             "type": "object",
             "properties": {
@@ -33706,6 +35347,19 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/oscal.AiDiagnosticsRun"
+                    }
+                },
+                "meta": {}
+            }
+        },
+        "handler.GenericDataListResponse-oscal_ControlExportOffer": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscal.ControlExportOffer"
                     }
                 },
                 "meta": {}
@@ -33823,6 +35477,19 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/oscal.resolvedWithCatalogsResponse"
+                    }
+                },
+                "meta": {}
+            }
+        },
+        "handler.GenericDataListResponse-oscal_responsibilityFilterResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscal.responsibilityFilterResponse"
                     }
                 },
                 "meta": {}
@@ -34695,6 +36362,19 @@ const docTemplate = `{
                 }
             }
         },
+        "handler.GenericDataResponse-oscalTypes_1_1_3_InheritedControlImplementation": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Wrapped response data",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/oscalTypes_1_1_3.InheritedControlImplementation"
+                        }
+                    ]
+                }
+            }
+        },
         "handler.GenericDataResponse-oscalTypes_1_1_3_InventoryItem": {
             "type": "object",
             "properties": {
@@ -34929,6 +36609,19 @@ const docTemplate = `{
                 }
             }
         },
+        "handler.GenericDataResponse-oscalTypes_1_1_3_SatisfiedControlImplementationResponsibility": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Wrapped response data",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/oscalTypes_1_1_3.SatisfiedControlImplementationResponsibility"
+                        }
+                    ]
+                }
+            }
+        },
         "handler.GenericDataResponse-oscalTypes_1_1_3_Statement": {
             "type": "object",
             "properties": {
@@ -35124,6 +36817,19 @@ const docTemplate = `{
                 }
             }
         },
+        "handler.GenericDataResponse-oscal_SharedResponsibilityRollup": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Wrapped response data",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/oscal.SharedResponsibilityRollup"
+                        }
+                    ]
+                }
+            }
+        },
         "handler.GenericDataResponse-oscal_acceptDashboardSuggestionsResponse": {
             "type": "object",
             "properties": {
@@ -35288,6 +36994,19 @@ const docTemplate = `{
                     "allOf": [
                         {
                             "$ref": "#/definitions/relational.Filter"
+                        }
+                    ]
+                }
+            }
+        },
+        "handler.GenericDataResponse-relational_FilterResponsibility": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Wrapped response data",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/relational.FilterResponsibility"
                         }
                     ]
                 }
@@ -35587,6 +37306,13 @@ const docTemplate = `{
                 },
                 "sspBreakdown": {
                     "$ref": "#/definitions/handler.LineageSSPBreakdown"
+                },
+                "sspId": {
+                    "description": "RiskSSPID/RiskSSPTitle identify the single SSP a risk node belongs to\n(risk_register_risks.ssp_id is not-null — every risk has exactly one).\nPopulated regardless of scope so the UI can group risk nodes by SSP in\nthe unscoped \"All SSPs\" view.",
+                    "type": "string"
+                },
+                "sspTitle": {
+                    "type": "string"
                 },
                 "statement": {
                     "description": "Statement is the control's requirement prose (OSCAL \"statement\" part),\nsurfaced for hover/tooltip in the lineage tree \u0026 graph. Control nodes only.",
@@ -35929,6 +37655,29 @@ const docTemplate = `{
             "properties": {
                 "subject-id": {
                     "type": "string"
+                }
+            }
+        },
+        "handler.attachFilterResponsibilityRequest": {
+            "type": "object",
+            "required": [
+                "responsibilityUuid",
+                "sspId"
+            ],
+            "properties": {
+                "controlId": {
+                    "description": "Optional control to also link the filter to (so control-level compliance\nsurfaces include it). The link's provenance is recorded: detaching the\nresponsibility removes the control link only if this attach created it.",
+                    "type": "string"
+                },
+                "responsibilityUuid": {
+                    "description": "The upstream ControlImplementationResponsibility this filter should evidence.",
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "sspId": {
+                    "description": "The DOWNSTREAM SSP that inherits the responsibility (matched against\nssp_leverage_links.downstream_ssp_id).",
+                    "type": "string",
+                    "format": "uuid"
                 }
             }
         },
@@ -38083,6 +39832,53 @@ const docTemplate = `{
                 }
             }
         },
+        "oscal.ControlExportOffer": {
+            "type": "object",
+            "properties": {
+                "componentTitle": {
+                    "type": "string"
+                },
+                "componentUuid": {
+                    "type": "string"
+                },
+                "controlId": {
+                    "type": "string"
+                },
+                "itemId": {
+                    "type": "string"
+                },
+                "offeringId": {
+                    "type": "string"
+                },
+                "offeringStatus": {
+                    "$ref": "#/definitions/relational.SSPExportOfferingStatus"
+                },
+                "offeringTitle": {
+                    "type": "string"
+                },
+                "offeringVersion": {
+                    "type": "integer"
+                },
+                "provided": {
+                    "$ref": "#/definitions/oscal.controlExportProvided"
+                },
+                "responsibilities": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscal.controlExportResponsibility"
+                    }
+                },
+                "statementId": {
+                    "type": "string"
+                },
+                "upstreamSspId": {
+                    "type": "string"
+                },
+                "upstreamSspTitle": {
+                    "type": "string"
+                }
+            }
+        },
         "oscal.CreateInventoryItemRequest": {
             "type": "object",
             "properties": {
@@ -38337,6 +40133,162 @@ const docTemplate = `{
         "oscal.ProfileHandler": {
             "type": "object"
         },
+        "oscal.SharedResponsibilityInherits": {
+            "type": "object",
+            "properties": {
+                "byComponentUuid": {
+                    "type": "string"
+                },
+                "controlId": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "inheritedUuid": {
+                    "type": "string"
+                },
+                "leverageLinkId": {
+                    "type": "string"
+                },
+                "offeringId": {
+                    "type": "string"
+                },
+                "offeringVersion": {
+                    "type": "integer"
+                },
+                "providedUuid": {
+                    "type": "string"
+                },
+                "satisfaction": {
+                    "$ref": "#/definitions/relational.SSPLeverageSatisfaction"
+                },
+                "statementId": {
+                    "type": "string"
+                },
+                "status": {
+                    "$ref": "#/definitions/relational.SSPLeverageStatus"
+                },
+                "upstreamSspId": {
+                    "type": "string"
+                },
+                "upstreamSspTitle": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscal.SharedResponsibilityLegacy": {
+            "type": "object",
+            "properties": {
+                "byComponentUuid": {
+                    "type": "string"
+                },
+                "controlId": {
+                    "type": "string"
+                },
+                "reason": {
+                    "description": "Reason is \"requirement-anchored export\", or \"requirement-anchored inherited/satisfied\" when\nthe by-component carries consumer-side rows but no export of its own.",
+                    "type": "string"
+                }
+            }
+        },
+        "oscal.SharedResponsibilityProvides": {
+            "type": "object",
+            "properties": {
+                "byComponentUuid": {
+                    "type": "string"
+                },
+                "componentTitle": {
+                    "type": "string"
+                },
+                "componentUuid": {
+                    "type": "string"
+                },
+                "controlId": {
+                    "type": "string"
+                },
+                "exportUuid": {
+                    "type": "string"
+                },
+                "offered": {
+                    "description": "Offered reports whether an item on one of this SSP's *published* offerings already points\nat one of these provided-uuids — i.e. whether a downstream can actually find and subscribe\nto the capability, as opposed to it merely existing in the control-implementation tree.\nAn item on a draft/deprecated/revoked offering does not count: nothing can reach it.",
+                    "type": "boolean"
+                },
+                "provided": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscal.controlExportProvided"
+                    }
+                },
+                "responsibilities": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscal.controlExportResponsibility"
+                    }
+                },
+                "statementId": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscal.SharedResponsibilityRollup": {
+            "type": "object",
+            "properties": {
+                "inherits": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscal.SharedResponsibilityInherits"
+                    }
+                },
+                "legacy": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscal.SharedResponsibilityLegacy"
+                    }
+                },
+                "provides": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscal.SharedResponsibilityProvides"
+                    }
+                },
+                "satisfies": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscal.SharedResponsibilitySatisfies"
+                    }
+                }
+            }
+        },
+        "oscal.SharedResponsibilitySatisfies": {
+            "type": "object",
+            "properties": {
+                "byComponentUuid": {
+                    "type": "string"
+                },
+                "controlId": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "responsibilityUuid": {
+                    "type": "string"
+                },
+                "responsibleRoles": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.ResponsibleRole"
+                    }
+                },
+                "satisfiedUuid": {
+                    "type": "string"
+                },
+                "statementId": {
+                    "type": "string"
+                }
+            }
+        },
         "oscal.SystemComponentRequest": {
             "type": "object",
             "properties": {
@@ -38496,6 +40448,31 @@ const docTemplate = `{
                 }
             }
         },
+        "oscal.controlExportProvided": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "uuid": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscal.controlExportResponsibility": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "providedUuid": {
+                    "type": "string"
+                },
+                "uuid": {
+                    "type": "string"
+                }
+            }
+        },
         "oscal.controlSuggestionResultResponse": {
             "type": "object",
             "properties": {
@@ -38532,6 +40509,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "statementId": {
+                    "description": "StatementID is required on every write. The statement is the canonical anchor for\nshared responsibility: a control is too coarse to attribute a provided capability\nagainst, and a requirement-anchored item leaves the downstream unable to say which\nclause the upstream discharges. Still a *string (not string) because the DB column\nstays nullable for legacy rows that pre-date this constraint — see\nmigrateBackfillOfferingItemStatementIDs.",
                     "type": "string"
                 }
             }
@@ -39037,13 +41015,35 @@ const docTemplate = `{
         "oscal.leveragedControlResponse": {
             "type": "object",
             "properties": {
+                "byComponentId": {
+                    "description": "ByComponentId is the downstream by-component the link's inherited entry hangs off —\nthe anchor for authoring satisfied entries against this link's responsibilities.\nNil only if the inherited row was deleted out from under the link.",
+                    "type": "string"
+                },
                 "controlId": {
+                    "type": "string"
+                },
+                "driftRiskId": {
+                    "description": "DriftRiskID is the open drift risk for this link (BCH-1341's applyDriftToLink /\ncomputeDedupeKeyForLeverageDrift convention), set only when Status is Drifted and a\nmatching risk is still open — nil otherwise (including for Revoked, which has no\nre-attest path and thus no risk to link).",
+                    "type": "string"
+                },
+                "id": {
                     "type": "string"
                 },
                 "inheritedFrom": {
                     "$ref": "#/definitions/oscal.leveragedControlInheritedFrom"
                 },
                 "outstandingResponsibilities": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscal.upstreamResponsibility"
+                    }
+                },
+                "providedUuid": {
+                    "description": "ProvidedUuid is the upstream provided capability this link consumes — the key the\ndownstream's inherited entries reference.",
+                    "type": "string"
+                },
+                "responsibilities": {
+                    "description": "Responsibilities is the FULL upstream responsibility set under this link (uuid +\ndescription). Downstream surfaces label every responsibility from this — including ones\nalready satisfied — so the responsibility's own text is never replaced by a satisfied\nentry's \"how we handle this\" wording. OutstandingResponsibilities is the not-yet-covered\nsubset (unchanged).",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/oscal.upstreamResponsibility"
@@ -39061,6 +41061,9 @@ const docTemplate = `{
                 },
                 "statementId": {
                     "type": "string"
+                },
+                "status": {
+                    "$ref": "#/definitions/relational.SSPLeverageStatus"
                 }
             }
         },
@@ -39088,6 +41091,27 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "title": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscal.responsibilityFilterResponse": {
+            "type": "object",
+            "properties": {
+                "controlId": {
+                    "type": "string"
+                },
+                "controlLinkCreated": {
+                    "description": "ControlLinkCreated reports whether the attachment created (or co-owns) the\nfilter→control link — detaching such an attachment may also unlink the control.",
+                    "type": "boolean"
+                },
+                "filterId": {
+                    "type": "string"
+                },
+                "filterName": {
+                    "type": "string"
+                },
+                "responsibilityUuid": {
                     "type": "string"
                 }
             }
@@ -39124,20 +41148,6 @@ const docTemplate = `{
                 }
             }
         },
-        "oscal.subscribeLeveragedAuthorizationRequest": {
-            "type": "object",
-            "properties": {
-                "dateAuthorized": {
-                    "type": "string"
-                },
-                "partyUuid": {
-                    "type": "string"
-                },
-                "title": {
-                    "type": "string"
-                }
-            }
-        },
         "oscal.subscribeRequest": {
             "type": "object",
             "properties": {
@@ -39149,9 +41159,6 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/oscal.subscribeItemRequest"
                     }
-                },
-                "leveragedAuthorization": {
-                    "$ref": "#/definitions/oscal.subscribeLeveragedAuthorizationRequest"
                 }
             }
         },
@@ -43866,7 +45873,7 @@ const docTemplate = `{
                     }
                 },
                 "parentID": {
-                    "description": "As ByComponent can be found in Implemented Requirements \u0026 Statements, using GORM polymorphism to tell us where to attach",
+                    "description": "As ByComponent can be found in Implemented Requirements \u0026 Statements, using GORM polymorphism to tell us where to attach.\n(parent_id, parent_type) is the lookup key for every by-component resolution — the\nresolveByComponentFor* walkers, findOrCreateByComponent, and the shared-responsibility\nrollup all filter on it — so it carries a composite index rather than being an\nunindexed scan.",
                     "type": "string"
                 },
                 "parentType": {
@@ -44742,6 +46749,29 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "name": {
+                    "type": "string"
+                },
+                "sspId": {
+                    "type": "string"
+                }
+            }
+        },
+        "relational.FilterResponsibility": {
+            "type": "object",
+            "properties": {
+                "controlId": {
+                    "description": "Provenance of the filter→control association this attachment created. Attaching a\nfilter to a responsibility also links it to the responsibility's control (so the\nexisting control-level compliance surfaces include it); detaching must undo ONLY a\nlink the responsibility machinery itself created, never one a user made\nindependently via POST/PUT /api/filters. Semantics:\n  - attach, link absent            → append filter_controls, ControlLinkCreated=true\n  - attach, link present and some existing row on (filter_id, control_id) has\n    ControlLinkCreated=true        → the link is responsibility-owned; the new row\n    co-owns it (true), so the last detacher removes it\n  - attach, link present otherwise → independently created, ControlLinkCreated=false\n  - detach                         → remove the filter_controls row iff this row had\n    ControlLinkCreated=true AND no other filter_responsibilities row on the same\n    (filter_id, control_id) remains\nControl's primary key is composite (catalog_id, id) — both parts are recorded so\ndetach can delete the exact association row.\n\nRows are create/delete-only. Never Save()/Updates() this model: with a composite\nprimary key GORM's upsert semantics on partial keys are a footgun.",
+                    "type": "string"
+                },
+                "controlLinkCreated": {
+                    "description": "ControlLinkCreated reports whether this attachment created (or co-owns) the\nfilter→control link — see the provenance comment above.",
+                    "type": "boolean"
+                },
+                "filterId": {
+                    "type": "string"
+                },
+                "responsibilityUuid": {
+                    "description": "ResponsibilityUUID and SSPID also carry idx_filter_responsibilities_ssp_lookup, a\ncomposite index leading with ssp_id — the (filter_id, responsibility_uuid, ssp_id)\nprimary key leads with filter_id, which doesn't serve ResponsibilityPosture's\n\"WHERE ssp_id = ? AND responsibility_uuid IN ?\" lookup (profile_compliance.go).",
                     "type": "string"
                 },
                 "sspId": {

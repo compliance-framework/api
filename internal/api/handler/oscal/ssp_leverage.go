@@ -4,12 +4,14 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/labstack/echo/v4"
 	"go.uber.org/zap"
+	"gorm.io/datatypes"
 	"gorm.io/gorm"
 
 	"github.com/compliance-framework/api/internal/api"
@@ -19,12 +21,6 @@ import (
 	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/compliance-framework/api/internal/service/relational/risks"
 )
-
-// thisSystemComponentType is the OSCAL convention for a placeholder component
-// representing the system itself, used to anchor by-components that aren't tied to any
-// specific local component (e.g. purely-inherited capabilities). There's no existing Go
-// constant for this — it only appears in JSON test fixtures — so it's declared here.
-const thisSystemComponentType = "this-system"
 
 // errDuplicateLeverageLink signals a UNIQUE(downstream_ssp_id, provided_uuid) violation
 // caught inside the subscribe transaction — a concurrent request racing the same insert
@@ -160,9 +156,10 @@ func deriveSatisfaction(full []upstreamResponsibility, satisfiedUUIDs map[uuid.U
 }
 
 // SSPLeverageHandler serves the downstream side of BCH-1338 Phase 2: subscribing to a
-// published SSPExportOffering (recording OSCAL inherited + satisfied + a
-// leveraged-authorization on the downstream SSP) and the read-only projection over what
-// a downstream SSP has subscribed to.
+// published SSPExportOffering (recording OSCAL inherited + satisfied rows on the
+// downstream SSP) and the read-only projection over what a downstream SSP has subscribed
+// to. Subscribe deliberately does NOT record a leveraged-authorization — sharing is
+// decoupled from authorizations; see LeveragedAuthUUID on relational.SSPLeverageLink.
 type SSPLeverageHandler struct {
 	sugar    *zap.SugaredLogger
 	db       *gorm.DB
@@ -192,6 +189,7 @@ func (h *SSPLeverageHandler) RegisterReAttest(g *echo.Group, guard middleware.Re
 // route group, gated by the standard ssp:read.
 func (h *SSPLeverageHandler) RegisterProjection(g *echo.Group, guard middleware.ResourceGuard) {
 	g.GET("/:id/leveraged-controls", h.LeveragedControls, guard.Read())
+	g.GET("/:id/responsibility-filters", h.ResponsibilityFilters, guard.Read())
 }
 
 // authorizeDownstreamUpdate enforces ssp:update on the downstream SSP identified by
@@ -246,24 +244,83 @@ func isDownstreamAllowed(db *gorm.DB, offeringID, downstreamSSPID uuid.UUID) (bo
 	return matching > 0, nil
 }
 
-// findOrCreateThisSystemComponent finds the downstream's placeholder "this-system"
-// component, creating one if none exists — not every SSP has one, and there's no
-// guarantee the subscribing downstream does either.
-func findOrCreateThisSystemComponent(tx *gorm.DB, systemImplementationID uuid.UUID) (*relational.SystemComponent, error) {
-	var existing relational.SystemComponent
-	err := tx.Where("system_implementation_id = ? AND type = ?", systemImplementationID, thisSystemComponentType).
-		First(&existing).Error
-	if err == nil {
-		return &existing, nil
-	}
-	if !errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, err
+// bulkAllowedOfferings is the batched form of isDownstreamAllowed: two queries total for any
+// number of offerings, rather than two per offering (the by-control catalog filters a whole
+// control's worth of offerings against one downstream in a single request).
+//
+// It encodes exactly the same rule — an offering with zero allow-list rows keeps the type-level
+// default (any downstream permitted); one with rows admits only the listed downstreams — and
+// lives next to isDownstreamAllowed so the two can't drift apart.
+func bulkAllowedOfferings(db *gorm.DB, offeringIDs []uuid.UUID, downstreamSSPID uuid.UUID) (map[uuid.UUID]bool, error) {
+	allowed := make(map[uuid.UUID]bool, len(offeringIDs))
+	if len(offeringIDs) == 0 {
+		return allowed, nil
 	}
 
+	var rows []relational.SSPExportOfferingAllowedDownstream
+	if err := db.Where("offering_id IN ?", offeringIDs).Find(&rows).Error; err != nil {
+		return nil, fmt.Errorf("failed to load offering allow-lists: %w", err)
+	}
+
+	hasAllowList := make(map[uuid.UUID]bool, len(offeringIDs))
+	listsDownstream := make(map[uuid.UUID]bool, len(offeringIDs))
+	for _, row := range rows {
+		hasAllowList[row.OfferingID] = true
+		if row.DownstreamSSPID == downstreamSSPID {
+			listsDownstream[row.OfferingID] = true
+		}
+	}
+
+	for _, offeringID := range offeringIDs {
+		if !hasAllowList[offeringID] {
+			allowed[offeringID] = true
+			continue
+		}
+		allowed[offeringID] = listsDownstream[offeringID]
+	}
+	return allowed, nil
+}
+
+// leveragedSystemUUIDProp is the namespacing-free identity prop stamped on the downstream
+// component that represents an upstream system: its value is the upstream SSP's uuid, so
+// repeat imports from the same provider reuse one component even if the provider renames
+// itself. (Props are queried in Go rather than with a jsonb operator so the helper works
+// on the sqlite unit-test driver too.)
+const leveragedSystemUUIDProp = "leveraged-system-uuid"
+
+// findOrCreateLeveragedSystemComponent finds (or creates) the downstream component that
+// REPRESENTS THE UPSTREAM SYSTEM an import consumes — "Platform exports control 1 → App
+// imports it and gains a Platform component on that implementation". The component is an
+// OSCAL `system` component (this-system is reserved for the SSP's own system) named after
+// the upstream SSP and flagged implementation-point=external, identified across imports by
+// the leveraged-system-uuid prop.
+func findOrCreateLeveragedSystemComponent(tx *gorm.DB, systemImplementationID uuid.UUID, upstreamSSPID uuid.UUID, upstreamTitle string) (*relational.SystemComponent, error) {
+	var candidates []relational.SystemComponent
+	if err := tx.Where("system_implementation_id = ? AND type = ?", systemImplementationID, "system").
+		Find(&candidates).Error; err != nil {
+		return nil, err
+	}
+	for i := range candidates {
+		for _, prop := range candidates[i].Props {
+			if prop.Name == leveragedSystemUUIDProp && prop.Value == upstreamSSPID.String() {
+				return &candidates[i], nil
+			}
+		}
+	}
+
+	title := strings.TrimSpace(upstreamTitle)
+	if title == "" {
+		title = "Leveraged system " + upstreamSSPID.String()
+	}
 	created := relational.SystemComponent{
-		Type:                   thisSystemComponentType,
-		Title:                  "This System",
-		Description:            "Placeholder component representing the system itself, used to anchor leveraged/inherited capabilities not tied to a specific local component.",
+		Type:        "system",
+		Title:       title,
+		Description: fmt.Sprintf("The %s system this plan leverages — capabilities inherited from it anchor here.", title),
+		Status:      datatypes.NewJSONType(relational.SystemComponentStatus{State: "operational"}),
+		Props: datatypes.NewJSONSlice([]relational.Prop{
+			{Name: "implementation-point", Value: "external"},
+			{Name: leveragedSystemUUIDProp, Value: upstreamSSPID.String()},
+		}),
 		SystemImplementationId: systemImplementationID,
 	}
 	if err := tx.Create(&created).Error; err != nil {
@@ -276,80 +333,178 @@ func findOrCreateThisSystemComponent(tx *gorm.DB, systemImplementationID uuid.UU
 // controlID under the given ControlImplementation, creating one if none exists. No
 // find-or-create primitive exists elsewhere in the codebase for this — every existing
 // creation path either does a naive insert (always creates) or a read-only lookup
-// (404s if missing).
-func findOrCreateImplementedRequirement(tx *gorm.DB, controlImplementationID uuid.UUID, controlID string) (*relational.ImplementedRequirement, error) {
+// (404s if missing). The created flag distinguishes an insert from a match, so Subscribe
+// can report which rows it actually materialized rather than making the caller re-walk the
+// downstream SSP to find out.
+func findOrCreateImplementedRequirement(tx *gorm.DB, controlImplementationID uuid.UUID, controlID string) (req *relational.ImplementedRequirement, created bool, err error) {
 	var existing relational.ImplementedRequirement
-	err := tx.Where("control_implementation_id = ? AND control_id = ?", controlImplementationID, controlID).
+	err = tx.Where("control_implementation_id = ? AND control_id = ?", controlImplementationID, controlID).
 		First(&existing).Error
 	if err == nil {
-		return &existing, nil
+		return &existing, false, nil
 	}
 	if !errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, err
+		return nil, false, err
 	}
 
-	created := relational.ImplementedRequirement{
+	inserted := relational.ImplementedRequirement{
 		ControlImplementationId: controlImplementationID,
 		ControlId:               controlID,
 	}
-	if err := tx.Create(&created).Error; err != nil {
-		return nil, err
+	if err := tx.Create(&inserted).Error; err != nil {
+		return nil, false, err
 	}
-	return &created, nil
+	return &inserted, true, nil
 }
 
 // findOrCreateStatement finds the ImplementedRequirement's child Statement for
 // statementID, creating one if none exists.
-func findOrCreateStatement(tx *gorm.DB, implementedRequirementID uuid.UUID, statementID string) (*relational.Statement, error) {
+func findOrCreateStatement(tx *gorm.DB, implementedRequirementID uuid.UUID, statementID string) (stmt *relational.Statement, created bool, err error) {
 	var existing relational.Statement
-	err := tx.Where("implemented_requirement_id = ? AND statement_id = ?", implementedRequirementID, statementID).
+	err = tx.Where("implemented_requirement_id = ? AND statement_id = ?", implementedRequirementID, statementID).
 		First(&existing).Error
 	if err == nil {
-		return &existing, nil
+		return &existing, false, nil
 	}
 	if !errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, err
+		return nil, false, err
 	}
 
-	created := relational.Statement{
+	inserted := relational.Statement{
 		ImplementedRequirementId: implementedRequirementID,
 		StatementId:              statementID,
 	}
-	if err := tx.Create(&created).Error; err != nil {
-		return nil, err
+	if err := tx.Create(&inserted).Error; err != nil {
+		return nil, false, err
 	}
-	return &created, nil
+	return &inserted, true, nil
 }
 
 // findOrCreateByComponent finds the ByComponent row for (parentID, parentType,
 // componentUUID), creating one if none exists. parentType is "implemented_requirements"
-// or "statements", matching the string constants used throughout system_security_plans.go.
-func findOrCreateByComponent(tx *gorm.DB, parentID uuid.UUID, parentType string, componentUUID uuid.UUID) (*relational.ByComponent, error) {
+// or "statements", matching the string constants used throughout system_security_plans.go
+// — though Subscribe only ever passes "statements" now that the statement is the canonical
+// anchor.
+func findOrCreateByComponent(tx *gorm.DB, parentID uuid.UUID, parentType string, componentUUID uuid.UUID) (bc *relational.ByComponent, created bool, err error) {
 	var existing relational.ByComponent
-	err := tx.Where("parent_id = ? AND parent_type = ? AND component_uuid = ?", parentID, parentType, componentUUID).
+	err = tx.Where("parent_id = ? AND parent_type = ? AND component_uuid = ?", parentID, parentType, componentUUID).
 		First(&existing).Error
 	if err == nil {
-		return &existing, nil
+		return &existing, false, nil
 	}
 	if !errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, err
+		return nil, false, err
 	}
 
-	created := relational.ByComponent{
+	inserted := relational.ByComponent{
 		ParentID:      &parentID,
 		ParentType:    &parentType,
 		ComponentUUID: componentUUID,
 	}
-	if err := tx.Create(&created).Error; err != nil {
-		return nil, err
+	if err := tx.Create(&inserted).Error; err != nil {
+		return nil, false, err
 	}
-	return &created, nil
+	return &inserted, true, nil
 }
 
-type subscribeLeveragedAuthorizationRequest struct {
-	Title          string `json:"title"`
-	PartyUUID      string `json:"partyUuid"`
-	DateAuthorized string `json:"dateAuthorized,omitempty"`
+// subscribeCreatedRequirement / subscribeCreatedStatement / subscribeCreatedByComponent
+// report one row Subscribe touched while materializing the downstream tree, with created
+// distinguishing an insert from a reuse.
+type subscribeCreatedRequirement struct {
+	UUID      uuid.UUID `json:"uuid"`
+	ControlID string    `json:"controlId"`
+	Created   bool      `json:"created"`
+}
+
+type subscribeCreatedStatement struct {
+	UUID                       uuid.UUID `json:"uuid"`
+	StatementID                string    `json:"statementId"`
+	ImplementedRequirementUUID uuid.UUID `json:"implementedRequirementUuid"`
+	Created                    bool      `json:"created"`
+}
+
+type subscribeCreatedByComponent struct {
+	UUID          uuid.UUID `json:"uuid"`
+	StatementUUID uuid.UUID `json:"statementUuid"`
+	ComponentUUID uuid.UUID `json:"componentUuid"`
+	Created       bool      `json:"created"`
+}
+
+// subscribeCreated is the tree Subscribe materialized on the downstream, so the UI can
+// render newly-created requirements straight from the subscribe response instead of
+// re-walking the SSP.
+type subscribeCreated struct {
+	ImplementedRequirements []subscribeCreatedRequirement `json:"implementedRequirements"`
+	Statements              []subscribeCreatedStatement   `json:"statements"`
+	ByComponents            []subscribeCreatedByComponent `json:"byComponents"`
+}
+
+// subscribeMeta rides in GenericDataListResponse's existing Meta field rather than changing
+// the response envelope: Data stays exactly the SSPLeverageLink[] every current caller
+// already reads, and the created block is purely additive.
+type subscribeMeta struct {
+	Created subscribeCreated `json:"created"`
+}
+
+// subscribeCreationTracker accumulates the created-tree across a subscribe request's items,
+// deduplicating by row id — several items can land on the same requirement or statement, and
+// the first sighting is the one that knows whether it was inserted.
+type subscribeCreationTracker struct {
+	created     subscribeCreated
+	seenReqs    map[uuid.UUID]bool
+	seenStmts   map[uuid.UUID]bool
+	seenByComps map[uuid.UUID]bool
+}
+
+func newSubscribeCreationTracker() *subscribeCreationTracker {
+	return &subscribeCreationTracker{
+		created: subscribeCreated{
+			ImplementedRequirements: []subscribeCreatedRequirement{},
+			Statements:              []subscribeCreatedStatement{},
+			ByComponents:            []subscribeCreatedByComponent{},
+		},
+		seenReqs:    map[uuid.UUID]bool{},
+		seenStmts:   map[uuid.UUID]bool{},
+		seenByComps: map[uuid.UUID]bool{},
+	}
+}
+
+func (t *subscribeCreationTracker) addRequirement(req *relational.ImplementedRequirement, created bool) {
+	if t.seenReqs[*req.ID] {
+		return
+	}
+	t.seenReqs[*req.ID] = true
+	t.created.ImplementedRequirements = append(t.created.ImplementedRequirements, subscribeCreatedRequirement{
+		UUID:      *req.ID,
+		ControlID: req.ControlId,
+		Created:   created,
+	})
+}
+
+func (t *subscribeCreationTracker) addStatement(stmt *relational.Statement, created bool) {
+	if t.seenStmts[*stmt.ID] {
+		return
+	}
+	t.seenStmts[*stmt.ID] = true
+	t.created.Statements = append(t.created.Statements, subscribeCreatedStatement{
+		UUID:                       *stmt.ID,
+		StatementID:                stmt.StatementId,
+		ImplementedRequirementUUID: stmt.ImplementedRequirementId,
+		Created:                    created,
+	})
+}
+
+func (t *subscribeCreationTracker) addByComponent(bc *relational.ByComponent, statementUUID uuid.UUID, created bool) {
+	if t.seenByComps[*bc.ID] {
+		return
+	}
+	t.seenByComps[*bc.ID] = true
+	t.created.ByComponents = append(t.created.ByComponents, subscribeCreatedByComponent{
+		UUID:          *bc.ID,
+		StatementUUID: statementUUID,
+		ComponentUUID: bc.ComponentUUID,
+		Created:       created,
+	})
 }
 
 type subscribeItemRequest struct {
@@ -357,21 +512,17 @@ type subscribeItemRequest struct {
 	SatisfiedResponsibilityUUIDs []string `json:"satisfiedResponsibilityUuids,omitempty"`
 }
 
+// subscribeRequest carries no leveraged-authorization: sharing is decoupled from an
+// Authority to Operate. An old client may still send a `leveragedAuthorization` object —
+// Echo's binder ignores unknown JSON fields, so it is silently dropped rather than an error.
 type subscribeRequest struct {
-	DownstreamSSPID        string                                 `json:"downstreamSspId"`
-	LeveragedAuthorization subscribeLeveragedAuthorizationRequest `json:"leveragedAuthorization"`
-	Items                  []subscribeItemRequest                 `json:"items"`
+	DownstreamSSPID string                 `json:"downstreamSspId"`
+	Items           []subscribeItemRequest `json:"items"`
 }
 
 func (r subscribeRequest) validate() error {
 	if _, err := uuid.Parse(r.DownstreamSSPID); err != nil {
 		return fmt.Errorf("downstreamSspId must be a valid UUID")
-	}
-	if r.LeveragedAuthorization.Title == "" {
-		return fmt.Errorf("leveragedAuthorization.title is required")
-	}
-	if _, err := uuid.Parse(r.LeveragedAuthorization.PartyUUID); err != nil {
-		return fmt.Errorf("leveragedAuthorization.partyUuid must be a valid UUID")
 	}
 	if len(r.Items) == 0 {
 		return fmt.Errorf("items must not be empty")
@@ -394,11 +545,21 @@ func (r subscribeRequest) validate() error {
 //	@Summary		Subscribe to a published export offering
 //	@Description	Records, on the downstream SSP named in the request body, an OSCAL
 //	@Description	inherited-control-implementation and (optionally) satisfied-responsibility
-//	@Description	entries per chosen offering item, plus one leveraged-authorization for the
-//	@Description	whole request — all in a single atomic write. Never checks ssp:read on the
-//	@Description	upstream SSP: the trust boundary is that subscribing to a published offering
-//	@Description	only requires ssp-export-offering:subscribe on the offering and ssp:update on
-//	@Description	the downstream SSP.
+//	@Description	entries per chosen offering item — all in a single atomic write. Never checks
+//	@Description	ssp:read on the upstream SSP: the trust boundary is that subscribing to a
+//	@Description	published offering only requires ssp-export-offering:subscribe on the offering
+//	@Description	and ssp:update on the downstream SSP.
+//	@Description
+//	@Description	No leveraged-authorization is created: sharing is decoupled from an Authority
+//	@Description	to Operate. A Leveraged Authorization is an independent, human-authored record
+//	@Description	of the downstream's real ATO and never gates importing.
+//	@Description
+//	@Description	Every subscribed item must be statement-anchored: a legacy offering item with
+//	@Description	no statement-id is rejected with 422. The materialized downstream tree is
+//	@Description	always requirement -> statement -> by-component -> inherited + satisfied, and is
+//	@Description	reported back in meta.created (each row flagged created:true when inserted,
+//	@Description	false when an existing row was reused) so the caller can render newly-created
+//	@Description	requirements without re-walking the SSP. The data payload is unchanged.
 //	@Tags			SSP Export Offerings
 //	@Accept			json
 //	@Produce		json
@@ -409,6 +570,7 @@ func (r subscribeRequest) validate() error {
 //	@Failure		403			{object}	api.Error
 //	@Failure		404			{object}	api.Error
 //	@Failure		409			{object}	api.Error
+//	@Failure		422			{object}	api.Error
 //	@Failure		500			{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/ssp-export-offerings/{id}/subscribe [post]
@@ -458,6 +620,15 @@ func (h *SSPLeverageHandler) Subscribe(ctx echo.Context) error {
 		item, ok := itemsByID[uuid.MustParse(reqItem.ItemID)]
 		if !ok {
 			return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("unknown offering item id %q", reqItem.ItemID)))
+		}
+		// The statement is the canonical anchor: a legacy item with no statement-id cannot
+		// be subscribed to, because there is no clause to attribute the inherited
+		// responsibility against. Fail loudly rather than falling back to anchoring the
+		// by-component at the requirement level — that fallback is what produced
+		// requirement-anchored rows the API could never delete.
+		if item.StatementID == nil || strings.TrimSpace(*item.StatementID) == "" {
+			return ctx.JSON(http.StatusUnprocessableEntity, api.NewError(fmt.Errorf(
+				"offering item %q has no statement-id: shared responsibility is tracked per statement, so this legacy item must be re-curated against a statement before it can be subscribed to", reqItem.ItemID)))
 		}
 		// A request can't subscribe to the same provided-uuid twice in one call: besides
 		// being nonsensical, it would otherwise slip past the existing-link pre-check
@@ -534,19 +705,26 @@ func (h *SSPLeverageHandler) Subscribe(ctx echo.Context) error {
 		}
 	}
 
-	dateAuthorized := time.Now()
-	if req.LeveragedAuthorization.DateAuthorized != "" {
-		parsed, err := time.Parse(time.RFC3339, req.LeveragedAuthorization.DateAuthorized)
-		if err != nil {
-			return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("leveragedAuthorization.dateAuthorized must be RFC3339")))
-		}
-		dateAuthorized = parsed
+	// The downstream materializes a component NAMED AFTER THE UPSTREAM SYSTEM to anchor
+	// what it inherits ("Platform exports control 1 → the importer gains a Platform
+	// component on that implementation"). Only the title is read — a server-side DB read
+	// of upstream metadata, not an authorized read of the upstream SSP resource, so the
+	// subscribe trust boundary is unchanged.
+	var upstream relational.SystemSecurityPlan
+	if err := h.db.Preload("Metadata").First(&upstream, "id = ?", offering.SSPID).Error; err != nil {
+		h.sugar.Errorf("Failed to load upstream SSP metadata: %v", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 	attestedBy := actorUserID(ctx)
 	now := time.Now()
 
 	var links []relational.SSPLeverageLink
+	tracker := newSubscribeCreationTracker()
 	if err := h.db.Transaction(func(tx *gorm.DB) error {
+		// A retried transaction must not double-report rows from the abandoned attempt.
+		tracker = newSubscribeCreationTracker()
+		links = nil
+
 		downstreamAllowed, err := isDownstreamAllowed(tx, offeringID, downstreamSSPID)
 		if err != nil {
 			return err
@@ -555,42 +733,64 @@ func (h *SSPLeverageHandler) Subscribe(ctx echo.Context) error {
 			return errDownstreamNotAllowed
 		}
 
-		thisSystemComponent, err := findOrCreateThisSystemComponent(tx, *downstream.SystemImplementation.ID)
+		leveragedComponent, err := findOrCreateLeveragedSystemComponent(
+			tx, *downstream.SystemImplementation.ID, offering.SSPID, upstream.Metadata.Title)
 		if err != nil {
-			return err
-		}
-
-		leveragedAuth := relational.LeveragedAuthorization{
-			Title:                  req.LeveragedAuthorization.Title,
-			PartyUUID:              uuid.MustParse(req.LeveragedAuthorization.PartyUUID),
-			DateAuthorized:         dateAuthorized,
-			SystemImplementationId: *downstream.SystemImplementation.ID,
-		}
-		if err := tx.Create(&leveragedAuth).Error; err != nil {
 			return err
 		}
 
 		for _, reqItem := range req.Items {
 			item := itemsByID[uuid.MustParse(reqItem.ItemID)]
 
-			implReq, err := findOrCreateImplementedRequirement(tx, *downstream.ControlImplementation.ID, item.ControlID)
+			implReq, reqCreated, err := findOrCreateImplementedRequirement(tx, *downstream.ControlImplementation.ID, item.ControlID)
+			if err != nil {
+				return err
+			}
+			tracker.addRequirement(implReq, reqCreated)
+
+			// item.StatementID is guaranteed non-empty by the pre-transaction check above,
+			// so the materialized tree is always requirement -> statement -> by-component.
+			stmt, stmtCreated, err := findOrCreateStatement(tx, *implReq.ID, *item.StatementID)
+			if err != nil {
+				return err
+			}
+			tracker.addStatement(stmt, stmtCreated)
+
+			byComponent, bcCreated, err := findOrCreateByComponent(tx, *stmt.ID, "statements", *leveragedComponent.ID)
 			if err != nil {
 				return err
 			}
 
-			parentID := *implReq.ID
-			parentType := "implemented_requirements"
-			if item.StatementID != nil {
-				stmt, err := findOrCreateStatement(tx, *implReq.ID, *item.StatementID)
-				if err != nil {
-					return err
-				}
-				parentID = *stmt.ID
-				parentType = "statements"
+			// Subscribe is the fourth read-modify-write over this by-component's subtree: the
+			// resyncLeverageSatisfaction below reads its satisfied set and UPDATEs link
+			// satisfaction with a value computed in Go, so it takes the same lock the satisfied
+			// CREATE/DELETE and ReAttest take.
+			//
+			// findOrCreateByComponent REUSES an existing by-component, so subscribing to a second
+			// provided-uuid on the same (statement, component) pair lands on one that may already
+			// carry inherited entries and satisfied rows — and resyncLeverageSatisfaction rewrites
+			// the satisfaction of EVERY link inherited on that by-component, not just the one being
+			// created here. Skipping the lock would therefore let a stale value from this
+			// transaction clobber a concurrent satisfied write's freshly-derived one on a
+			// PRE-EXISTING link, which is a corruption that doesn't even point back at the subscribe
+			// that caused it.
+			//
+			// Postgres advisory locks are re-entrant within a transaction, so taking it once per
+			// item is safe when several items in one subscribe share a by-component.
+			if err := lockByComponentSubtreeWrite(tx, *byComponent.ID); err != nil {
+				return err
 			}
 
-			byComponent, err := findOrCreateByComponent(tx, parentID, parentType, *thisSystemComponent.ID)
-			if err != nil {
+			tracker.addByComponent(byComponent, *stmt.ID, bcCreated)
+
+			// Same "one provided-uuid inherited once per SSP" invariant the hand-authored
+			// inherited create enforces, applied on this creation path too. The link's
+			// uniqueIndex on (downstream_ssp_id, provided_uuid) only blocks a second SUBSCRIBE:
+			// a hand-authored inherited row for this provided-uuid leaves no link behind, so
+			// without this check the subscribe would land on a different (statement, component)
+			// pair and create a SECOND inherited row for it. Runs under the subtree lock taken
+			// just above, which is what makes it race-free.
+			if err := ensureProvidedUUIDNotAlreadyInherited(tx, downstreamSSPID, item.ProvidedUUID); err != nil {
 				return err
 			}
 
@@ -631,20 +831,20 @@ func (h *SSPLeverageHandler) Subscribe(ctx echo.Context) error {
 
 			satisfaction, _ := deriveSatisfaction(fullSet, satisfiedSet)
 
+			// No LeveragedAuthUUID: sharing is decoupled from an Authority to Operate.
 			link := relational.SSPLeverageLink{
-				DownstreamSSPID:   downstreamSSPID,
-				UpstreamSSPID:     offering.SSPID,
-				OfferingID:        *offering.ID,
-				OfferingVersion:   offering.Version,
-				ControlID:         item.ControlID,
-				StatementID:       item.StatementID,
-				ProvidedUUID:      item.ProvidedUUID,
-				InheritedUUID:     *inherited.ID,
-				LeveragedAuthUUID: *leveragedAuth.ID,
-				Satisfaction:      satisfaction,
-				Status:            relational.SSPLeverageStatusActive,
-				AttestedAt:        &now,
-				AttestedByID:      attestedBy,
+				DownstreamSSPID: downstreamSSPID,
+				UpstreamSSPID:   offering.SSPID,
+				OfferingID:      *offering.ID,
+				OfferingVersion: offering.Version,
+				ControlID:       item.ControlID,
+				StatementID:     item.StatementID,
+				ProvidedUUID:    item.ProvidedUUID,
+				InheritedUUID:   *inherited.ID,
+				Satisfaction:    satisfaction,
+				Status:          relational.SSPLeverageStatusActive,
+				AttestedAt:      &now,
+				AttestedByID:    attestedBy,
 			}
 			if err := tx.Create(&link).Error; err != nil {
 				if isUniqueViolation(err) {
@@ -652,11 +852,35 @@ func (h *SSPLeverageHandler) Subscribe(ctx echo.Context) error {
 				}
 				return err
 			}
+
+			// deriveSatisfaction is shared, but its *input* was not: the satisfaction computed
+			// above sees only the responsibilities THIS request asked to satisfy, while every
+			// reader recomputes from ALL satisfied rows on the by-component. Those disagree when
+			// the by-component already carries a hand-authored satisfied row for one of this
+			// provided-uuid's responsibilities — the link would store "partial" while the
+			// projection reports "full", and the stored value is what the drift detector and the
+			// notification path consume. Re-deriving through the same helper the satisfied
+			// CRUD uses makes the "derived in exactly one place" claim literally true.
+			if err := resyncLeverageSatisfaction(tx, downstreamSSPID, *byComponent.ID); err != nil {
+				return err
+			}
+
 			links = append(links, link)
+		}
+
+		// The links slice was built from the pre-resync values; re-read so the response reports
+		// what was actually committed.
+		for i := range links {
+			if err := tx.First(&links[i], "id = ?", links[i].ID).Error; err != nil {
+				return err
+			}
 		}
 		return nil
 	}); err != nil {
 		if errors.Is(err, errDuplicateLeverageLink) {
+			return ctx.JSON(http.StatusConflict, api.NewError(err))
+		}
+		if errors.Is(err, errProvidedAlreadyInherited) {
 			return ctx.JSON(http.StatusConflict, api.NewError(err))
 		}
 		if errors.Is(err, errDownstreamNotAllowed) {
@@ -666,7 +890,10 @@ func (h *SSPLeverageHandler) Subscribe(ctx echo.Context) error {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
-	return ctx.JSON(http.StatusCreated, handler.GenericDataListResponse[relational.SSPLeverageLink]{Data: links})
+	return ctx.JSON(http.StatusCreated, handler.GenericDataListResponse[relational.SSPLeverageLink]{
+		Data: links,
+		Meta: subscribeMeta{Created: tracker.created},
+	})
 }
 
 type leveragedControlInheritedFrom struct {
@@ -677,17 +904,118 @@ type leveragedControlInheritedFrom struct {
 }
 
 type leveragedControlResponse struct {
-	ControlID                   string                             `json:"controlId"`
-	StatementID                 *string                            `json:"statementId,omitempty"`
-	InheritedFrom               leveragedControlInheritedFrom      `json:"inheritedFrom"`
-	Satisfaction                relational.SSPLeverageSatisfaction `json:"satisfaction"`
-	OutstandingResponsibilities []upstreamResponsibility           `json:"outstandingResponsibilities"`
+	ID            uuid.UUID                     `json:"id"`
+	ControlID     string                        `json:"controlId"`
+	StatementID   *string                       `json:"statementId,omitempty"`
+	InheritedFrom leveragedControlInheritedFrom `json:"inheritedFrom"`
+	// ProvidedUuid is the upstream provided capability this link consumes — the key the
+	// downstream's inherited entries reference.
+	ProvidedUuid uuid.UUID `json:"providedUuid"`
+	// ByComponentId is the downstream by-component the link's inherited entry hangs off —
+	// the anchor for authoring satisfied entries against this link's responsibilities.
+	// Nil only if the inherited row was deleted out from under the link.
+	ByComponentId *uuid.UUID                         `json:"byComponentId,omitempty"`
+	Satisfaction  relational.SSPLeverageSatisfaction `json:"satisfaction"`
+	Status        relational.SSPLeverageStatus       `json:"status"`
+	// Responsibilities is the FULL upstream responsibility set under this link (uuid +
+	// description). Downstream surfaces label every responsibility from this — including ones
+	// already satisfied — so the responsibility's own text is never replaced by a satisfied
+	// entry's "how we handle this" wording. OutstandingResponsibilities is the not-yet-covered
+	// subset (unchanged).
+	Responsibilities            []upstreamResponsibility `json:"responsibilities"`
+	OutstandingResponsibilities []upstreamResponsibility `json:"outstandingResponsibilities"`
 	// ResponsibilityPosture is the live, evidence-backed posture (satisfied /
 	// not-satisfied / unknown) per upstream responsibility uuid under this link's
 	// provided-uuid — computed via filter_responsibilities (BCH-1339), independent of
 	// Satisfaction/OutstandingResponsibilities above (which reflect what was attested at
 	// subscribe time, not current evidence).
 	ResponsibilityPosture map[uuid.UUID]string `json:"responsibilityPosture"`
+	// DriftRiskID is the open drift risk for this link (BCH-1341's applyDriftToLink /
+	// computeDedupeKeyForLeverageDrift convention), set only when Status is Drifted and a
+	// matching risk is still open — nil otherwise (including for Revoked, which has no
+	// re-attest path and thus no risk to link).
+	DriftRiskID *uuid.UUID `json:"driftRiskId,omitempty"`
+}
+
+// responsibilityFilterResponse is one filter↔responsibility attachment for a downstream
+// SSP (a filter_responsibilities row with the filter's name resolved), keyed the way the
+// consumer reads it: by responsibility uuid.
+type responsibilityFilterResponse struct {
+	ResponsibilityUUID uuid.UUID `json:"responsibilityUuid"`
+	FilterID           uuid.UUID `json:"filterId"`
+	FilterName         string    `json:"filterName"`
+	ControlID          *string   `json:"controlId,omitempty"`
+	// ControlLinkCreated reports whether the attachment created (or co-owns) the
+	// filter→control link — detaching such an attachment may also unlink the control.
+	ControlLinkCreated bool `json:"controlLinkCreated"`
+}
+
+// ResponsibilityFilters godoc
+//
+//	@Summary		List a downstream SSP's filter↔responsibility attachments
+//	@Description	Every filter attached to an upstream responsibility this SSP inherits
+//	@Description	(BCH-1339's filter_responsibilities), with filter names resolved — one call
+//	@Description	for the whole SSP so per-responsibility evidence bars need no N+1. Writes
+//	@Description	are on the filters API (POST/DELETE /filters/:id/responsibilities).
+//	@Tags			SSP Export Offerings
+//	@Produce		json
+//	@Param			id	path		string	true	"Downstream SSP ID"
+//	@Success		200	{object}	handler.GenericDataListResponse[responsibilityFilterResponse]
+//	@Failure		400	{object}	api.Error
+//	@Failure		404	{object}	api.Error
+//	@Failure		500	{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/oscal/system-security-plans/{id}/responsibility-filters [get]
+func (h *SSPLeverageHandler) ResponsibilityFilters(ctx echo.Context) error {
+	sspIdParam := ctx.Param("id")
+	sspID, err := uuid.Parse(sspIdParam)
+	if err != nil {
+		h.sugar.Warnw("Invalid SSP id", "id", sspIdParam, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	if err := h.db.Select("id").First(&relational.SystemSecurityPlan{}, "id = ?", sspID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("SSP not found")))
+		}
+		h.sugar.Errorf("Failed to load SSP: %v", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	var rows []relational.FilterResponsibility
+	if err := h.db.Where("ssp_id = ?", sspID).Find(&rows).Error; err != nil {
+		h.sugar.Errorf("Failed to list filter responsibilities: %v", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	nameByFilter := map[uuid.UUID]string{}
+	if len(rows) > 0 {
+		filterIDs := make([]uuid.UUID, 0, len(rows))
+		for _, row := range rows {
+			filterIDs = append(filterIDs, row.FilterID)
+		}
+		var filters []relational.Filter
+		if err := h.db.Select("id, name").Where("id IN ?", filterIDs).Find(&filters).Error; err != nil {
+			h.sugar.Errorf("Failed to resolve filter names: %v", err)
+			return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		}
+		for _, filter := range filters {
+			nameByFilter[*filter.ID] = filter.Name
+		}
+	}
+
+	result := make([]responsibilityFilterResponse, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, responsibilityFilterResponse{
+			ResponsibilityUUID: row.ResponsibilityUUID,
+			FilterID:           row.FilterID,
+			FilterName:         nameByFilter[row.FilterID],
+			ControlID:          row.ControlID,
+			ControlLinkCreated: row.ControlLinkCreated,
+		})
+	}
+
+	return ctx.JSON(http.StatusOK, handler.GenericDataListResponse[responsibilityFilterResponse]{Data: result})
 }
 
 // LeveragedControls godoc
@@ -726,23 +1054,95 @@ func (h *SSPLeverageHandler) LeveragedControls(ctx echo.Context) error {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
-	var links []relational.SSPLeverageLink
-	if err := h.db.Where("downstream_ssp_id = ?", sspID).Find(&links).Error; err != nil {
-		h.sugar.Errorf("Failed to list leverage links: %v", err)
+	projection, err := projectLeveragedControls(h.db, sspID)
+	if err != nil {
+		h.sugar.Errorf("Failed to project leveraged controls: %v", err)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
-	if len(links) == 0 {
-		return ctx.JSON(http.StatusOK, handler.GenericDataListResponse[leveragedControlResponse]{Data: []leveragedControlResponse{}})
+	result := make([]leveragedControlResponse, 0, len(projection))
+	for _, p := range projection {
+		var byComponentID *uuid.UUID
+		if p.ByComponentID != uuid.Nil {
+			id := p.ByComponentID
+			byComponentID = &id
+		}
+		result = append(result, leveragedControlResponse{
+			ID:          *p.Link.ID,
+			ControlID:   p.Link.ControlID,
+			StatementID: p.Link.StatementID,
+			InheritedFrom: leveragedControlInheritedFrom{
+				UpstreamSSPID:   p.Link.UpstreamSSPID,
+				OfferingID:      p.Link.OfferingID,
+				OfferingTitle:   p.OfferingTitle,
+				OfferingVersion: p.Link.OfferingVersion,
+			},
+			ProvidedUuid:                p.Link.ProvidedUUID,
+			ByComponentId:               byComponentID,
+			Satisfaction:                p.Satisfaction,
+			Status:                      p.Link.Status,
+			Responsibilities:            p.Responsibilities,
+			OutstandingResponsibilities: p.Outstanding,
+			ResponsibilityPosture:       p.Posture,
+			DriftRiskID:                 p.DriftRiskID,
+		})
 	}
 
-	// Batch every per-link lookup up front (four queries total, independent of how many
-	// links this SSP has) instead of the four-queries-per-link loop this used to be.
+	return ctx.JSON(http.StatusOK, handler.GenericDataListResponse[leveragedControlResponse]{Data: result})
+}
+
+// leveragedControlProjection is one downstream leverage link with everything the read
+// models need already resolved: the live-recomputed satisfaction (never the link's cached
+// value), the outstanding responsibilities, the evidence-backed posture, the open drift
+// risk, the offering title, and the by-component + inherited row the link hangs off.
+//
+// Both the /leveraged-controls endpoint and the shared-responsibility rollup read this, so
+// satisfaction is derived in exactly one place and neither surface can drift from the other.
+type leveragedControlProjection struct {
+	Link          relational.SSPLeverageLink
+	OfferingTitle string
+	ByComponentID uuid.UUID
+	// Inherited is the downstream's own InheritedControlImplementation row this link
+	// created; nil only if it has since been deleted out from under the link.
+	Inherited    *relational.InheritedControlImplementation
+	Satisfaction relational.SSPLeverageSatisfaction
+	Outstanding  []upstreamResponsibility
+	// Responsibilities is the FULL upstream responsibility set under this link (uuid +
+	// description), so downstream surfaces can label every responsibility — including ones
+	// already satisfied — with the upstream's own text. Outstanding is the subset of this
+	// with no matching downstream satisfied entry.
+	Responsibilities []upstreamResponsibility
+	Posture          map[uuid.UUID]string
+	DriftRiskID      *uuid.UUID
+}
+
+// projectLeveragedControls builds the projection for every leverage link on one downstream
+// SSP in six queries at THIS level, independent of link count — the batching that replaced
+// this code's original four-queries-per-link loop, preserved here so neither caller can
+// regress it into an N+1. In particular the ResponsibilityPosture(db, sspID,
+// allResponsibilityUUIDs) call below must stay a single call for every uuid, never one per
+// link.
+//
+// The end-to-end cost is ~6 + N, not six: ResponsibilityPosture finishes with a
+// per-responsibility loop (profile_compliance.go, getStatusCountsForFilters) that issues one
+// evidence aggregate — count(DISTINCT uuid) grouped by status->>state, over the
+// latest-evidence-stream subquery and the label-filter joins — for every responsibility
+// carrying at least one FilterResponsibility link. Those N queries are the expensive ones, and
+// both /leveraged-controls and GET /:id/shared-responsibility pay them. Hoisting that loop
+// rewrites evidence aggregation and belongs in its own change.
+func projectLeveragedControls(db *gorm.DB, sspID uuid.UUID) ([]leveragedControlProjection, error) {
+	var links []relational.SSPLeverageLink
+	if err := db.Where("downstream_ssp_id = ?", sspID).Order("id ASC").Find(&links).Error; err != nil {
+		return nil, fmt.Errorf("failed to list leverage links: %w", err)
+	}
+	if len(links) == 0 {
+		return []leveragedControlProjection{}, nil
+	}
+
 	offeringIDs := uniqueUUIDs(links, func(l relational.SSPLeverageLink) uuid.UUID { return l.OfferingID })
 	var offerings []relational.SSPExportOffering
-	if err := h.db.Select("id, title").Where("id IN ?", offeringIDs).Find(&offerings).Error; err != nil {
-		h.sugar.Errorf("Failed to load offerings for leverage links: %v", err)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	if err := db.Select("id, title").Where("id IN ?", offeringIDs).Find(&offerings).Error; err != nil {
+		return nil, fmt.Errorf("failed to load offerings for leverage links: %w", err)
 	}
 	offeringTitleByID := make(map[uuid.UUID]string, len(offerings))
 	for _, o := range offerings {
@@ -751,28 +1151,25 @@ func (h *SSPLeverageHandler) LeveragedControls(ctx echo.Context) error {
 
 	inheritedIDs := uniqueUUIDs(links, func(l relational.SSPLeverageLink) uuid.UUID { return l.InheritedUUID })
 	var inheritedRows []relational.InheritedControlImplementation
-	if err := h.db.Where("id IN ?", inheritedIDs).Find(&inheritedRows).Error; err != nil {
-		h.sugar.Errorf("Failed to load inherited control implementations for leverage links: %v", err)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	if err := db.Where("id IN ?", inheritedIDs).Find(&inheritedRows).Error; err != nil {
+		return nil, fmt.Errorf("failed to load inherited control implementations for leverage links: %w", err)
 	}
-	byComponentIDByInherited := make(map[uuid.UUID]uuid.UUID, len(inheritedRows))
+	inheritedByID := make(map[uuid.UUID]relational.InheritedControlImplementation, len(inheritedRows))
 	for _, i := range inheritedRows {
-		byComponentIDByInherited[*i.ID] = i.ByComponentId
+		inheritedByID[*i.ID] = i
 	}
 
 	providedUUIDs := uniqueUUIDs(links, func(l relational.SSPLeverageLink) uuid.UUID { return l.ProvidedUUID })
-	fullSetByProvided, err := bulkResolveUpstreamResponsibilities(h.db, providedUUIDs)
+	fullSetByProvided, err := bulkResolveUpstreamResponsibilities(db, providedUUIDs)
 	if err != nil {
-		h.sugar.Errorf("Failed to resolve upstream responsibilities for leverage links: %v", err)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		return nil, fmt.Errorf("failed to resolve upstream responsibilities for leverage links: %w", err)
 	}
 
 	byComponentIDs := uniqueUUIDs(inheritedRows, func(i relational.InheritedControlImplementation) uuid.UUID { return i.ByComponentId })
 	var satisfiedRows []relational.SatisfiedControlImplementationResponsibility
 	if len(byComponentIDs) > 0 {
-		if err := h.db.Where("by_component_id IN ?", byComponentIDs).Find(&satisfiedRows).Error; err != nil {
-			h.sugar.Errorf("Failed to load satisfied responsibilities for leverage links: %v", err)
-			return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		if err := db.Where("by_component_id IN ?", byComponentIDs).Find(&satisfiedRows).Error; err != nil {
+			return nil, fmt.Errorf("failed to load satisfied responsibilities for leverage links: %w", err)
 		}
 	}
 	satisfiedByComponent := make(map[uuid.UUID]map[uuid.UUID]bool, len(byComponentIDs))
@@ -791,15 +1188,48 @@ func (h *SSPLeverageHandler) LeveragedControls(ctx echo.Context) error {
 			allResponsibilityUUIDs = append(allResponsibilityUUIDs, r.ResponsibilityUUID)
 		}
 	}
-	posture, err := ResponsibilityPosture(h.db, sspID, allResponsibilityUUIDs)
+	posture, err := ResponsibilityPosture(db, sspID, allResponsibilityUUIDs)
 	if err != nil {
-		h.sugar.Errorf("Failed to compute responsibility posture for leverage links: %v", err)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		return nil, fmt.Errorf("failed to compute responsibility posture for leverage links: %w", err)
 	}
 
-	result := make([]leveragedControlResponse, 0, len(links))
+	// Batch-resolve every drifted link's open drift risk in one query, keyed by the
+	// dedupe_key convention computeDedupeKeyForLeverageDrift/applyDriftToLink already use —
+	// rather than a lookup per drifted link.
+	dedupeKeyToLinkID := make(map[string]uuid.UUID)
+	dedupeKeys := make([]string, 0, len(links))
 	for _, link := range links {
-		byComponentID := byComponentIDByInherited[link.InheritedUUID]
+		if link.Status != relational.SSPLeverageStatusDrifted {
+			continue
+		}
+		key := computeDedupeKeyForLeverageDrift(*link.ID)
+		dedupeKeyToLinkID[key] = *link.ID
+		dedupeKeys = append(dedupeKeys, key)
+	}
+	driftRiskIDByLinkID := make(map[uuid.UUID]uuid.UUID, len(dedupeKeys))
+	if len(dedupeKeys) > 0 {
+		var driftRisks []risks.Risk
+		if err := db.Select("id, dedupe_key").
+			Where("ssp_id = ? AND dedupe_key IN ? AND status != ?", sspID, dedupeKeys, risks.RiskStatusClosed).
+			Find(&driftRisks).Error; err != nil {
+			return nil, fmt.Errorf("failed to load drift risks for leverage links: %w", err)
+		}
+		for _, r := range driftRisks {
+			if linkID, ok := dedupeKeyToLinkID[r.DedupeKey]; ok {
+				driftRiskIDByLinkID[linkID] = *r.ID
+			}
+		}
+	}
+
+	result := make([]leveragedControlProjection, 0, len(links))
+	for _, link := range links {
+		var inherited *relational.InheritedControlImplementation
+		var byComponentID uuid.UUID
+		if row, ok := inheritedByID[link.InheritedUUID]; ok {
+			inherited = &row
+			byComponentID = row.ByComponentId
+		}
+
 		full := fullSetByProvided[link.ProvidedUUID]
 		satisfaction, outstanding := deriveSatisfaction(full, satisfiedByComponent[byComponentID])
 
@@ -808,22 +1238,25 @@ func (h *SSPLeverageHandler) LeveragedControls(ctx echo.Context) error {
 			linkPosture[r.ResponsibilityUUID] = posture[r.ResponsibilityUUID]
 		}
 
-		result = append(result, leveragedControlResponse{
-			ControlID:   link.ControlID,
-			StatementID: link.StatementID,
-			InheritedFrom: leveragedControlInheritedFrom{
-				UpstreamSSPID:   link.UpstreamSSPID,
-				OfferingID:      link.OfferingID,
-				OfferingTitle:   offeringTitleByID[link.OfferingID],
-				OfferingVersion: link.OfferingVersion,
-			},
-			Satisfaction:                satisfaction,
-			OutstandingResponsibilities: outstanding,
-			ResponsibilityPosture:       linkPosture,
+		var driftRiskID *uuid.UUID
+		if id, ok := driftRiskIDByLinkID[*link.ID]; ok {
+			driftRiskID = &id
+		}
+
+		result = append(result, leveragedControlProjection{
+			Link:             link,
+			OfferingTitle:    offeringTitleByID[link.OfferingID],
+			ByComponentID:    byComponentID,
+			Inherited:        inherited,
+			Satisfaction:     satisfaction,
+			Outstanding:      outstanding,
+			Responsibilities: full,
+			Posture:          linkPosture,
+			DriftRiskID:      driftRiskID,
 		})
 	}
 
-	return ctx.JSON(http.StatusOK, handler.GenericDataListResponse[leveragedControlResponse]{Data: result})
+	return result, nil
 }
 
 // ReAttest clears drift on a leverage link (BCH-1341): bumps OfferingVersion to the
@@ -873,6 +1306,25 @@ func (h *SSPLeverageHandler) ReAttest(ctx echo.Context) error {
 		var inherited relational.InheritedControlImplementation
 		if err := tx.First(&inherited, "id = ?", link.InheritedUUID).Error; err != nil {
 			return fmt.Errorf("failed to load inherited control implementation: %w", err)
+		}
+
+		// ReAttest is a third read-modify-write over this by-component's subtree: it reads the
+		// satisfied set, derives satisfaction in Go, and UPDATEs the link with the computed value.
+		// It must take the same lock the satisfied CREATE/DELETE take, or the identical lost-update
+		// applies with ReAttest as one of the racers — it could read the satisfied set before a
+		// concurrent satisfied write commits and then overwrite that writer's freshly-derived
+		// satisfaction with a stale one. (The `WHERE status = drifted` guard below defends against a
+		// concurrent re-attest, not against a concurrent satisfied write, which never touches status.)
+		//
+		// The race is new even though ReAttest isn't: before this PR there were no Inherited/Satisfied
+		// handlers at all — satisfied rows were written only by Subscribe — so ReAttest had no
+		// concurrent writer to race. The satisfied CRUD and resyncLeverageSatisfaction are what
+		// create the second writer.
+		//
+		// Taken after the inherited row is loaded, since that is what names the by-component, but
+		// before every read that feeds the derivation below.
+		if err := lockByComponentSubtreeWrite(tx, inherited.ByComponentId); err != nil {
+			return err
 		}
 
 		var satisfiedRows []relational.SatisfiedControlImplementationResponsibility

@@ -144,8 +144,67 @@ func minimalSSP(componentUUID string) *oscalTypes_1_1_3.SystemSecurityPlan {
 	}
 }
 
+// exportedStatement names one statement-anchored provided capability to seed on a fixture SSP:
+// control -> statement -> by-component -> export -> provided.
+type exportedStatement struct {
+	ControlID    string
+	StatementID  string
+	ProvidedUUID string
+}
+
+// sspWithStatementExports builds on minimalSSP by replacing its implemented-requirements with
+// one per exported statement, each carrying a statement-level by-component whose Export provides
+// the named capability.
+//
+// Everything carrying shared responsibility is statement-anchored now: an offering item must
+// name a statement, and its (controlId, statementId, componentUuid, providedUuid) tuple must
+// actually resolve to a real statement-anchored export inside the SSP. A fixture that invents a
+// providedUuid out of thin air — as these tests used to — is precisely the incoherent case the
+// coherence check exists to reject.
+func sspWithStatementExports(componentUUID string, exports ...exportedStatement) *oscalTypes_1_1_3.SystemSecurityPlan {
+	ssp := minimalSSP(componentUUID)
+
+	requirements := make([]oscalTypes_1_1_3.ImplementedRequirement, 0, len(exports))
+	for _, export := range exports {
+		requirements = append(requirements, oscalTypes_1_1_3.ImplementedRequirement{
+			UUID:      uuid.New().String(),
+			ControlId: export.ControlID,
+			Statements: &[]oscalTypes_1_1_3.Statement{
+				{
+					UUID:        uuid.New().String(),
+					StatementId: export.StatementID,
+					ByComponents: &[]oscalTypes_1_1_3.ByComponent{
+						{
+							UUID:          uuid.New().String(),
+							ComponentUuid: componentUUID,
+							Description:   fmt.Sprintf("%s %s implemented by test component", export.ControlID, export.StatementID),
+							Export: &oscalTypes_1_1_3.Export{
+								Provided: &[]oscalTypes_1_1_3.ProvidedControlImplementation{
+									{UUID: export.ProvidedUUID, Description: "Provides " + export.ControlID},
+								},
+							},
+						},
+					},
+				},
+			},
+		})
+	}
+	ssp.ControlImplementation.ImplementedRequirements = requirements
+	return ssp
+}
+
+// offeringItemBody is the coherent offering-item write body for one seeded exported statement.
+func offeringItemBody(componentUUID string, export exportedStatement) map[string]any {
+	return map[string]any{
+		"controlId":     export.ControlID,
+		"statementId":   export.StatementID,
+		"componentUuid": componentUUID,
+		"providedUuid":  export.ProvidedUUID,
+	}
+}
+
 // TestPublishRequiresSSPExportContributorCan_ViewerCannot is the ticket's authz AC:
-// a contributor publishes an offering of 2 controls (1 per-statement); a viewer gets 403 on
+// a contributor publishes an offering of 2 per-statement controls; a viewer gets 403 on
 // publish and 200 on read (via the top-level ssp-export-offering:read catalog).
 func (suite *SSPExportOfferingAuthzIntegrationSuite) TestPublishRequiresSSPExportContributorCan_ViewerCannot() {
 	suite.Require().NoError(suite.Migrator.Refresh())
@@ -156,7 +215,9 @@ func (suite *SSPExportOfferingAuthzIntegrationSuite) TestPublishRequiresSSPExpor
 	server := newCedarServer(&suite.IntegrationTestSuite)
 
 	componentUUID := uuid.New().String()
-	ssp := minimalSSP(componentUUID)
+	acOne := exportedStatement{ControlID: "ac-1", StatementID: "ac-1_stmt.a", ProvidedUUID: uuid.New().String()}
+	acTwo := exportedStatement{ControlID: "ac-2", StatementID: "ac-2_stmt.a", ProvidedUUID: uuid.New().String()}
+	ssp := sspWithStatementExports(componentUUID, acOne, acTwo)
 	rec := authedRequest(&suite.IntegrationTestSuite, server, "POST", "/api/oscal/system-security-plans", contributorToken, ssp)
 	suite.Require().Equal(http.StatusCreated, rec.Code, rec.Body.String())
 
@@ -164,29 +225,23 @@ func (suite *SSPExportOfferingAuthzIntegrationSuite) TestPublishRequiresSSPExpor
 	rec = authedRequest(&suite.IntegrationTestSuite, server, "POST",
 		fmt.Sprintf("/api/oscal/system-security-plans/%s/export-offerings", ssp.UUID),
 		contributorToken,
-		map[string]string{"title": "Leverageable controls", "description": "AC-1 and a per-statement AC-2"},
+		map[string]string{"title": "Leverageable controls", "description": "a per-statement AC-1 and AC-2"},
 	)
 	suite.Require().Equal(http.StatusCreated, rec.Code, rec.Body.String())
 	var created handler.GenericDataResponse[relational.SSPExportOffering]
 	suite.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &created))
 	offeringID := created.Data.ID.String()
 
-	// A viewer must not be able to curate items either — same ssp:export gate.
-	stmtID := "ac-2_stmt.a"
+	// A viewer must not be able to curate items either — same ssp:export gate. The body is
+	// coherent, so the 403 can only be the authz gate, never the coherence check.
 	itemPath := fmt.Sprintf("/api/oscal/system-security-plans/%s/export-offerings/%s/items", ssp.UUID, offeringID)
-	rec = authedRequest(&suite.IntegrationTestSuite, server, "POST", itemPath, viewerToken, map[string]any{
-		"controlId": "ac-1", "componentUuid": componentUUID, "providedUuid": uuid.New().String(),
-	})
+	rec = authedRequest(&suite.IntegrationTestSuite, server, "POST", itemPath, viewerToken, offeringItemBody(componentUUID, acOne))
 	suite.Require().Equal(http.StatusForbidden, rec.Code, rec.Body.String())
 
-	// Contributor adds the 2 controls: one control-level, one per-statement.
-	rec = authedRequest(&suite.IntegrationTestSuite, server, "POST", itemPath, contributorToken, map[string]any{
-		"controlId": "ac-1", "componentUuid": componentUUID, "providedUuid": uuid.New().String(),
-	})
+	// Contributor adds both controls, each anchored on its own statement.
+	rec = authedRequest(&suite.IntegrationTestSuite, server, "POST", itemPath, contributorToken, offeringItemBody(componentUUID, acOne))
 	suite.Require().Equal(http.StatusCreated, rec.Code, rec.Body.String())
-	rec = authedRequest(&suite.IntegrationTestSuite, server, "POST", itemPath, contributorToken, map[string]any{
-		"controlId": "ac-2", "statementId": stmtID, "componentUuid": componentUUID, "providedUuid": uuid.New().String(),
-	})
+	rec = authedRequest(&suite.IntegrationTestSuite, server, "POST", itemPath, contributorToken, offeringItemBody(componentUUID, acTwo))
 	suite.Require().Equal(http.StatusCreated, rec.Code, rec.Body.String())
 
 	publishPath := fmt.Sprintf("/api/oscal/system-security-plans/%s/export-offerings/%s/publish", ssp.UUID, offeringID)

@@ -17,6 +17,7 @@ import (
 	suggestionrel "github.com/compliance-framework/api/internal/service/relational/suggestions"
 	templaterel "github.com/compliance-framework/api/internal/service/relational/templates"
 	"github.com/compliance-framework/api/internal/service/relational/workflows"
+	"github.com/google/uuid"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -234,6 +235,9 @@ func MigrateUpWithConfig(db *gorm.DB, cfg *config.Config) error {
 		return err
 	}
 	if err := migrateBackfillCatalogActive(db); err != nil {
+		return err
+	}
+	if err := migrateBackfillOfferingItemStatementIDs(db); err != nil {
 		return err
 	}
 
@@ -473,6 +477,30 @@ func MigrateUpWithConfig(db *gorm.DB, cfg *config.Config) error {
 		`).Error; err != nil {
 			return err
 		}
+
+		// Sharing is decoupled from Leveraged Authorizations: subscribe no longer creates
+		// an LA, so ssp_leverage_links.leveraged_auth_uuid must be nullable. AutoMigrate
+		// never relaxes an existing NOT NULL, so drop it explicitly.
+		//
+		// Guarded so it is a genuine no-op once the constraint is gone, not merely idempotent:
+		// a bare ALTER TABLE takes an ACCESS EXCLUSIVE lock on every boot forever, and with no
+		// lock_timeout set anywhere a rolling deploy that starts behind a long-running query
+		// would queue on it and block all reads and writes to the table until it cleared.
+		if err := db.Exec(`
+			DO $$
+			BEGIN
+			  IF EXISTS (
+			    SELECT 1 FROM information_schema.columns
+			    WHERE table_name = 'ssp_leverage_links'
+			      AND column_name = 'leveraged_auth_uuid'
+			      AND is_nullable = 'NO'
+			  ) THEN
+			    ALTER TABLE ssp_leverage_links ALTER COLUMN leveraged_auth_uuid DROP NOT NULL;
+			  END IF;
+			END $$;
+		`).Error; err != nil {
+			return err
+		}
 	}
 	// For SQLite and other databases we do not create functional/unique indexes here.
 	// They will rely on their default query plans; a plain index on control_id
@@ -703,6 +731,208 @@ func migrateBackfillCatalogActive(db *gorm.DB) error {
 	return db.Model(&relational.Catalog{}).
 		Where("active IS NULL").
 		Update("active", true).Error
+}
+
+const (
+	// backfillBatchSize bounds how many legacy rows are held in memory at once.
+	backfillBatchSize = 500
+	// inClauseChunkSize bounds an IN-list so it cannot approach Postgres's 65535
+	// bind-parameter ceiling per statement. Well under it, since several IN-lists are built
+	// per batch and a migration error is fatal to boot.
+	inClauseChunkSize = 1000
+	// maxUndeterminableSample bounds how many undeterminable row IDs are retained for logging,
+	// so the diagnostic list cannot grow with the size of the legacy table.
+	maxUndeterminableSample = 100
+)
+
+// uniqueUUIDs extracts the deduplicated set of UUIDs from items, preserving first-seen order.
+// Deduping matters here beyond tidiness: several provided-impls routinely share one export, so an
+// un-deduped IN-list inflates for no reason and reaches the bind ceiling sooner.
+//
+// (handler/oscal has an identical helper, but it is unexported and lives in an HTTP handler
+// package this one must not depend on.)
+func uniqueUUIDs[T any](items []T, extract func(T) uuid.UUID) []uuid.UUID {
+	out := make([]uuid.UUID, 0, len(items))
+	seen := make(map[uuid.UUID]bool, len(items))
+	for _, item := range items {
+		id := extract(item)
+		if seen[id] {
+			continue
+		}
+		seen[id] = true
+		out = append(out, id)
+	}
+	return out
+}
+
+// findByIDsInChunks runs `id IN ?` over ids in bounded chunks, appending every chunk's rows into
+// out (which must be a pointer to a slice). A single unbounded IN-list is what puts the
+// bind-parameter ceiling in reach.
+func findByIDsInChunks[T any](db *gorm.DB, ids []uuid.UUID, out *[]T) error {
+	for start := 0; start < len(ids); start += inClauseChunkSize {
+		end := min(start+inClauseChunkSize, len(ids))
+		var chunk []T
+		if err := db.Where("id IN ?", ids[start:end]).Find(&chunk).Error; err != nil {
+			return err
+		}
+		*out = append(*out, chunk...)
+	}
+	return nil
+}
+
+// migrateBackfillOfferingItemStatementIDs normalizes legacy ssp_export_offering_items
+// rows written before the statement became the canonical anchor for shared responsibility.
+// For each item with a NULL statement_id it walks provided_uuid -> export -> by_component
+// and, when that by-component is statement-anchored, copies the parent Statement's
+// statement-id onto the item.
+//
+// A requirement-anchored by-component has no statement to derive, so those rows keep a NULL
+// statement_id: they stay readable and deletable, but Subscribe now rejects them with a 422
+// rather than silently falling back to requirement-anchoring. Outcomes are counted per cause and
+// logged so an operator can see how much legacy data still needs winding down — and, crucially,
+// can tell the two apart: a requirement-anchored row is expected legacy shape awaiting curation,
+// while a dangling provided-uuid is referential corruption that warrants investigation. The
+// affected item ids are logged at debug so there is something to act on.
+//
+// The DB column stays nullable on purpose — statement_id is enforced on the write path
+// (createExportOfferingItemRequest.validate), not by the schema, so legacy rows survive.
+//
+// Runs in batches inside one transaction: statement_id carries no index, so the scan is
+// unavoidable, but loading every legacy row at once (and building unbounded IN-lists from the
+// result) risked both memory and the 65535 bind-parameter ceiling — past which this returns an
+// error, and a migration error is fatal to boot (cmd/run.go). A single transaction also means a
+// mid-run failure rolls back cleanly instead of leaving a partial backfill.
+func migrateBackfillOfferingItemStatementIDs(db *gorm.DB) error {
+	if !db.Migrator().HasTable(&relational.SSPExportOfferingItem{}) {
+		return nil
+	}
+
+	var backfilled, danglingProvided, missingExport, requirementAnchored, emptyStatementID int
+	// Only a bounded sample of the undeterminable IDs is kept: requirement-anchored rows are the
+	// expected legacy shape, so a legacy table can produce millions of them and this runs on the
+	// boot path. The per-cause counters below carry the full totals.
+	var undeterminableSample []uuid.UUID
+
+	if err := db.Transaction(func(tx *gorm.DB) error {
+		var items []relational.SSPExportOfferingItem
+		return tx.Where("statement_id IS NULL").FindInBatches(&items, backfillBatchSize, func(batch *gorm.DB, _ int) error {
+			providedUUIDs := uniqueUUIDs(items, func(i relational.SSPExportOfferingItem) uuid.UUID { return i.ProvidedUUID })
+
+			var provided []relational.ProvidedControlImplementation
+			if err := findByIDsInChunks(tx, providedUUIDs, &provided); err != nil {
+				return fmt.Errorf("failed to load provided control implementations: %w", err)
+			}
+			exportIDByProvided := make(map[uuid.UUID]uuid.UUID, len(provided))
+			for _, p := range provided {
+				exportIDByProvided[*p.ID] = p.ExportId
+			}
+
+			var exports []relational.Export
+			if err := findByIDsInChunks(tx, uniqueUUIDs(provided, func(p relational.ProvidedControlImplementation) uuid.UUID { return p.ExportId }), &exports); err != nil {
+				return fmt.Errorf("failed to load exports: %w", err)
+			}
+			byComponentIDByExport := make(map[uuid.UUID]uuid.UUID, len(exports))
+			for _, e := range exports {
+				byComponentIDByExport[*e.ID] = e.ByComponentId
+			}
+
+			var byComponents []relational.ByComponent
+			if err := findByIDsInChunks(tx, uniqueUUIDs(exports, func(e relational.Export) uuid.UUID { return e.ByComponentId }), &byComponents); err != nil {
+				return fmt.Errorf("failed to load by-components: %w", err)
+			}
+			statementIDByComponent := make(map[uuid.UUID]uuid.UUID, len(byComponents))
+			statementRowIDs := make([]uuid.UUID, 0, len(byComponents))
+			for _, bc := range byComponents {
+				if bc.ParentType == nil || *bc.ParentType != "statements" || bc.ParentID == nil {
+					continue
+				}
+				statementIDByComponent[*bc.ID] = *bc.ParentID
+				statementRowIDs = append(statementRowIDs, *bc.ParentID)
+			}
+
+			var statements []relational.Statement
+			if err := findByIDsInChunks(tx, uniqueUUIDs(statementRowIDs, func(id uuid.UUID) uuid.UUID { return id }), &statements); err != nil {
+				return fmt.Errorf("failed to load statements: %w", err)
+			}
+			statementIDByRow := make(map[uuid.UUID]string, len(statements))
+			for _, s := range statements {
+				statementIDByRow[*s.ID] = s.StatementId
+			}
+
+			for _, item := range items {
+				exportID, ok := exportIDByProvided[item.ProvidedUUID]
+				if !ok {
+					danglingProvided++
+					if len(undeterminableSample) < maxUndeterminableSample {
+						undeterminableSample = append(undeterminableSample, *item.ID)
+					}
+					continue
+				}
+				byComponentID, ok := byComponentIDByExport[exportID]
+				if !ok {
+					missingExport++
+					if len(undeterminableSample) < maxUndeterminableSample {
+						undeterminableSample = append(undeterminableSample, *item.ID)
+					}
+					continue
+				}
+				statementRowID, ok := statementIDByComponent[byComponentID]
+				if !ok {
+					requirementAnchored++
+					if len(undeterminableSample) < maxUndeterminableSample {
+						undeterminableSample = append(undeterminableSample, *item.ID)
+					}
+					continue
+				}
+				statementID, ok := statementIDByRow[statementRowID]
+				if !ok || statementID == "" {
+					emptyStatementID++
+					if len(undeterminableSample) < maxUndeterminableSample {
+						undeterminableSample = append(undeterminableSample, *item.ID)
+					}
+					continue
+				}
+
+				if err := tx.Model(&relational.SSPExportOfferingItem{}).
+					Where("id = ?", item.ID).
+					Update("statement_id", statementID).Error; err != nil {
+					return fmt.Errorf("failed to backfill statement_id on offering item %s: %w", item.ID, err)
+				}
+				backfilled++
+			}
+			return nil
+		}).Error
+	}); err != nil {
+		return err
+	}
+
+	undeterminable := requirementAnchored + danglingProvided + missingExport + emptyStatementID
+	if backfilled == 0 && undeterminable == 0 {
+		return nil
+	}
+
+	db.Logger.Info(
+		context.Background(),
+		"Backfilled statement_id on %d legacy export offering item(s); %d remain NULL "+
+			"(%d requirement-anchored [expected legacy], %d dangling provided-uuid [data corruption], "+
+			"%d export missing [data corruption], %d statement has empty statement-id)",
+		backfilled,
+		undeterminable,
+		requirementAnchored,
+		danglingProvided,
+		missingExport,
+		emptyStatementID,
+	)
+	if len(undeterminableSample) > 0 {
+		db.Logger.Info(
+			context.Background(),
+			"Offering items with a statement_id that could not be derived (showing first %d of %d): %v",
+			len(undeterminableSample),
+			undeterminable,
+			undeterminableSample,
+		)
+	}
+	return nil
 }
 
 // migrateSSPProfileIDToJoinTable copies the legacy single profile_id FK from

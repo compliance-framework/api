@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/suite"
 	"gorm.io/datatypes"
+	"gorm.io/gorm"
 
 	"github.com/compliance-framework/api/internal/api/handler"
 	"github.com/compliance-framework/api/internal/converters/labelfilter"
@@ -31,29 +32,96 @@ func TestSSPLeverageIntegrationSuite(t *testing.T) {
 	suite.Run(t, new(SSPLeverageIntegrationSuite))
 }
 
+// leverageStatementID is the statement the fixture's leverageable capability is exported from.
+// The statement is the canonical anchor for shared responsibility, so an Export — and the
+// offering item pointing at it — hangs off a statement-level by-component, never a
+// requirement-level one.
+const leverageStatementID = "ac-1_smt.a"
+
 // sspWithLeverageableCapability builds on minimalSSP by giving the ac-1
-// implemented-requirement a by-component with an Export: one provided control
-// implementation and two responsibilities under it — the fixture the subscribe/leverage
-// flow needs on the upstream side.
+// implemented-requirement a statement, and that statement a by-component with an Export: one
+// provided control implementation and two responsibilities under it — the fixture the
+// subscribe/leverage flow needs on the upstream side.
 func sspWithLeverageableCapability(componentUUID, providedUUID, respAUUID, respBUUID string) *oscalTypes_1_1_3.SystemSecurityPlan {
 	ssp := minimalSSP(componentUUID)
-	ssp.ControlImplementation.ImplementedRequirements[0].ByComponents = &[]oscalTypes_1_1_3.ByComponent{
+	ssp.ControlImplementation.ImplementedRequirements[0].Statements = &[]oscalTypes_1_1_3.Statement{
 		{
-			UUID:          uuid.New().String(),
-			ComponentUuid: componentUUID,
-			Description:   "AC-1 implemented by test component",
-			Export: &oscalTypes_1_1_3.Export{
-				Provided: &[]oscalTypes_1_1_3.ProvidedControlImplementation{
-					{UUID: providedUUID, Description: "Provides AC-1 capability"},
-				},
-				Responsibilities: &[]oscalTypes_1_1_3.ControlImplementationResponsibility{
-					{UUID: respAUUID, ProvidedUuid: providedUUID, Description: "Responsibility A"},
-					{UUID: respBUUID, ProvidedUuid: providedUUID, Description: "Responsibility B"},
+			UUID:        uuid.New().String(),
+			StatementId: leverageStatementID,
+			ByComponents: &[]oscalTypes_1_1_3.ByComponent{
+				{
+					UUID:          uuid.New().String(),
+					ComponentUuid: componentUUID,
+					Description:   "AC-1 statement (a) implemented by test component",
+					Export: &oscalTypes_1_1_3.Export{
+						Provided: &[]oscalTypes_1_1_3.ProvidedControlImplementation{
+							{UUID: providedUUID, Description: "Provides AC-1 capability"},
+						},
+						Responsibilities: &[]oscalTypes_1_1_3.ControlImplementationResponsibility{
+							{UUID: respAUUID, ProvidedUuid: providedUUID, Description: "Responsibility A"},
+							{UUID: respBUUID, ProvidedUuid: providedUUID, Description: "Responsibility B"},
+						},
+					},
 				},
 			},
 		},
 	}
 	return ssp
+}
+
+// byComponentIDsForSSP lists every by-component id under an SSP, across both anchoring levels
+// (statement-anchored, and the legacy requirement-anchored shape). The chain is
+// control_implementations -> implemented_requirements -> statements -> by_components; nothing
+// carries an SSP id further down, so it has to be walked.
+//
+// This is TEST-ONLY, which is why it lives here. Production used to walk the chain this way inside
+// ensureProvidedUUIDNotAlreadyInherited, but that materialized the SSP's whole id set on every
+// call and passed it back as unbounded `IN ?` lists — one bind parameter per by-component, against
+// the 65535 ceiling, re-derived once per subscribe item. That helper now does the same walk as a
+// single correlated query with two bind parameters. Tests still want the id list itself in order
+// to assert over it, so the set-materializing form survives here rather than as dead production
+// code the linter flags.
+func byComponentIDsForSSP(db *gorm.DB, sspID uuid.UUID) ([]uuid.UUID, error) {
+	var requirementIDs []uuid.UUID
+	if err := db.Model(&relational.ImplementedRequirement{}).
+		Joins("JOIN control_implementations ON control_implementations.id = implemented_requirements.control_implementation_id").
+		Where("control_implementations.system_security_plan_id = ?", sspID).
+		Pluck("implemented_requirements.id", &requirementIDs).Error; err != nil {
+		return nil, err
+	}
+	if len(requirementIDs) == 0 {
+		return nil, nil
+	}
+
+	var statementIDs []uuid.UUID
+	if err := db.Model(&relational.Statement{}).
+		Where("implemented_requirement_id IN ?", requirementIDs).
+		Pluck("id", &statementIDs).Error; err != nil {
+		return nil, err
+	}
+
+	query := db.Model(&relational.ByComponent{}).
+		Where("parent_id IN ? AND parent_type = ?", requirementIDs, "implemented_requirements")
+	if len(statementIDs) > 0 {
+		query = query.Or("parent_id IN ? AND parent_type = ?", statementIDs, "statements")
+	}
+	var byComponentIDs []uuid.UUID
+	if err := query.Pluck("id", &byComponentIDs).Error; err != nil {
+		return nil, err
+	}
+	return byComponentIDs, nil
+}
+
+// leverageOfferingItemBody is the statement-anchored offering item pointing at the fixture's
+// provided capability. statementId is required on every write, and the whole (controlId,
+// statementId, componentUuid, providedUuid) tuple must actually resolve inside the upstream SSP.
+func leverageOfferingItemBody(componentUUID, providedUUID string) map[string]any {
+	return map[string]any{
+		"controlId":     "ac-1",
+		"statementId":   leverageStatementID,
+		"componentUuid": componentUUID,
+		"providedUuid":  providedUUID,
+	}
 }
 
 // TestSubscribePartialThenProjection is the ticket's core integration scenario: a
@@ -97,7 +165,7 @@ func (suite *SSPLeverageIntegrationSuite) TestSubscribePartialThenProjection() {
 	rec = authedRequest(&suite.IntegrationTestSuite, server, "POST",
 		fmt.Sprintf("/api/oscal/system-security-plans/%s/export-offerings/%s/items", upstreamSSP.UUID, offeringID),
 		contributorToken,
-		map[string]any{"controlId": "ac-1", "componentUuid": upstreamComponentUUID, "providedUuid": providedUUID},
+		leverageOfferingItemBody(upstreamComponentUUID, providedUUID),
 	)
 	suite.Require().Equal(http.StatusCreated, rec.Code, rec.Body.String())
 	var createdItem handler.GenericDataResponse[relational.SSPExportOfferingItem]
@@ -128,10 +196,6 @@ func (suite *SSPLeverageIntegrationSuite) TestSubscribePartialThenProjection() {
 	// Subscribe as the ssp-subscriber user, satisfying only 1 of the 2 responsibilities.
 	subscribeReqBody := map[string]any{
 		"downstreamSspId": downstreamSSP.UUID,
-		"leveragedAuthorization": map[string]string{
-			"title":     "Trust in upstream provider",
-			"partyUuid": uuid.New().String(),
-		},
 		"items": []map[string]any{
 			{"itemId": itemID, "satisfiedResponsibilityUuids": []string{respAUUID}},
 		},
@@ -167,44 +231,59 @@ func (suite *SSPLeverageIntegrationSuite) TestSubscribePartialThenProjection() {
 	suite.Require().Len(projection.Data[0].OutstandingResponsibilities, 1)
 	suite.Equal(respBUUID, projection.Data[0].OutstandingResponsibilities[0].ResponsibilityUUID.String())
 
-	// AC #4: the downstream's OSCAL subtree, marshaled with zero new export code,
-	// contains the inherited/satisfied/leveraged-authorization entries subscribe wrote.
+	// AC #4: the downstream's OSCAL subtree, marshaled with zero new export code, contains the
+	// inherited/satisfied entries subscribe wrote — and the tree it materialized is
+	// requirement -> statement -> by-component, never requirement-anchored.
 	var downstream relational.SystemSecurityPlan
 	suite.Require().NoError(suite.DB.
 		Preload("SystemImplementation.LeveragedAuthorizations").
-		Preload("ControlImplementation.ImplementedRequirements.ByComponents.Inherited").
-		Preload("ControlImplementation.ImplementedRequirements.ByComponents.Satisfied").
+		Preload("ControlImplementation.ImplementedRequirements.ByComponents").
+		Preload("ControlImplementation.ImplementedRequirements.Statements.ByComponents.Inherited").
+		Preload("ControlImplementation.ImplementedRequirements.Statements.ByComponents.Satisfied").
 		First(&downstream, "id = ?", downstreamSSP.UUID).Error)
 
 	marshaled := downstream.MarshalOscal()
-	suite.Require().NotNil(marshaled.SystemImplementation.LeveragedAuthorizations)
-	suite.Require().Len(*marshaled.SystemImplementation.LeveragedAuthorizations, 1)
-	suite.Equal("Trust in upstream provider", (*marshaled.SystemImplementation.LeveragedAuthorizations)[0].Title)
+	// Sharing is decoupled from authorizations: subscribe creates NO leveraged-authorization,
+	// and the leverage link references none.
+	suite.Nil(marshaled.SystemImplementation.LeveragedAuthorizations,
+		"subscribe must not create a leveraged authorization")
+	suite.Nil(links.Data[0].LeveragedAuthUUID, "the leverage link carries no leveraged-auth reference")
 
 	var foundInherited, foundSatisfied bool
 	for _, req := range marshaled.ControlImplementation.ImplementedRequirements {
-		if req.ControlId != "ac-1" || req.ByComponents == nil {
+		if req.ControlId != "ac-1" {
 			continue
 		}
-		for _, bc := range *req.ByComponents {
-			if bc.Inherited != nil {
-				for _, inh := range *bc.Inherited {
-					if inh.ProvidedUuid == providedUUID {
-						foundInherited = true
+
+		// Nothing is anchored at the requirement level any more: the statement is the
+		// canonical anchor, and Subscribe no longer has a requirement-anchoring fallback.
+		suite.Nil(req.ByComponents, "subscribe must not anchor a by-component at the requirement level")
+
+		suite.Require().NotNil(req.Statements)
+		for _, stmt := range *req.Statements {
+			if stmt.StatementId != leverageStatementID || stmt.ByComponents == nil {
+				continue
+			}
+			for _, bc := range *stmt.ByComponents {
+				if bc.Inherited != nil {
+					for _, inh := range *bc.Inherited {
+						if inh.ProvidedUuid == providedUUID {
+							foundInherited = true
+						}
 					}
 				}
-			}
-			if bc.Satisfied != nil {
-				for _, sat := range *bc.Satisfied {
-					if sat.ResponsibilityUuid == respAUUID {
-						foundSatisfied = true
+				if bc.Satisfied != nil {
+					for _, sat := range *bc.Satisfied {
+						if sat.ResponsibilityUuid == respAUUID {
+							foundSatisfied = true
+						}
 					}
 				}
 			}
 		}
 	}
-	suite.True(foundInherited, "expected an inherited-control-implementation referencing the upstream provided-uuid")
-	suite.True(foundSatisfied, "expected a satisfied responsibility referencing respA")
+	suite.True(foundInherited, "expected an inherited-control-implementation referencing the upstream provided-uuid, on a statement-anchored by-component")
+	suite.True(foundSatisfied, "expected a satisfied responsibility referencing respA, on a statement-anchored by-component")
 }
 
 // TestSubscribeRequiresSSPUpdateOnDownstream: a viewer (ssp:read on everything, but no
@@ -234,7 +313,7 @@ func (suite *SSPLeverageIntegrationSuite) TestSubscribeRequiresSSPUpdateOnDownst
 
 	rec = authedRequest(&suite.IntegrationTestSuite, server, "POST",
 		fmt.Sprintf("/api/oscal/system-security-plans/%s/export-offerings/%s/items", upstreamSSP.UUID, offeringID),
-		contributorToken, map[string]any{"controlId": "ac-1", "componentUuid": componentUUID, "providedUuid": providedUUID})
+		contributorToken, leverageOfferingItemBody(componentUUID, providedUUID))
 	suite.Require().Equal(http.StatusCreated, rec.Code, rec.Body.String())
 	var createdItem handler.GenericDataResponse[relational.SSPExportOfferingItem]
 	suite.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &createdItem))
@@ -253,9 +332,8 @@ func (suite *SSPLeverageIntegrationSuite) TestSubscribeRequiresSSPUpdateOnDownst
 	// the handler's downstream ssp:update check.
 	rec = authedRequest(&suite.IntegrationTestSuite, server, "POST",
 		"/api/oscal/ssp-export-offerings/"+offeringID+"/subscribe", viewerToken, map[string]any{
-			"downstreamSspId":        downstreamSSP.UUID,
-			"leveragedAuthorization": map[string]string{"title": "Trust", "partyUuid": uuid.New().String()},
-			"items":                  []map[string]any{{"itemId": createdItem.Data.ID.String(), "satisfiedResponsibilityUuids": []string{respUUID}}},
+			"downstreamSspId": downstreamSSP.UUID,
+			"items":           []map[string]any{{"itemId": createdItem.Data.ID.String(), "satisfiedResponsibilityUuids": []string{respUUID}}},
 		})
 	suite.Require().Equal(http.StatusForbidden, rec.Code, rec.Body.String())
 }
@@ -296,7 +374,7 @@ func (suite *SSPLeverageIntegrationSuite) TestResponsibilityFilterFlipsPosture()
 
 	rec = authedRequest(&suite.IntegrationTestSuite, server, "POST",
 		fmt.Sprintf("/api/oscal/system-security-plans/%s/export-offerings/%s/items", upstreamSSP.UUID, offeringID),
-		contributorToken, map[string]any{"controlId": "ac-1", "componentUuid": upstreamComponentUUID, "providedUuid": providedUUID})
+		contributorToken, leverageOfferingItemBody(upstreamComponentUUID, providedUUID))
 	suite.Require().Equal(http.StatusCreated, rec.Code, rec.Body.String())
 	var createdItem handler.GenericDataResponse[relational.SSPExportOfferingItem]
 	suite.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &createdItem))
@@ -313,8 +391,7 @@ func (suite *SSPLeverageIntegrationSuite) TestResponsibilityFilterFlipsPosture()
 
 	rec = authedRequest(&suite.IntegrationTestSuite, server, "POST",
 		"/api/oscal/ssp-export-offerings/"+offeringID+"/subscribe", subscriberToken, map[string]any{
-			"downstreamSspId":        downstreamSSP.UUID,
-			"leveragedAuthorization": map[string]string{"title": "Trust in upstream provider", "partyUuid": uuid.New().String()},
+			"downstreamSspId": downstreamSSP.UUID,
 			"items": []map[string]any{
 				{"itemId": itemID, "satisfiedResponsibilityUuids": []string{respAUUID}},
 			},
@@ -373,4 +450,181 @@ func (suite *SSPLeverageIntegrationSuite) TestResponsibilityFilterFlipsPosture()
 	submitEvidence("satisfied", now.Add(time.Hour))
 	entry = fetchProjection()
 	suite.Equal("satisfied", entry.ResponsibilityPosture[uuid.MustParse(respBUUID)])
+}
+
+// TestSubscribeRejectsProvidedUUIDAlreadyHandAuthored covers the second creation path of the
+// "one provided-uuid may be inherited only once per SSP" invariant. The leverage link's
+// uniqueIndex on (downstream_ssp_id, provided_uuid) only stops a second SUBSCRIBE, so the
+// ambiguous state was reachable in this order: hand-author an inherited row for provided X
+// (no link exists yet), then subscribe to the offering item carrying X — which lands on a
+// DIFFERENT (statement, component) pair and would otherwise create a second inherited row.
+func (suite *SSPLeverageIntegrationSuite) TestSubscribeRejectsProvidedUUIDAlreadyHandAuthored() {
+	suite.Require().NoError(suite.Migrator.Refresh())
+
+	contributorToken := createRoledUser(&suite.IntegrationTestSuite, "dupe-contributor@example.com", "contributor")
+	server := newCedarServer(&suite.IntegrationTestSuite)
+
+	upstreamComponentUUID := uuid.New().String()
+	providedUUID := uuid.New().String()
+	respAUUID := uuid.New().String()
+	upstreamSSP := sspWithLeverageableCapability(upstreamComponentUUID, providedUUID, respAUUID, uuid.New().String())
+	rec := authedRequest(&suite.IntegrationTestSuite, server, "POST", "/api/oscal/system-security-plans", contributorToken, upstreamSSP)
+	suite.Require().Equal(http.StatusCreated, rec.Code, rec.Body.String())
+
+	rec = authedRequest(&suite.IntegrationTestSuite, server, "POST",
+		fmt.Sprintf("/api/oscal/system-security-plans/%s/export-offerings", upstreamSSP.UUID),
+		contributorToken, map[string]string{"title": "Offering"})
+	suite.Require().Equal(http.StatusCreated, rec.Code, rec.Body.String())
+	var createdOffering handler.GenericDataResponse[relational.SSPExportOffering]
+	suite.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &createdOffering))
+	offeringID := createdOffering.Data.ID.String()
+
+	rec = authedRequest(&suite.IntegrationTestSuite, server, "POST",
+		fmt.Sprintf("/api/oscal/system-security-plans/%s/export-offerings/%s/items", upstreamSSP.UUID, offeringID),
+		contributorToken, leverageOfferingItemBody(upstreamComponentUUID, providedUUID))
+	suite.Require().Equal(http.StatusCreated, rec.Code, rec.Body.String())
+	var createdItem handler.GenericDataResponse[relational.SSPExportOfferingItem]
+	suite.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &createdItem))
+
+	rec = authedRequest(&suite.IntegrationTestSuite, server, "POST",
+		fmt.Sprintf("/api/oscal/system-security-plans/%s/export-offerings/%s/publish", upstreamSSP.UUID, offeringID),
+		contributorToken, nil)
+	suite.Require().Equal(http.StatusOK, rec.Code, rec.Body.String())
+
+	// Downstream carries its OWN statement-anchored by-component (its own component, not the
+	// leveraged-system component Subscribe materializes) — so the hand-authored inherited row
+	// and the one Subscribe would create sit on different by-components.
+	downstreamComponentUUID := uuid.New().String()
+	downstreamSSP := sspWithLeverageableCapability(downstreamComponentUUID, uuid.New().String(), uuid.New().String(), uuid.New().String())
+	rec = authedRequest(&suite.IntegrationTestSuite, server, "POST", "/api/oscal/system-security-plans", contributorToken, downstreamSSP)
+	suite.Require().Equal(http.StatusCreated, rec.Code, rec.Body.String())
+
+	downstreamReq := downstreamSSP.ControlImplementation.ImplementedRequirements[0]
+	downstreamStmt := (*downstreamReq.Statements)[0]
+	downstreamBC := (*downstreamStmt.ByComponents)[0]
+
+	// Hand-author an inherited row for the upstream's provided-uuid. No link exists yet, so
+	// nothing else forbids it.
+	rec = authedRequest(&suite.IntegrationTestSuite, server, "POST",
+		fmt.Sprintf("/api/oscal/system-security-plans/%s/control-implementation/implemented-requirements/%s/statements/%s/by-components/%s/inherited",
+			downstreamSSP.UUID, downstreamReq.UUID, downstreamStmt.UUID, downstreamBC.UUID),
+		contributorToken, map[string]any{
+			"uuid":          uuid.New().String(),
+			"provided-uuid": providedUUID,
+			"description":   "Hand-authored inherited entry",
+		})
+	suite.Require().Equal(http.StatusCreated, rec.Code, rec.Body.String())
+
+	// Subscribing to the item carrying the same provided-uuid must now be refused, not
+	// silently create a second inherited row for it.
+	rec = authedRequest(&suite.IntegrationTestSuite, server, "POST",
+		"/api/oscal/ssp-export-offerings/"+offeringID+"/subscribe", contributorToken, map[string]any{
+			"downstreamSspId": downstreamSSP.UUID,
+			"items":           []map[string]any{{"itemId": createdItem.Data.ID.String(), "satisfiedResponsibilityUuids": []string{respAUUID}}},
+		})
+	suite.Require().Equal(http.StatusConflict, rec.Code, rec.Body.String())
+
+	// Exactly one inherited row for the provided-uuid survives anywhere in the downstream SSP,
+	// and the failed subscribe left no link behind.
+	inSSP, err := byComponentIDsForSSP(suite.DB, uuid.MustParse(downstreamSSP.UUID))
+	suite.Require().NoError(err)
+	var inheritedCount int64
+	suite.Require().NoError(suite.DB.Model(&relational.InheritedControlImplementation{}).
+		Where("provided_uuid = ? AND by_component_id IN ?", providedUUID, inSSP).
+		Count(&inheritedCount).Error)
+	suite.Equal(int64(1), inheritedCount, "the provided-uuid must be inherited exactly once in the SSP")
+
+	var linkCount int64
+	suite.Require().NoError(suite.DB.Model(&relational.SSPLeverageLink{}).
+		Where("downstream_ssp_id = ?", downstreamSSP.UUID).Count(&linkCount).Error)
+	suite.Equal(int64(0), linkCount, "the rejected subscribe must not leave a leverage link")
+}
+
+// TestSubscribeRejectsDuplicateProvidedUUIDWithinOneRequest pins the INTRA-REQUEST half of the
+// "one provided-uuid inherited once per SSP" invariant: two items in a SINGLE subscribe carrying
+// the same provided-uuid.
+//
+// It is rejected 400 by the request-level dedup guard (the seenProvidedUUIDs check in Subscribe),
+// NOT 409 by ensureProvidedUUIDNotAlreadyInherited — the request never reaches the item loop. That
+// guard predates the per-SSP invariant and exists for its own reason: a repeated provided-uuid
+// would slip past the existing-link pre-check (which only sees committed rows) and hit
+// UNIQUE(downstream_ssp_id, provided_uuid) mid-transaction.
+//
+// Recorded explicitly because it corrects a plausible assumption about why
+// ensureProvidedUUIDNotAlreadyInherited sits inside the item loop: the intra-request case is
+// already covered here, so the per-item placement is defence in depth against a future caller
+// reaching the loop another way, not the only thing standing between this input and a duplicate.
+// If the request-level guard is ever relaxed, this test goes red first and points at the reason.
+func (suite *SSPLeverageIntegrationSuite) TestSubscribeRejectsDuplicateProvidedUUIDWithinOneRequest() {
+	suite.Require().NoError(suite.Migrator.Refresh())
+
+	contributorToken := createRoledUser(&suite.IntegrationTestSuite, "intra-dupe@example.com", "contributor")
+	server := newCedarServer(&suite.IntegrationTestSuite)
+
+	upstreamComponentUUID := uuid.New().String()
+	providedUUID := uuid.New().String()
+	respAUUID := uuid.New().String()
+	upstreamSSP := sspWithLeverageableCapability(upstreamComponentUUID, providedUUID, respAUUID, uuid.New().String())
+	rec := authedRequest(&suite.IntegrationTestSuite, server, "POST", "/api/oscal/system-security-plans", contributorToken, upstreamSSP)
+	suite.Require().Equal(http.StatusCreated, rec.Code, rec.Body.String())
+
+	rec = authedRequest(&suite.IntegrationTestSuite, server, "POST",
+		fmt.Sprintf("/api/oscal/system-security-plans/%s/export-offerings", upstreamSSP.UUID),
+		contributorToken, map[string]string{"title": "Offering"})
+	suite.Require().Equal(http.StatusCreated, rec.Code, rec.Body.String())
+	var createdOffering handler.GenericDataResponse[relational.SSPExportOffering]
+	suite.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &createdOffering))
+	offeringID := createdOffering.Data.ID.String()
+
+	// TWO items resolving to the same provided-uuid. Nothing forbids this: SSPExportOfferingItem
+	// carries no uniqueness over (controlId, statementId, componentUuid, providedUuid), so an
+	// upstream can publish the same capability twice in one offering.
+	itemIDs := make([]string, 0, 2)
+	for range 2 {
+		rec = authedRequest(&suite.IntegrationTestSuite, server, "POST",
+			fmt.Sprintf("/api/oscal/system-security-plans/%s/export-offerings/%s/items", upstreamSSP.UUID, offeringID),
+			contributorToken, leverageOfferingItemBody(upstreamComponentUUID, providedUUID))
+		suite.Require().Equal(http.StatusCreated, rec.Code, rec.Body.String())
+		var createdItem handler.GenericDataResponse[relational.SSPExportOfferingItem]
+		suite.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &createdItem))
+		itemIDs = append(itemIDs, createdItem.Data.ID.String())
+	}
+	suite.Require().NotEqual(itemIDs[0], itemIDs[1], "the two items must be distinct rows")
+
+	rec = authedRequest(&suite.IntegrationTestSuite, server, "POST",
+		fmt.Sprintf("/api/oscal/system-security-plans/%s/export-offerings/%s/publish", upstreamSSP.UUID, offeringID),
+		contributorToken, nil)
+	suite.Require().Equal(http.StatusOK, rec.Code, rec.Body.String())
+
+	downstreamSSP := minimalSSP(uuid.New().String())
+	rec = authedRequest(&suite.IntegrationTestSuite, server, "POST", "/api/oscal/system-security-plans", contributorToken, downstreamSSP)
+	suite.Require().Equal(http.StatusCreated, rec.Code, rec.Body.String())
+
+	rec = authedRequest(&suite.IntegrationTestSuite, server, "POST",
+		"/api/oscal/ssp-export-offerings/"+offeringID+"/subscribe", contributorToken, map[string]any{
+			"downstreamSspId": downstreamSSP.UUID,
+			"items": []map[string]any{
+				{"itemId": itemIDs[0], "satisfiedResponsibilityUuids": []string{respAUUID}},
+				{"itemId": itemIDs[1], "satisfiedResponsibilityUuids": []string{respAUUID}},
+			},
+		})
+	suite.Require().Equal(http.StatusBadRequest, rec.Code, rec.Body.String())
+	suite.Contains(rec.Body.String(), "duplicate provided-uuid",
+		"rejected by the request-level dedup guard, before the item loop is entered")
+
+	// Rejected before any write, so the SSP holds no inherited row and no link at all.
+	inSSP, err := byComponentIDsForSSP(suite.DB, uuid.MustParse(downstreamSSP.UUID))
+	suite.Require().NoError(err)
+	var inheritedCount int64
+	if len(inSSP) > 0 {
+		suite.Require().NoError(suite.DB.Model(&relational.InheritedControlImplementation{}).
+			Where("provided_uuid = ? AND by_component_id IN ?", providedUUID, inSSP).
+			Count(&inheritedCount).Error)
+	}
+	suite.Equal(int64(0), inheritedCount, "the rejected subscribe must write no inherited row")
+
+	var linkCount int64
+	suite.Require().NoError(suite.DB.Model(&relational.SSPLeverageLink{}).
+		Where("downstream_ssp_id = ?", downstreamSSP.UUID).Count(&linkCount).Error)
+	suite.Equal(int64(0), linkCount, "the rejected subscribe must not leave a leverage link")
 }

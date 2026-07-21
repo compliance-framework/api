@@ -316,6 +316,63 @@ func TestOwnerAssignmentUniqueness(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestApplyEvidenceStreamFilter(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	require.NoError(t, db.AutoMigrate(&Risk{}, &RiskEvidenceLink{}))
+
+	sspA := uuid.New()
+	sspB := uuid.New()
+	streamUUID := uuid.New()
+	otherStreamUUID := uuid.New()
+	now := time.Now().UTC()
+
+	newRisk := func(title string, sspID uuid.UUID) Risk {
+		return Risk{
+			Title:       title,
+			Description: title,
+			Status:      string(RiskStatusOpen),
+			SSPID:       sspID,
+			SourceType:  string(RiskSourceTypeEvidenceAuto),
+			FirstSeenAt: now,
+			LastSeenAt:  now,
+		}
+	}
+
+	// Two SSPs share the same evidence stream; a third risk is on another stream.
+	linkedA := newRisk("linked-in-ssp-a", sspA)
+	linkedB := newRisk("linked-in-ssp-b", sspB)
+	unlinked := newRisk("other-stream", sspA)
+	require.NoError(t, db.Create(&linkedA).Error)
+	require.NoError(t, db.Create(&linkedB).Error)
+	require.NoError(t, db.Create(&unlinked).Error)
+	require.NoError(t, db.Create(&RiskEvidenceLink{RiskID: *linkedA.ID, EvidenceID: streamUUID}).Error)
+	require.NoError(t, db.Create(&RiskEvidenceLink{RiskID: *linkedB.ID, EvidenceID: streamUUID}).Error)
+	require.NoError(t, db.Create(&RiskEvidenceLink{RiskID: *unlinked.ID, EvidenceID: otherStreamUUID}).Error)
+
+	t.Run("returns risks across every ssp on the stream", func(t *testing.T) {
+		var out []Risk
+		require.NoError(t, ApplyEvidenceStreamFilter(db, streamUUID).Find(&out).Error)
+		require.Len(t, out, 2)
+
+		ssps := []uuid.UUID{out[0].SSPID, out[1].SSPID}
+		require.ElementsMatch(t, []uuid.UUID{sspA, sspB}, ssps)
+	})
+
+	t.Run("excludes risks linked to other streams", func(t *testing.T) {
+		var out []Risk
+		require.NoError(t, ApplyEvidenceStreamFilter(db, otherStreamUUID).Find(&out).Error)
+		require.Len(t, out, 1)
+		require.Equal(t, *unlinked.ID, *out[0].ID)
+	})
+
+	t.Run("returns nothing for an unknown stream", func(t *testing.T) {
+		var out []Risk
+		require.NoError(t, ApplyEvidenceStreamFilter(db, uuid.New()).Find(&out).Error)
+		require.Empty(t, out)
+	})
+}
+
 func ptrTime(v time.Time) *time.Time { return &v }
 
 type testEvidenceQueryRow struct {

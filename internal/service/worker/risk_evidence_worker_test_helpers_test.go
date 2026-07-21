@@ -40,15 +40,14 @@ func seedLeveragedResponsibility(t *testing.T, db *gorm.DB) (responsibilityUUID,
 	require.NoError(t, db.Create(&downstreamSSP).Error)
 
 	link := relational.SSPLeverageLink{
-		DownstreamSSPID:   *downstreamSSP.ID,
-		UpstreamSSPID:     *upstreamSSP.ID,
-		OfferingID:        uuid.New(),
-		ControlID:         "ac-1",
-		ProvidedUUID:      *provided.ID,
-		InheritedUUID:     uuid.New(),
-		LeveragedAuthUUID: uuid.New(),
-		Satisfaction:      relational.SSPLeverageSatisfactionPartial,
-		Status:            relational.SSPLeverageStatusActive,
+		DownstreamSSPID: *downstreamSSP.ID,
+		UpstreamSSPID:   *upstreamSSP.ID,
+		OfferingID:      uuid.New(),
+		ControlID:       "ac-1",
+		ProvidedUUID:    *provided.ID,
+		InheritedUUID:   uuid.New(),
+		Satisfaction:    relational.SSPLeverageSatisfactionPartial,
+		Status:          relational.SSPLeverageStatusActive,
 	}
 	require.NoError(t, db.Create(&link).Error)
 

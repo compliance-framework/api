@@ -41,7 +41,10 @@ func (suite *SubscribeAllowlistIntegrationSuite) SetupTest() {
 // contributorToken, and returns (upstreamSSPID, offeringID, itemID).
 func (suite *SubscribeAllowlistIntegrationSuite) publishedOfferingFixture(contributorToken string) (upstreamSSPID, offeringID, itemID string) {
 	componentUUID := uuid.New().String()
-	ssp := minimalSSP(componentUUID)
+	// The offered capability has to be a real statement-anchored export inside this SSP: an item
+	// now requires a statementId, and the whole tuple must resolve.
+	acOne := exportedStatement{ControlID: "ac-1", StatementID: "ac-1_stmt.a", ProvidedUUID: uuid.New().String()}
+	ssp := sspWithStatementExports(componentUUID, acOne)
 	rec := authedRequest(&suite.IntegrationTestSuite, suite.server, "POST", "/api/oscal/system-security-plans", contributorToken, ssp)
 	suite.Require().Equal(http.StatusCreated, rec.Code, rec.Body.String())
 	upstreamSSPID = ssp.UUID
@@ -57,9 +60,8 @@ func (suite *SubscribeAllowlistIntegrationSuite) publishedOfferingFixture(contri
 	offeringID = created.Data.ID.String()
 
 	itemPath := fmt.Sprintf("/api/oscal/system-security-plans/%s/export-offerings/%s/items", upstreamSSPID, offeringID)
-	rec = authedRequest(&suite.IntegrationTestSuite, suite.server, "POST", itemPath, contributorToken, map[string]any{
-		"controlId": "ac-1", "componentUuid": componentUUID, "providedUuid": uuid.New().String(),
-	})
+	rec = authedRequest(&suite.IntegrationTestSuite, suite.server, "POST", itemPath, contributorToken,
+		offeringItemBody(componentUUID, acOne))
 	suite.Require().Equal(http.StatusCreated, rec.Code, rec.Body.String())
 	var item handler.GenericDataResponse[relational.SSPExportOfferingItem]
 	suite.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &item))
@@ -82,10 +84,6 @@ func (suite *SubscribeAllowlistIntegrationSuite) createDownstreamSSP(contributor
 func (suite *SubscribeAllowlistIntegrationSuite) subscribeRequestBody(downstreamSSPID, itemID string) map[string]any {
 	return map[string]any{
 		"downstreamSspId": downstreamSSPID,
-		"leveragedAuthorization": map[string]string{
-			"title":     "Trust",
-			"partyUuid": uuid.New().String(),
-		},
 		"items": []map[string]any{
 			{"itemId": itemID, "satisfiedResponsibilityUuids": []string{}},
 		},

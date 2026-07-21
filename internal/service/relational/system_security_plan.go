@@ -1286,9 +1286,13 @@ func (ir *ImplementedRequirement) MarshalOscal() *oscalTypes_1_1_3.ImplementedRe
 type ByComponent struct {
 	UUIDModel
 
-	// As ByComponent can be found in Implemented Requirements & Statements, using GORM polymorphism to tell us where to attach
-	ParentID   *uuid.UUID `gorm:"type:uuid"`
-	ParentType *string
+	// As ByComponent can be found in Implemented Requirements & Statements, using GORM polymorphism to tell us where to attach.
+	// (parent_id, parent_type) is the lookup key for every by-component resolution — the
+	// resolveByComponentFor* walkers, findOrCreateByComponent, and the shared-responsibility
+	// rollup all filter on it — so it carries a composite index rather than being an
+	// unindexed scan.
+	ParentID   *uuid.UUID `gorm:"type:uuid;index:idx_by_components_parent,priority:1"`
+	ParentType *string    `gorm:"index:idx_by_components_parent,priority:2"`
 
 	ComponentUUID        uuid.UUID                                      `gorm:"type:uuid" json:"component-uuid"`
 	Description          string                                         `json:"description"`
