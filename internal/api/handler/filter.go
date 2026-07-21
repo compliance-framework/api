@@ -15,6 +15,7 @@ import (
 	"go.uber.org/zap"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // FilterHandler handles CRUD operations for filters.
@@ -39,6 +40,10 @@ func (h *FilterHandler) Register(api *echo.Group, guard middleware.ResourceGuard
 	api.DELETE("/:id", h.Delete, guard.Delete())
 	// Bulk import creates filters → create.
 	api.POST("/import", h.ImportFilters, guard.Create())
+	// Responsibility attachments mutate the filter's associations, exactly like the
+	// control links PUT /:id manages — same guard.
+	api.POST("/:id/responsibilities", h.AttachResponsibility, guard.Update())
+	api.DELETE("/:id/responsibilities/:responsibilityUuid", h.DetachResponsibility, guard.Update())
 }
 
 type FilterWithAssociations struct {
@@ -418,6 +423,393 @@ func (h *FilterHandler) Delete(ctx echo.Context) error {
 
 	if err := h.db.Delete(&filter).Error; err != nil {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	return ctx.NoContent(http.StatusNoContent)
+}
+
+// AttachResponsibility godoc
+//
+//	@Summary		Attach a filter to an inherited responsibility
+//	@Description	Associates this filter with an upstream responsibility the given downstream
+//	@Description	SSP inherits (BCH-1339's filter_responsibilities), so the responsibility's
+//	@Description	posture is computed live from the filter's evidence. When controlId is given,
+//	@Description	the filter is also linked to that control (so control-level compliance
+//	@Description	surfaces include it) with provenance recorded: detaching removes the control
+//	@Description	link only if this attach created it.
+//	@Tags			Filters
+//	@Accept			json
+//	@Produce		json
+//	@Param			id			path		string								true	"Filter ID"
+//	@Param			attachment	body		attachFilterResponsibilityRequest	true	"Responsibility to attach"
+//	@Success		201			{object}	GenericDataResponse[relational.FilterResponsibility]
+//	@Failure		400			{object}	api.Error
+//	@Failure		404			{object}	api.Error
+//	@Failure		409			{object}	api.Error
+//	@Failure		500			{object}	api.Error
+//	@Router			/filters/{id}/responsibilities [post]
+func (h *FilterHandler) AttachResponsibility(ctx echo.Context) error {
+	idParam := ctx.Param("id")
+	filterID, err := uuid.Parse(idParam)
+	if err != nil {
+		h.sugar.Warnw("Invalid filter id", "id", idParam, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	var req attachFilterResponsibilityRequest
+	if err := ctx.Bind(&req); err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	if err := ctx.Validate(req); err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.Validator(err))
+	}
+
+	var filter relational.Filter
+	if err := h.db.First(&filter, "id = ?", filterID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(err))
+		}
+		h.sugar.Errorw("Failed to load filter", "filterId", filterID, "error", err)
+		return ctx.JSON(http.StatusInternalServerError, api.InternalServerError())
+	}
+
+	if err := h.db.First(&relational.SystemSecurityPlan{}, "id = ?", req.SSPID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("system security plan %s not found", req.SSPID)))
+		}
+		h.sugar.Errorw("Failed to load system security plan", "sspId", req.SSPID, "error", err)
+		return ctx.JSON(http.StatusInternalServerError, api.InternalServerError())
+	}
+
+	// The filter must belong to the SSP the attachment is being made for. Authorization is
+	// evaluated on the FILTER id (the route is guarded by guard.Update() on :id), so req.SSPID is
+	// body-supplied and never authorized on its own. Without this check a principal with update
+	// rights on their own filter could write a FilterResponsibility scoped to any other SSP, and
+	// that SSP's ResponsibilityPosture would then be computed from a filter it does not own.
+	//
+	// Second-order: Filter.SSPID carries OnDelete:CASCADE, so deleting the filter's owning SSP
+	// would silently delete attachments another SSP depends on.
+	//
+	// Global filters (SSPID == nil) stay attachable anywhere — that is deliberate existing
+	// behaviour, not an oversight.
+	//
+	// Ordered AFTER the SSP existence check on purpose: a non-existent sspId is a 404, and hoisting
+	// this above it would turn that into a "belongs to a different system security plan" 400, which
+	// is both wrong and misleading (TestAttachValidation pins the 404).
+	if filter.SSPID != nil && *filter.SSPID != req.SSPID {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf(
+			"filter %s belongs to a different system security plan", filterID)))
+	}
+
+	// The responsibility must be one the downstream SSP actually inherits: posture reads
+	// tolerate junk rows, but writes are validated. This replicates the
+	// bulkResolveUpstreamResponsibilities join (handler/oscal cannot be imported from
+	// here — it imports this package for the response envelopes).
+	//
+	// Terminal link states are excluded deliberately, not by omission: a revoked or superseded
+	// link means the SSP no longer inherits the responsibility, so attaching a filter to it would
+	// target something that isn't there. A drifted link still qualifies — the subscription exists
+	// and is being reconciled, so filtering on it remains meaningful.
+	var inherits int64
+	if err := h.db.Table("ssp_leverage_links AS l").
+		Joins("JOIN provided_control_implementations p ON p.id = l.provided_uuid").
+		Joins("JOIN control_implementation_responsibilities r ON r.provided_uuid = p.id AND r.export_id = p.export_id").
+		Where("l.downstream_ssp_id = ? AND r.id = ? AND l.status NOT IN ?", req.SSPID, req.ResponsibilityUUID,
+			[]relational.SSPLeverageStatus{relational.SSPLeverageStatusRevoked, relational.SSPLeverageStatusSuperseded}).
+		Count(&inherits).Error; err != nil {
+		h.sugar.Errorw("Failed to check inherited responsibility", "sspId", req.SSPID,
+			"responsibilityUuid", req.ResponsibilityUUID, "error", err)
+		return ctx.JSON(http.StatusInternalServerError, api.InternalServerError())
+	}
+	if inherits == 0 {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(
+			fmt.Errorf("responsibilityUuid %s is not a responsibility this SSP inherits", req.ResponsibilityUUID)))
+	}
+
+	var existing relational.FilterResponsibility
+	err = h.db.First(&existing,
+		"filter_id = ? AND responsibility_uuid = ? AND ssp_id = ?",
+		filterID, req.ResponsibilityUUID, req.SSPID,
+	).Error
+	if err == nil {
+		return ctx.JSON(http.StatusConflict, api.NewError(
+			fmt.Errorf("filter is already attached to this responsibility for this SSP")))
+	}
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		h.sugar.Errorw("Failed to check existing attachment", "filterId", filterID,
+			"responsibilityUuid", req.ResponsibilityUUID, "sspId", req.SSPID, "error", err)
+		return ctx.JSON(http.StatusInternalServerError, api.InternalServerError())
+	}
+
+	row := relational.FilterResponsibility{
+		FilterID:           filterID,
+		ResponsibilityUUID: req.ResponsibilityUUID,
+		SSPID:              req.SSPID,
+	}
+
+	var resolvedControl *relational.Control
+	if req.ControlID != nil && strings.TrimSpace(*req.ControlID) != "" {
+		// Control's PK is composite (catalog_id, id), so a control id alone does not identify a
+		// control — NIST 800-53 rev4 and rev5 both define AC-2. Resolve the catalog through the
+		// SSP's own profiles first; matching on id alone would pick an arbitrary catalog's row and
+		// pin this filter (and every control-level compliance surface reading ControlCatalogID) to
+		// a catalog the SSP may not even use.
+		controlID := strings.TrimSpace(*req.ControlID)
+		catalogID, err := h.resolveCatalogIDForSSPControl(req.SSPID, controlID)
+		if errors.Is(err, errAmbiguousControlCatalog) {
+			return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf(
+				"control %q is defined in multiple catalogs and this SSP's profiles do not disambiguate it", controlID)))
+		}
+		if err != nil {
+			h.sugar.Errorw("Failed to resolve control catalog", "controlId", controlID, "sspId", req.SSPID, "error", err)
+			return ctx.JSON(http.StatusInternalServerError, api.InternalServerError())
+		}
+		if catalogID == nil {
+			return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("control %q not found", controlID)))
+		}
+
+		// The caller passes the SSP's casing of the control id, which is not reliably
+		// the catalog's — match case-insensitively, like the leverage joins do.
+		var control relational.Control
+		if err := h.db.First(&control, "catalog_id = ? AND LOWER(id) = LOWER(?)", *catalogID, controlID).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("control %q not found", *req.ControlID)))
+			}
+			h.sugar.Errorw("Failed to load control", "controlId", controlID, "catalogId", *catalogID, "error", err)
+			return ctx.JSON(http.StatusInternalServerError, api.InternalServerError())
+		}
+		row.ControlID = &control.ID
+		row.ControlCatalogID = &control.CatalogID
+		resolvedControl = &control
+	}
+
+	// Link existence and co-ownership are decided INSIDE the transaction, under a row lock on the
+	// filter. ControlLinkCreated is provenance, not derived state — nothing recomputes it later —
+	// so a decision made against a snapshot another attach can invalidate is permanently wrong.
+	//
+	// The interleaving this prevents: attach A commits its filter_controls append; attach B, running
+	// between A's two writes, sees the link present but no owning row yet and records
+	// ControlLinkCreated = false; detaching A then finds no remaining claims and removes the
+	// filter_controls row that B still depends on.
+	if err := h.db.Transaction(func(tx *gorm.DB) error {
+		if resolvedControl != nil {
+			// Lock the filter row first: it is what concurrent attaches contend on, so it
+			// serialises the read-decide-write below against another attach on the same filter.
+			var locked relational.Filter
+			if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+				First(&locked, "id = ?", filterID).Error; err != nil {
+				return err
+			}
+
+			// Re-derive link existence inside the transaction with an explicit count. Reusing a
+			// preloaded filter.Controls slice here would move the query but keep the stale
+			// snapshot, which is the whole defect.
+			var linkCount int64
+			if err := tx.Table("filter_controls").
+				Where("filter_id = ? AND control_id = ? AND control_catalog_id = ?",
+					filterID, resolvedControl.ID, resolvedControl.CatalogID).
+				Count(&linkCount).Error; err != nil {
+				return err
+			}
+
+			if linkCount == 0 {
+				if err := tx.Model(&locked).Association("Controls").Append(resolvedControl); err != nil {
+					return err
+				}
+				row.ControlLinkCreated = true
+			} else {
+				// Co-ownership: if the existing link was itself created by a responsibility
+				// attachment, this row claims it too, so the LAST detacher removes it. An
+				// independently created link (POST/PUT /filters) is never owned.
+				// Scoped by catalog as well as id: control_id alone spans catalogs, so a claim on
+				// another catalog's AC-2 would otherwise read as a claim on this one.
+				var owners int64
+				if err := tx.Model(&relational.FilterResponsibility{}).
+					Where("filter_id = ? AND control_id = ? AND control_catalog_id = ? AND control_link_created = true",
+						filterID, resolvedControl.ID, resolvedControl.CatalogID).
+					Count(&owners).Error; err != nil {
+					return err
+				}
+				row.ControlLinkCreated = owners > 0
+			}
+		}
+		return tx.Create(&row).Error
+	}); err != nil {
+		h.sugar.Errorw("Failed to attach responsibility", "filterId", filterID, "sspId", req.SSPID, "error", err)
+		return ctx.JSON(http.StatusInternalServerError, api.InternalServerError())
+	}
+
+	return ctx.JSON(http.StatusCreated, GenericDataResponse[relational.FilterResponsibility]{Data: row})
+}
+
+// DetachResponsibility godoc
+//
+//	@Summary		Detach a filter from an inherited responsibility
+//	@Description	Removes the filter↔responsibility association for the given downstream SSP
+//	@Description	(sspId query param — the association's key is the full triple). The filter's
+//	@Description	control link is removed only if it was created by a responsibility attachment
+//	@Description	and no other attachment on this filter still claims that control.
+//	@Tags			Filters
+//	@Param			id					path	string	true	"Filter ID"
+//	@Param			responsibilityUuid	path	string	true	"Responsibility UUID"
+//	@Param			sspId				query	string	true	"Downstream SSP ID"
+//	@Success		204					"No Content"
+//	@Failure		400					{object}	api.Error
+//	@Failure		404					{object}	api.Error
+//	@Failure		500					{object}	api.Error
+//	@Router			/filters/{id}/responsibilities/{responsibilityUuid} [delete]
+//
+// errAmbiguousControlCatalog is returned when a control id matches controls in more than one
+// catalog and nothing narrows the choice. Mapped to 400: picking one arbitrarily is the bug this
+// resolution exists to prevent, so the caller has to say which catalog it means.
+var errAmbiguousControlCatalog = errors.New("control id matches controls in multiple catalogs")
+
+// resolveCatalogIDForSSPControl resolves controlID to exactly one catalog. Control's PK is
+// composite (catalog_id, id), so a bare control id does not identify a control — NIST 800-53 rev4
+// and rev5 both define AC-2.
+//
+// Two steps, in order:
+//  1. The SSP's own profiles, which are authoritative about which catalog it means. This mirrors
+//     handler/oscal's resolveCatalogIDForControl; it is replicated rather than shared because
+//     handler/oscal imports this package for the response envelopes, so it cannot be imported back.
+//  2. If the profiles don't import the control — which is legitimate and common, since a downstream
+//     may rely on a leveraged capability without implementing the control itself — fall back to the
+//     catalogs that define it. Exactly one match resolves; more than one is ambiguous and errors.
+//     The fallback is tried against ACTIVE catalogs first: control ids like AC-2 recur in
+//     essentially every catalog, so counting archived, superseded or draft catalogs would let a
+//     dead catalog manufacture ambiguity among live ones and turn a legitimate attach into a 400
+//     the client cannot resolve. Only if no active catalog defines the control does it re-run
+//     unfiltered, so a control that lives solely in an archived catalog stays reachable.
+//
+// The point is that no arbitrary choice is ever made: the previous `First(id = ?)` returned
+// whichever row the planner yielded, silently pinning the filter (and every control-level
+// compliance surface reading ControlCatalogID) to a catalog the SSP may not even use.
+//
+// The join deliberately carries no CAST: ssp_profiles.profile_id and profile_controls.profile_id
+// compare directly, matching the precedent in relational/system_component_suggestions.go, and
+// casting to uuid would break the sqlite-backed unit suites. control_id stays free text, hence the
+// UPPER() fold. A nil return with a nil error means no catalog defines the control at all — a 404.
+func (h *FilterHandler) resolveCatalogIDForSSPControl(sspID uuid.UUID, controlID string) (*uuid.UUID, error) {
+	var profileCatalogIDs []uuid.UUID
+	if err := h.db.
+		Table("profile_controls").
+		Joins("JOIN ssp_profiles ON ssp_profiles.profile_id = profile_controls.profile_id").
+		Where("ssp_profiles.system_security_plan_id = ? AND UPPER(profile_controls.control_id) = UPPER(?)", sspID, controlID).
+		Distinct().
+		Pluck("profile_controls.control_catalog_id", &profileCatalogIDs).Error; err != nil {
+		return nil, err
+	}
+	switch len(profileCatalogIDs) {
+	case 1:
+		return &profileCatalogIDs[0], nil
+	case 0:
+		// Fall through to the catalog-wide lookup below.
+	default:
+		return nil, errAmbiguousControlCatalog
+	}
+
+	var activeCatalogIDs []uuid.UUID
+	if err := h.db.Model(&relational.Control{}).
+		Joins("JOIN catalogs ON catalogs.id = controls.catalog_id").
+		Where("catalogs.active AND UPPER(controls.id) = UPPER(?)", controlID).
+		Distinct().
+		Pluck("controls.catalog_id", &activeCatalogIDs).Error; err != nil {
+		return nil, err
+	}
+	switch len(activeCatalogIDs) {
+	case 1:
+		return &activeCatalogIDs[0], nil
+	case 0:
+		// Fall through to the unfiltered lookup below: no ACTIVE catalog defines this control, so
+		// an archived one is the only candidate and is better than a spurious 404.
+	default:
+		// Genuine ambiguity among live catalogs — the caller has to say which it means.
+		return nil, errAmbiguousControlCatalog
+	}
+
+	var catalogIDs []uuid.UUID
+	if err := h.db.Model(&relational.Control{}).
+		Where("UPPER(id) = UPPER(?)", controlID).
+		Distinct().
+		Pluck("catalog_id", &catalogIDs).Error; err != nil {
+		return nil, err
+	}
+	switch len(catalogIDs) {
+	case 1:
+		return &catalogIDs[0], nil
+	case 0:
+		return nil, nil
+	default:
+		return nil, errAmbiguousControlCatalog
+	}
+}
+
+func (h *FilterHandler) DetachResponsibility(ctx echo.Context) error {
+	filterID, err := uuid.Parse(ctx.Param("id"))
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	responsibilityUUID, err := uuid.Parse(ctx.Param("responsibilityUuid"))
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	sspID, err := uuid.Parse(strings.TrimSpace(ctx.QueryParam("sspId")))
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(
+			fmt.Errorf("sspId query parameter is required (the association is keyed per downstream SSP): %w", err)))
+	}
+
+	var row relational.FilterResponsibility
+	if err := h.db.First(&row,
+		"filter_id = ? AND responsibility_uuid = ? AND ssp_id = ?",
+		filterID, responsibilityUUID, sspID,
+	).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(err))
+		}
+		h.sugar.Errorw("Failed to load attachment", "filterId", filterID,
+			"responsibilityUuid", responsibilityUUID, "sspId", sspID, "error", err)
+		return ctx.JSON(http.StatusInternalServerError, api.InternalServerError())
+	}
+
+	if err := h.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.
+			Where("filter_id = ? AND responsibility_uuid = ? AND ssp_id = ?", filterID, responsibilityUUID, sspID).
+			Delete(&relational.FilterResponsibility{}).Error; err != nil {
+			return err
+		}
+
+		// Unwind the control link only when this row owned it and nobody else claims it —
+		// see the provenance comment on relational.FilterResponsibility.
+		//
+		// A claim is a row that CREATED the link (control_link_created), on this exact control
+		// (catalog_id, id). Counting rows with control_link_created = false would count rows that
+		// never claimed the link, blocking the unwind and leaking the link permanently; counting
+		// across catalogs would do the same via an unrelated catalog's same-named control.
+		if row.ControlLinkCreated && row.ControlID != nil && row.ControlCatalogID != nil {
+			var claims int64
+			if err := tx.Model(&relational.FilterResponsibility{}).
+				Where("filter_id = ? AND control_id = ? AND control_catalog_id = ? AND control_link_created = true",
+					filterID, *row.ControlID, *row.ControlCatalogID).
+				Count(&claims).Error; err != nil {
+				return err
+			}
+			if claims == 0 {
+				var filter relational.Filter
+				if err := tx.First(&filter, "id = ?", filterID).Error; err != nil {
+					return err
+				}
+				control := relational.Control{CatalogID: *row.ControlCatalogID, ID: *row.ControlID}
+				if err := tx.Model(&filter).Association("Controls").Delete(&control); err != nil {
+					return err
+				}
+			}
+		}
+		return nil
+	}); err != nil {
+		h.sugar.Errorw("Failed to detach responsibility", "filterId", filterID,
+			"responsibilityUuid", responsibilityUUID, "sspId", sspID, "error", err)
+		return ctx.JSON(http.StatusInternalServerError, api.InternalServerError())
 	}
 
 	return ctx.NoContent(http.StatusNoContent)

@@ -45,6 +45,16 @@ func AccessForbidden() Error {
 	return e
 }
 
+// InternalServerError is the client-facing body for a 5xx. It is deliberately generic: NewError
+// serialises err.Error() verbatim, so handing it a driver error leaks constraint names, column
+// names and SQL state to the caller. Log the real error server-side and return this instead.
+func InternalServerError() Error {
+	e := Error{}
+	e.Errors = make(map[string]any)
+	e.Errors["body"] = "internal server error"
+	return e
+}
+
 func NotFound() Error {
 	e := Error{}
 	e.Errors = make(map[string]any)

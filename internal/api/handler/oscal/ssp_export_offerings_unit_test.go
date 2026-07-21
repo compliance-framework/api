@@ -183,7 +183,7 @@ func TestSyncExportOfferingDriftsLeverageLinksOnVersionBump(t *testing.T) {
 
 	link := relational.SSPLeverageLink{
 		DownstreamSSPID: uuid.New(), UpstreamSSPID: offering.SSPID, OfferingID: *offering.ID, OfferingVersion: 1,
-		ControlID: "ac-1", ProvidedUUID: *provided.ID, InheritedUUID: uuid.New(), LeveragedAuthUUID: uuid.New(),
+		ControlID: "ac-1", ProvidedUUID: *provided.ID, InheritedUUID: uuid.New(),
 		Satisfaction: relational.SSPLeverageSatisfactionFull, Status: relational.SSPLeverageStatusActive,
 	}
 	require.NoError(t, db.Create(&link).Error)

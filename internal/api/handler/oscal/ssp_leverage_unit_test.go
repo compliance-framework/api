@@ -43,6 +43,14 @@ func newSSPLeverageTestDB(t *testing.T) *gorm.DB {
 		&relational.InheritedControlImplementation{},
 		&relational.SatisfiedControlImplementationResponsibility{},
 		&relational.LeveragedAuthorization{},
+		// ResponsibleRole (with its Party m2m and Role) is polymorphically attached to
+		// by-components, provided, responsibilities, inherited and satisfied — every
+		// by-component read preloads it, so the schema has to carry it.
+		&relational.ResponsibleRole{},
+		&relational.Party{},
+		&relational.Role{},
+		// The control-centric read models resolve an SSP's title through its Metadata.
+		&relational.Metadata{},
 		&relational.Filter{},
 		&relational.FilterResponsibility{},
 		&relational.Profile{},
@@ -114,8 +122,10 @@ func newLeverageFixture(t *testing.T, db *gorm.DB) leverageFixture {
 	}
 	require.NoError(t, db.Create(&offering).Error)
 
+	// Statement-anchored: the statement is the canonical anchor for shared responsibility, and
+	// Subscribe rejects a NULL-statement (legacy) item with 422.
 	item := relational.SSPExportOfferingItem{
-		OfferingID: *offering.ID, ControlID: "ac-1",
+		OfferingID: *offering.ID, ControlID: "ac-1", StatementID: statementID("ac-1_smt.a"),
 		ComponentUUID: uuid.New(), ProvidedUUID: *provided.ID,
 	}
 	require.NoError(t, db.Create(&item).Error)
@@ -153,8 +163,8 @@ func subscribeBody(downstreamSSPID uuid.UUID, itemID uuid.UUID, satisfiedRespIDs
 		quoted = append(quoted, fmt.Sprintf("%q", id.String()))
 	}
 	return fmt.Sprintf(
-		`{"downstreamSspId":%q,"leveragedAuthorization":{"title":"Trust","partyUuid":%q},"items":[{"itemId":%q,"satisfiedResponsibilityUuids":[%s]}]}`,
-		downstreamSSPID.String(), uuid.New().String(), itemID.String(), strings.Join(quoted, ","),
+		`{"downstreamSspId":%q,"items":[{"itemId":%q,"satisfiedResponsibilityUuids":[%s]}]}`,
+		downstreamSSPID.String(), itemID.String(), strings.Join(quoted, ","),
 	)
 }
 
@@ -262,45 +272,93 @@ func TestDeriveSatisfaction(t *testing.T) {
 	})
 }
 
-// TestFindOrCreateThisSystemComponent: creates a placeholder component when none exists,
-// and returns the same row (not a duplicate) on a second call.
-func TestFindOrCreateThisSystemComponent(t *testing.T) {
+// TestFindOrCreateLeveragedSystemComponent: the downstream component representing an
+// upstream system is named after the upstream, typed `system` (not this-system), and
+// identified by the leveraged-system-uuid prop — so repeat imports from the same upstream
+// reuse one row (even if the upstream was renamed in the meantime), while a different
+// upstream gets its own component.
+func TestFindOrCreateLeveragedSystemComponent(t *testing.T) {
 	db := newSSPLeverageTestDB(t)
 	si := relational.SystemImplementation{}
 	require.NoError(t, db.Create(&si).Error)
 
-	first, err := findOrCreateThisSystemComponent(db, *si.ID)
+	upstreamID := uuid.New()
+	first, err := findOrCreateLeveragedSystemComponent(db, *si.ID, upstreamID, "Platform")
 	require.NoError(t, err)
-	require.Equal(t, thisSystemComponentType, first.Type)
+	require.Equal(t, "system", first.Type)
+	require.Equal(t, "Platform", first.Title)
+	propValues := map[string]string{}
+	for _, prop := range first.Props {
+		propValues[prop.Name] = prop.Value
+	}
+	require.Equal(t, upstreamID.String(), propValues[leveragedSystemUUIDProp])
+	require.Equal(t, "external", propValues["implementation-point"])
 
-	second, err := findOrCreateThisSystemComponent(db, *si.ID)
+	// Identity is the upstream id, not the title: a rename does not spawn a duplicate.
+	second, err := findOrCreateLeveragedSystemComponent(db, *si.ID, upstreamID, "Platform (renamed)")
 	require.NoError(t, err)
 	require.Equal(t, *first.ID, *second.ID)
 
+	// A different upstream gets its own component.
+	other, err := findOrCreateLeveragedSystemComponent(db, *si.ID, uuid.New(), "Other Provider")
+	require.NoError(t, err)
+	require.NotEqual(t, *first.ID, *other.ID)
+
 	var count int64
 	require.NoError(t, db.Model(&relational.SystemComponent{}).Where("system_implementation_id = ?", si.ID).Count(&count).Error)
-	require.Equal(t, int64(1), count)
+	require.Equal(t, int64(2), count)
 }
 
 // TestFindOrCreateImplementedRequirement: creates a requirement for a control_id when
 // none exists under the given ControlImplementation, and returns the same row (not a
-// duplicate) on a second call for the same control_id.
+// duplicate) on a second call for the same control_id. The created flag reports which of
+// the two happened — Subscribe's meta.created block is built from it.
 func TestFindOrCreateImplementedRequirement(t *testing.T) {
 	db := newSSPLeverageTestDB(t)
 	ci := relational.ControlImplementation{}
 	require.NoError(t, db.Create(&ci).Error)
 
-	first, err := findOrCreateImplementedRequirement(db, *ci.ID, "ac-1")
+	first, created, err := findOrCreateImplementedRequirement(db, *ci.ID, "ac-1")
 	require.NoError(t, err)
 	require.Equal(t, "ac-1", first.ControlId)
+	require.True(t, created)
 
-	second, err := findOrCreateImplementedRequirement(db, *ci.ID, "ac-1")
+	second, created, err := findOrCreateImplementedRequirement(db, *ci.ID, "ac-1")
 	require.NoError(t, err)
 	require.Equal(t, *first.ID, *second.ID)
+	require.False(t, created)
 
-	third, err := findOrCreateImplementedRequirement(db, *ci.ID, "ac-2")
+	third, created, err := findOrCreateImplementedRequirement(db, *ci.ID, "ac-2")
 	require.NoError(t, err)
 	require.NotEqual(t, *first.ID, *third.ID)
+	require.True(t, created)
+}
+
+// TestFindOrCreateStatement: creates a Statement for a statement_id when none exists under
+// the given ImplementedRequirement, returns the same row on a second call, and reports which
+// happened via created. Subscribe now always goes through this helper — the statement is the
+// canonical anchor, so there is no requirement-anchored path left.
+func TestFindOrCreateStatement(t *testing.T) {
+	db := newSSPLeverageTestDB(t)
+	ci := relational.ControlImplementation{}
+	require.NoError(t, db.Create(&ci).Error)
+	ir := relational.ImplementedRequirement{ControlImplementationId: *ci.ID, ControlId: "ac-1"}
+	require.NoError(t, db.Create(&ir).Error)
+
+	first, created, err := findOrCreateStatement(db, *ir.ID, "ac-1_smt.a")
+	require.NoError(t, err)
+	require.Equal(t, "ac-1_smt.a", first.StatementId)
+	require.True(t, created)
+
+	second, created, err := findOrCreateStatement(db, *ir.ID, "ac-1_smt.a")
+	require.NoError(t, err)
+	require.Equal(t, *first.ID, *second.ID)
+	require.False(t, created)
+
+	third, created, err := findOrCreateStatement(db, *ir.ID, "ac-1_smt.b")
+	require.NoError(t, err)
+	require.NotEqual(t, *first.ID, *third.ID)
+	require.True(t, created)
 }
 
 // TestFindOrCreateByComponent: creates a ByComponent row for a (parent, componentUUID)
@@ -310,13 +368,15 @@ func TestFindOrCreateByComponent(t *testing.T) {
 	parentID := uuid.New()
 	componentUUID := uuid.New()
 
-	first, err := findOrCreateByComponent(db, parentID, "implemented_requirements", componentUUID)
+	first, created, err := findOrCreateByComponent(db, parentID, "statements", componentUUID)
 	require.NoError(t, err)
 	require.Equal(t, componentUUID, first.ComponentUUID)
+	require.True(t, created)
 
-	second, err := findOrCreateByComponent(db, parentID, "implemented_requirements", componentUUID)
+	second, created, err := findOrCreateByComponent(db, parentID, "statements", componentUUID)
 	require.NoError(t, err)
 	require.Equal(t, *first.ID, *second.ID)
+	require.False(t, created)
 }
 
 // TestSubscribePartialSatisfactionWritesAtomically: subscribing to an item whose
@@ -351,7 +411,9 @@ func TestSubscribePartialSatisfactionWritesAtomically(t *testing.T) {
 	require.NoError(t, db.Model(&relational.LeveragedAuthorization{}).Count(&authCount).Error)
 	require.Equal(t, int64(1), inheritedCount)
 	require.Equal(t, int64(1), satisfiedCount)
-	require.Equal(t, int64(1), authCount)
+	// Sharing is decoupled from authorizations: subscribe creates no leveraged authorization.
+	require.Equal(t, int64(0), authCount)
+	require.Nil(t, links[0].LeveragedAuthUUID)
 
 	require.Len(t, pdp.calls, 1, "subscribe must check exactly one authz resource")
 	require.Equal(t, authz.ResourceSSP, pdp.calls[0].Type)
@@ -455,8 +517,8 @@ func TestSubscribeDuplicateProvidedUUIDWithinRequestRejected(t *testing.T) {
 	h := NewSSPLeverageHandler(zap.NewNop().Sugar(), db, pdp, authz.FailClosed)
 
 	body := fmt.Sprintf(
-		`{"downstreamSspId":%q,"leveragedAuthorization":{"title":"Trust","partyUuid":%q},"items":[{"itemId":%q,"satisfiedResponsibilityUuids":[]},{"itemId":%q,"satisfiedResponsibilityUuids":[]}]}`,
-		fx.downstreamSSPID.String(), uuid.New().String(), fx.itemID.String(), fx.itemID.String(),
+		`{"downstreamSspId":%q,"items":[{"itemId":%q,"satisfiedResponsibilityUuids":[]},{"itemId":%q,"satisfiedResponsibilityUuids":[]}]}`,
+		fx.downstreamSSPID.String(), fx.itemID.String(), fx.itemID.String(),
 	)
 	ctx, _, rec := newSubscribeRequestContext(fx.offeringID, body)
 	require.NoError(t, h.Subscribe(ctx))
@@ -541,6 +603,18 @@ func TestLeveragedControlsProjectionShowsPartialAndOutstanding(t *testing.T) {
 	// that part of the response is unchanged by BCH-1339.
 	require.Len(t, parsed.Data[0].OutstandingResponsibilities, 1)
 	require.Equal(t, fx.respBID, parsed.Data[0].OutstandingResponsibilities[0].ResponsibilityUUID)
+	// responsibilities, by contrast, carries the FULL set with descriptions — including
+	// respA, which is already satisfied and thus absent from outstanding. Downstream labels
+	// every responsibility from this, so a satisfied entry's text never masquerades as the
+	// responsibility's own.
+	responsibilityDescByID := make(map[uuid.UUID]string)
+	for _, r := range parsed.Data[0].Responsibilities {
+		responsibilityDescByID[r.ResponsibilityUUID] = r.Description
+	}
+	require.Len(t, responsibilityDescByID, 2)
+	require.Contains(t, responsibilityDescByID, fx.respAID)
+	require.Contains(t, responsibilityDescByID, fx.respBID)
+	require.NotEmpty(t, responsibilityDescByID[fx.respAID])
 	// responsibilityPosture, by contrast, always covers every upstream responsibility
 	// under the provided-uuid — both respA (satisfied at subscribe time) and respB — since
 	// it's independent, evidence-backed posture, not a subset of what's outstanding.

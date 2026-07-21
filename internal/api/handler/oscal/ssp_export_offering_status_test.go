@@ -48,7 +48,7 @@ func seedPublishedOfferingWithActiveLink(t *testing.T, db *gorm.DB) (*relational
 
 	link := relational.SSPLeverageLink{
 		DownstreamSSPID: *downstreamSSP.ID, UpstreamSSPID: *upstreamSSP.ID, OfferingID: *offering.ID, OfferingVersion: 1,
-		ControlID: "ac-1", ProvidedUUID: *provided.ID, InheritedUUID: uuid.New(), LeveragedAuthUUID: uuid.New(),
+		ControlID: "ac-1", ProvidedUUID: *provided.ID, InheritedUUID: uuid.New(),
 		Satisfaction: relational.SSPLeverageSatisfactionFull, Status: relational.SSPLeverageStatusActive,
 	}
 	require.NoError(t, db.Create(&link).Error)

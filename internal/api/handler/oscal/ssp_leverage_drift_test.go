@@ -38,16 +38,15 @@ func seedLeverageLinkForDrift(t *testing.T, db *gorm.DB, offeringVersion int) (*
 	require.NoError(t, db.Create(&offering).Error)
 
 	link := relational.SSPLeverageLink{
-		DownstreamSSPID:   *downstreamSSP.ID,
-		UpstreamSSPID:     *upstreamSSP.ID,
-		OfferingID:        *offering.ID,
-		OfferingVersion:   1,
-		ControlID:         "ac-1",
-		ProvidedUUID:      *provided.ID,
-		InheritedUUID:     uuid.New(),
-		LeveragedAuthUUID: uuid.New(),
-		Satisfaction:      relational.SSPLeverageSatisfactionFull,
-		Status:            relational.SSPLeverageStatusActive,
+		DownstreamSSPID: *downstreamSSP.ID,
+		UpstreamSSPID:   *upstreamSSP.ID,
+		OfferingID:      *offering.ID,
+		OfferingVersion: 1,
+		ControlID:       "ac-1",
+		ProvidedUUID:    *provided.ID,
+		InheritedUUID:   uuid.New(),
+		Satisfaction:    relational.SSPLeverageSatisfactionFull,
+		Status:          relational.SSPLeverageStatusActive,
 	}
 	require.NoError(t, db.Create(&link).Error)
 

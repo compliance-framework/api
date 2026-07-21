@@ -51,7 +51,9 @@ func TestDeleteLeveragedAuthorizationDriftsReferencingActiveLinks(t *testing.T) 
 
 	link := relational.SSPLeverageLink{
 		DownstreamSSPID: *downstreamSSP.ID, UpstreamSSPID: *upstreamSSP.ID, OfferingID: *offering.ID, OfferingVersion: 1,
-		ControlID: "ac-1", ProvidedUUID: *provided.ID, InheritedUUID: uuid.New(), LeveragedAuthUUID: *auth.ID,
+		// A legacy link referencing a leveraged authorization — deleting that LA lapses this
+		// link (the behavior under test).
+		ControlID: "ac-1", ProvidedUUID: *provided.ID, InheritedUUID: uuid.New(), LeveragedAuthUUID: auth.ID,
 		Satisfaction: relational.SSPLeverageSatisfactionFull, Status: relational.SSPLeverageStatusActive,
 	}
 	require.NoError(t, db.Create(&link).Error)

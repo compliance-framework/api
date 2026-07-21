@@ -97,6 +97,33 @@ func (h *ImportHandler) ImportOSCAL(ctx echo.Context) error {
 	return ctx.JSON(statusCode, handler.GenericDataResponse[ImportResponse]{Data: response})
 }
 
+// validateSSPByComponentImplementationStatuses runs the same implementation-status validation
+// every by-component write path performs over an SSP's whole control-implementation tree, at
+// both anchoring levels. Import bypassed it entirely: POST /api/oscal/import unmarshals the
+// document and hands it straight to FirstOrCreate, so an invalid state (anything outside
+// implemented/partial/planned/alternative/not-applicable) sailed in and poisoned the tree.
+func validateSSPByComponentImplementationStatuses(ssp *relational.SystemSecurityPlan) error {
+	for i := range ssp.ControlImplementation.ImplementedRequirements {
+		requirement := &ssp.ControlImplementation.ImplementedRequirements[i]
+
+		for j := range requirement.ByComponents {
+			if err := validateByComponentImplementationStatus(&requirement.ByComponents[j]); err != nil {
+				return fmt.Errorf("control %q: %w", requirement.ControlId, err)
+			}
+		}
+
+		for j := range requirement.Statements {
+			statement := &requirement.Statements[j]
+			for k := range statement.ByComponents {
+				if err := validateByComponentImplementationStatus(&statement.ByComponents[k]); err != nil {
+					return fmt.Errorf("control %q statement %q: %w", requirement.ControlId, statement.StatementId, err)
+				}
+			}
+		}
+	}
+	return nil
+}
+
 func (h *ImportHandler) processOSCALFile(fileHeader *multipart.FileHeader) ImportFileResult {
 	result := ImportFileResult{
 		Filename: fileHeader.Filename,
@@ -170,6 +197,16 @@ func (h *ImportHandler) processOSCALFile(fileHeader *multipart.FileHeader) Impor
 	if input.SystemSecurityPlan != nil {
 		def := &relational.SystemSecurityPlan{}
 		def.UnmarshalOscal(*input.SystemSecurityPlan)
+
+		// Import is the one write path into the SSP tree that never went through
+		// validateByComponentImplementationStatus, so a bad implementation-status could be
+		// imported straight into the tree and only blow up later, at read time. Reject it
+		// here instead.
+		if err := validateSSPByComponentImplementationStatuses(def); err != nil {
+			result.Message = fmt.Sprintf("Failed to import system security plan: %v", err)
+			return result
+		}
+
 		out := h.db.FirstOrCreate(def)
 		if out.Error != nil {
 			result.Message = fmt.Sprintf("Failed to import system security plan: %v", out.Error)
@@ -178,7 +215,19 @@ func (h *ImportHandler) processOSCALFile(fileHeader *multipart.FileHeader) Impor
 		result.Type = "System Security Plan"
 		result.Title = def.Metadata.Title
 		result.Success = true
-		result.Message = "Successfully imported system security plan"
+		// FirstOrCreate is keyed on the OSCAL UUID, so re-importing a changed SSP under an
+		// existing UUID matches the stored row and writes nothing at all. Reporting that as
+		// "Successfully imported" told the caller their edits had landed when they hadn't.
+		// This path still reports Success (the file was processed and no error occurred —
+		// flipping it would turn an idempotent re-import into a 400), but says plainly that
+		// nothing was written. A real merge/diff import is its own piece of work.
+		if out.RowsAffected == 0 {
+			result.Message = fmt.Sprintf(
+				"System security plan %s already exists; nothing was written (import does not merge into an existing UUID)",
+				input.SystemSecurityPlan.UUID)
+		} else {
+			result.Message = "Successfully imported system security plan"
+		}
 		imported = true
 	}
 

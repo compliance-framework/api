@@ -51,13 +51,28 @@ type driftFixture struct {
 	respID          uuid.UUID
 }
 
+// driftStatementID is the statement the fixture's leverageable capability is exported from.
+// Subscribe rejects a statementless offering item with 422, so the fixture's exporting
+// by-component is anchored on a real statement, as the model now requires everywhere.
+const driftStatementID = "ac-1_smt.a"
+
 func seedDriftFixture(suite *LeverageDriftIntegrationSuite) driftFixture {
 	db := suite.DB
 
 	upstreamSSP := relational.SystemSecurityPlan{}
 	suite.Require().NoError(db.Create(&upstreamSSP).Error)
 
+	upstreamImpl := relational.ControlImplementation{SystemSecurityPlanId: *upstreamSSP.ID}
+	suite.Require().NoError(db.Create(&upstreamImpl).Error)
+	requirement := relational.ImplementedRequirement{ControlImplementationId: *upstreamImpl.ID, ControlId: "ac-1"}
+	suite.Require().NoError(db.Create(&requirement).Error)
+	statement := relational.Statement{ImplementedRequirementId: *requirement.ID, StatementId: driftStatementID}
+	suite.Require().NoError(db.Create(&statement).Error)
+
+	statementsType := "statements"
 	byComponent := relational.ByComponent{
+		ParentID:             statement.ID,
+		ParentType:           &statementsType,
 		ImplementationStatus: datatypes.NewJSONType(relational.ImplementationStatus{State: relational.ImplementationStatusImplemented}),
 	}
 	suite.Require().NoError(db.Create(&byComponent).Error)
@@ -74,8 +89,10 @@ func seedDriftFixture(suite *LeverageDriftIntegrationSuite) driftFixture {
 	offering := relational.SSPExportOffering{SSPID: *upstreamSSP.ID, Title: "Offering", Status: relational.SSPExportOfferingStatusDraft}
 	suite.Require().NoError(db.Create(&offering).Error)
 
+	statementID := driftStatementID
 	item := relational.SSPExportOfferingItem{
-		OfferingID: *offering.ID, ControlID: "ac-1", ComponentUUID: byComponent.ComponentUUID, ProvidedUUID: *provided.ID,
+		OfferingID: *offering.ID, ControlID: "ac-1", StatementID: &statementID,
+		ComponentUUID: byComponent.ComponentUUID, ProvidedUUID: *provided.ID,
 	}
 	suite.Require().NoError(db.Create(&item).Error)
 
@@ -213,14 +230,28 @@ func (suite *LeverageDriftIntegrationSuite) TestDeprecateOfferingDriftsAndNotifi
 }
 
 // TestLeveragedAuthorizationDeleteDriftsAndNotifies covers the "leveraged authorization
-// lapsed" trigger.
+// lapsed" trigger. Sharing no longer creates an LA, so this exercises a LEGACY link: one
+// that references a hand-authored leveraged authorization (as pre-decoupling links did).
+// Deleting that LA must still lapse the link.
 func (suite *LeverageDriftIntegrationSuite) TestLeveragedAuthorizationDeleteDriftsAndNotifies() {
 	fx := seedDriftFixture(suite)
 	link := suite.subscribe(fx)
 
+	// Attach a leveraged authorization to the link, simulating a legacy subscription.
+	var downstreamSysImpl relational.SystemImplementation
+	suite.Require().NoError(suite.DB.First(&downstreamSysImpl, "system_security_plan_id = ?", fx.downstreamSSPID).Error)
+	auth := relational.LeveragedAuthorization{
+		Title:                  "Legacy authorization",
+		PartyUUID:              uuid.New(),
+		SystemImplementationId: *downstreamSysImpl.ID,
+	}
+	suite.Require().NoError(suite.DB.Create(&auth).Error)
+	suite.Require().NoError(suite.DB.Model(&relational.SSPLeverageLink{}).
+		Where("id = ?", link.ID).Update("leveraged_auth_uuid", auth.ID).Error)
+
 	spy := &spyJobEnqueuer{}
 	sspHandler := NewSystemSecurityPlanHandler(zap.NewNop().Sugar(), suite.DB, nil, spy)
-	ctx, rec := newDeleteLeveragedAuthRequestContext(fx.downstreamSSPID, link.LeveragedAuthUUID)
+	ctx, rec := newDeleteLeveragedAuthRequestContext(fx.downstreamSSPID, *auth.ID)
 	suite.Require().NoError(sspHandler.DeleteSystemImplementationLeveragedAuthorization(ctx))
 	suite.Equal(http.StatusNoContent, rec.Code)
 
