@@ -1,0 +1,27 @@
+lisa-addressed:
+---
+Comment (internal/api/handler/lineage_leverage.go:101):
+**Medium (performance):** this builds the entire lineage engine to use only two of its fields.
+
+`buildEngine(nil, nil)` runs `loadCatalogs` + `loadEdges` + `loadCompliance` (which calls `LoadLatestEvidenceStreams` — the whole latest-evidence corpus, the ~1s+ / hundreds-of-thousands-of-rows query the `evidence.go` comments warn about) + `loadRisks` + `loadLeverage` + `loadGlobalSSPScope` (every SSP's profile membership and implementation statuses). But `LeverageDetail` only reads `engine.controlCatalogType[ref]` (the existence 404 at line 106) and `engine.sspTitles[sspID]` (downstream titles at line 159). None of the evidence/risk/edge/impl-status loading is used.
+
+The self-review note weighed only the *unused `Summarize`* overhead, not the whole-engine cost — and this is a per-control drawer endpoint, so it pays the full-corpus load every time a user opens the panel.
+
+Suggest replacing the engine build with a targeted control-existence query + an SSP-title lookup keyed on the SSP ids `ProjectForControl` already returns.
+Replies:
+**lisa implementation guidance:** Agreed — this is a real per-drawer cost and I under-weighed it in self-review (I only noted the unused Summarize, not the full evidence-corpus load). Fixing: LeverageDetail will drop buildEngine(nil,nil) entirely and instead (1) do a targeted control-existence 404 via a relational.Control lookup on (catalog_id, control_id), and (2) resolve downstream + upstream SSP titles in one Preload("Metadata") query keyed on the SSP ids ProjectForControl already returns. No evidence/risk/edge/impl-status loading.
+
+<!-- lisa-guidance-posted -->
+---
+Comment (internal/service/leverage/summary.go:259):
+**Low (semantics):** worth confirming that a link with *zero* resolvable responsibilities should earn inherited credit — because now it moves the headline compliance number.
+
+`Credit` is minted here for active + all-full links, and `DeriveSatisfaction` treats an empty `full` set as vacuously full. So a link whose upstream responsibilities resolve to nothing — an offering that provides zero responsibilities, or a dangling link whose upstream `ProvidedControlImplementation` / responsibility rows were deleted (`BulkResolveUpstreamResponsibilities` returns `[]` for a missing provided-uuid) — comes out `TotalResponsibilities: 0`, `full`, `Credit: true`.
+
+Before this PR that vacuous case was cosmetic (surfaced only in `/leveraged-controls`). Now it counts as compliant in `compliancePercent`/`assessedPercent` and as posture `inherited` in lineage, so an empty/dangling link silently raises the compliance %. Drift detection covers the deleted-upstream variant (drifted → `allActive` false → no credit) but only once drift has run.
+
+Not necessarily wrong — "nothing to satisfy, so satisfied" may be intended — but if it isn't, gate credit on `TotalResponsibilities > 0`.
+Replies:
+**lisa implementation guidance:** Good catch on the dangling-link path. It wasn't the intent for an empty/dangling link to move the headline number, so I'm gating credit on TotalResponsibilities > 0 in AggregateByControl. That denies credit to both the deleted-upstream case (BulkResolve returns [] before drift runs) and a genuinely zero-responsibility offering — treating either as unknown, which is the safe conservative default. DeriveSatisfaction still returns full for the vacuous set (unchanged; Subscribe relies on it). Adding a unit case for it.
+
+<!-- lisa-guidance-posted -->
