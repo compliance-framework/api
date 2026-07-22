@@ -125,6 +125,24 @@ func TestAggregateByControl_NoCreditOnPartialOrNonActive(t *testing.T) {
 	}
 }
 
+func TestAggregateByControl_ZeroResponsibilitiesNoCredit(t *testing.T) {
+	ssp := uuid.New()
+	up := uuid.New()
+	off := uuid.New()
+	// A dangling / empty link: active + vacuously-full but zero responsibilities must
+	// NOT earn credit (it would otherwise inflate compliance before drift runs).
+	agg := AggregateByControl([]LinkSummary{
+		summary(ssp, up, off, "AC-2", nil, relational.SSPLeverageStatusActive, relational.SSPLeverageSatisfactionFull, 0, 0),
+	})
+	got := agg[ControlKey{SSPID: ssp, ControlID: "AC-2"}]
+	if got.Credit {
+		t.Error("a zero-responsibility link must not earn credit")
+	}
+	if got.TotalResponsibilities != 0 {
+		t.Errorf("expected 0 total responsibilities, got %d", got.TotalResponsibilities)
+	}
+}
+
 func TestAggregateByControl_WorstStatusPrecedence(t *testing.T) {
 	ssp := uuid.New()
 	up := uuid.New()

@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
+	"gorm.io/gorm"
 
 	"github.com/compliance-framework/api/internal/api"
 	svc "github.com/compliance-framework/api/internal/service"
@@ -93,18 +94,20 @@ func (h *LineageHandler) LeverageDetail(ctx echo.Context) error {
 	}
 	ref := relational.ControlRef{CatalogID: catalogID, ControlID: subID}
 
-	// Build a global engine only to resolve downstream SSP titles and validate the
-	// control exists (its catalog type is registered). Rejected alternative: having the
-	// UI call per-SSP /oscal/system-security-plans/:id/leveraged-controls would be N
-	// requests and would require ssp:read on each SSP — the read guard here is the same
-	// as /ssps.
-	engine, err := h.buildEngine(nil, nil)
-	if err != nil {
-		h.sugar.Errorw("failed to build lineage engine", "error", err)
+	// Existence 404: the control must be a real catalog control. A targeted lookup — NOT
+	// a full lineage engine build, which would load the entire latest-evidence corpus
+	// (loadCompliance -> LoadLatestEvidenceStreams) on every drawer open just for two
+	// fields. Rejected alternative: having the UI call per-SSP
+	// /oscal/system-security-plans/:id/leveraged-controls would be N requests and would
+	// require ssp:read on each SSP — the read guard here is the same as /ssps.
+	if err := h.db.Select("id").
+		Where("catalog_id = ? AND id = ?", ref.CatalogID, ref.ControlID).
+		First(&relational.Control{}).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(errors.New("control not found")))
+		}
+		h.sugar.Errorw("failed to look up control", "error", err)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
-	}
-	if _, ok := engine.controlCatalogType[ref]; !ok {
-		return ctx.JSON(http.StatusNotFound, api.NewError(errors.New("control not found")))
 	}
 
 	// Leverage matches by control-id only (no catalog id), the established precedent.
@@ -114,10 +117,11 @@ func (h *LineageHandler) LeverageDetail(ctx echo.Context) error {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
-	// Upstream SSP titles: one query, mirroring collectInheritedSharedResponsibility.
-	upstreamTitleByID, err := h.upstreamSSPTitles(projectionsBySSP, sspFilter)
+	// Downstream + upstream SSP titles in one Preload query, keyed on the ids
+	// ProjectForControl already surfaces (mirrors collectInheritedSharedResponsibility).
+	sspTitleByID, err := h.leverageSSPTitles(projectionsBySSP, sspFilter)
 	if err != nil {
-		h.sugar.Errorw("failed to resolve upstream SSP titles", "error", err)
+		h.sugar.Errorw("failed to resolve SSP titles", "error", err)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
@@ -139,7 +143,7 @@ func (h *LineageHandler) LeverageDetail(ctx echo.Context) error {
 				StatementID: p.Link.StatementID,
 				InheritedFrom: LineageLeverageInheritedFrom{
 					UpstreamSSPID:    p.Link.UpstreamSSPID,
-					UpstreamSSPTitle: upstreamTitleByID[p.Link.UpstreamSSPID],
+					UpstreamSSPTitle: sspTitleByID[p.Link.UpstreamSSPID],
 					OfferingID:       p.Link.OfferingID,
 					OfferingTitle:    p.OfferingTitle,
 					OfferingVersion:  p.Link.OfferingVersion,
@@ -156,7 +160,7 @@ func (h *LineageHandler) LeverageDetail(ctx echo.Context) error {
 		}
 		rows = append(rows, LineageLeverageRow{
 			SSPID:    sspID.String(),
-			SSPTitle: engine.sspTitles[sspID],
+			SSPTitle: sspTitleByID[sspID],
 			Links:    links,
 		})
 	}
@@ -175,38 +179,43 @@ func (h *LineageHandler) LeverageDetail(ctx echo.Context) error {
 	return ctx.JSON(http.StatusOK, svc.NewListResponse(rows, int64(len(rows)), 1, limit))
 }
 
-// upstreamSSPTitles resolves the Metadata.Title of every distinct upstream SSP across
-// the projections (optionally narrowed to one downstream SSP), in a single Preload
-// query — mirrors collectInheritedSharedResponsibility's upstream-title resolution.
-func (h *LineageHandler) upstreamSSPTitles(projectionsBySSP map[uuid.UUID][]leverage.Projection, sspFilter *uuid.UUID) (map[uuid.UUID]string, error) {
+// leverageSSPTitles resolves the Metadata.Title of every SSP the drawer names — the
+// downstream SSPs (the projection keys) and their upstream SSPs (each link's
+// UpstreamSSPID) — in a single Preload query, optionally narrowed to one downstream
+// SSP. Mirrors collectInheritedSharedResponsibility's title resolution.
+func (h *LineageHandler) leverageSSPTitles(projectionsBySSP map[uuid.UUID][]leverage.Projection, sspFilter *uuid.UUID) (map[uuid.UUID]string, error) {
 	seen := map[uuid.UUID]struct{}{}
-	upstreamIDs := make([]uuid.UUID, 0)
+	ids := make([]uuid.UUID, 0)
+	add := func(id uuid.UUID) {
+		if _, dup := seen[id]; dup {
+			return
+		}
+		seen[id] = struct{}{}
+		ids = append(ids, id)
+	}
 	for sspID, projections := range projectionsBySSP {
 		if sspFilter != nil && sspID != *sspFilter {
 			continue
 		}
+		add(sspID) // downstream
 		for _, p := range projections {
-			if _, dup := seen[p.Link.UpstreamSSPID]; dup {
-				continue
-			}
-			seen[p.Link.UpstreamSSPID] = struct{}{}
-			upstreamIDs = append(upstreamIDs, p.Link.UpstreamSSPID)
+			add(p.Link.UpstreamSSPID) // upstream
 		}
 	}
 
-	titles := make(map[uuid.UUID]string, len(upstreamIDs))
-	if len(upstreamIDs) == 0 {
+	titles := make(map[uuid.UUID]string, len(ids))
+	if len(ids) == 0 {
 		return titles, nil
 	}
-	var upstreams []relational.SystemSecurityPlan
-	if err := h.db.Preload("Metadata").Where("id IN ?", upstreamIDs).Find(&upstreams).Error; err != nil {
+	var ssps []relational.SystemSecurityPlan
+	if err := h.db.Preload("Metadata").Where("id IN ?", ids).Find(&ssps).Error; err != nil {
 		return nil, err
 	}
-	for i := range upstreams {
-		if upstreams[i].ID == nil {
+	for i := range ssps {
+		if ssps[i].ID == nil {
 			continue
 		}
-		titles[*upstreams[i].ID] = upstreams[i].Metadata.Title
+		titles[*ssps[i].ID] = ssps[i].Metadata.Title
 	}
 	return titles, nil
 }

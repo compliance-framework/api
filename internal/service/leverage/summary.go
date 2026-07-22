@@ -165,8 +165,12 @@ type Origin struct {
 // ControlKey — the unit the compliance and lineage surfaces read.
 type ControlAggregate struct {
 	Links int
-	// Credit is the pinned inherited-credit rule at the leverage layer: ≥1 link AND
-	// every link Status == active AND every link (live-derived) Satisfaction == full.
+	// Credit is the inherited-credit rule at the leverage layer: ≥1 link AND every link
+	// Status == active AND every link (live-derived) Satisfaction == full AND
+	// TotalResponsibilities > 0. The last clause denies credit to a link whose upstream
+	// responsibilities resolve to empty — a dangling link (upstream Provided/responsibility
+	// rows deleted, so BulkResolve returns []) or a genuinely zero-responsibility offering
+	// — which would otherwise silently inflate compliance before drift detection runs.
 	// The evidence-wins and in-scope conditions are applied by the consumer, not here.
 	Credit bool
 	// Status is the worst link status: drifted > revoked > superseded > active.
@@ -256,7 +260,7 @@ func AggregateByControl(summaries []LinkSummary) map[ControlKey]ControlAggregate
 		} else {
 			a.agg.Satisfaction = relational.SSPLeverageSatisfactionPartial
 		}
-		a.agg.Credit = a.agg.Links > 0 && a.allActive && a.allFull
+		a.agg.Credit = a.agg.Links > 0 && a.allActive && a.allFull && a.agg.TotalResponsibilities > 0
 		result[key] = a.agg
 	}
 	return result
