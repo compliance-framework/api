@@ -6,3 +6,6 @@ lisa-selfreview:
 
 lisa-design:
 - SUPERSEDES the pinned 'credit = all active + all full' rule: inherited Credit now ALSO requires TotalResponsibilities > 0 (AggregateByControl). A link whose upstream responsibilities resolve to empty — a dangling link (upstream Provided/responsibility rows deleted, BulkResolve returns []) or a genuinely zero-responsibility offering — must NOT earn credit, because it would silently inflate compliancePercent before drift detection flips the link. DeriveSatisfaction still returns full for the vacuous set (unchanged; used by Subscribe). Human-directed via PR #457 review (gusfcarvalho).
+
+lisa-design:
+- SUPERSEDES 'LeverageDetail builds buildEngine(nil,nil) for sspTitles + 404': the full engine build loads the entire evidence corpus (loadCompliance -> LoadLatestEvidenceStreams) on every drawer open. LeverageDetail now does a targeted relational.Control existence 404 check + a single Preload(Metadata) SSP-title lookup over the downstream (projectionsBySSP keys) and upstream (link.UpstreamSSPID) ids. No engine build. Human-directed via PR #457 review (gusfcarvalho).
