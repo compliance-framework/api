@@ -13,6 +13,7 @@ import (
 	"github.com/compliance-framework/api/internal/api/middleware"
 	"github.com/compliance-framework/api/internal/converters/labelfilter"
 	svc "github.com/compliance-framework/api/internal/service"
+	"github.com/compliance-framework/api/internal/service/leverage"
 	"github.com/compliance-framework/api/internal/service/relational"
 	riskrel "github.com/compliance-framework/api/internal/service/relational/risks"
 	"github.com/google/uuid"
@@ -42,6 +43,7 @@ func (h *LineageHandler) Register(api *echo.Group, guard middleware.ResourceGuar
 	api.GET("/roots", h.Roots, guard.Read())
 	api.GET("/nodes/:key/children", h.Children, guard.Read())
 	api.GET("/nodes/:key/ssps", h.SSPDetail, guard.Read())
+	api.GET("/nodes/:key/leverage", h.LeverageDetail, guard.Read())
 }
 
 // ── Response shapes ────────────────────────────────────────────────────────────
@@ -54,14 +56,32 @@ func (h *LineageHandler) Register(api *echo.Group, guard middleware.ResourceGuar
 // present it is a count of in-scope (control × SSP) cells — a control tracked by N
 // SSPs contributes up to N — so a control failing in one plan and N/A in another
 // is not collapsed. Consumers must not render it as a raw control count in that
-// scope. (Satisfied/NotSatisfied/Unknown follow the same unit.)
+// scope. (Satisfied/NotSatisfied/Unknown/Inherited follow the same unit.)
+//
+// Inherited counts cells credited to an upstream leverage link. It counts as
+// compliant in CompliancePercent and as assessed in AssessedPercent; it is NOT part
+// of Unknown.
 type LineageCompliance struct {
 	TotalControls     int     `json:"totalControls"`
 	Satisfied         int     `json:"satisfied"`
 	NotSatisfied      int     `json:"notSatisfied"`
 	Unknown           int     `json:"unknown"`
+	Inherited         int     `json:"inherited"`
 	CompliancePercent float64 `json:"compliancePercent"`
 	AssessedPercent   float64 `json:"assessedPercent"`
+}
+
+// LineageLeverageSummary is the compact per-(control, SSP) leverage badge carried on
+// posture overlays and drawer rows. Present whenever at least one leverage link
+// exists for the control in that SSP — regardless of whether it earned inherited
+// credit — so the UI can badge partial/drifted leverage too. Status is the worst
+// link status; Satisfaction is full iff every link is full.
+type LineageLeverageSummary struct {
+	Links                 int    `json:"links"`
+	Status                string `json:"status"`
+	Satisfaction          string `json:"satisfaction"`
+	OutstandingCount      int    `json:"outstandingCount"`
+	TotalResponsibilities int    `json:"totalResponsibilities"`
 }
 
 type LineageRiskCounts struct {
@@ -95,6 +115,7 @@ const (
 	PostureOutOfScope    = "out-of-scope"
 	PostureSatisfied     = "satisfied"
 	PostureNotSatisfied  = "not-satisfied"
+	PostureInherited     = "inherited"
 	PostureNotApplicable = "not-applicable"
 	PosturePlanned       = "planned"
 	PostureAttention     = "attention"
@@ -105,10 +126,11 @@ const (
 // inputs (profile membership, evidence status, uniform implementation status)
 // alongside the derived posture so the UI can render or re-derive as needed.
 type LineageSSPStatus struct {
-	Posture              string `json:"posture"`
-	InProfile            bool   `json:"inProfile"`
-	EvidenceStatus       string `json:"evidenceStatus"`
-	ImplementationStatus string `json:"implementationStatus,omitempty"`
+	Posture              string                  `json:"posture"`
+	InProfile            bool                    `json:"inProfile"`
+	EvidenceStatus       string                  `json:"evidenceStatus"`
+	ImplementationStatus string                  `json:"implementationStatus,omitempty"`
+	Leverage             *LineageLeverageSummary `json:"leverage,omitempty"`
 }
 
 // LineagePostureCounts tallies the postures of a structural node's own
@@ -118,6 +140,7 @@ type LineageSSPStatus struct {
 type LineagePostureCounts struct {
 	Satisfied     int `json:"satisfied"`
 	NotSatisfied  int `json:"notSatisfied"`
+	Inherited     int `json:"inherited"`
 	NotApplicable int `json:"notApplicable"`
 	Planned       int `json:"planned"`
 	Attention     int `json:"attention"`
@@ -133,6 +156,7 @@ type LineageSSPBreakdown struct {
 	OutOfScope    int `json:"outOfScope"`
 	Satisfied     int `json:"satisfied"`
 	NotSatisfied  int `json:"notSatisfied"`
+	Inherited     int `json:"inherited"`
 	NotApplicable int `json:"notApplicable"`
 	Planned       int `json:"planned"`
 	Attention     int `json:"attention"`
@@ -143,12 +167,13 @@ type LineageSSPBreakdown struct {
 // implementation status — so the drawer can show a plan-by-plan breakdown instead
 // of a single collapsed verdict.
 type LineageSSPRow struct {
-	SSPID                string `json:"sspId"`
-	SSPTitle             string `json:"sspTitle"`
-	InProfile            bool   `json:"inProfile"`
-	Posture              string `json:"posture"`
-	EvidenceStatus       string `json:"evidenceStatus"`
-	ImplementationStatus string `json:"implementationStatus,omitempty"`
+	SSPID                string                  `json:"sspId"`
+	SSPTitle             string                  `json:"sspTitle"`
+	InProfile            bool                    `json:"inProfile"`
+	Posture              string                  `json:"posture"`
+	EvidenceStatus       string                  `json:"evidenceStatus"`
+	ImplementationStatus string                  `json:"implementationStatus,omitempty"`
+	Leverage             *LineageLeverageSummary `json:"leverage,omitempty"`
 }
 
 type LineageNode struct {
@@ -380,6 +405,7 @@ func (h *LineageHandler) SSPDetail(ctx echo.Context) error {
 			Posture:              a.posture,
 			EvidenceStatus:       a.evidence,
 			ImplementationStatus: a.impl,
+			Leverage:             a.leverage,
 		})
 	}
 	sort.Slice(rows, func(i, j int) bool {
@@ -463,6 +489,13 @@ type lineageEngine struct {
 	// implemented-requirement carries no catalog id (as elsewhere in the codebase).
 	implStatusBySSP map[uuid.UUID]map[string]string
 
+	// Cross-SSP leverage aggregates keyed by (SSP, UPPER(controlID)) — the inherited
+	// credit, worst status, live satisfaction and responsibility counts per control.
+	// Loaded once per engine build: single-SSP scope keys only the selected SSP;
+	// global scope keys every downstream SSP. Keyed by control-id only, the same
+	// precedent as implStatusBySSP.
+	leverage map[leverage.ControlKey]leverage.ControlAggregate
+
 	// Global multi-SSP scope (loaded only when sspID is nil): the full SSP list, each
 	// SSP's title, and each SSP's resolved profile controls (scopeKey set), for the
 	// cross-SSP breakdown on control nodes and the per-SSP drawer table.
@@ -518,6 +551,7 @@ func (h *LineageHandler) buildEngine(sspID, componentID *uuid.UUID) (*lineageEng
 		profileControlsBySSP:     map[uuid.UUID]map[string]struct{}{},
 		closureCache:             map[relational.ControlRef][]relational.ControlRef{},
 		assessCache:              map[assessKey]sspAssessment{},
+		leverage:                 map[leverage.ControlKey]leverage.ControlAggregate{},
 	}
 
 	if err := e.loadCatalogs(h.db); err != nil {
@@ -530,6 +564,9 @@ func (h *LineageHandler) buildEngine(sspID, componentID *uuid.UUID) (*lineageEng
 		return nil, err
 	}
 	if err := e.loadRisks(h.db); err != nil {
+		return nil, err
+	}
+	if err := e.loadLeverage(h.db); err != nil {
 		return nil, err
 	}
 	if sspID != nil {
@@ -953,9 +990,33 @@ func (e *lineageEngine) loadGlobalSSPScope(db *gorm.DB) error {
 	return e.loadImplementationStatuses(db, e.allSSPIDs)
 }
 
-// derivePosture applies the posture ladder for one control in one SSP: scope,
-// then decisive evidence, then declared implementation status.
-func derivePosture(inScope bool, evidenceStatus, implStatus string) string {
+// loadLeverage summarizes every leverage link in scope (single SSP when e.sspID is
+// set, all downstream SSPs otherwise) and aggregates it per (SSP, control-id). Run
+// once per engine build; Summarize does ~7 bulk queries regardless of link count.
+func (e *lineageEngine) loadLeverage(db *gorm.DB) error {
+	summaries, err := leverage.Summarize(db, e.sspID)
+	if err != nil {
+		return err
+	}
+	e.leverage = leverage.AggregateByControl(summaries)
+	return nil
+}
+
+// leverageAgg returns the leverage aggregate for a (control, SSP) cell, matched by
+// UPPER-folded control-id only (no catalog id — the established leverage precedent).
+// ok is false when the SSP holds no leverage link for that control-id.
+func (e *lineageEngine) leverageAgg(ref relational.ControlRef, sspID uuid.UUID) (leverage.ControlAggregate, bool) {
+	agg, ok := e.leverage[leverage.ControlKey{SSPID: sspID, ControlID: leverage.NormalizeControlID(ref.ControlID)}]
+	return agg, ok
+}
+
+// derivePosture applies the posture ladder for one control in one SSP: scope, then
+// decisive evidence, then — only when evidence is inconclusive — machine-verified
+// inherited credit, then declared implementation status. Inherited sits above
+// not-applicable/planned: both are non-problem rungs, but the leverage rung is
+// machine-verified (drift monitoring, re-attest) and carries more information. Evidence
+// always wins over inherited credit in both directions.
+func derivePosture(inScope bool, evidenceStatus, implStatus string, inheritedCredit bool) string {
 	if !inScope {
 		return PostureOutOfScope
 	}
@@ -964,6 +1025,9 @@ func derivePosture(inScope bool, evidenceStatus, implStatus string) string {
 		return PostureNotSatisfied
 	case relational.EvidenceStatusSatisfied:
 		return PostureSatisfied
+	}
+	if inheritedCredit {
+		return PostureInherited
 	}
 	switch implStatus {
 	case string(relational.ImplementationStatusNotApplicable):
@@ -997,6 +1061,9 @@ type sspAssessment struct {
 	inScope  bool
 	evidence string // satisfied / not-satisfied / unknown
 	impl     string // uniform declared status across in-scope implementers, or ""
+	// leverage is the badge summary for this (control, SSP) cell, non-nil whenever the
+	// SSP holds at least one leverage link for the control-id (credit or not).
+	leverage *LineageLeverageSummary
 }
 
 // assessKey memoizes assessSSP. Comparable (ControlRef + uuid.UUID are both
@@ -1035,11 +1102,26 @@ func (e *lineageEngine) assessSSP(ref relational.ControlRef, sspID uuid.UUID, me
 
 	evidence := e.statusFromStreams(e.closureStreamsForSSP(closure, sspID))
 	impl := collapseUniformStatus(implStates)
+
+	// Inherited credit is checked on ref itself, not the implements-closure: leverage
+	// links are recorded against the concrete control-id, and parents pick inherited
+	// leaves up through the postureCountsFor / sspBreakdownForSet leaf tallies. Evidence
+	// still wins (derivePosture consults credit only when evidence is inconclusive).
+	agg, hasLeverage := e.leverageAgg(ref, sspID)
 	a := sspAssessment{
-		posture:  derivePosture(inScope, evidence, impl),
+		posture:  derivePosture(inScope, evidence, impl, hasLeverage && agg.Credit),
 		inScope:  inScope,
 		evidence: evidence,
 		impl:     impl,
+	}
+	if hasLeverage {
+		a.leverage = &LineageLeverageSummary{
+			Links:                 agg.Links,
+			Status:                string(agg.Status),
+			Satisfaction:          string(agg.Satisfaction),
+			OutstandingCount:      agg.OutstandingCount,
+			TotalResponsibilities: agg.TotalResponsibilities,
+		}
 	}
 	e.assessCache[key] = a
 	return a
@@ -1094,6 +1176,7 @@ func (e *lineageEngine) controlSSPStatus(ref relational.ControlRef) LineageSSPSt
 		InProfile:            a.inScope,
 		EvidenceStatus:       a.evidence,
 		ImplementationStatus: a.impl,
+		Leverage:             a.leverage,
 	}
 }
 
@@ -1127,6 +1210,8 @@ func (e *lineageEngine) postureCountsFor(seeds []relational.ControlRef) *Lineage
 				counts.Satisfied++
 			case PostureNotSatisfied:
 				counts.NotSatisfied++
+			case PostureInherited:
+				counts.Inherited++
 			case PostureNotApplicable:
 				counts.NotApplicable++
 			case PosturePlanned:
@@ -1169,6 +1254,8 @@ func (e *lineageEngine) sspBreakdownForSet(set map[relational.ControlRef]struct{
 				b.Satisfied++
 			case PostureNotSatisfied:
 				b.NotSatisfied++
+			case PostureInherited:
+				b.Inherited++
 			case PostureNotApplicable:
 				b.NotApplicable++
 			case PosturePlanned:
@@ -1265,20 +1352,23 @@ func (e *lineageEngine) complianceFor(set map[relational.ControlRef]struct{}, br
 	if breakdown != nil {
 		sat := breakdown.Satisfied
 		not := breakdown.NotSatisfied
+		inh := breakdown.Inherited
 		// Attention/not-applicable/planned are the in-scope-but-not-proven cells.
+		// Inherited is credited (compliant + assessed), not part of Unknown.
 		unk := breakdown.Attention + breakdown.NotApplicable + breakdown.Planned
-		total := sat + not + unk
+		total := sat + inh + not + unk
 		return LineageCompliance{
 			TotalControls:     total,
 			Satisfied:         sat,
 			NotSatisfied:      not,
 			Unknown:           unk,
-			CompliancePercent: pct1(sat, total),
-			AssessedPercent:   pct1(sat+not, total),
+			Inherited:         inh,
+			CompliancePercent: pct1(sat+inh, total),
+			AssessedPercent:   pct1(sat+inh+not, total),
 		}
 	}
 
-	total, sat, not, unk := 0, 0, 0, 0
+	total, sat, not, unk, inh := 0, 0, 0, 0, 0
 	for ref := range set {
 		if !e.countsInCompliance(ref) {
 			continue
@@ -1290,6 +1380,16 @@ func (e *lineageEngine) complianceFor(set map[relational.ControlRef]struct{}, br
 		case relational.EvidenceStatusNotSatisfied:
 			not++
 		default:
+			// Evidence is inconclusive. In single-SSP scope, promote to inherited when
+			// the control is in scope and its leverage links earn credit — the fallback
+			// analogue of the breakdown's per-cell inherited posture. Global-with-no-SSPs
+			// has no SSP to key leverage on, so this never fires there.
+			if e.sspID != nil && e.inScope(ref) {
+				if agg, ok := e.leverageAgg(ref, *e.sspID); ok && agg.Credit {
+					inh++
+					continue
+				}
+			}
 			unk++
 		}
 	}
@@ -1298,8 +1398,9 @@ func (e *lineageEngine) complianceFor(set map[relational.ControlRef]struct{}, br
 		Satisfied:         sat,
 		NotSatisfied:      not,
 		Unknown:           unk,
-		CompliancePercent: pct1(sat, total),
-		AssessedPercent:   pct1(sat+not, total),
+		Inherited:         inh,
+		CompliancePercent: pct1(sat+inh, total),
+		AssessedPercent:   pct1(sat+inh+not, total),
 	}
 }
 

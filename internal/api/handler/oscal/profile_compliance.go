@@ -11,6 +11,7 @@ import (
 	"github.com/compliance-framework/api/internal/api"
 	"github.com/compliance-framework/api/internal/api/handler"
 	"github.com/compliance-framework/api/internal/converters/labelfilter"
+	"github.com/compliance-framework/api/internal/service/leverage"
 	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
@@ -32,10 +33,15 @@ type ProfileComplianceScope struct {
 }
 
 type ProfileComplianceSummary struct {
-	TotalControls    int  `json:"totalControls"`
-	Satisfied        int  `json:"satisfied"`
-	NotSatisfied     int  `json:"notSatisfied"`
-	Unknown          int  `json:"unknown"`
+	TotalControls int `json:"totalControls"`
+	Satisfied     int `json:"satisfied"`
+	NotSatisfied  int `json:"notSatisfied"`
+	Unknown       int `json:"unknown"`
+	// Inherited counts controls credited to an upstream leverage link (all links active,
+	// all live-derived full, no decisive downstream evidence). It counts as compliant in
+	// CompliancePercent and as assessed in AssessedPercent; it is populated only when
+	// sspId is supplied, and is emitted as 0 (never omitted) otherwise.
+	Inherited        int  `json:"inherited"`
 	CompliancePct    int  `json:"compliancePercent"`
 	AssessedPct      int  `json:"assessedPercent"`
 	ImplementedTotal *int `json:"implementedControls,omitempty"`
@@ -54,7 +60,10 @@ type ProfileComplianceGroup struct {
 	Satisfied     int    `json:"satisfied"`
 	NotSatisfied  int    `json:"notSatisfied"`
 	Unknown       int    `json:"unknown"`
-	CompliancePct int    `json:"compliancePercent"`
+	// Inherited counts inherited-credited controls in this group; it counts as compliant
+	// in CompliancePercent (same rule as the summary).
+	Inherited     int `json:"inherited"`
+	CompliancePct int `json:"compliancePercent"`
 }
 
 type ProfileComplianceControl struct {
@@ -66,11 +75,39 @@ type ProfileComplianceControl struct {
 	Implemented    *bool                          `json:"implemented,omitempty"`
 	StatusCounts   []ProfileComplianceStatusCount `json:"statusCounts"`
 	ComputedStatus string                         `json:"computedStatus"`
+	// Leverage carries the badge/tooltip payload for an inherited (or leverage-linked but
+	// uncredited) control. Present only when sspId is supplied and the control has at
+	// least one leverage link; omitted otherwise.
+	Leverage *ProfileComplianceControlLeverage `json:"leverage,omitempty"`
 }
 
 type ProfileComplianceStatusCount struct {
 	Count  int64  `json:"count"`
 	Status string `json:"status"`
+}
+
+// ProfileComplianceControlLeverage is the per-control leverage summary. Inherited is
+// true when the control earned inherited credit (all links active, all live-derived
+// full) — independent of whether evidence overrode the computed status. Status is the
+// worst link status; Satisfaction is full iff every link is full.
+type ProfileComplianceControlLeverage struct {
+	Inherited             bool                               `json:"inherited"`
+	Satisfaction          relational.SSPLeverageSatisfaction `json:"satisfaction"`
+	Status                relational.SSPLeverageStatus       `json:"status"`
+	Links                 int                                `json:"links"`
+	OutstandingCount      int                                `json:"outstandingCount"`
+	TotalResponsibilities int                                `json:"totalResponsibilities"`
+	InheritedFrom         []ProfileComplianceLeverageOrigin  `json:"inheritedFrom"`
+}
+
+// ProfileComplianceLeverageOrigin names one upstream capability an inherited control
+// draws from (deduped by upstream SSP + offering).
+type ProfileComplianceLeverageOrigin struct {
+	UpstreamSSPID    uuid.UUID `json:"upstreamSspId"`
+	UpstreamSSPTitle string    `json:"upstreamSspTitle"`
+	OfferingID       uuid.UUID `json:"offeringId"`
+	OfferingTitle    string    `json:"offeringTitle"`
+	OfferingVersion  int       `json:"offeringVersion"`
 }
 
 type profileControlKey struct {
@@ -93,12 +130,14 @@ type profileComplianceGroupAccumulator struct {
 	Satisfied     int
 	NotSatisfied  int
 	Unknown       int
+	Inherited     int
 }
 
 // ComplianceProgress godoc
 //
 //	@Summary		Get compliance progress for a Profile
 //	@Description	Returns aggregated compliance progress for controls in a Profile, including summary, optional per-control rows, and group rollups.
+//	@Description	When sspId is supplied, controls inherited from an upstream leverage link (all links active, all live-derived full, no decisive downstream evidence, in scope) are credited to a distinct "inherited" bucket and carry a leverage badge payload. Inherited counts as compliant in compliancePercent and as assessed in assessedPercent; evidence always wins over inherited credit. Without sspId, inherited is 0 and no leverage payloads are emitted.
 //	@Tags			Profile
 //	@Param			id				path	string	true	"Profile ID"
 //	@Param			includeControls	query	bool	false	"Include per-control breakdown (default true)"
@@ -166,6 +205,7 @@ func (h *ProfileHandler) ComplianceProgress(ctx echo.Context) error {
 	sspImplementedControls := map[string]struct{}{}
 	hasImplementationScope := false
 	var sspIDForFilters *uuid.UUID
+	var leverageAggByControl map[leverage.ControlKey]leverage.ControlAggregate
 	sspIDParam := strings.TrimSpace(ctx.QueryParam("sspId"))
 	if sspIDParam != "" {
 		sspID, parseErr := uuid.Parse(sspIDParam)
@@ -183,6 +223,15 @@ func (h *ProfileHandler) ComplianceProgress(ctx echo.Context) error {
 			return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 		}
 		hasImplementationScope = true
+
+		// Leverage credit is only computed when an SSP is in scope: inherited-ness is a
+		// property of a downstream SSP's links, not of the profile alone.
+		summaries, leverageErr := leverage.Summarize(h.db, &sspID)
+		if leverageErr != nil {
+			h.sugar.Errorw("failed to summarize leverage links for SSP", "sspID", sspID, "error", leverageErr)
+			return ctx.JSON(http.StatusInternalServerError, api.NewError(leverageErr))
+		}
+		leverageAggByControl = leverage.AggregateByControl(summaries)
 	}
 
 	filtersByControl, err := h.loadFiltersByControl(scopeControls, sspIDForFilters)
@@ -197,6 +246,7 @@ func (h *ProfileHandler) ComplianceProgress(ctx echo.Context) error {
 	satisfied := 0
 	notSatisfied := 0
 	unknown := 0
+	inherited := 0
 	implementedControls := 0
 
 	for _, scopedControl := range scopeControls {
@@ -208,11 +258,31 @@ func (h *ProfileHandler) ComplianceProgress(ctx echo.Context) error {
 		}
 
 		computedStatus := computeProfileControlStatus(statusCounts)
+
+		// Leverage credit: when this control has leverage links for the in-scope SSP,
+		// attach the badge payload; if evidence was inconclusive (unknown) and the links
+		// earn credit, promote it to the inherited bucket. Evidence always wins — a
+		// satisfied/not-satisfied computedStatus is never overwritten.
+		var controlLeverage *ProfileComplianceControlLeverage
+		if hasImplementationScope {
+			if agg, ok := leverageAggByControl[leverage.ControlKey{
+				SSPID:     *sspIDForFilters,
+				ControlID: leverage.NormalizeControlID(scopedControl.ControlID),
+			}]; ok {
+				controlLeverage = buildProfileControlLeverage(agg)
+				if computedStatus == "unknown" && agg.Credit {
+					computedStatus = "inherited"
+				}
+			}
+		}
+
 		switch computedStatus {
 		case "satisfied":
 			satisfied++
 		case "not-satisfied":
 			notSatisfied++
+		case "inherited":
+			inherited++
 		default:
 			unknown++
 		}
@@ -232,6 +302,8 @@ func (h *ProfileHandler) ComplianceProgress(ctx echo.Context) error {
 				group.Satisfied++
 			case "not-satisfied":
 				group.NotSatisfied++
+			case "inherited":
+				group.Inherited++
 			default:
 				group.Unknown++
 			}
@@ -245,6 +317,7 @@ func (h *ProfileHandler) ComplianceProgress(ctx echo.Context) error {
 			GroupTitle:     scopedControl.GroupTitle,
 			StatusCounts:   statusCounts,
 			ComputedStatus: computedStatus,
+			Leverage:       controlLeverage,
 		}
 
 		if hasImplementationScope {
@@ -266,8 +339,9 @@ func (h *ProfileHandler) ComplianceProgress(ctx echo.Context) error {
 		Satisfied:     satisfied,
 		NotSatisfied:  notSatisfied,
 		Unknown:       unknown,
-		CompliancePct: computePercent(satisfied, len(scopeControls)),
-		AssessedPct:   computePercent(satisfied+notSatisfied, len(scopeControls)),
+		Inherited:     inherited,
+		CompliancePct: computePercent(satisfied+inherited, len(scopeControls)),
+		AssessedPct:   computePercent(satisfied+notSatisfied+inherited, len(scopeControls)),
 	}
 	if hasImplementationScope {
 		summary.ImplementedTotal = &implementedControls
@@ -283,7 +357,8 @@ func (h *ProfileHandler) ComplianceProgress(ctx echo.Context) error {
 			Satisfied:     group.Satisfied,
 			NotSatisfied:  group.NotSatisfied,
 			Unknown:       group.Unknown,
-			CompliancePct: computePercent(group.Satisfied, group.TotalControls),
+			Inherited:     group.Inherited,
+			CompliancePct: computePercent(group.Satisfied+group.Inherited, group.TotalControls),
 		})
 	}
 
@@ -428,100 +503,28 @@ func (h *ProfileHandler) getStatusCountsForFilters(filters []labelfilter.Filter)
 }
 
 // getStatusCountsForFilters is the package-level form of the method above, taking db
-// explicitly so ResponsibilityPosture can reuse the exact same evidence status-count
-// logic without needing a ProfileHandler receiver.
+// explicitly. It delegates to relational.EvidenceStatusCountsForFilters (the extracted
+// shared definition) and maps the neutral relational.StatusCount rows onto this
+// package's ProfileComplianceStatusCount wire type.
 func getStatusCountsForFilters(db *gorm.DB, filters []labelfilter.Filter) ([]ProfileComplianceStatusCount, error) {
-	if len(filters) == 0 {
-		return []ProfileComplianceStatusCount{}, nil
-	}
-
-	latestQuery := db.Session(&gorm.Session{})
-	latestQuery = relational.GetLatestEvidenceStreamsQuery(latestQuery)
-	query, err := relational.GetEvidenceSearchByFilterQuery(latestQuery, db, filters...)
+	rows, err := relational.EvidenceStatusCountsForFilters(db, filters)
 	if err != nil {
 		return nil, err
 	}
 
-	rows := []ProfileComplianceStatusCount{}
-	if err := query.Model(&relational.Evidence{}).
-		Select("count(DISTINCT uuid) as count, status->>'state' as status").
-		Group("status->>'state'").
-		Scan(&rows).Error; err != nil {
-		return nil, err
+	result := make([]ProfileComplianceStatusCount, len(rows))
+	for i, r := range rows {
+		result[i] = ProfileComplianceStatusCount{Count: r.Count, Status: r.Status}
 	}
-
-	sort.Slice(rows, func(i, j int) bool {
-		return rows[i].Status < rows[j].Status
-	})
-
-	return rows, nil
+	return result, nil
 }
 
-// ResponsibilityPosture computes per-responsibility compliance posture (satisfied /
-// not-satisfied / unknown) for a downstream SSP, using the same status-count/evidence
-// logic as control-keyed posture (computeProfileControlStatus), but keyed by
-// responsibility_uuid via filter_responsibilities instead of by (catalogId, controlId)
-// via filter_controls (BCH-1339). Feeds the Inherited Capability projection
-// (SSPLeverageHandler.LeveragedControls, BCH-1338 Phase 2) so a downstream can see
-// whether an inherited responsibility is actually backed by satisfying evidence, not
-// just recorded as satisfied at subscribe time. Every requested uuid is always present
-// in the returned map — defaulting to "unknown" when no filter targets it — never an
-// absent key, matching bulkResolveUpstreamResponsibilities's convention in
-// ssp_leverage.go.
+// ResponsibilityPosture preserves the pre-extraction call site and signature; the
+// implementation moved to the neutral leverage package so package handler (lineage)
+// can share it without importing oscal. See leverage.ResponsibilityPosture for the
+// full contract.
 func ResponsibilityPosture(db *gorm.DB, downstreamSSPID uuid.UUID, responsibilityUUIDs []uuid.UUID) (map[uuid.UUID]string, error) {
-	posture := make(map[uuid.UUID]string, len(responsibilityUUIDs))
-	for _, id := range responsibilityUUIDs {
-		posture[id] = "unknown"
-	}
-	if len(responsibilityUUIDs) == 0 {
-		return posture, nil
-	}
-
-	var links []relational.FilterResponsibility
-	if err := db.Where("ssp_id = ? AND responsibility_uuid IN ?", downstreamSSPID, responsibilityUUIDs).
-		Find(&links).Error; err != nil {
-		return nil, err
-	}
-	if len(links) == 0 {
-		return posture, nil
-	}
-
-	filterIDs := make([]uuid.UUID, 0, len(links))
-	seenFilterIDs := make(map[uuid.UUID]bool, len(links))
-	for _, link := range links {
-		if !seenFilterIDs[link.FilterID] {
-			seenFilterIDs[link.FilterID] = true
-			filterIDs = append(filterIDs, link.FilterID)
-		}
-	}
-
-	var filters []relational.Filter
-	if err := db.Where("id IN ?", filterIDs).Find(&filters).Error; err != nil {
-		return nil, err
-	}
-	filterByID := make(map[uuid.UUID]relational.Filter, len(filters))
-	for _, f := range filters {
-		filterByID[*f.ID] = f
-	}
-
-	filtersByResponsibility := make(map[uuid.UUID][]labelfilter.Filter, len(links))
-	for _, link := range links {
-		f, ok := filterByID[link.FilterID]
-		if !ok {
-			continue
-		}
-		filtersByResponsibility[link.ResponsibilityUUID] = append(filtersByResponsibility[link.ResponsibilityUUID], f.Filter.Data())
-	}
-
-	for respID, filterList := range filtersByResponsibility {
-		statusCounts, err := getStatusCountsForFilters(db, filterList)
-		if err != nil {
-			return nil, err
-		}
-		posture[respID] = computeProfileControlStatus(statusCounts)
-	}
-
-	return posture, nil
+	return leverage.ResponsibilityPosture(db, downstreamSSPID, responsibilityUUIDs)
 }
 
 func (h *ProfileHandler) loadImplementedControlsForSSP(sspID uuid.UUID) (map[string]struct{}, error) {
@@ -545,25 +548,11 @@ func (h *ProfileHandler) loadImplementedControlsForSSP(sspID uuid.UUID) (map[str
 }
 
 func computeProfileControlStatus(rows []ProfileComplianceStatusCount) string {
-	hasSatisfied := false
-	for _, row := range rows {
-		if row.Count <= 0 {
-			continue
-		}
-
-		switch strings.ToLower(strings.TrimSpace(row.Status)) {
-		case "not-satisfied":
-			return "not-satisfied"
-		case "satisfied":
-			hasSatisfied = true
-		}
+	counts := make([]relational.StatusCount, len(rows))
+	for i, r := range rows {
+		counts[i] = relational.StatusCount{Count: r.Count, Status: r.Status}
 	}
-
-	if hasSatisfied {
-		return "satisfied"
-	}
-
-	return "unknown"
+	return relational.CollapseEvidenceStatus(counts)
 }
 
 func computePercent(part, total int) int {
@@ -572,4 +561,29 @@ func computePercent(part, total int) int {
 	}
 
 	return int(math.Round((float64(part) / float64(total)) * 100))
+}
+
+// buildProfileControlLeverage maps a leverage.ControlAggregate onto the wire shape for
+// a control's leverage badge. Inherited reflects credit-worthiness (all links active,
+// all full), independent of whether evidence overrode the control's computed status.
+func buildProfileControlLeverage(agg leverage.ControlAggregate) *ProfileComplianceControlLeverage {
+	origins := make([]ProfileComplianceLeverageOrigin, 0, len(agg.InheritedFrom))
+	for _, o := range agg.InheritedFrom {
+		origins = append(origins, ProfileComplianceLeverageOrigin{
+			UpstreamSSPID:    o.UpstreamSSPID,
+			UpstreamSSPTitle: o.UpstreamSSPTitle,
+			OfferingID:       o.OfferingID,
+			OfferingTitle:    o.OfferingTitle,
+			OfferingVersion:  o.OfferingVersion,
+		})
+	}
+	return &ProfileComplianceControlLeverage{
+		Inherited:             agg.Credit,
+		Satisfaction:          agg.Satisfaction,
+		Status:                agg.Status,
+		Links:                 agg.Links,
+		OutstandingCount:      agg.OutstandingCount,
+		TotalResponsibilities: agg.TotalResponsibilities,
+		InheritedFrom:         origins,
+	}
 }
