@@ -2,3 +2,6 @@ lisa-selfreview:
 - [low/maintainability] lineage.go lineageEngine field named `leverage` shadows the imported `leverage` package name. Unambiguous to the compiler (field is always `e.leverage`, package always `leverage.X`) but a readability smell for the next reader, and the name doesn't say it's keyed by control. FIX: rename field to `leverageByControl`. (fixing this pass)
 - [verified, no change] complianceFor single-SSP fallback gating on e.inScope(ref) keeps inherited counts consistent with postureCountsFor; global breakdown path derives inherited from per-cell postures. Confirmed by lineage_leverage_integration_test root.Compliance.Inherited == root.PostureCounts.Inherited.
 - [accepted, no change] LeverageDetail builds a full global engine (buildEngine(nil,nil)) whose loadLeverage→Summarize(nil) result is unused by the drawer — a small bounded overhead on top of the already-heavy engine build. Deliberate per the spec (engine built for downstream sspTitles + control-exists 404 check).
+
+lisa-addressed:
+- Renamed lineageEngine field `leverage` -> `leverageByControl` to stop it shadowing the imported `leverage` package name and to say what it is keyed by. Pure rename (field decl, buildEngine init, loadLeverage assignment, leverageAgg lookup); build + tests green.
