@@ -1,2 +1,5 @@
 lisa-selfreview:
 - Requested human review: after several clean cron passes (no inline threads, no CI failures, not approved), posted a pr comment asking for human review + re-requested reviewers. Do NOT repeat this nudge on later passes; only PR approval ends lisa.
+
+lisa-selfreview:
+- Requested human review after several clean cron passes (posted PR comment + re-requested reviewers). Do NOT repeat the nudge; only PR approval ends lisa.
