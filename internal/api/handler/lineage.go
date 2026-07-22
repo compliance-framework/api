@@ -494,7 +494,7 @@ type lineageEngine struct {
 	// Loaded once per engine build: single-SSP scope keys only the selected SSP;
 	// global scope keys every downstream SSP. Keyed by control-id only, the same
 	// precedent as implStatusBySSP.
-	leverage map[leverage.ControlKey]leverage.ControlAggregate
+	leverageByControl map[leverage.ControlKey]leverage.ControlAggregate
 
 	// Global multi-SSP scope (loaded only when sspID is nil): the full SSP list, each
 	// SSP's title, and each SSP's resolved profile controls (scopeKey set), for the
@@ -551,7 +551,7 @@ func (h *LineageHandler) buildEngine(sspID, componentID *uuid.UUID) (*lineageEng
 		profileControlsBySSP:     map[uuid.UUID]map[string]struct{}{},
 		closureCache:             map[relational.ControlRef][]relational.ControlRef{},
 		assessCache:              map[assessKey]sspAssessment{},
-		leverage:                 map[leverage.ControlKey]leverage.ControlAggregate{},
+		leverageByControl:        map[leverage.ControlKey]leverage.ControlAggregate{},
 	}
 
 	if err := e.loadCatalogs(h.db); err != nil {
@@ -998,7 +998,7 @@ func (e *lineageEngine) loadLeverage(db *gorm.DB) error {
 	if err != nil {
 		return err
 	}
-	e.leverage = leverage.AggregateByControl(summaries)
+	e.leverageByControl = leverage.AggregateByControl(summaries)
 	return nil
 }
 
@@ -1006,7 +1006,7 @@ func (e *lineageEngine) loadLeverage(db *gorm.DB) error {
 // UPPER-folded control-id only (no catalog id — the established leverage precedent).
 // ok is false when the SSP holds no leverage link for that control-id.
 func (e *lineageEngine) leverageAgg(ref relational.ControlRef, sspID uuid.UUID) (leverage.ControlAggregate, bool) {
-	agg, ok := e.leverage[leverage.ControlKey{SSPID: sspID, ControlID: leverage.NormalizeControlID(ref.ControlID)}]
+	agg, ok := e.leverageByControl[leverage.ControlKey{SSPID: sspID, ControlID: leverage.NormalizeControlID(ref.ControlID)}]
 	return agg, ok
 }
 
