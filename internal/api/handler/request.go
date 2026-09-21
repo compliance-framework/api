@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"encoding/json"
 	"strings"
 	"time"
 
@@ -34,6 +35,36 @@ type createFilterRequest struct {
 	Filter     labelfilter.Filter `json:"filter" yaml:"filter" validate:"required"`
 	Controls   *[]string          `json:"controls" yaml:"controls"`
 	Components *[]string          `json:"components" yaml:"components"`
+}
+
+// UnmarshalJSON accepts sspId in either camelCase or kebab-case ("ssp-id"). The
+// filters API convention is camelCase (see the SSPID doc comment above), but a client
+// that kebab-cases this field hits Echo's default binder leaving it nil rather than
+// erroring, so a PUT that means to move a filter's scope silently no-ops instead.
+func (r *createFilterRequest) UnmarshalJSON(data []byte) error {
+	type requestAlias struct {
+		Name       string             `json:"name"`
+		SSPIDCamel *uuid.UUID         `json:"sspId"`
+		SSPIDKebab *uuid.UUID         `json:"ssp-id"`
+		Filter     labelfilter.Filter `json:"filter"`
+		Controls   *[]string          `json:"controls"`
+		Components *[]string          `json:"components"`
+	}
+
+	var decoded requestAlias
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return err
+	}
+
+	r.Name = decoded.Name
+	r.SSPID = decoded.SSPIDCamel
+	if r.SSPID == nil {
+		r.SSPID = decoded.SSPIDKebab
+	}
+	r.Filter = decoded.Filter
+	r.Controls = decoded.Controls
+	r.Components = decoded.Components
+	return nil
 }
 
 // attachFilterResponsibilityRequest is the body for POST /filters/:id/responsibilities.
