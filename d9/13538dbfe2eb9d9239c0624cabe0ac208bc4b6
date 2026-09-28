@@ -1,0 +1,45 @@
+lisa-addressed:
+---
+Comment (internal/api/handler/evidence.go:299):
+**[High] Later submissions invalidate the signatures of stored evidence that shares an inventory item**
+
+Inventory items and their implemented-component links are **shared across evidence records**. The item ID comes only from `identifier`, and the link ID only from (item, component). Links are never removed, only added. But signing and `/verify` both rebuild the canonical content from the *current* DB state, via `evidenceQuery` → `Preload("InventoryItems.ImplementedComponents")` → `canonicalizeEvidence`. So any later submission that adds a link to a shared item changes the canonical form of every earlier evidence record that references that item.
+
+I reproduced it with a throwaway integration test on this branch (Postgres):
+1. An agent posts evidence A: `inventory-items: [{identifier: web-server/ec2/i-1, implemented-components: [ssh]}]`. `POST /evidence/A/verify` → `is_valid: true`.
+2. Another stream posts the **same host** with `implemented-components: [ubuntu-22]`.
+3. `POST /evidence/A/verify` → `is_valid: false`: `"current evidence content does not match the stored signature envelope hash"`, `"... does not match the hash contained in the signed payload"`.
+
+This isn't an edge case. It happens whenever two plugins report the same host with different components, or a host gains a component over time. In that second case, every earlier record in the stream stops verifying. Before this PR the path was unreachable, because agent inventory items were silently dropped and never entered signed content. This PR is what makes it reachable. The same cause also means `GET /evidence/A` now returns components that A never reported.
+
+The "links only accumulate" note in the PR description covers the stale-link side of this, but not the signing consequence.
+
+Suggestions, in order of preference:
+- Make the link set belong to the evidence record: an evidence-scoped item↔component association, or a per-evidence snapshot. Signed content and GET then reflect exactly what that submission reported.
+- If this is deliberately deferred to the Evidence Subjects rework (BCH-1364), say so explicitly in the PR's known limitations: signatures of agent evidence with inventory items can go invalid. Add a regression test that pins the current behaviour so the rework has to flip it. Also consider leaving implemented-component links out of the canonical signing form until then, so verification doesn't report valid evidence as tampered.
+Replies:
+**lisa implementation guidance:** Confirmed. I'm taking your second option: defer, drop the links from the signed form, and pin the current behaviour with a test. The evidence-scoped association is the right end state, but I'm not doing it in this PR:
+- It's a new join table, migrations, and a change to signing and GET. That's epic-scale schema work on a ticket meant to ship first as a small bugfix, and it overlaps with `evidence_subject_references` (BCH-1370), the epic's evidence-scoped mechanism.
+- The inventory upsert planned for BCH-1367 (LLD A0.4: `OnConflict DoUpdates description, props, links, remarks`) will make the shared item's *own* fields mutable too. That breaks signatures the same way. So "signed content must not come from shared, mutable inventory rows" needs an evidence-scoped snapshot at the epic level, not just for links. I'll flag this on the epic.
+
+Plan:
+1. `internal/service/relational/evidence/signing.go` `canonicalizeEvidence`: set `osc.ImplementedComponents = nil` for inventory items, with a comment explaining why. Links are shared across evidence and mutated by later submissions, so they aren't part of what a record attests to. Sign and verify both go through this function, so they stay consistent. No evidence signed before this change can contain links, because agent inventory items were dropped before this PR.
+2. Unit test in `service_test.go`: the content hash stays the same when only an item's implemented components change.
+3. Integration regression test: evidence A (user-signed) reports host i-1 → [ssh]. Evidence B reports i-1 → [ubuntu-22]. `/verify` on A stays `is_valid: true`. Also pin that `GET /evidence/A` currently returns both links. A comment names BCH-1364 as the work that should flip it.
+4. Update the PR's known limitations to cover the signing consequence and the shared-link leak into GET.
+
+<!-- lisa-guidance-posted -->
+---
+Comment (internal/api/handler/evidence.go:291):
+**[Low] The composite seed for the link ID is ambiguous**
+
+`SeededUUID` builds its seed as `key=value` pairs joined with `-`, with no escaping. This is the first call site that seeds from **two** free-form identifiers, so different (item, component) pairs can produce the same seed:
+
+- component `a-inventory-item=b` on item `c` → `implemented-component=a-inventory-item=b-inventory-item=c`
+- component `a` on item `b-inventory-item=c` → `implemented-component=a-inventory-item=b-inventory-item=c`
+
+Both get the same link ID. The association save upserts on `id` and updates `inventory_item_id`, so the second submission would move the first item's link row onto its own item. It needs a crafted identifier from an authenticated agent, so it's low risk, but the fix is cheap: seed this key from an unambiguous encoding. For example, use a length-prefixed or JSON-encoded tuple, `uuid.NewSHA1(ns, []byte(item+"\x00"+component))`, or have `SeededUUID` escape the separators.
+Replies:
+**lisa implementation guidance:** Confirmed: `SeededUUID` joins `k=v` pairs with `-` and doesn't escape them, so two free-form identifiers can collide. Fix: seed the link ID from a single key whose value is the JSON-encoded tuple `["<item identifier>","<component identifier>"]`. JSON quotes and escapes each element, so it's unambiguous. This keeps the codebase's `SeededUUID` convention and doesn't change how `SeededUUID` behaves for existing callers. Add a unit-style assertion in the integration test that the two crafted pairs from your example get different link IDs.
+
+<!-- lisa-guidance-posted -->
