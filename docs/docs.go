@@ -34417,7 +34417,7 @@ const docTemplate = `{
                 "expires": {
                     "type": "string"
                 },
-                "inventoryItems": {
+                "inventory-items": {
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/handler.EvidenceInventoryItem"
@@ -34490,7 +34490,7 @@ const docTemplate = `{
                     "description": "user/chris@linguine.tech\noperating-system/ubuntu/22.4\nweb-server/ec2/i-12345",
                     "type": "string"
                 },
-                "implementedComponents": {
+                "implemented-components": {
                     "type": "array",
                     "items": {
                         "type": "object",

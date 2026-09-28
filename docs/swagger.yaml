@@ -319,7 +319,7 @@ definitions:
         type: string
       expires:
         type: string
-      inventoryItems:
+      inventory-items:
         items:
           $ref: '#/definitions/handler.EvidenceInventoryItem'
         type: array
@@ -377,7 +377,7 @@ definitions:
           operating-system/ubuntu/22.4
           web-server/ec2/i-12345
         type: string
-      implementedComponents:
+      implemented-components:
         items:
           properties:
             identifier:

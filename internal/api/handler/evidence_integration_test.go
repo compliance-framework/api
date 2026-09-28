@@ -19,6 +19,7 @@ import (
 	svc "github.com/compliance-framework/api/internal/service"
 	"github.com/compliance-framework/api/internal/service/relational"
 	evidencesvc "github.com/compliance-framework/api/internal/service/relational/evidence"
+	sdktypes "github.com/compliance-framework/api/sdk/types"
 	oscalTypes_1_1_3 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
@@ -308,6 +309,99 @@ func (suite *EvidenceApiIntegrationSuite) TestCreate() {
 	// Counting users with specific names
 	suite.DB.Model(&relational.Evidence{}).Count(&count)
 	suite.Equal(int64(1), count)
+}
+
+// TestCreateFromSDKShapedJSON posts the wire format agents actually send
+// (marshalled from sdk/types.Evidence, i.e. kebab-case keys) rather than the
+// handler struct, so multi-word fields that fail to bind are caught.
+func (suite *EvidenceApiIntegrationSuite) TestCreateFromSDKShapedJSON() {
+	err := suite.Migrator.Refresh()
+	suite.Require().NoError(err)
+	suite.Config.StrictDisablePublicAgentEndpoints = false
+
+	evidence := sdktypes.Evidence{
+		UUID:  uuid.New(),
+		Title: "SDK-shaped evidence",
+		Start: time.Now().Add(-time.Hour),
+		End:   time.Now().Add(-time.Minute),
+		BackMatter: &oscalTypes_1_1_3.BackMatter{
+			Resources: &[]oscalTypes_1_1_3.Resource{
+				{UUID: uuid.NewString(), Title: "Raw scan output"},
+			},
+		},
+		InventoryItems: []sdktypes.InventoryItem{
+			{
+				Identifier:  "web-server/ec2/i-12345",
+				Type:        "web-server",
+				Title:       "EC2 Instance - i-12345",
+				Description: "Web server under test",
+				ImplementedComponents: []sdktypes.ComponentIdentifier{
+					{Identifier: "components/common/ssh"},
+					{Identifier: "components/common/ubuntu-22"},
+				},
+			},
+		},
+		Components: []sdktypes.Component{
+			{Identifier: "components/common/ssh", Type: "software", Title: "Secure Shell (SSH)"},
+		},
+		Status: sdktypes.ObjectiveStatus{State: relational.EvidenceStatusSatisfied},
+	}
+
+	reqBody, err := json.Marshal(evidence)
+	suite.Require().NoError(err)
+	suite.Require().Contains(string(reqBody), `"inventory-items"`)
+	suite.Require().Contains(string(reqBody), `"implemented-components"`)
+
+	server := suite.setupServer()
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/evidence", bytes.NewReader(reqBody))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	server.E().ServeHTTP(rec, req)
+	suite.Require().Equal(http.StatusCreated, rec.Code, rec.Body.String())
+
+	itemID, err := internal.SeededUUID(map[string]string{"identifier": "web-server/ec2/i-12345"})
+	suite.Require().NoError(err)
+	sshID, err := internal.SeededUUID(map[string]string{"identifier": "components/common/ssh"})
+	suite.Require().NoError(err)
+	ubuntuID, err := internal.SeededUUID(map[string]string{"identifier": "components/common/ubuntu-22"})
+	suite.Require().NoError(err)
+
+	// Stored: the inventory item is linked to the evidence with both implemented components.
+	var stored relational.Evidence
+	suite.Require().NoError(suite.DB.
+		Preload("InventoryItems.ImplementedComponents").
+		First(&stored, "uuid = ?", evidence.UUID).Error)
+	suite.Require().Len(stored.InventoryItems, 1)
+	suite.Equal(itemID, *stored.InventoryItems[0].ID)
+	suite.Equal("Web server under test", stored.InventoryItems[0].Description)
+	storedComponentIDs := []uuid.UUID{}
+	for _, ic := range stored.InventoryItems[0].ImplementedComponents {
+		storedComponentIDs = append(storedComponentIDs, ic.ComponentID)
+	}
+	suite.ElementsMatch([]uuid.UUID{sshID, ubuntuID}, storedComponentIDs)
+
+	// Returned: GET exposes the inventory item, its implemented components and the back-matter.
+	getRec := httptest.NewRecorder()
+	getReq := httptest.NewRequest(http.MethodGet, "/api/evidence/"+stored.ID.String(), nil)
+	server.E().ServeHTTP(getRec, getReq)
+	suite.Require().Equal(http.StatusOK, getRec.Code, getRec.Body.String())
+
+	var getResp GenericDataResponse[PublicEvidenceResponse]
+	suite.Require().NoError(json.Unmarshal(getRec.Body.Bytes(), &getResp))
+	suite.Require().Len(getResp.Data.InventoryItems, 1)
+	returned := getResp.Data.InventoryItems[0]
+	suite.Equal(itemID.String(), returned.UUID)
+	suite.Require().NotNil(returned.ImplementedComponents)
+	returnedComponentIDs := []string{}
+	for _, ic := range *returned.ImplementedComponents {
+		returnedComponentIDs = append(returnedComponentIDs, ic.ComponentUuid)
+	}
+	suite.ElementsMatch([]string{sshID.String(), ubuntuID.String()}, returnedComponentIDs)
+
+	suite.Require().NotNil(getResp.Data.BackMatter)
+	suite.Require().NotNil(getResp.Data.BackMatter.Resources)
+	suite.Require().Len(*getResp.Data.BackMatter.Resources, 1)
+	suite.Equal("Raw scan output", (*getResp.Data.BackMatter.Resources)[0].Title)
 }
 
 func (suite *EvidenceApiIntegrationSuite) TestCreateRequiresAgentAuthWhenUnsafeDisabled() {

@@ -131,7 +131,7 @@ type EvidenceInventoryItem struct {
 	Links                 []oscalTypes_1_1_3.Link
 	ImplementedComponents []struct {
 		Identifier string
-	}
+	} `json:"implemented-components,omitempty"`
 }
 
 type EvidenceComponent struct {
@@ -193,7 +193,7 @@ type EvidenceCreateRequest struct {
 	Origins []oscalTypes_1_1_3.Origin
 	// What steps did we take to create this evidence
 	Activities     []EvidenceActivity
-	InventoryItems []EvidenceInventoryItem
+	InventoryItems []EvidenceInventoryItem `json:"inventory-items,omitempty"`
 	// Which components of the subject are being observed. A tool, user, policy etc.
 	Components []EvidenceComponent
 	// Who or What are we providing evidence for. What's under test.
