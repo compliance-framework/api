@@ -5,3 +5,7 @@ pass 1:
 
 lisa-design:
 - Implemented-component links are keyed by (inventory item identifier, component identifier), which makes resubmission idempotent. The trade-off: links are additive. A component dropped from an item in a later submission is not unlinked. Reconciling removals belongs to the Evidence Subjects rework (BCH-1364), not this binding fix.
+
+lisa-selfreview:
+pass 2 (strict) verdict=request_changes
+- [medium] dup-component-in-item (internal/api/handler/evidence.go:282): with deterministic link IDs, one item listing the same component identifier twice puts two rows with the same ID into a single upsert batch. Postgres errors ("ON CONFLICT DO UPDATE command cannot affect row a second time") and the whole submission 500s. Fix: skip repeated component identifiers within an item. Cover it in the integration test.
