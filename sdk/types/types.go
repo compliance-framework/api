@@ -143,8 +143,9 @@ type Evidence struct {
 	End     time.Time  `json:"end"`
 	Expires *time.Time `json:"expires,omitempty"`
 
-	Props []Property `json:"props,omitempty"`
-	Links []Link     `json:"links,omitempty"`
+	Props      []Property                   `json:"props,omitempty"`
+	Links      []Link                       `json:"links,omitempty"`
+	BackMatter *oscalTypes_1_1_3.BackMatter `json:"back-matter,omitempty"`
 
 	// Who or What is generating this evidence
 	Origins []Origin `json:"origins,omitempty"`

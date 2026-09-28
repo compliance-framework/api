@@ -19,6 +19,7 @@ import (
 	svc "github.com/compliance-framework/api/internal/service"
 	"github.com/compliance-framework/api/internal/service/relational"
 	evidencesvc "github.com/compliance-framework/api/internal/service/relational/evidence"
+	sdktypes "github.com/compliance-framework/api/sdk/types"
 	oscalTypes_1_1_3 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
@@ -308,6 +309,190 @@ func (suite *EvidenceApiIntegrationSuite) TestCreate() {
 	// Counting users with specific names
 	suite.DB.Model(&relational.Evidence{}).Count(&count)
 	suite.Equal(int64(1), count)
+}
+
+// TestCreateFromSDKShapedJSON posts the wire format agents actually send
+// (marshalled from sdk/types.Evidence, i.e. kebab-case keys) rather than the
+// handler struct, so multi-word fields that fail to bind are caught.
+func (suite *EvidenceApiIntegrationSuite) TestCreateFromSDKShapedJSON() {
+	err := suite.Migrator.Refresh()
+	suite.Require().NoError(err)
+	suite.Config.StrictDisablePublicAgentEndpoints = false
+
+	evidence := sdktypes.Evidence{
+		UUID:  uuid.New(),
+		Title: "SDK-shaped evidence",
+		Start: time.Now().Add(-time.Hour),
+		End:   time.Now().Add(-time.Minute),
+		BackMatter: &oscalTypes_1_1_3.BackMatter{
+			Resources: &[]oscalTypes_1_1_3.Resource{
+				{UUID: uuid.NewString(), Title: "Raw scan output"},
+			},
+		},
+		InventoryItems: []sdktypes.InventoryItem{
+			{
+				Identifier:  "web-server/ec2/i-12345",
+				Type:        "web-server",
+				Title:       "EC2 Instance - i-12345",
+				Description: "Web server under test",
+				ImplementedComponents: []sdktypes.ComponentIdentifier{
+					{Identifier: "components/common/ssh"},
+					{Identifier: "components/common/ubuntu-22"},
+					{Identifier: "components/common/ssh"}, // repeated: must be collapsed, not rejected
+				},
+			},
+		},
+		Components: []sdktypes.Component{
+			{Identifier: "components/common/ssh", Type: "software", Title: "Secure Shell (SSH)"},
+		},
+		Status: sdktypes.ObjectiveStatus{State: relational.EvidenceStatusSatisfied},
+	}
+
+	reqBody, err := json.Marshal(evidence)
+	suite.Require().NoError(err)
+	suite.Require().Contains(string(reqBody), `"inventory-items"`)
+	suite.Require().Contains(string(reqBody), `"implemented-components"`)
+
+	server := suite.setupServer()
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/evidence", bytes.NewReader(reqBody))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	server.E().ServeHTTP(rec, req)
+	suite.Require().Equal(http.StatusCreated, rec.Code, rec.Body.String())
+
+	itemID, err := internal.SeededUUID(map[string]string{"identifier": "web-server/ec2/i-12345"})
+	suite.Require().NoError(err)
+	sshID, err := internal.SeededUUID(map[string]string{"identifier": "components/common/ssh"})
+	suite.Require().NoError(err)
+	ubuntuID, err := internal.SeededUUID(map[string]string{"identifier": "components/common/ubuntu-22"})
+	suite.Require().NoError(err)
+
+	// Stored: the inventory item is linked to the evidence with both implemented components.
+	var stored relational.Evidence
+	suite.Require().NoError(suite.DB.
+		Preload("InventoryItems.ImplementedComponents").
+		First(&stored, "uuid = ?", evidence.UUID).Error)
+	suite.Require().Len(stored.InventoryItems, 1)
+	suite.Equal(itemID, *stored.InventoryItems[0].ID)
+	suite.Equal("Web server under test", stored.InventoryItems[0].Description)
+	storedComponentIDs := []uuid.UUID{}
+	for _, ic := range stored.InventoryItems[0].ImplementedComponents {
+		storedComponentIDs = append(storedComponentIDs, ic.ComponentID)
+	}
+	suite.ElementsMatch([]uuid.UUID{sshID, ubuntuID}, storedComponentIDs)
+
+	// Returned: GET exposes the inventory item, its implemented components and the back-matter.
+	getRec := httptest.NewRecorder()
+	getReq := httptest.NewRequest(http.MethodGet, "/api/evidence/"+stored.ID.String(), nil)
+	server.E().ServeHTTP(getRec, getReq)
+	suite.Require().Equal(http.StatusOK, getRec.Code, getRec.Body.String())
+
+	var getResp GenericDataResponse[PublicEvidenceResponse]
+	suite.Require().NoError(json.Unmarshal(getRec.Body.Bytes(), &getResp))
+	suite.Require().Len(getResp.Data.InventoryItems, 1)
+	returned := getResp.Data.InventoryItems[0]
+	suite.Equal(itemID.String(), returned.UUID)
+	suite.Require().NotNil(returned.ImplementedComponents)
+	returnedComponentIDs := []string{}
+	for _, ic := range *returned.ImplementedComponents {
+		returnedComponentIDs = append(returnedComponentIDs, ic.ComponentUuid)
+	}
+	suite.ElementsMatch([]string{sshID.String(), ubuntuID.String()}, returnedComponentIDs)
+
+	suite.Require().NotNil(getResp.Data.BackMatter)
+	suite.Require().NotNil(getResp.Data.BackMatter.Resources)
+	suite.Require().Len(*getResp.Data.BackMatter.Resources, 1)
+	suite.Equal("Raw scan output", (*getResp.Data.BackMatter.Resources)[0].Title)
+
+	// Resubmitting the same stream (as agents do every cycle) must not duplicate
+	// the inventory item or its implemented-component links.
+	evidence.Start = time.Now().Add(-30 * time.Minute)
+	evidence.End = time.Now().Add(-time.Second)
+	reqBody, err = json.Marshal(evidence)
+	suite.Require().NoError(err)
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/api/evidence", bytes.NewReader(reqBody))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	server.E().ServeHTTP(rec, req)
+	suite.Require().Equal(http.StatusCreated, rec.Code, rec.Body.String())
+
+	var itemCount, linkCount int64
+	suite.Require().NoError(suite.DB.Model(&relational.InventoryItem{}).Count(&itemCount).Error)
+	suite.Require().NoError(suite.DB.Model(&relational.ImplementedComponent{}).Count(&linkCount).Error)
+	suite.Equal(int64(1), itemCount)
+	suite.Equal(int64(2), linkCount)
+}
+
+// TestSharedInventoryItemLinksDoNotInvalidateSignatures pins the current
+// behaviour for inventory items shared across evidence records: the
+// implemented-component links are shared state, so a later submission for the
+// same host adds to them. They are excluded from signed content so earlier
+// signatures keep verifying, but GET still returns the shared union.
+// BCH-1364 (evidence-scoped subjects) should make the links evidence-scoped
+// and flip the union assertion below.
+func (suite *EvidenceApiIntegrationSuite) TestSharedInventoryItemLinksDoNotInvalidateSignatures() {
+	err := suite.Migrator.Refresh()
+	suite.Require().NoError(err)
+	suite.Config.StrictDisablePublicAgentEndpoints = false
+
+	server := suite.setupServer()
+	token, err := suite.GetAuthToken()
+	suite.Require().NoError(err)
+
+	post := func(component string) string {
+		reqBody, err := json.Marshal(sdktypes.Evidence{
+			UUID:  uuid.New(),
+			Title: "Host scan via " + component,
+			Start: time.Now().Add(-time.Hour),
+			End:   time.Now().Add(-time.Minute),
+			InventoryItems: []sdktypes.InventoryItem{{
+				Identifier:            "web-server/ec2/i-1",
+				ImplementedComponents: []sdktypes.ComponentIdentifier{{Identifier: component}},
+			}},
+			Status: sdktypes.ObjectiveStatus{State: relational.EvidenceStatusSatisfied},
+		})
+		suite.Require().NoError(err)
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodPost, "/api/evidence", bytes.NewReader(reqBody))
+		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+		req.Header.Set(echo.HeaderAuthorization, fmt.Sprintf("Bearer %s", *token))
+		server.E().ServeHTTP(rec, req)
+		suite.Require().Equal(http.StatusCreated, rec.Code, rec.Body.String())
+		var resp GenericDataResponse[CreatedEvidenceResponse]
+		suite.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &resp))
+		suite.Require().NotNil(resp.Data.Signature, "user-authenticated evidence must be signed")
+		return resp.Data.ID.String()
+	}
+	verify := func(id string) evidencesvc.VerificationResult {
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodPost, "/api/evidence/"+id+"/verify", nil)
+		req.Header.Set(echo.HeaderAuthorization, fmt.Sprintf("Bearer %s", *token))
+		server.E().ServeHTTP(rec, req)
+		suite.Require().Equal(http.StatusOK, rec.Code, rec.Body.String())
+		var resp GenericDataResponse[evidencesvc.VerificationResult]
+		suite.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &resp))
+		return resp.Data
+	}
+
+	evidenceA := post("components/common/ssh")
+	suite.Require().True(verify(evidenceA).IsValid)
+
+	// Another stream reports the same host with a different component.
+	post("components/common/ubuntu-22")
+
+	resultA := verify(evidenceA)
+	suite.True(resultA.IsValid, "a later submission for a shared host must not invalidate A: %v", resultA.Errors)
+
+	// Pinned current behaviour: GET returns the shared links, including the one A never reported.
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/evidence/"+evidenceA, nil)
+	server.E().ServeHTTP(rec, req)
+	suite.Require().Equal(http.StatusOK, rec.Code, rec.Body.String())
+	var getResp GenericDataResponse[PublicEvidenceResponse]
+	suite.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &getResp))
+	suite.Require().Len(getResp.Data.InventoryItems, 1)
+	suite.Require().NotNil(getResp.Data.InventoryItems[0].ImplementedComponents)
+	suite.Len(*getResp.Data.InventoryItems[0].ImplementedComponents, 2)
 }
 
 func (suite *EvidenceApiIntegrationSuite) TestCreateRequiresAgentAuthWhenUnsafeDisabled() {

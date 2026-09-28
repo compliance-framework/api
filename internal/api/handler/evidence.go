@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -131,7 +132,7 @@ type EvidenceInventoryItem struct {
 	Links                 []oscalTypes_1_1_3.Link
 	ImplementedComponents []struct {
 		Identifier string
-	}
+	} `json:"implemented-components,omitempty"`
 }
 
 type EvidenceComponent struct {
@@ -193,13 +194,28 @@ type EvidenceCreateRequest struct {
 	Origins []oscalTypes_1_1_3.Origin
 	// What steps did we take to create this evidence
 	Activities     []EvidenceActivity
-	InventoryItems []EvidenceInventoryItem
+	InventoryItems []EvidenceInventoryItem `json:"inventory-items,omitempty"`
 	// Which components of the subject are being observed. A tool, user, policy etc.
 	Components []EvidenceComponent
 	// Who or What are we providing evidence for. What's under test.
 	Subjects []EvidenceSubject
 	// Did we satisfy what was being tested for, or did we fail ?
 	Status oscalTypes_1_1_3.ObjectiveStatus
+}
+
+// implementedComponentLinkID is deterministic per (inventory item, component) so
+// agents resubmitting the same item every cycle upsert the link instead of
+// appending duplicates. The pair is JSON-encoded into a single seed value because
+// SeededUUID joins k=v pairs without escaping, which lets two free-form
+// identifiers collide.
+func implementedComponentLinkID(itemIdentifier, componentIdentifier string) (uuid.UUID, error) {
+	pair, err := json.Marshal([]string{itemIdentifier, componentIdentifier})
+	if err != nil {
+		return uuid.Nil, err
+	}
+	return internal.SeededUUID(map[string]string{
+		"inventory-item-implemented-component": string(pair),
+	})
 }
 
 // Create godoc
@@ -286,7 +302,12 @@ func (h *EvidenceHandler) Create(ctx echo.Context) error {
 			if err != nil {
 				return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 			}
+			linkID, err := implementedComponentLinkID(i.Identifier, k.Identifier)
+			if err != nil {
+				return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+			}
 			model.ImplementedComponents = append(model.ImplementedComponents, relational.ImplementedComponent{
+				UUIDModel:   relational.UUIDModel{ID: &linkID},
 				ComponentID: id,
 			})
 		}

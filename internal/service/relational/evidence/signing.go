@@ -241,10 +241,11 @@ func canonicalizeEvidence(params CreateEvidenceParams) (*canonicalEvidence, erro
 	inventoryItems := make([]oscalTypes_1_1_3.InventoryItem, 0, len(params.InventoryItems))
 	for _, item := range params.InventoryItems {
 		osc := item.MarshalOscal()
-		if osc.ImplementedComponents != nil {
-			sortedComponents := sortByJSONValue(*osc.ImplementedComponents)
-			osc.ImplementedComponents = &sortedComponents
-		}
+		// Implemented-component links hang off inventory items shared across
+		// evidence records, and later submissions add to them. They are not part
+		// of what this record attests to, so signing them would invalidate
+		// earlier signatures. Evidence-scoped links are tracked under BCH-1364.
+		osc.ImplementedComponents = nil
 		inventoryItems = append(inventoryItems, osc)
 	}
 
