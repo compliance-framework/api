@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -202,6 +203,21 @@ type EvidenceCreateRequest struct {
 	Status oscalTypes_1_1_3.ObjectiveStatus
 }
 
+// implementedComponentLinkID is deterministic per (inventory item, component) so
+// agents resubmitting the same item every cycle upsert the link instead of
+// appending duplicates. The pair is JSON-encoded into a single seed value because
+// SeededUUID joins k=v pairs without escaping, which lets two free-form
+// identifiers collide.
+func implementedComponentLinkID(itemIdentifier, componentIdentifier string) (uuid.UUID, error) {
+	pair, err := json.Marshal([]string{itemIdentifier, componentIdentifier})
+	if err != nil {
+		return uuid.Nil, err
+	}
+	return internal.SeededUUID(map[string]string{
+		"inventory-item-implemented-component": string(pair),
+	})
+}
+
 // Create godoc
 //
 //	@Summary		Create new Evidence
@@ -286,12 +302,7 @@ func (h *EvidenceHandler) Create(ctx echo.Context) error {
 			if err != nil {
 				return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 			}
-			// Deterministic per (inventory item, component) so agents resubmitting the
-			// same item every cycle upsert the link instead of appending duplicates.
-			linkID, err := internal.SeededUUID(map[string]string{
-				"inventory-item":        i.Identifier,
-				"implemented-component": k.Identifier,
-			})
+			linkID, err := implementedComponentLinkID(i.Identifier, k.Identifier)
 			if err != nil {
 				return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 			}

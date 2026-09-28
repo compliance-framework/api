@@ -423,6 +423,78 @@ func (suite *EvidenceApiIntegrationSuite) TestCreateFromSDKShapedJSON() {
 	suite.Equal(int64(2), linkCount)
 }
 
+// TestSharedInventoryItemLinksDoNotInvalidateSignatures pins the current
+// behaviour for inventory items shared across evidence records: the
+// implemented-component links are shared state, so a later submission for the
+// same host adds to them. They are excluded from signed content so earlier
+// signatures keep verifying, but GET still returns the shared union.
+// BCH-1364 (evidence-scoped subjects) should make the links evidence-scoped
+// and flip the union assertion below.
+func (suite *EvidenceApiIntegrationSuite) TestSharedInventoryItemLinksDoNotInvalidateSignatures() {
+	err := suite.Migrator.Refresh()
+	suite.Require().NoError(err)
+	suite.Config.StrictDisablePublicAgentEndpoints = false
+
+	server := suite.setupServer()
+	token, err := suite.GetAuthToken()
+	suite.Require().NoError(err)
+
+	post := func(component string) string {
+		reqBody, err := json.Marshal(sdktypes.Evidence{
+			UUID:  uuid.New(),
+			Title: "Host scan via " + component,
+			Start: time.Now().Add(-time.Hour),
+			End:   time.Now().Add(-time.Minute),
+			InventoryItems: []sdktypes.InventoryItem{{
+				Identifier:            "web-server/ec2/i-1",
+				ImplementedComponents: []sdktypes.ComponentIdentifier{{Identifier: component}},
+			}},
+			Status: sdktypes.ObjectiveStatus{State: relational.EvidenceStatusSatisfied},
+		})
+		suite.Require().NoError(err)
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodPost, "/api/evidence", bytes.NewReader(reqBody))
+		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+		req.Header.Set(echo.HeaderAuthorization, fmt.Sprintf("Bearer %s", *token))
+		server.E().ServeHTTP(rec, req)
+		suite.Require().Equal(http.StatusCreated, rec.Code, rec.Body.String())
+		var resp GenericDataResponse[CreatedEvidenceResponse]
+		suite.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &resp))
+		suite.Require().NotNil(resp.Data.Signature, "user-authenticated evidence must be signed")
+		return resp.Data.ID.String()
+	}
+	verify := func(id string) evidencesvc.VerificationResult {
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodPost, "/api/evidence/"+id+"/verify", nil)
+		req.Header.Set(echo.HeaderAuthorization, fmt.Sprintf("Bearer %s", *token))
+		server.E().ServeHTTP(rec, req)
+		suite.Require().Equal(http.StatusOK, rec.Code, rec.Body.String())
+		var resp GenericDataResponse[evidencesvc.VerificationResult]
+		suite.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &resp))
+		return resp.Data
+	}
+
+	evidenceA := post("components/common/ssh")
+	suite.Require().True(verify(evidenceA).IsValid)
+
+	// Another stream reports the same host with a different component.
+	post("components/common/ubuntu-22")
+
+	resultA := verify(evidenceA)
+	suite.True(resultA.IsValid, "a later submission for a shared host must not invalidate A: %v", resultA.Errors)
+
+	// Pinned current behaviour: GET returns the shared links, including the one A never reported.
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/evidence/"+evidenceA, nil)
+	server.E().ServeHTTP(rec, req)
+	suite.Require().Equal(http.StatusOK, rec.Code, rec.Body.String())
+	var getResp GenericDataResponse[PublicEvidenceResponse]
+	suite.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &getResp))
+	suite.Require().Len(getResp.Data.InventoryItems, 1)
+	suite.Require().NotNil(getResp.Data.InventoryItems[0].ImplementedComponents)
+	suite.Len(*getResp.Data.InventoryItems[0].ImplementedComponents, 2)
+}
+
 func (suite *EvidenceApiIntegrationSuite) TestCreateRequiresAgentAuthWhenUnsafeDisabled() {
 	err := suite.Migrator.Refresh()
 	suite.Require().NoError(err)

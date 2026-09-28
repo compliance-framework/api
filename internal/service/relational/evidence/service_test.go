@@ -294,6 +294,49 @@ func TestSigningService_ContentHashChangesWhenEvidenceChanges(t *testing.T) {
 	require.NotEqual(t, baseSig.Data().ContentHash.Value, labelSig.Data().ContentHash.Value)
 }
 
+func TestSigningService_ContentHashIgnoresSharedImplementedComponentLinks(t *testing.T) {
+	privateKey, _, err := config.GenerateKeyPair(2048)
+	require.NoError(t, err)
+
+	signingSvc := NewSigningService(privateKey)
+	signer := NewUserSignerContextFromClaims(&authn.UserClaims{
+		RegisteredClaims: jwt.RegisteredClaims{Subject: "signer@example.com"},
+	})
+	now := time.Date(2026, 4, 7, 11, 30, 0, 0, time.UTC)
+	itemID := uuid.MustParse("0b8b2f0e-6f55-4a2e-9d7a-1c1f4f3f8a10")
+	withLinks := func(componentIDs ...uuid.UUID) CreateEvidenceParams {
+		item := relational.InventoryItem{UUIDModel: relational.UUIDModel{ID: &itemID}, Description: "web server"}
+		for _, id := range componentIDs {
+			item.ImplementedComponents = append(item.ImplementedComponents, relational.ImplementedComponent{ComponentID: id})
+		}
+		return CreateEvidenceParams{
+			Evidence: relational.Evidence{
+				UUID:   uuid.MustParse("f700fda2-e4b9-4f0c-b673-bcf9bb6dbfe8"),
+				Title:  "signed-evidence",
+				Start:  now.Add(-time.Hour),
+				End:    now,
+				Status: datatypes.NewJSONType(oscalTypes_1_1_3.ObjectiveStatus{State: relational.EvidenceStatusSatisfied}),
+			},
+			InventoryItems: []relational.InventoryItem{item},
+		}
+	}
+
+	// Links live on inventory items shared across evidence, so a later submission
+	// that adds one must not change the hash of evidence already signed.
+	oneLink, err := signingSvc.SignEvidence(withLinks(uuid.New()), signer)
+	require.NoError(t, err)
+	twoLinks, err := signingSvc.SignEvidence(withLinks(uuid.New(), uuid.New()), signer)
+	require.NoError(t, err)
+	require.Equal(t, oneLink.Data().ContentHash.Value, twoLinks.Data().ContentHash.Value)
+
+	// The item's own content is still signed.
+	changedItem := withLinks()
+	changedItem.InventoryItems[0].Description = "db server"
+	changedSig, err := signingSvc.SignEvidence(changedItem, signer)
+	require.NoError(t, err)
+	require.NotEqual(t, oneLink.Data().ContentHash.Value, changedSig.Data().ContentHash.Value)
+}
+
 func TestEvidenceService_Create_SignsWithUserAndAgentContexts(t *testing.T) {
 	db := newEvidenceServiceTestDB(t)
 	logger, err := zap.NewDevelopment()
