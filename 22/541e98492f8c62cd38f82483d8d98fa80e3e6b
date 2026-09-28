@@ -1,0 +1,4 @@
+lisa-addressed:
+pass 1:
+- [high] implemented-components-dup: ImplementedComponent now gets a deterministic ID via SeededUUID{inventory-item, implemented-component} (internal/api/handler/evidence.go), so resubmissions upsert instead of appending. TestCreateFromSDKShapedJSON resubmits the stream and asserts 1 inventory item / 2 links.
+- [low] inventory-item-props-from-evidence: dismissed. Pre-existing and out of scope for BCH-1365; defer to epic BCH-1364.
