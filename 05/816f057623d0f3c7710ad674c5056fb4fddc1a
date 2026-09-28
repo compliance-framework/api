@@ -1,3 +1,6 @@
 lisa-addressed:
 pass 2:
 - [medium] dup-component-in-item: disproved empirically. With the guard removed, a repeated component identifier in one item still returns 201 and stores exactly 2 links (gorm's association upsert tolerates the repeated ID). No handler change. Kept the repeated identifier in TestCreateFromSDKShapedJSON as a regression check.
+
+lisa-selfreview:
+pass 3 (strict) verdict=approve. No findings. sdk, sdk/types, handler and evidence-service integration suites green; lint 0 issues; swag and go mod tidy show no drift.
