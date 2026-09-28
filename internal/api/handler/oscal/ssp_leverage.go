@@ -18,6 +18,7 @@ import (
 	"github.com/compliance-framework/api/internal/api/handler"
 	"github.com/compliance-framework/api/internal/api/middleware"
 	"github.com/compliance-framework/api/internal/authz"
+	"github.com/compliance-framework/api/internal/service/leverage"
 	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/compliance-framework/api/internal/service/relational/risks"
 )
@@ -51,13 +52,11 @@ func isUniqueViolation(err error) bool {
 	return errors.As(err, &pgErr) && pgErr.Code == "23505"
 }
 
-// upstreamResponsibility is the minimal shape both the catalog exposure (BCH-1338 task
-// 004) and the subscribe handler (task 005) need: enough to let a downstream subscriber
-// pick specific responsibility UUIDs to satisfy, and to compute full/partial coverage.
-type upstreamResponsibility struct {
-	ResponsibilityUUID uuid.UUID `json:"responsibilityUuid"`
-	Description        string    `json:"description"`
-}
+// upstreamResponsibility is an alias to the neutral leverage.Responsibility type; the
+// definition moved to internal/service/leverage so package handler can share it. The
+// JSON tags (responsibilityUuid, description) are unchanged, so every wire surface
+// reached through this name is byte-for-byte identical.
+type upstreamResponsibility = leverage.Responsibility
 
 // resolveUpstreamResponsibilities finds every ControlImplementationResponsibility that
 // responsibility-maps to the ProvidedControlImplementation identified by providedUUID.
@@ -71,54 +70,13 @@ func resolveUpstreamResponsibilities(db *gorm.DB, providedUUID uuid.UUID) ([]ups
 	return byProvided[providedUUID], nil
 }
 
-// bulkResolveUpstreamResponsibilities is the batched form of resolveUpstreamResponsibilities:
-// two queries total regardless of how many providedUUIDs are requested, rather than two
-// queries per item (the catalog list and the leveraged-controls projection each resolve
-// responsibilities for many items/links in one request). The two-step lookup is unavoidable
-// because ControlImplementationResponsibility and ProvidedControlImplementation are siblings
-// under Export with no direct FK between them — only the shared OSCAL-level provided-uuid
-// value — so responsibilities are scoped by (export_id, provided_uuid) pairs, not
-// provided_uuid alone, since provided-uuid values are only unique within a single upstream's
-// Export. providedUUIDs with no matching ProvidedControlImplementation row (e.g. the upstream
-// row was since deleted) map to an empty slice, not an error or a missing key.
+// bulkResolveUpstreamResponsibilities delegates to
+// leverage.BulkResolveUpstreamResponsibilities, preserving this call site's name and
+// signature (5 oscal call sites: ssp_leverage.go, ssp_by_components.go ×2,
+// ssp_export_offerings.go ×2). See the leverage function for the two-step lookup
+// strategy and its (export_id, provided_uuid) scoping.
 func bulkResolveUpstreamResponsibilities(db *gorm.DB, providedUUIDs []uuid.UUID) (map[uuid.UUID][]upstreamResponsibility, error) {
-	result := make(map[uuid.UUID][]upstreamResponsibility, len(providedUUIDs))
-	for _, id := range providedUUIDs {
-		result[id] = []upstreamResponsibility{}
-	}
-	if len(providedUUIDs) == 0 {
-		return result, nil
-	}
-
-	var provided []relational.ProvidedControlImplementation
-	if err := db.Where("id IN ?", providedUUIDs).Find(&provided).Error; err != nil {
-		return nil, err
-	}
-	if len(provided) == 0 {
-		return result, nil
-	}
-	exportIDByProvided := make(map[uuid.UUID]uuid.UUID, len(provided))
-	for _, p := range provided {
-		exportIDByProvided[*p.ID] = p.ExportId
-	}
-
-	var responsibilities []relational.ControlImplementationResponsibility
-	if err := db.Where("provided_uuid IN ?", providedUUIDs).Find(&responsibilities).Error; err != nil {
-		return nil, err
-	}
-	for _, r := range responsibilities {
-		// Scope by export_id too: provided-uuid values are only unique within a single
-		// upstream's Export, so a bulk provided_uuid-only match could in principle pick
-		// up a same-valued responsibility from an unrelated Export.
-		if exportIDByProvided[r.ProvidedUuid] != r.ExportId {
-			continue
-		}
-		result[r.ProvidedUuid] = append(result[r.ProvidedUuid], upstreamResponsibility{
-			ResponsibilityUUID: *r.ID,
-			Description:        r.Description,
-		})
-	}
-	return result, nil
+	return leverage.BulkResolveUpstreamResponsibilities(db, providedUUIDs)
 }
 
 // uniqueUUIDs extracts the deduplicated set of UUIDs from items, preserving first-seen
@@ -137,22 +95,11 @@ func uniqueUUIDs[T any](items []T, extract func(T) uuid.UUID) []uuid.UUID {
 	return result
 }
 
-// deriveSatisfaction is the single definition of "full iff every upstream
-// responsibility has a matching downstream satisfied" (vacuously full when full is
-// empty), shared by Subscribe (computing the satisfaction to store on a new leverage
-// link) and LeveragedControls (recomputing it live rather than trusting the stored
-// value). Returns the subset of full not covered by satisfiedUUIDs as outstanding.
+// deriveSatisfaction delegates to leverage.DeriveSatisfaction, preserving this call
+// site's name and signature (Subscribe, the satisfied CRUD resync, ReAttest, and the
+// projection all share it, so satisfaction is derived in exactly one place).
 func deriveSatisfaction(full []upstreamResponsibility, satisfiedUUIDs map[uuid.UUID]bool) (relational.SSPLeverageSatisfaction, []upstreamResponsibility) {
-	outstanding := make([]upstreamResponsibility, 0)
-	for _, r := range full {
-		if !satisfiedUUIDs[r.ResponsibilityUUID] {
-			outstanding = append(outstanding, r)
-		}
-	}
-	if len(outstanding) == 0 {
-		return relational.SSPLeverageSatisfactionFull, outstanding
-	}
-	return relational.SSPLeverageSatisfactionPartial, outstanding
+	return leverage.DeriveSatisfaction(full, satisfiedUUIDs)
 }
 
 // SSPLeverageHandler serves the downstream side of BCH-1338 Phase 2: subscribing to a
@@ -1091,172 +1038,17 @@ func (h *SSPLeverageHandler) LeveragedControls(ctx echo.Context) error {
 	return ctx.JSON(http.StatusOK, handler.GenericDataListResponse[leveragedControlResponse]{Data: result})
 }
 
-// leveragedControlProjection is one downstream leverage link with everything the read
-// models need already resolved: the live-recomputed satisfaction (never the link's cached
-// value), the outstanding responsibilities, the evidence-backed posture, the open drift
-// risk, the offering title, and the by-component + inherited row the link hangs off.
-//
-// Both the /leveraged-controls endpoint and the shared-responsibility rollup read this, so
-// satisfaction is derived in exactly one place and neither surface can drift from the other.
-type leveragedControlProjection struct {
-	Link          relational.SSPLeverageLink
-	OfferingTitle string
-	ByComponentID uuid.UUID
-	// Inherited is the downstream's own InheritedControlImplementation row this link
-	// created; nil only if it has since been deleted out from under the link.
-	Inherited    *relational.InheritedControlImplementation
-	Satisfaction relational.SSPLeverageSatisfaction
-	Outstanding  []upstreamResponsibility
-	// Responsibilities is the FULL upstream responsibility set under this link (uuid +
-	// description), so downstream surfaces can label every responsibility — including ones
-	// already satisfied — with the upstream's own text. Outstanding is the subset of this
-	// with no matching downstream satisfied entry.
-	Responsibilities []upstreamResponsibility
-	Posture          map[uuid.UUID]string
-	DriftRiskID      *uuid.UUID
-}
+// leveragedControlProjection is an alias to leverage.Projection; the definition moved
+// to the neutral leverage package so package handler (lineage) can read the same
+// projection. Field names and types are unchanged, so every consumer here and in
+// ssp_shared_responsibility.go is untouched.
+type leveragedControlProjection = leverage.Projection
 
-// projectLeveragedControls builds the projection for every leverage link on one downstream
-// SSP in six queries at THIS level, independent of link count — the batching that replaced
-// this code's original four-queries-per-link loop, preserved here so neither caller can
-// regress it into an N+1. In particular the ResponsibilityPosture(db, sspID,
-// allResponsibilityUUIDs) call below must stay a single call for every uuid, never one per
-// link.
-//
-// The end-to-end cost is ~6 + N, not six: ResponsibilityPosture finishes with a
-// per-responsibility loop (profile_compliance.go, getStatusCountsForFilters) that issues one
-// evidence aggregate — count(DISTINCT uuid) grouped by status->>state, over the
-// latest-evidence-stream subquery and the label-filter joins — for every responsibility
-// carrying at least one FilterResponsibility link. Those N queries are the expensive ones, and
-// both /leveraged-controls and GET /:id/shared-responsibility pay them. Hoisting that loop
-// rewrites evidence aggregation and belongs in its own change.
+// projectLeveragedControls delegates to leverage.Project, preserving this call site's
+// name and signature (used by LeveragedControls and collectInheritedSharedResponsibility).
+// The six-query batching lives in leverage.Project; see its doc for the N+1 constraint.
 func projectLeveragedControls(db *gorm.DB, sspID uuid.UUID) ([]leveragedControlProjection, error) {
-	var links []relational.SSPLeverageLink
-	if err := db.Where("downstream_ssp_id = ?", sspID).Order("id ASC").Find(&links).Error; err != nil {
-		return nil, fmt.Errorf("failed to list leverage links: %w", err)
-	}
-	if len(links) == 0 {
-		return []leveragedControlProjection{}, nil
-	}
-
-	offeringIDs := uniqueUUIDs(links, func(l relational.SSPLeverageLink) uuid.UUID { return l.OfferingID })
-	var offerings []relational.SSPExportOffering
-	if err := db.Select("id, title").Where("id IN ?", offeringIDs).Find(&offerings).Error; err != nil {
-		return nil, fmt.Errorf("failed to load offerings for leverage links: %w", err)
-	}
-	offeringTitleByID := make(map[uuid.UUID]string, len(offerings))
-	for _, o := range offerings {
-		offeringTitleByID[*o.ID] = o.Title
-	}
-
-	inheritedIDs := uniqueUUIDs(links, func(l relational.SSPLeverageLink) uuid.UUID { return l.InheritedUUID })
-	var inheritedRows []relational.InheritedControlImplementation
-	if err := db.Where("id IN ?", inheritedIDs).Find(&inheritedRows).Error; err != nil {
-		return nil, fmt.Errorf("failed to load inherited control implementations for leverage links: %w", err)
-	}
-	inheritedByID := make(map[uuid.UUID]relational.InheritedControlImplementation, len(inheritedRows))
-	for _, i := range inheritedRows {
-		inheritedByID[*i.ID] = i
-	}
-
-	providedUUIDs := uniqueUUIDs(links, func(l relational.SSPLeverageLink) uuid.UUID { return l.ProvidedUUID })
-	fullSetByProvided, err := bulkResolveUpstreamResponsibilities(db, providedUUIDs)
-	if err != nil {
-		return nil, fmt.Errorf("failed to resolve upstream responsibilities for leverage links: %w", err)
-	}
-
-	byComponentIDs := uniqueUUIDs(inheritedRows, func(i relational.InheritedControlImplementation) uuid.UUID { return i.ByComponentId })
-	var satisfiedRows []relational.SatisfiedControlImplementationResponsibility
-	if len(byComponentIDs) > 0 {
-		if err := db.Where("by_component_id IN ?", byComponentIDs).Find(&satisfiedRows).Error; err != nil {
-			return nil, fmt.Errorf("failed to load satisfied responsibilities for leverage links: %w", err)
-		}
-	}
-	satisfiedByComponent := make(map[uuid.UUID]map[uuid.UUID]bool, len(byComponentIDs))
-	for _, s := range satisfiedRows {
-		if satisfiedByComponent[s.ByComponentId] == nil {
-			satisfiedByComponent[s.ByComponentId] = make(map[uuid.UUID]bool)
-		}
-		satisfiedByComponent[s.ByComponentId][s.ResponsibilityUuid] = true
-	}
-
-	// Batch every responsibility uuid under every link's provided-uuid into a single
-	// ResponsibilityPosture call, rather than one call per link.
-	var allResponsibilityUUIDs []uuid.UUID
-	for _, full := range fullSetByProvided {
-		for _, r := range full {
-			allResponsibilityUUIDs = append(allResponsibilityUUIDs, r.ResponsibilityUUID)
-		}
-	}
-	posture, err := ResponsibilityPosture(db, sspID, allResponsibilityUUIDs)
-	if err != nil {
-		return nil, fmt.Errorf("failed to compute responsibility posture for leverage links: %w", err)
-	}
-
-	// Batch-resolve every drifted link's open drift risk in one query, keyed by the
-	// dedupe_key convention computeDedupeKeyForLeverageDrift/applyDriftToLink already use —
-	// rather than a lookup per drifted link.
-	dedupeKeyToLinkID := make(map[string]uuid.UUID)
-	dedupeKeys := make([]string, 0, len(links))
-	for _, link := range links {
-		if link.Status != relational.SSPLeverageStatusDrifted {
-			continue
-		}
-		key := computeDedupeKeyForLeverageDrift(*link.ID)
-		dedupeKeyToLinkID[key] = *link.ID
-		dedupeKeys = append(dedupeKeys, key)
-	}
-	driftRiskIDByLinkID := make(map[uuid.UUID]uuid.UUID, len(dedupeKeys))
-	if len(dedupeKeys) > 0 {
-		var driftRisks []risks.Risk
-		if err := db.Select("id, dedupe_key").
-			Where("ssp_id = ? AND dedupe_key IN ? AND status != ?", sspID, dedupeKeys, risks.RiskStatusClosed).
-			Find(&driftRisks).Error; err != nil {
-			return nil, fmt.Errorf("failed to load drift risks for leverage links: %w", err)
-		}
-		for _, r := range driftRisks {
-			if linkID, ok := dedupeKeyToLinkID[r.DedupeKey]; ok {
-				driftRiskIDByLinkID[linkID] = *r.ID
-			}
-		}
-	}
-
-	result := make([]leveragedControlProjection, 0, len(links))
-	for _, link := range links {
-		var inherited *relational.InheritedControlImplementation
-		var byComponentID uuid.UUID
-		if row, ok := inheritedByID[link.InheritedUUID]; ok {
-			inherited = &row
-			byComponentID = row.ByComponentId
-		}
-
-		full := fullSetByProvided[link.ProvidedUUID]
-		satisfaction, outstanding := deriveSatisfaction(full, satisfiedByComponent[byComponentID])
-
-		linkPosture := make(map[uuid.UUID]string, len(full))
-		for _, r := range full {
-			linkPosture[r.ResponsibilityUUID] = posture[r.ResponsibilityUUID]
-		}
-
-		var driftRiskID *uuid.UUID
-		if id, ok := driftRiskIDByLinkID[*link.ID]; ok {
-			driftRiskID = &id
-		}
-
-		result = append(result, leveragedControlProjection{
-			Link:             link,
-			OfferingTitle:    offeringTitleByID[link.OfferingID],
-			ByComponentID:    byComponentID,
-			Inherited:        inherited,
-			Satisfaction:     satisfaction,
-			Outstanding:      outstanding,
-			Responsibilities: full,
-			Posture:          linkPosture,
-			DriftRiskID:      driftRiskID,
-		})
-	}
-
-	return result, nil
+	return leverage.Project(db, sspID)
 }
 
 // ReAttest clears drift on a leverage link (BCH-1341): bumps OfferingVersion to the

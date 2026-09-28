@@ -125,26 +125,38 @@ func TestDerivePosture(t *testing.T) {
 		inProfile bool
 		evidence  string
 		impl      string
+		inherited bool
 		want      string
 	}{
 		// Scope wins over everything: an out-of-profile control is never a problem.
-		{"out of profile beats all", false, notSat, na, PostureOutOfScope},
+		{"out of profile beats all", false, notSat, na, false, PostureOutOfScope},
+		// Out-of-scope beats inherited credit too: an un-profiled control is excluded
+		// regardless of leverage.
+		{"out of profile beats inherited", false, "unknown", "", true, PostureOutOfScope},
 		// Decisive evidence beats declared status (the user's "evidence wins" rule):
 		// even a not-applicable control with stale failing evidence stays red.
-		{"not-satisfied evidence wins over not-applicable", true, notSat, na, PostureNotSatisfied},
-		{"satisfied evidence wins over declared implemented", true, sat, "implemented", PostureSatisfied},
-		// No decisive evidence -> declared status decides problem vs expected.
-		{"no evidence + not-applicable is muted", true, "unknown", na, PostureNotApplicable},
-		{"no evidence + planned is muted", true, "unknown", planned, PosturePlanned},
-		{"no evidence + implemented is attention", true, "unknown", "implemented", PostureAttention},
-		{"no evidence + partial is attention", true, "unknown", "partial", PostureAttention},
-		{"no evidence + alternative is attention", true, "unknown", "alternative", PostureAttention},
-		{"no evidence + undeclared is attention", true, "unknown", "", PostureAttention},
+		{"not-satisfied evidence wins over not-applicable", true, notSat, na, false, PostureNotSatisfied},
+		{"satisfied evidence wins over declared implemented", true, sat, "implemented", false, PostureSatisfied},
+		// Evidence wins over inherited credit in both directions.
+		{"not-satisfied evidence wins over inherited", true, notSat, "", true, PostureNotSatisfied},
+		{"satisfied evidence wins over inherited", true, sat, "", true, PostureSatisfied},
+		// No decisive evidence + inherited credit -> inherited, above not-applicable/planned.
+		{"no evidence + inherited credit is inherited", true, "unknown", "", true, PostureInherited},
+		{"inherited beats not-applicable", true, "unknown", na, true, PostureInherited},
+		{"inherited beats planned", true, "unknown", planned, true, PostureInherited},
+		// No decisive evidence, no credit -> declared status decides problem vs expected.
+		{"credit=false + not-applicable stays not-applicable", true, "unknown", na, false, PostureNotApplicable},
+		{"no evidence + not-applicable is muted", true, "unknown", na, false, PostureNotApplicable},
+		{"no evidence + planned is muted", true, "unknown", planned, false, PosturePlanned},
+		{"no evidence + implemented is attention", true, "unknown", "implemented", false, PostureAttention},
+		{"no evidence + partial is attention", true, "unknown", "partial", false, PostureAttention},
+		{"no evidence + alternative is attention", true, "unknown", "alternative", false, PostureAttention},
+		{"no evidence + undeclared is attention", true, "unknown", "", false, PostureAttention},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := derivePosture(tc.inProfile, tc.evidence, tc.impl); got != tc.want {
-				t.Errorf("derivePosture(%v, %q, %q) = %q, want %q", tc.inProfile, tc.evidence, tc.impl, got, tc.want)
+			if got := derivePosture(tc.inProfile, tc.evidence, tc.impl, tc.inherited); got != tc.want {
+				t.Errorf("derivePosture(%v, %q, %q, %v) = %q, want %q", tc.inProfile, tc.evidence, tc.impl, tc.inherited, got, tc.want)
 			}
 		})
 	}

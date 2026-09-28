@@ -2,6 +2,7 @@ package relational
 
 import (
 	"errors"
+	"sort"
 	"strings"
 	"time"
 
@@ -66,6 +67,67 @@ type Evidence struct {
 type StatusCount struct {
 	Count  int64  `json:"count"`
 	Status string `json:"status"`
+}
+
+// EvidenceStatusCountsForFilters counts DISTINCT evidence streams grouped by status
+// state over the latest evidence in each stream, for the given label filters. It is
+// the neutral home of the logic oscal.getStatusCountsForFilters used to own inline —
+// hoisted here (its natural home: the StatusCount comment above already notes it
+// mirrors profile_compliance.go) so both the compliance endpoint and the leverage
+// package can share one definition without an import cycle. Empty filters yield an
+// empty (non-nil) slice, never a full-table scan.
+func EvidenceStatusCountsForFilters(db *gorm.DB, filters []labelfilter.Filter) ([]StatusCount, error) {
+	if len(filters) == 0 {
+		return []StatusCount{}, nil
+	}
+
+	latestQuery := db.Session(&gorm.Session{})
+	latestQuery = GetLatestEvidenceStreamsQuery(latestQuery)
+	query, err := GetEvidenceSearchByFilterQuery(latestQuery, db, filters...)
+	if err != nil {
+		return nil, err
+	}
+
+	rows := []StatusCount{}
+	if err := query.Model(&Evidence{}).
+		Select("count(DISTINCT uuid) as count, status->>'state' as status").
+		Group("status->>'state'").
+		Scan(&rows).Error; err != nil {
+		return nil, err
+	}
+
+	sort.Slice(rows, func(i, j int) bool {
+		return rows[i].Status < rows[j].Status
+	})
+
+	return rows, nil
+}
+
+// CollapseEvidenceStatus reduces a set of evidence status counts to a single control
+// posture: not-satisfied wins over satisfied wins over unknown, case/space-folded,
+// with zero-count rows ignored. It is the neutral home of the logic
+// oscal.computeProfileControlStatus used to own inline — shared with the leverage
+// package's per-responsibility posture so both surfaces collapse identically.
+func CollapseEvidenceStatus(rows []StatusCount) string {
+	hasSatisfied := false
+	for _, row := range rows {
+		if row.Count <= 0 {
+			continue
+		}
+
+		switch strings.ToLower(strings.TrimSpace(row.Status)) {
+		case "not-satisfied":
+			return "not-satisfied"
+		case "satisfied":
+			hasSatisfied = true
+		}
+	}
+
+	if hasSatisfied {
+		return "satisfied"
+	}
+
+	return "unknown"
 }
 
 // latestEvidenceStreamsCTE builds the "latest evidence per stream" set as a

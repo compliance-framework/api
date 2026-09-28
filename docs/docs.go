@@ -4530,6 +4530,64 @@ const docTemplate = `{
                 ]
             }
         },
+        "/lineage/nodes/{key}/leverage": {
+            "get": {
+                "description": "Returns, for a control node, one row per downstream System Security Plan that\ninherits the control from an upstream offering: every leverage link with its\nupstream origin (SSP + offering titles), full and outstanding responsibilities,\nlive per-responsibility posture, and any open drift risk. Powers the lineage\ndrawer's inherited-capability panel. Only control keys\n(control:\u003ccatalogId\u003e/\u003ccontrolId\u003e) are supported; other node kinds return 400.\nOptional sspId filters to a single downstream SSP.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Lineage"
+                ],
+                "summary": "Per-SSP inherited leverage detail for a control node",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "URL-encoded control node key",
+                        "name": "key",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter to a single downstream SSP",
+                        "name": "sspId",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/service.ListResponse-handler_LineageLeverageRow"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
         "/lineage/nodes/{key}/ssps": {
             "get": {
                 "description": "Returns, for a control node, one row per System Security Plan: whether the control is in that plan's profile and its rolled-up posture, evidence status and declared implementation status there. Powers the drawer's plan-by-plan table. Only control keys (control:\u003ccatalogId\u003e/\u003ccontrolId\u003e) are supported; other node kinds return 400.",
@@ -15324,7 +15382,7 @@ const docTemplate = `{
         },
         "/oscal/profiles/{id}/compliance-progress": {
             "get": {
-                "description": "Returns aggregated compliance progress for controls in a Profile, including summary, optional per-control rows, and group rollups.",
+                "description": "Returns aggregated compliance progress for controls in a Profile, including summary, optional per-control rows, and group rollups.\nWhen sspId is supplied, controls inherited from an upstream leverage link (all links active, all live-derived full, no decisive downstream evidence, in scope) are credited to a distinct \"inherited\" bucket and carry a leverage badge payload. Inherited counts as compliant in compliancePercent and as assessed in assessedPercent; evidence always wins over inherited credit. Without sspId, inherited is 0 and no leverage payloads are emitted.",
                 "produces": [
                     "application/json"
                 ],
@@ -37178,6 +37236,9 @@ const docTemplate = `{
                 "compliancePercent": {
                     "type": "number"
                 },
+                "inherited": {
+                    "type": "integer"
+                },
                 "notSatisfied": {
                     "type": "integer"
                 },
@@ -37188,6 +37249,114 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "unknown": {
+                    "type": "integer"
+                }
+            }
+        },
+        "handler.LineageLeverageInheritedFrom": {
+            "type": "object",
+            "properties": {
+                "offeringId": {
+                    "type": "string"
+                },
+                "offeringTitle": {
+                    "type": "string"
+                },
+                "offeringVersion": {
+                    "type": "integer"
+                },
+                "upstreamSspId": {
+                    "type": "string"
+                },
+                "upstreamSspTitle": {
+                    "type": "string"
+                }
+            }
+        },
+        "handler.LineageLeverageLink": {
+            "type": "object",
+            "properties": {
+                "byComponentId": {
+                    "type": "string"
+                },
+                "controlId": {
+                    "type": "string"
+                },
+                "driftRiskId": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "inheritedFrom": {
+                    "$ref": "#/definitions/handler.LineageLeverageInheritedFrom"
+                },
+                "outstandingResponsibilities": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/leverage.Responsibility"
+                    }
+                },
+                "providedUuid": {
+                    "type": "string"
+                },
+                "responsibilities": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/leverage.Responsibility"
+                    }
+                },
+                "responsibilityPosture": {
+                    "description": "ResponsibilityPosture is keyed by responsibility UUID. UI must fence these keys\nfrom camelCasing.",
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "satisfaction": {
+                    "$ref": "#/definitions/relational.SSPLeverageSatisfaction"
+                },
+                "statementId": {
+                    "type": "string"
+                },
+                "status": {
+                    "$ref": "#/definitions/relational.SSPLeverageStatus"
+                }
+            }
+        },
+        "handler.LineageLeverageRow": {
+            "type": "object",
+            "properties": {
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handler.LineageLeverageLink"
+                    }
+                },
+                "sspId": {
+                    "type": "string"
+                },
+                "sspTitle": {
+                    "type": "string"
+                }
+            }
+        },
+        "handler.LineageLeverageSummary": {
+            "type": "object",
+            "properties": {
+                "links": {
+                    "type": "integer"
+                },
+                "outstandingCount": {
+                    "type": "integer"
+                },
+                "satisfaction": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "totalResponsibilities": {
                     "type": "integer"
                 }
             }
@@ -37332,6 +37501,9 @@ const docTemplate = `{
                 "attention": {
                     "type": "integer"
                 },
+                "inherited": {
+                    "type": "integer"
+                },
                 "notApplicable": {
                     "type": "integer"
                 },
@@ -37389,6 +37561,9 @@ const docTemplate = `{
                 "attention": {
                     "type": "integer"
                 },
+                "inherited": {
+                    "type": "integer"
+                },
                 "notApplicable": {
                     "type": "integer"
                 },
@@ -37421,6 +37596,9 @@ const docTemplate = `{
                 "inProfile": {
                     "type": "boolean"
                 },
+                "leverage": {
+                    "$ref": "#/definitions/handler.LineageLeverageSummary"
+                },
                 "posture": {
                     "type": "string"
                 },
@@ -37443,6 +37621,9 @@ const docTemplate = `{
                 },
                 "inProfile": {
                     "type": "boolean"
+                },
+                "leverage": {
+                    "$ref": "#/definitions/handler.LineageLeverageSummary"
                 },
                 "posture": {
                     "type": "string"
@@ -38968,6 +39149,17 @@ const docTemplate = `{
                 }
             }
         },
+        "leverage.Responsibility": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "responsibilityUuid": {
+                    "type": "string"
+                }
+            }
+        },
         "notificationtroubleshooting.ConfiguredSystemDestinationResponse": {
             "type": "object",
             "properties": {
@@ -40002,6 +40194,14 @@ const docTemplate = `{
                 "implemented": {
                     "type": "boolean"
                 },
+                "leverage": {
+                    "description": "Leverage carries the badge/tooltip payload for an inherited (or leverage-linked but\nuncredited) control. Present only when sspId is supplied and the control has at\nleast one leverage link; omitted otherwise.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/oscal.ProfileComplianceControlLeverage"
+                        }
+                    ]
+                },
                 "statusCounts": {
                     "type": "array",
                     "items": {
@@ -40013,6 +40213,35 @@ const docTemplate = `{
                 }
             }
         },
+        "oscal.ProfileComplianceControlLeverage": {
+            "type": "object",
+            "properties": {
+                "inherited": {
+                    "type": "boolean"
+                },
+                "inheritedFrom": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscal.ProfileComplianceLeverageOrigin"
+                    }
+                },
+                "links": {
+                    "type": "integer"
+                },
+                "outstandingCount": {
+                    "type": "integer"
+                },
+                "satisfaction": {
+                    "$ref": "#/definitions/relational.SSPLeverageSatisfaction"
+                },
+                "status": {
+                    "$ref": "#/definitions/relational.SSPLeverageStatus"
+                },
+                "totalResponsibilities": {
+                    "type": "integer"
+                }
+            }
+        },
         "oscal.ProfileComplianceGroup": {
             "type": "object",
             "properties": {
@@ -40021,6 +40250,10 @@ const docTemplate = `{
                 },
                 "id": {
                     "type": "string"
+                },
+                "inherited": {
+                    "description": "Inherited counts inherited-credited controls in this group; it counts as compliant\nin CompliancePercent (same rule as the summary).",
+                    "type": "integer"
                 },
                 "notSatisfied": {
                     "type": "integer"
@@ -40050,6 +40283,26 @@ const docTemplate = `{
                 },
                 "unimplementedControls": {
                     "type": "integer"
+                }
+            }
+        },
+        "oscal.ProfileComplianceLeverageOrigin": {
+            "type": "object",
+            "properties": {
+                "offeringId": {
+                    "type": "string"
+                },
+                "offeringTitle": {
+                    "type": "string"
+                },
+                "offeringVersion": {
+                    "type": "integer"
+                },
+                "upstreamSspId": {
+                    "type": "string"
+                },
+                "upstreamSspTitle": {
+                    "type": "string"
                 }
             }
         },
@@ -40114,6 +40367,10 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "implementedControls": {
+                    "type": "integer"
+                },
+                "inherited": {
+                    "description": "Inherited counts controls credited to an upstream leverage link (all links active,\nall live-derived full, no decisive downstream evidence). It counts as compliant in\nCompliancePercent and as assessed in AssessedPercent; it is populated only when\nsspId is supplied, and is emitted as 0 (never omitted) otherwise.",
                     "type": "integer"
                 },
                 "notSatisfied": {
@@ -49018,6 +49275,29 @@ const docTemplate = `{
                 },
                 "subjectId": {
                     "type": "string"
+                }
+            }
+        },
+        "service.ListResponse-handler_LineageLeverageRow": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handler.LineageLeverageRow"
+                    }
+                },
+                "limit": {
+                    "type": "integer"
+                },
+                "page": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
+                },
+                "totalPages": {
+                    "type": "integer"
                 }
             }
         },

@@ -2068,6 +2068,8 @@ definitions:
         type: number
       compliancePercent:
         type: number
+      inherited:
+        type: integer
       notSatisfied:
         type: integer
       satisfied:
@@ -2075,6 +2077,79 @@ definitions:
       totalControls:
         type: integer
       unknown:
+        type: integer
+    type: object
+  handler.LineageLeverageInheritedFrom:
+    properties:
+      offeringId:
+        type: string
+      offeringTitle:
+        type: string
+      offeringVersion:
+        type: integer
+      upstreamSspId:
+        type: string
+      upstreamSspTitle:
+        type: string
+    type: object
+  handler.LineageLeverageLink:
+    properties:
+      byComponentId:
+        type: string
+      controlId:
+        type: string
+      driftRiskId:
+        type: string
+      id:
+        type: string
+      inheritedFrom:
+        $ref: '#/definitions/handler.LineageLeverageInheritedFrom'
+      outstandingResponsibilities:
+        items:
+          $ref: '#/definitions/leverage.Responsibility'
+        type: array
+      providedUuid:
+        type: string
+      responsibilities:
+        items:
+          $ref: '#/definitions/leverage.Responsibility'
+        type: array
+      responsibilityPosture:
+        additionalProperties:
+          type: string
+        description: |-
+          ResponsibilityPosture is keyed by responsibility UUID. UI must fence these keys
+          from camelCasing.
+        type: object
+      satisfaction:
+        $ref: '#/definitions/relational.SSPLeverageSatisfaction'
+      statementId:
+        type: string
+      status:
+        $ref: '#/definitions/relational.SSPLeverageStatus'
+    type: object
+  handler.LineageLeverageRow:
+    properties:
+      links:
+        items:
+          $ref: '#/definitions/handler.LineageLeverageLink'
+        type: array
+      sspId:
+        type: string
+      sspTitle:
+        type: string
+    type: object
+  handler.LineageLeverageSummary:
+    properties:
+      links:
+        type: integer
+      outstandingCount:
+        type: integer
+      satisfaction:
+        type: string
+      status:
+        type: string
+      totalResponsibilities:
         type: integer
     type: object
   handler.LineageLinkage:
@@ -2182,6 +2257,8 @@ definitions:
     properties:
       attention:
         type: integer
+      inherited:
+        type: integer
       notApplicable:
         type: integer
       notSatisfied:
@@ -2219,6 +2296,8 @@ definitions:
     properties:
       attention:
         type: integer
+      inherited:
+        type: integer
       notApplicable:
         type: integer
       notSatisfied:
@@ -2240,6 +2319,8 @@ definitions:
         type: string
       inProfile:
         type: boolean
+      leverage:
+        $ref: '#/definitions/handler.LineageLeverageSummary'
       posture:
         type: string
       sspId:
@@ -2255,6 +2336,8 @@ definitions:
         type: string
       inProfile:
         type: boolean
+      leverage:
+        $ref: '#/definitions/handler.LineageLeverageSummary'
       posture:
         type: string
     type: object
@@ -3292,6 +3375,13 @@ definitions:
       query:
         $ref: '#/definitions/labelfilter.Query'
     type: object
+  leverage.Responsibility:
+    properties:
+      description:
+        type: string
+      responsibilityUuid:
+        type: string
+    type: object
   notificationtroubleshooting.ConfiguredSystemDestinationResponse:
     properties:
       destinationTarget:
@@ -3976,6 +4066,13 @@ definitions:
         type: string
       implemented:
         type: boolean
+      leverage:
+        allOf:
+        - $ref: '#/definitions/oscal.ProfileComplianceControlLeverage'
+        description: |-
+          Leverage carries the badge/tooltip payload for an inherited (or leverage-linked but
+          uncredited) control. Present only when sspId is supplied and the control has at
+          least one leverage link; omitted otherwise.
       statusCounts:
         items:
           $ref: '#/definitions/oscal.ProfileComplianceStatusCount'
@@ -3983,12 +4080,36 @@ definitions:
       title:
         type: string
     type: object
+  oscal.ProfileComplianceControlLeverage:
+    properties:
+      inherited:
+        type: boolean
+      inheritedFrom:
+        items:
+          $ref: '#/definitions/oscal.ProfileComplianceLeverageOrigin'
+        type: array
+      links:
+        type: integer
+      outstandingCount:
+        type: integer
+      satisfaction:
+        $ref: '#/definitions/relational.SSPLeverageSatisfaction'
+      status:
+        $ref: '#/definitions/relational.SSPLeverageStatus'
+      totalResponsibilities:
+        type: integer
+    type: object
   oscal.ProfileComplianceGroup:
     properties:
       compliancePercent:
         type: integer
       id:
         type: string
+      inherited:
+        description: |-
+          Inherited counts inherited-credited controls in this group; it counts as compliant
+          in CompliancePercent (same rule as the summary).
+        type: integer
       notSatisfied:
         type: integer
       satisfied:
@@ -4008,6 +4129,19 @@ definitions:
         type: integer
       unimplementedControls:
         type: integer
+    type: object
+  oscal.ProfileComplianceLeverageOrigin:
+    properties:
+      offeringId:
+        type: string
+      offeringTitle:
+        type: string
+      offeringVersion:
+        type: integer
+      upstreamSspId:
+        type: string
+      upstreamSspTitle:
+        type: string
     type: object
   oscal.ProfileComplianceProgress:
     properties:
@@ -4049,6 +4183,13 @@ definitions:
       compliancePercent:
         type: integer
       implementedControls:
+        type: integer
+      inherited:
+        description: |-
+          Inherited counts controls credited to an upstream leverage link (all links active,
+          all live-derived full, no decisive downstream evidence). It counts as compliant in
+          CompliancePercent and as assessed in AssessedPercent; it is populated only when
+          sspId is supplied, and is emitted as 0 (never omitted) otherwise.
         type: integer
       notSatisfied:
         type: integer
@@ -10047,6 +10188,21 @@ definitions:
       subjectId:
         type: string
     type: object
+  service.ListResponse-handler_LineageLeverageRow:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/handler.LineageLeverageRow'
+        type: array
+      limit:
+        type: integer
+      page:
+        type: integer
+      total:
+        type: integer
+      totalPages:
+        type: integer
+    type: object
   service.ListResponse-handler_LineageNode:
     properties:
       data:
@@ -14800,6 +14956,50 @@ paths:
       security:
       - OAuth2Password: []
       summary: List lineage node children
+      tags:
+      - Lineage
+  /lineage/nodes/{key}/leverage:
+    get:
+      description: |-
+        Returns, for a control node, one row per downstream System Security Plan that
+        inherits the control from an upstream offering: every leverage link with its
+        upstream origin (SSP + offering titles), full and outstanding responsibilities,
+        live per-responsibility posture, and any open drift risk. Powers the lineage
+        drawer's inherited-capability panel. Only control keys
+        (control:<catalogId>/<controlId>) are supported; other node kinds return 400.
+        Optional sspId filters to a single downstream SSP.
+      parameters:
+      - description: URL-encoded control node key
+        in: path
+        name: key
+        required: true
+        type: string
+      - description: Filter to a single downstream SSP
+        in: query
+        name: sspId
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/service.ListResponse-handler_LineageLeverageRow'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Per-SSP inherited leverage detail for a control node
       tags:
       - Lineage
   /lineage/nodes/{key}/ssps:
@@ -21804,8 +22004,9 @@ paths:
       - Profile
   /oscal/profiles/{id}/compliance-progress:
     get:
-      description: Returns aggregated compliance progress for controls in a Profile,
-        including summary, optional per-control rows, and group rollups.
+      description: |-
+        Returns aggregated compliance progress for controls in a Profile, including summary, optional per-control rows, and group rollups.
+        When sspId is supplied, controls inherited from an upstream leverage link (all links active, all live-derived full, no decisive downstream evidence, in scope) are credited to a distinct "inherited" bucket and carry a leverage badge payload. Inherited counts as compliant in compliancePercent and as assessed in assessedPercent; evidence always wins over inherited credit. Without sspId, inherited is 0 and no leverage payloads are emitted.
       parameters:
       - description: Profile ID
         in: path

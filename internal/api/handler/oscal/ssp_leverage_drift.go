@@ -13,6 +13,7 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 
+	"github.com/compliance-framework/api/internal/service/leverage"
 	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/compliance-framework/api/internal/service/relational/risks"
 )
@@ -63,13 +64,12 @@ func enqueueLeverageDriftNotificationsAsync(ctx echo.Context, sugar *zap.Sugared
 	enqueueLeverageDriftNotifications(enqueueCtx, sugar, jobEnqueuer, links)
 }
 
-// computeDedupeKeyForLeverageDrift returns the dedupe key for the drift risk
-// associated with a single SSPLeverageLink. One risk per leverage link: the link
-// itself is the natural, deterministic scope (no risk template is involved, unlike
-// evidence-driven risks), and the key is directly parseable back to the link that
-// produced it without needing a separate link table.
+// computeDedupeKeyForLeverageDrift delegates to leverage.DriftDedupeKey, preserving
+// this call site's name. Keeping the drift writer (applyDriftToLink) and the
+// projection reader on the one shared "leverage-drift:%s" definition is the point of
+// the extraction.
 func computeDedupeKeyForLeverageDrift(linkID uuid.UUID) string {
-	return fmt.Sprintf("leverage-drift:%s", linkID)
+	return leverage.DriftDedupeKey(linkID)
 }
 
 // applyDriftToLink flips an active SSPLeverageLink to drifted and creates (or reopens)
