@@ -4,3 +4,7 @@ pass 2:
 
 lisa-selfreview:
 pass 3 (strict) verdict=approve. No findings. sdk, sdk/types, handler and evidence-service integration suites green; lint 0 issues; swag and go mod tidy show no drift.
+
+lisa-design:
+- (review thread PRRT_kwDOKJpq1c6m1m6k, human reviewer) Implemented-component links are excluded from the canonical signing form (signing.go canonicalizeEvidence). They sit on inventory items shared across evidence records, and later submissions mutate them, so they aren't part of what one record attests to. Signed hashes stay stable. GET still returns the shared (union) links; a regression test pins that. The evidence-scoped association/snapshot, the reviewer's preferred option, is deferred to epic BCH-1364. It is not done here because the BCH-1367 inventory upsert will make the item's own fields mutable too, so this needs an epic-level evidence-scoped snapshot, not a links-only fix.
+- (review thread PRRT_kwDOKJpq1c6m1m79) The link ID is seeded from a single key whose value is the JSON-encoded [item, component] tuple, to avoid SeededUUID's unescaped k=v-join ambiguity. SeededUUID itself is unchanged, so existing callers' IDs stay stable.
