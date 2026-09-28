@@ -402,6 +402,24 @@ func (suite *EvidenceApiIntegrationSuite) TestCreateFromSDKShapedJSON() {
 	suite.Require().NotNil(getResp.Data.BackMatter.Resources)
 	suite.Require().Len(*getResp.Data.BackMatter.Resources, 1)
 	suite.Equal("Raw scan output", (*getResp.Data.BackMatter.Resources)[0].Title)
+
+	// Resubmitting the same stream (as agents do every cycle) must not duplicate
+	// the inventory item or its implemented-component links.
+	evidence.Start = time.Now().Add(-30 * time.Minute)
+	evidence.End = time.Now().Add(-time.Second)
+	reqBody, err = json.Marshal(evidence)
+	suite.Require().NoError(err)
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/api/evidence", bytes.NewReader(reqBody))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	server.E().ServeHTTP(rec, req)
+	suite.Require().Equal(http.StatusCreated, rec.Code, rec.Body.String())
+
+	var itemCount, linkCount int64
+	suite.Require().NoError(suite.DB.Model(&relational.InventoryItem{}).Count(&itemCount).Error)
+	suite.Require().NoError(suite.DB.Model(&relational.ImplementedComponent{}).Count(&linkCount).Error)
+	suite.Equal(int64(1), itemCount)
+	suite.Equal(int64(2), linkCount)
 }
 
 func (suite *EvidenceApiIntegrationSuite) TestCreateRequiresAgentAuthWhenUnsafeDisabled() {

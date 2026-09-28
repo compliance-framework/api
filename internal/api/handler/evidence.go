@@ -286,7 +286,17 @@ func (h *EvidenceHandler) Create(ctx echo.Context) error {
 			if err != nil {
 				return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 			}
+			// Deterministic per (inventory item, component) so agents resubmitting the
+			// same item every cycle upsert the link instead of appending duplicates.
+			linkID, err := internal.SeededUUID(map[string]string{
+				"inventory-item":        i.Identifier,
+				"implemented-component": k.Identifier,
+			})
+			if err != nil {
+				return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+			}
 			model.ImplementedComponents = append(model.ImplementedComponents, relational.ImplementedComponent{
+				UUIDModel:   relational.UUIDModel{ID: &linkID},
 				ComponentID: id,
 			})
 		}
