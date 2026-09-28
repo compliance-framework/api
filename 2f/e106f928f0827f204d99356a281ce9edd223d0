@@ -1,0 +1,6 @@
+lisa-design:
+- Only the two multi-word fields in the evidence request structs are tagged (EvidenceCreateRequest.InventoryItems -> inventory-items, EvidenceInventoryItem.ImplementedComponents -> implemented-components). Every other field in EvidenceCreateRequest/Activity/Step/Component/Subject is a single word, which encoding/json already binds case-insensitively from the SDK's lowercase keys; tagging them would only churn swagger with no binding change.
+- ImplementedComponents keeps its anonymous []struct{ Identifier string } element type. The tag goes on the outer field, which leaves the element type identity unchanged, so existing test literals still compile and the inner Identifier still binds from "identifier" case-insensitively.
+- Intentional break: the camelCase/PascalCase keys "inventoryItems"/"InventoryItems" stop binding. Checked agent (sends via proto -> sdk/types, kebab) and local-dev (docs only); no JSON callers use camelCase.
+- SDK Evidence.BackMatter uses *oscalTypes_1_1_3.BackMatter with back-matter,omitempty, same type and tag as the handler request, so no conversion is needed.
+- Regression test marshals sdk/types.Evidence (not the handler struct). Existing tests marshal the handler struct and could never catch a tag mismatch. Verified the new test fails on main (0 inventory items stored) and passes with the fix.
