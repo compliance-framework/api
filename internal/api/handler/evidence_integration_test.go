@@ -338,6 +338,7 @@ func (suite *EvidenceApiIntegrationSuite) TestCreateFromSDKShapedJSON() {
 				ImplementedComponents: []sdktypes.ComponentIdentifier{
 					{Identifier: "components/common/ssh"},
 					{Identifier: "components/common/ubuntu-22"},
+					{Identifier: "components/common/ssh"}, // repeated: must be collapsed, not rejected
 				},
 			},
 		},
