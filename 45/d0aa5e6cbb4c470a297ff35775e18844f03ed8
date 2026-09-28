@@ -1,0 +1,4 @@
+lisa-selfreview:
+pass 1 (strict) verdict=request_changes
+- [high] implemented-components-dup (internal/api/handler/evidence.go:289): now that implemented-components bind, every resubmission of the same inventory item (agents resubmit each cycle) appends new implemented_components rows. ImplementedComponent gets a random UUID, so gorm's association upsert never conflicts. Verified 2->4->6 rows over 3 posts, and GET returns the duplicates. Fix: give each ImplementedComponent a deterministic ID seeded from (inventory item identifier, component identifier), and assert idempotency in the integration test.
+- [low] inventory-item-props-from-evidence (internal/api/handler/evidence.go:279): pre-existing. InventoryItem/Component/Activity/Step/Subject Props+Links are populated from input.Props/Links (evidence level), not the item's own. Also drops item Type/Title. Out of scope for BCH-1365 (the tag binding fix); defer to the Evidence Subjects epic (BCH-1364).
