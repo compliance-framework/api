@@ -2,3 +2,6 @@ lisa-addressed:
 pass 1:
 - [high] implemented-components-dup: ImplementedComponent now gets a deterministic ID via SeededUUID{inventory-item, implemented-component} (internal/api/handler/evidence.go), so resubmissions upsert instead of appending. TestCreateFromSDKShapedJSON resubmits the stream and asserts 1 inventory item / 2 links.
 - [low] inventory-item-props-from-evidence: dismissed. Pre-existing and out of scope for BCH-1365; defer to epic BCH-1364.
+
+lisa-design:
+- Implemented-component links are keyed by (inventory item identifier, component identifier), which makes resubmission idempotent. The trade-off: links are additive. A component dropped from an item in a later submission is not unlinked. Reconciling removals belongs to the Evidence Subjects rework (BCH-1364), not this binding fix.
