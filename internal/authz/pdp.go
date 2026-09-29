@@ -115,9 +115,12 @@ const (
 	ResourceControlLink = "control-link"
 	ResourceLineage     = "lineage"
 
+	// Rego playback: evaluate caller-supplied policy and input; persists nothing.
+	ResourcePlayback = "playback"
+
 	// Actions. read/create/update/delete are the CRUD verbs; the rest are resource-specific
 	// (promote → risk; ingest → heartbeat/agent; register → agent; trigger → digest;
-	// execute → import; export/subscribe → ssp/ssp-export-offering, BCH-1337). ActionManage
+	// execute → import/playback; export/subscribe → ssp/ssp-export-offering, BCH-1337). ActionManage
 	// is the admin umbrella.
 	ActionManage    = "manage"
 	ActionRead      = "read"

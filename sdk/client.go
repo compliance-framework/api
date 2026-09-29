@@ -46,6 +46,8 @@ type Client struct {
 	SubjectTemplate *subjectTemplateClient
 
 	Heartbeat *heartbeatClient
+
+	Playback *playbackClient
 }
 
 func NewClient(client *http.Client, config *Config) *Client {
@@ -65,6 +67,7 @@ func NewClient(client *http.Client, config *Config) *Client {
 	c.RiskTemplate = &riskTemplateClient{client: c}
 	c.SubjectTemplate = &subjectTemplateClient{client: c}
 	c.Heartbeat = &heartbeatClient{client: c}
+	c.Playback = &playbackClient{client: c}
 
 	return c
 }

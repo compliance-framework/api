@@ -102,6 +102,14 @@ func TestCedarRBACMatrix(t *testing.T) {
 		{agent, "delete", "evidence", false},
 		{agent, "manage", "admin", false},
 
+		// playback: every role and agents may execute it; it persists nothing
+		{user("admin@x"), "execute", "playback", true},
+		{user("viewer@x"), "execute", "playback", true},
+		{user("auditor@x"), "execute", "playback", true},
+		{user("contributor@x"), "execute", "playback", true},
+		{agent, "execute", "playback", true},
+		{user("nobody@x"), "execute", "playback", false},
+
 		// no role / anonymous: deny-by-default
 		{user("nobody@x"), "read", "evidence", false},
 		{Subject{Type: "anonymous"}, "read", "evidence", false},
@@ -366,6 +374,7 @@ func TestCedarFactoryPublicAgentEndpoints(t *testing.T) {
 		{"ingest", "agent"},
 		{"update", "risk-template"},
 		{"update", "subject-template"},
+		{"execute", "playback"},
 	}
 
 	// Flag false (public open): anonymous gets the agent role automatically.
@@ -395,6 +404,10 @@ func TestCedarFactoryPublicAgentEndpoints(t *testing.T) {
 	d, _ = pdpStrict.Evaluate(context.Background(), anon, "create", Resource{Type: "evidence"}, nil)
 	if d.Allow {
 		t.Error("strict mode: anonymous create evidence should be denied")
+	}
+	d, _ = pdpStrict.Evaluate(context.Background(), anon, "execute", Resource{Type: "playback"}, nil)
+	if d.Allow {
+		t.Error("strict mode: anonymous execute playback should be denied")
 	}
 
 	// Explicit YAML `anonymous: viewer` overrides the auto-grant.

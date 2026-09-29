@@ -7735,6 +7735,108 @@ definitions:
       riskId:
         type: string
     type: object
+  policyeval.ErrorResponse:
+    properties:
+      errors:
+        items:
+          $ref: '#/definitions/policyeval.EvalError'
+        type: array
+    type: object
+  policyeval.EvalError:
+    properties:
+      code:
+        type: string
+      col:
+        type: integer
+      file:
+        type: string
+      message:
+        type: string
+      row:
+        type: integer
+    type: object
+  policyeval.EvaluateRequest:
+    properties:
+      data:
+        additionalProperties: {}
+        description: Data is merged into data.* exactly as the agent merges policy
+          data.
+        type: object
+      evaluatedAt:
+        description: EvaluatedAt pins time.now_ns(). Defaults to now.
+        type: string
+      input:
+        description: Input is bound to `input`. Any JSON value.
+      modules:
+        additionalProperties:
+          type: string
+        description: Modules holds extra Rego modules the policy imports, keyed by
+          file name.
+        type: object
+      policy:
+        description: Policy is the Rego source of the policy under test, stored as
+          module policy.rego.
+        type: string
+    type: object
+  policyeval.EvaluateResponse:
+    properties:
+      durationMs:
+        type: integer
+      prints:
+        items:
+          type: string
+        type: array
+      results:
+        items:
+          $ref: '#/definitions/policyeval.EvaluateResult'
+        type: array
+    type: object
+  policyeval.EvaluateResult:
+    properties:
+      additionalVariables:
+        additionalProperties: {}
+        type: object
+      description:
+        type: string
+      error:
+        description: Error explains why the agent would not turn this result into
+          evidence.
+        type: string
+      file:
+        type: string
+      labels:
+        additionalProperties:
+          type: string
+        type: object
+      package:
+        type: string
+      raw:
+        additionalProperties: {}
+        type: object
+      remarks:
+        type: string
+      skipReason:
+        type: string
+      status:
+        type: string
+      title:
+        type: string
+      violations:
+        items:
+          $ref: '#/definitions/policyeval.Violation'
+        type: array
+    type: object
+  policyeval.Violation:
+    properties:
+      description:
+        type: string
+      id:
+        type: string
+      remarks:
+        type: string
+      title:
+        type: string
+    type: object
   relational.Action:
     properties:
       date:
@@ -30243,6 +30345,62 @@ paths:
       summary: Get risk score timeseries for SSP
       tags:
       - Risks
+  /playback/evaluate:
+    post:
+      consumes:
+      - application/json
+      description: Evaluates Rego policy source against JSON input in a sandbox and
+        returns the raw outcome plus the pass/fail interpretation the agent would
+        record. Open to users, agents and anonymous callers where public agent endpoints
+        are allowed. Nothing is persisted.
+      parameters:
+      - description: Policy, optional helper modules, input, optional policy data
+          and evaluation time
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/policyeval.EvaluateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/policyeval.EvaluateResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/api.Error'
+        "413":
+          description: Request Entity Too Large
+          schema:
+            $ref: '#/definitions/api.Error'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/policyeval.ErrorResponse'
+        "429":
+          description: Too Many Requests
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Evaluate a Rego policy
+      tags:
+      - Playback
   /poam-items:
     get:
       parameters:

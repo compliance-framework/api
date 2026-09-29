@@ -118,6 +118,18 @@ func RegisterHandlers(server *api.Server, logger *zap.SugaredLogger, db *gorm.DB
 		middleware.OptionalUserOrAgentJWTMiddleware(db, config.JWTPublicKey, !config.StrictDisablePublicAgentEndpoints),
 		evidenceGuard.Read(),
 	)
+	// Rego playback is open to users, agents and (when public agent endpoints are allowed)
+	// anonymous callers, through the same optional auth as evidence ingest. The handler
+	// reads its own body with a size limit and bounds concurrency and evaluation time.
+	if playbackConfig := playbackConfigOrDefault(config.Playback); playbackConfig.Enabled {
+		playbackHandler := NewPlaybackHandler(logger, playbackConfig)
+		playbackHandler.Register(
+			server.API().Group("/playback"),
+			middleware.OptionalUserOrAgentJWTMiddleware(db, config.JWTPublicKey, !config.StrictDisablePublicAgentEndpoints),
+			pep.For(authz.ResourcePlayback).Do(authz.ActionExecute),
+		)
+	}
+
 	evidenceSignatureGroup := server.API().Group("/evidence")
 	evidenceSignatureGroup.Use(middleware.JWTMiddleware(config.JWTPublicKey))
 	evidenceHandler.RegisterSignatureRoutes(evidenceSignatureGroup, evidenceGuard.Read())

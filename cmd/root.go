@@ -91,6 +91,10 @@ func bindEnvironmentVariables() {
 	viper.MustBindEnv("authz_endpoint")
 	viper.MustBindEnv("authz_cache_ttl")
 	viper.MustBindEnv("authz_cedar_policy_dir")
+	viper.MustBindEnv("playback_enabled")
+	viper.MustBindEnv("playback_timeout")
+	viper.MustBindEnv("playback_max_bytes")
+	viper.MustBindEnv("playback_max_concurrent")
 }
 
 func init() {

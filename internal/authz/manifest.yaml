@@ -234,6 +234,11 @@ resources:
     actions: [read]
     attributes:
       props: set<string>
+  # Rego playback: evaluate caller-supplied policy + input and return the outcome. Stateless
+  # (nothing is read from or written to the database), so every role, agents included, may
+  # execute it.
+  playback:
+    actions: [execute]           # action-only
 
   # ── Archetype F: platform / admin ──
   # The Phase-1 `admin` umbrella is retained as the resource the admin enforcement gates on
@@ -287,6 +292,7 @@ roles:
   # Read everything; cannot write.
   viewer:
     "*": [read]
+    playback: [execute]
 
   # Read everything; record evidence and maintain the risk/poam register (the audit loop).
   auditor:
@@ -294,6 +300,7 @@ roles:
     evidence: [read, create]
     risk: [read, create, update, promote]
     poam_item: [read, create, update]
+    playback: [execute]
 
   # Author content (OSCAL docs, register items, workflows, dashboards, evidence); no
   # platform/admin management.
@@ -325,6 +332,7 @@ roles:
     control-relationship: [read, create, update, delete]
     control-link: [read, create, delete]
     lineage: [read]
+    playback: [execute]
 
   # A downstream system that consumes published export offerings and maintains its own SSP,
   # without the "*": [read] baseline every other role carries (BCH-1338). ssp-export-offering
@@ -335,6 +343,7 @@ roles:
   ssp-subscriber:
     ssp: [update]
     ssp-export-offering: [read, subscribe]
+    playback: [execute]
 
   # Service accounts: ingest telemetry and register, and reconcile their own plugin templates
   # (the /agent/{risk,subject}-templates batch upsert — plugin v2). The batch routes enforce the
@@ -345,3 +354,4 @@ roles:
     agent: [register, ingest]
     risk-template: [update]
     subject-template: [update]
+    playback: [execute]
