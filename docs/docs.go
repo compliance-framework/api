@@ -27475,6 +27475,87 @@ const docTemplate = `{
                 ]
             }
         },
+        "/playback/evaluate": {
+            "post": {
+                "description": "Evaluates Rego policy source against JSON input in a sandbox and returns the raw outcome plus the pass/fail interpretation the agent would record. Open to users, agents and anonymous callers where public agent endpoints are allowed. Nothing is persisted.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Playback"
+                ],
+                "summary": "Evaluate a Rego policy",
+                "parameters": [
+                    {
+                        "description": "Policy, optional helper modules, input, optional policy data and evaluation time",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/policyeval.EvaluateRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/policyeval.EvaluateResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "413": {
+                        "description": "Request Entity Too Large",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "$ref": "#/definitions/policyeval.ErrorResponse"
+                        }
+                    },
+                    "429": {
+                        "description": "Too Many Requests",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
         "/poam-items": {
             "get": {
                 "produces": [
@@ -45697,6 +45778,152 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "riskId": {
+                    "type": "string"
+                }
+            }
+        },
+        "policyeval.ErrorResponse": {
+            "type": "object",
+            "properties": {
+                "errors": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/policyeval.EvalError"
+                    }
+                }
+            }
+        },
+        "policyeval.EvalError": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "col": {
+                    "type": "integer"
+                },
+                "file": {
+                    "type": "string"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "row": {
+                    "type": "integer"
+                }
+            }
+        },
+        "policyeval.EvaluateRequest": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Data is merged into data.* exactly as the agent merges policy data.",
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "evaluatedAt": {
+                    "description": "EvaluatedAt pins time.now_ns(). Defaults to now.",
+                    "type": "string"
+                },
+                "input": {
+                    "description": "Input is bound to ` + "`" + `input` + "`" + `. Any JSON value."
+                },
+                "modules": {
+                    "description": "Modules holds extra Rego modules the policy imports, keyed by file name.",
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "policy": {
+                    "description": "Policy is the Rego source of the policy under test, stored as module policy.rego.",
+                    "type": "string"
+                }
+            }
+        },
+        "policyeval.EvaluateResponse": {
+            "type": "object",
+            "properties": {
+                "durationMs": {
+                    "type": "integer"
+                },
+                "prints": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "results": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/policyeval.EvaluateResult"
+                    }
+                }
+            }
+        },
+        "policyeval.EvaluateResult": {
+            "type": "object",
+            "properties": {
+                "additionalVariables": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "description": {
+                    "type": "string"
+                },
+                "error": {
+                    "description": "Error explains why the agent would not turn this result into evidence.",
+                    "type": "string"
+                },
+                "file": {
+                    "type": "string"
+                },
+                "labels": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "package": {
+                    "type": "string"
+                },
+                "raw": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "skipReason": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "violations": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/policyeval.Violation"
+                    }
+                }
+            }
+        },
+        "policyeval.Violation": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "title": {
                     "type": "string"
                 }
             }

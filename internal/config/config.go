@@ -46,6 +46,7 @@ type Config struct {
 	PprofPort                         string // Port for pprof debugging server
 	StrictDisablePublicAgentEndpoints bool
 	Authz                             *AuthzConfig
+	Playback                          *PlaybackConfig
 }
 
 func NewConfig(logger *zap.SugaredLogger) *Config {
@@ -274,6 +275,7 @@ func NewConfig(logger *zap.SugaredLogger) *Config {
 		PprofPort:                         pprofPort,
 		StrictDisablePublicAgentEndpoints: strictDisablePublicAgentEndpoints,
 		Authz:                             authzConfig,
+		Playback:                          LoadPlaybackConfig(),
 	}
 
 }
