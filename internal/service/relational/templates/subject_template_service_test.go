@@ -1525,3 +1525,12 @@ func TestSubjectTemplateService_BatchUpsertNewFieldsAndWarnings(t *testing.T) {
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "invalid componentType")
 }
+
+func TestSubjectTemplateService_BlankComponentTypeIsUnset(t *testing.T) {
+	for _, blank := range []string{"", "   "} {
+		payload := validSubjectTemplatePayload()
+		payload.ComponentType = strPtr(blank)
+		require.NoError(t, validateSubjectTemplatePayload(&payload), "%q", blank)
+		require.Nil(t, payload.ComponentType, "%q", blank)
+	}
+}

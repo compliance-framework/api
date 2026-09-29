@@ -1497,8 +1497,12 @@ func normalizeSubjectTemplatePayload(payload *SubjectTemplatePayload) {
 	payload.Type = NormalizeSubjectTemplateType(payload.Type)
 	payload.SourceMode = NormalizeSubjectTemplateSourceMode(payload.SourceMode)
 	if payload.ComponentType != nil {
-		normalizedComponentType := NormalizeSubjectTemplateType(*payload.ComponentType)
-		payload.ComponentType = &normalizedComponentType
+		// A blank component type means "unset" (resolved as "service"), not an invalid value.
+		if normalizedComponentType := NormalizeSubjectTemplateType(*payload.ComponentType); normalizedComponentType == "" {
+			payload.ComponentType = nil
+		} else {
+			payload.ComponentType = &normalizedComponentType
+		}
 	}
 
 	for i := range payload.IdentityLabelKeys {

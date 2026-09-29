@@ -621,3 +621,25 @@ func (suite *SubjectTemplateApiIntegrationSuite) TestSubjectTemplateBatchUpsertI
 	suite.server.E().ServeHTTP(rec, req)
 	require.Equal(suite.T(), http.StatusBadRequest, rec.Code)
 }
+
+func (suite *SubjectTemplateApiIntegrationSuite) TestSubjectTemplateAdminBlankComponentTypeIsUnset() {
+	rec, req := suite.authedRequest(http.MethodPost, "/api/admin/subject-templates", map[string]any{
+		"name":                "Runtime component identity",
+		"type":                "component",
+		"identity-label-keys": []string{"asset_id"},
+		"source-mode":         "runtime-derived",
+		"component-type":      "",
+		"selector-labels": []map[string]any{
+			{"key": "plugin", "value": "github"},
+		},
+		"label-schema": []map[string]any{
+			{"key": "asset_id"},
+		},
+	})
+	suite.server.E().ServeHTTP(rec, req)
+	require.Equal(suite.T(), http.StatusCreated, rec.Code, rec.Body.String())
+
+	var created subjectTemplateDataEnvelope
+	require.NoError(suite.T(), json.Unmarshal(rec.Body.Bytes(), &created))
+	require.Nil(suite.T(), created.Data.ComponentType)
+}
