@@ -4,3 +4,6 @@ self-review pass 1:
 
 lisa-selfreview:
 pass 2 (strict) verdict=approve — no findings; all SubjectTemplate construction sites (handler create/update/batch, service create/update/in-tx, batch<->payload, fingerprint, response mapper, SDK types) carry the new fields.
+
+lisa-design:
+- (PR #462 review, gusfcarvalho) component-type on a non-component template is still ACCEPTED and stored (not rejected); its warning becomes "template <name> has type <type> and will not produce subjects (component-type ignored)". Without component-type the warning text is exactly the spec text.
