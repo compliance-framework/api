@@ -111,6 +111,9 @@ type SubjectTemplate struct {
 
 	SourceMode string `json:"sourceMode" gorm:"type:text;not null;index"`
 
+	DisplayPriority int     `json:"displayPriority" gorm:"not null;default:0"`
+	ComponentType   *string `json:"componentType" gorm:"type:text"` // OSCAL component type; nil → "service"
+
 	SelectorLabels []SubjectTemplateSelectorLabel    `json:"selectorLabels,omitempty" gorm:"foreignKey:SubjectTemplateID;constraint:OnDelete:CASCADE"`
 	LabelSchema    []SubjectTemplateLabelSchemaField `json:"labelSchema,omitempty" gorm:"foreignKey:SubjectTemplateID;constraint:OnDelete:CASCADE"`
 }

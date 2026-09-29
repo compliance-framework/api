@@ -2630,7 +2630,7 @@ const docTemplate = `{
         },
         "/agent/subject-templates/batch": {
             "post": {
-                "description": "Reconcile the full set of subject templates for a plugin (scoped via selector-label key=\"_plugin\").\nCreates, updates, and deletes templates atomically. Templates not present in the payload are always deleted.",
+                "description": "Reconcile the full set of subject templates for a plugin (scoped via selector-label key=\"_plugin\").\nCreates, updates, and deletes templates atomically. Templates not present in the payload are always deleted.\nTemplates whose type is not \"component\" are accepted but produce no subjects; each is reported in warnings.",
                 "consumes": [
                     "application/json"
                 ],
@@ -49890,8 +49890,14 @@ const docTemplate = `{
         "templates.batchSubjectTemplateItem": {
             "type": "object",
             "properties": {
+                "component-type": {
+                    "type": "string"
+                },
                 "description-template": {
                     "type": "string"
+                },
+                "display-priority": {
+                    "type": "integer"
                 },
                 "id": {
                     "type": "string"
@@ -50029,6 +50035,12 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/templates.subjectTemplateResponse"
+                    }
+                },
+                "warnings": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
                     }
                 }
             }
@@ -50248,11 +50260,17 @@ const docTemplate = `{
         "templates.subjectTemplateResponse": {
             "type": "object",
             "properties": {
+                "component-type": {
+                    "type": "string"
+                },
                 "createdAt": {
                     "type": "string"
                 },
                 "description-template": {
                     "type": "string"
+                },
+                "display-priority": {
+                    "type": "integer"
                 },
                 "id": {
                     "type": "string"
@@ -50433,8 +50451,14 @@ const docTemplate = `{
                 "type"
             ],
             "properties": {
+                "component-type": {
+                    "type": "string"
+                },
                 "description-template": {
                     "type": "string"
+                },
+                "display-priority": {
+                    "type": "integer"
                 },
                 "identity-label-keys": {
                     "type": "array",

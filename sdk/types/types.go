@@ -228,6 +228,8 @@ type SubjectTemplate struct {
 	Props               []SubjectProp                  `json:"props"`
 	Links               []SubjectLink                  `json:"links"`
 	SourceMode          string                         `json:"source-mode"`
+	DisplayPriority     int                            `json:"display-priority"`
+	ComponentType       *string                        `json:"component-type,omitempty"`
 	SelectorLabels      []SubjectTemplateSelectorLabel `json:"selector-labels"`
 	LabelSchema         []SubjectTemplateLabelSchema   `json:"label-schema"`
 }

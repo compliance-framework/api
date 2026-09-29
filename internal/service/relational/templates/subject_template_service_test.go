@@ -466,6 +466,13 @@ func TestSubjectTemplateService_ValidationErrors(t *testing.T) {
 			message: "invalid sourceMode",
 		},
 		{
+			name: "invalid component type",
+			mutate: func(payload *SubjectTemplatePayload) {
+				payload.ComponentType = strPtr("widget")
+			},
+			message: "invalid componentType \"widget\"",
+		},
+		{
 			name: "identity key missing from label schema",
 			mutate: func(payload *SubjectTemplatePayload) {
 				payload.IdentityLabelKeys = []string{"asset_id", "namespace"}
@@ -1364,4 +1371,157 @@ func validSubjectTemplatePayload() SubjectTemplatePayload {
 			{Key: "cluster", Description: strPtr("Cluster")},
 		},
 	}
+}
+
+func TestSubjectTemplateService_CreateUpdatePersistsDisplayPriorityAndComponentType(t *testing.T) {
+	db := newSubjectTemplateTestDB(t)
+	svc := NewSubjectTemplateService(db)
+
+	payload := validSubjectTemplatePayload()
+	payload.DisplayPriority = 5
+	payload.ComponentType = strPtr(" Software ")
+
+	created, err := svc.Create(payload)
+	require.NoError(t, err)
+	require.Equal(t, 5, created.DisplayPriority)
+	require.NotNil(t, created.ComponentType)
+	require.Equal(t, "software", *created.ComponentType)
+
+	update := validSubjectTemplatePayload()
+	update.DisplayPriority = -2
+	update.ComponentType = nil
+
+	updated, err := svc.Update(*created.ID, update)
+	require.NoError(t, err)
+	require.Equal(t, -2, updated.DisplayPriority)
+	require.Nil(t, updated.ComponentType)
+
+	fetched, err := svc.GetByID(*created.ID)
+	require.NoError(t, err)
+	require.Equal(t, -2, fetched.DisplayPriority)
+	require.Nil(t, fetched.ComponentType)
+}
+
+func TestSubjectTemplateService_AcceptsAllOSCALComponentTypes(t *testing.T) {
+	for _, componentType := range []string{
+		"this-system", "system", "interconnection", "software", "hardware", "service", "policy",
+		"physical", "process-procedure", "plan", "guidance", "standard", "validation",
+	} {
+		payload := validSubjectTemplatePayload()
+		payload.ComponentType = strPtr(componentType)
+		require.NoError(t, validateSubjectTemplatePayload(&payload), componentType)
+	}
+}
+
+func TestSubjectTemplateMatchesPayload_DetectsNewFieldChanges(t *testing.T) {
+	payload := validSubjectTemplatePayload()
+	payload.DisplayPriority = 3
+	payload.ComponentType = strPtr("software")
+	require.NoError(t, validateSubjectTemplatePayload(&payload))
+
+	existing := SubjectTemplate{
+		Name:              payload.Name,
+		Type:              payload.Type,
+		SourceMode:        payload.SourceMode,
+		DisplayPriority:   3,
+		ComponentType:     strPtr("software"),
+		IdentityLabelKeys: datatypes.NewJSONSlice(payload.IdentityLabelKeys),
+		Props:             datatypes.NewJSONSlice([]relational.Prop{}),
+		Links:             datatypes.NewJSONSlice([]relational.Link{}),
+	}
+	for _, label := range payload.SelectorLabels {
+		existing.SelectorLabels = append(existing.SelectorLabels, SubjectTemplateSelectorLabel{Key: label.Key, Value: label.Value})
+	}
+	for _, field := range payload.LabelSchema {
+		existing.LabelSchema = append(existing.LabelSchema, SubjectTemplateLabelSchemaField{Key: field.Key, Description: field.Description})
+	}
+
+	require.True(t, subjectTemplateMatchesPayload(existing, payload))
+
+	changedPriority := payload
+	changedPriority.DisplayPriority = 4
+	require.False(t, subjectTemplateMatchesPayload(existing, changedPriority))
+
+	changedType := payload
+	changedType.ComponentType = strPtr("hardware")
+	require.False(t, subjectTemplateMatchesPayload(existing, changedType))
+
+	clearedType := payload
+	clearedType.ComponentType = nil
+	require.False(t, subjectTemplateMatchesPayload(existing, clearedType))
+}
+
+func TestSubjectTemplateService_BatchUpsertNewFieldsAndWarnings(t *testing.T) {
+	db := newSubjectTemplateTestDB(t)
+	svc := NewSubjectTemplateService(db)
+
+	pluginID := "warnings-plugin"
+	componentID := uuid.New()
+	resourceID := uuid.New()
+
+	makeItem := func(id uuid.UUID, name, templateType string, priority int, componentType *string) BatchSubjectTemplateItem {
+		return BatchSubjectTemplateItem{
+			ID:                id,
+			Name:              name,
+			Type:              templateType,
+			SourceMode:        "runtime-derived",
+			DisplayPriority:   priority,
+			ComponentType:     componentType,
+			IdentityLabelKeys: []string{"asset_id"},
+			SelectorLabels: []SubjectTemplateSelectorLabelInput{
+				{Key: "_plugin", Value: pluginID},
+			},
+			LabelSchema: []SubjectTemplateLabelSchemaFieldInput{
+				{Key: "asset_id"},
+			},
+		}
+	}
+
+	result, err := svc.BatchUpsert(pluginID, []BatchSubjectTemplateItem{
+		makeItem(componentID, "Component", "component", 10, strPtr("software")),
+		makeItem(resourceID, "Bucket", "resource", 0, nil),
+	})
+	require.NoError(t, err)
+	require.Len(t, result.Created, 2)
+	require.Equal(t, []string{"template Bucket has type resource and will not produce subjects"}, result.Warnings)
+
+	stored, err := svc.GetByID(componentID)
+	require.NoError(t, err)
+	require.Equal(t, 10, stored.DisplayPriority)
+	require.NotNil(t, stored.ComponentType)
+	require.Equal(t, "software", *stored.ComponentType)
+
+	// Same payload: unchanged, warning still reported.
+	result, err = svc.BatchUpsert(pluginID, []BatchSubjectTemplateItem{
+		makeItem(componentID, "Component", "component", 10, strPtr("software")),
+		makeItem(resourceID, "Bucket", "resource", 0, nil),
+	})
+	require.NoError(t, err)
+	require.Len(t, result.Unchanged, 2)
+	require.Len(t, result.Warnings, 1)
+
+	// Changing only display priority / component type is an update.
+	result, err = svc.BatchUpsert(pluginID, []BatchSubjectTemplateItem{
+		makeItem(componentID, "Component", "component", 20, strPtr("hardware")),
+		makeItem(resourceID, "Bucket", "resource", 0, nil),
+	})
+	require.NoError(t, err)
+	require.Len(t, result.Updated, 1)
+	require.Equal(t, componentID, *result.Updated[0].ID)
+	require.Equal(t, 20, result.Updated[0].DisplayPriority)
+	require.Equal(t, "hardware", *result.Updated[0].ComponentType)
+
+	// All-component batch has no warnings.
+	result, err = svc.BatchUpsert(pluginID, []BatchSubjectTemplateItem{
+		makeItem(componentID, "Component", "component", 20, strPtr("hardware")),
+	})
+	require.NoError(t, err)
+	require.Empty(t, result.Warnings)
+
+	// Invalid component type rejects the batch.
+	_, err = svc.BatchUpsert(pluginID, []BatchSubjectTemplateItem{
+		makeItem(componentID, "Component", "component", 20, strPtr("widget")),
+	})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "invalid componentType")
 }

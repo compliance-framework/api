@@ -554,7 +554,7 @@ func TestAuthenticatedSDKMethodsAttachBearerToken(t *testing.T) {
 			name: "subject-template",
 			path: "/api/agent/subject-templates/batch",
 			run: func(ctx context.Context, client *Client) error {
-				return client.SubjectTemplate.Upsert(ctx, "plugin-a", types.SubjectTemplate{
+				_, err := client.SubjectTemplate.Upsert(ctx, "plugin-a", types.SubjectTemplate{
 					ID:                uuid.NewString(),
 					Name:              "template-a",
 					Type:              "component",
@@ -567,6 +567,7 @@ func TestAuthenticatedSDKMethodsAttachBearerToken(t *testing.T) {
 						{Key: "asset_id"},
 					},
 				})
+				return err
 			},
 		},
 		{

@@ -44,6 +44,8 @@ type subjectTemplateAPIResponse struct {
 	Name              string                                    `json:"name"`
 	Type              string                                    `json:"type"`
 	SourceMode        string                                    `json:"source-mode"`
+	DisplayPriority   int                                       `json:"display-priority"`
+	ComponentType     *string                                   `json:"component-type"`
 	IdentityLabelKeys []string                                  `json:"identity-label-keys"`
 	SelectorLabels    []subjectTemplateSelectorLabelResponse    `json:"selector-labels"`
 	LabelSchema       []subjectTemplateLabelSchemaFieldResponse `json:"label-schema"`
@@ -252,7 +254,8 @@ type batchSubjectTemplateResult struct {
 	Data struct {
 		Created []subjectTemplateAPIResponse `json:"created"`
 		Updated []subjectTemplateAPIResponse `json:"updated"`
-		Deleted []uuid.UUID                  `json:"deleted"`
+		Deleted  []uuid.UUID                  `json:"deleted"`
+		Warnings []string                     `json:"warnings"`
 	} `json:"data"`
 }
 
@@ -468,4 +471,153 @@ func (suite *SubjectTemplateApiIntegrationSuite) TestSubjectTemplateBatchUpsertR
 	})
 	suite.server.E().ServeHTTP(rec, req)
 	require.Equal(suite.T(), http.StatusUnauthorized, rec.Code)
+}
+
+func (suite *SubjectTemplateApiIntegrationSuite) TestSubjectTemplateAdminRoundTripsDisplayPriorityAndComponentType() {
+	body := map[string]any{
+		"name":                "Runtime component identity",
+		"type":                "component",
+		"identity-label-keys": []string{"asset_id"},
+		"source-mode":         "runtime-derived",
+		"display-priority":    5,
+		"component-type":      "software",
+		"selector-labels": []map[string]any{
+			{"key": "plugin", "value": "github"},
+		},
+		"label-schema": []map[string]any{
+			{"key": "asset_id"},
+		},
+	}
+	createRec, createCall := suite.authedRequest(http.MethodPost, "/api/admin/subject-templates", body)
+	suite.server.E().ServeHTTP(createRec, createCall)
+	require.Equal(suite.T(), http.StatusCreated, createRec.Code, createRec.Body.String())
+
+	var created subjectTemplateDataEnvelope
+	require.NoError(suite.T(), json.Unmarshal(createRec.Body.Bytes(), &created))
+	require.Equal(suite.T(), 5, created.Data.DisplayPriority)
+	require.NotNil(suite.T(), created.Data.ComponentType)
+	require.Equal(suite.T(), "software", *created.Data.ComponentType)
+
+	body["display-priority"] = 9
+	body["component-type"] = "hardware"
+	updateRec, updateCall := suite.authedRequest(http.MethodPut, fmt.Sprintf("/api/admin/subject-templates/%s", created.Data.ID), body)
+	suite.server.E().ServeHTTP(updateRec, updateCall)
+	require.Equal(suite.T(), http.StatusOK, updateRec.Code, updateRec.Body.String())
+
+	getRec, getCall := suite.authedRequest(http.MethodGet, fmt.Sprintf("/api/admin/subject-templates/%s", created.Data.ID), nil)
+	suite.server.E().ServeHTTP(getRec, getCall)
+	require.Equal(suite.T(), http.StatusOK, getRec.Code)
+
+	var fetched subjectTemplateDataEnvelope
+	require.NoError(suite.T(), json.Unmarshal(getRec.Body.Bytes(), &fetched))
+	require.Equal(suite.T(), 9, fetched.Data.DisplayPriority)
+	require.NotNil(suite.T(), fetched.Data.ComponentType)
+	require.Equal(suite.T(), "hardware", *fetched.Data.ComponentType)
+}
+
+func (suite *SubjectTemplateApiIntegrationSuite) TestSubjectTemplateAdminInvalidComponentTypeReturns400() {
+	rec, req := suite.authedRequest(http.MethodPost, "/api/admin/subject-templates", map[string]any{
+		"name":                "Runtime component identity",
+		"type":                "component",
+		"identity-label-keys": []string{"asset_id"},
+		"source-mode":         "runtime-derived",
+		"component-type":      "widget",
+		"selector-labels": []map[string]any{
+			{"key": "plugin", "value": "github"},
+		},
+		"label-schema": []map[string]any{
+			{"key": "asset_id"},
+		},
+	})
+	suite.server.E().ServeHTTP(rec, req)
+	require.Equal(suite.T(), http.StatusBadRequest, rec.Code)
+}
+
+func batchSubjectTemplateItemBody(id uuid.UUID, name, templateType string, extra map[string]any) map[string]any {
+	item := map[string]any{
+		"id":                  id.String(),
+		"name":                name,
+		"type":                templateType,
+		"identity-label-keys": []string{"asset_id"},
+		"source-mode":         "runtime-derived",
+		"selector-labels": []map[string]any{
+			{"key": "_plugin", "value": "batch-plugin"},
+		},
+		"label-schema": []map[string]any{
+			{"key": "asset_id"},
+		},
+	}
+	for key, value := range extra {
+		item[key] = value
+	}
+	return item
+}
+
+func (suite *SubjectTemplateApiIntegrationSuite) TestSubjectTemplateBatchUpsertReturnsWarningsForNonComponentTemplates() {
+	componentID := uuid.New()
+	resourceID := uuid.New()
+
+	rec, req := suite.agentRequest(http.MethodPost, "/api/agent/subject-templates/batch", map[string]any{
+		"plugin-id": "batch-plugin",
+		"templates": []map[string]any{
+			batchSubjectTemplateItemBody(componentID, "Component", "component", map[string]any{
+				"display-priority": 3,
+				"component-type":   "software",
+			}),
+			batchSubjectTemplateItemBody(resourceID, "Bucket", "resource", nil),
+		},
+	})
+	suite.server.E().ServeHTTP(rec, req)
+	require.Equal(suite.T(), http.StatusOK, rec.Code, rec.Body.String())
+
+	var result batchSubjectTemplateResult
+	require.NoError(suite.T(), json.Unmarshal(rec.Body.Bytes(), &result))
+	require.Len(suite.T(), result.Data.Created, 2)
+	require.Equal(suite.T(), []string{"template Bucket has type resource and will not produce subjects"}, result.Data.Warnings)
+
+	var createdComponent *subjectTemplateAPIResponse
+	for i := range result.Data.Created {
+		if result.Data.Created[i].ID == componentID {
+			createdComponent = &result.Data.Created[i]
+		}
+	}
+	require.NotNil(suite.T(), createdComponent)
+	require.Equal(suite.T(), 3, createdComponent.DisplayPriority)
+	require.NotNil(suite.T(), createdComponent.ComponentType)
+	require.Equal(suite.T(), "software", *createdComponent.ComponentType)
+
+	var stored templaterel.SubjectTemplate
+	require.NoError(suite.T(), suite.DB.First(&stored, "id = ?", componentID).Error)
+	require.Equal(suite.T(), 3, stored.DisplayPriority)
+	require.NotNil(suite.T(), stored.ComponentType)
+	require.Equal(suite.T(), "software", *stored.ComponentType)
+}
+
+func (suite *SubjectTemplateApiIntegrationSuite) TestSubjectTemplateBatchUpsertOmitsWarningsForComponentOnlyBatch() {
+	rec, req := suite.agentRequest(http.MethodPost, "/api/agent/subject-templates/batch", map[string]any{
+		"plugin-id": "batch-plugin",
+		"templates": []map[string]any{
+			batchSubjectTemplateItemBody(uuid.New(), "Component", "component", nil),
+		},
+	})
+	suite.server.E().ServeHTTP(rec, req)
+	require.Equal(suite.T(), http.StatusOK, rec.Code, rec.Body.String())
+
+	var raw map[string]map[string]any
+	require.NoError(suite.T(), json.Unmarshal(rec.Body.Bytes(), &raw))
+	_, hasWarnings := raw["data"]["warnings"]
+	require.False(suite.T(), hasWarnings)
+}
+
+func (suite *SubjectTemplateApiIntegrationSuite) TestSubjectTemplateBatchUpsertInvalidComponentTypeReturns400() {
+	rec, req := suite.agentRequest(http.MethodPost, "/api/agent/subject-templates/batch", map[string]any{
+		"plugin-id": "batch-plugin",
+		"templates": []map[string]any{
+			batchSubjectTemplateItemBody(uuid.New(), "Component", "component", map[string]any{
+				"component-type": "widget",
+			}),
+		},
+	})
+	suite.server.E().ServeHTTP(rec, req)
+	require.Equal(suite.T(), http.StatusBadRequest, rec.Code)
 }

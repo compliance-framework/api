@@ -44,7 +44,7 @@ func TestSubjectTemplateUpsertPostsBatchPayload(t *testing.T) {
 		}, nil
 	})
 
-	err := client.SubjectTemplate.Upsert(context.Background(), "plugin-a", types.SubjectTemplate{
+	_, err := client.SubjectTemplate.Upsert(context.Background(), "plugin-a", types.SubjectTemplate{
 		ID:                  "template-a",
 		Name:                "Template A",
 		Type:                "component",
@@ -144,7 +144,7 @@ func TestSubjectTemplateUpsertOmitsUnsetTemplateFields(t *testing.T) {
 		}, nil
 	})
 
-	err := client.SubjectTemplate.Upsert(context.Background(), "plugin-a", types.SubjectTemplate{
+	_, err := client.SubjectTemplate.Upsert(context.Background(), "plugin-a", types.SubjectTemplate{
 		ID:                "template-a",
 		Name:              "Template A",
 		Type:              "component",
@@ -229,7 +229,7 @@ func TestSubjectTemplateUpsertSendsExplicitEmptyTemplateList(t *testing.T) {
 		}, nil
 	})
 
-	err := client.SubjectTemplate.Upsert(context.Background(), "plugin-a")
+	_, err := client.SubjectTemplate.Upsert(context.Background(), "plugin-a")
 	if err != nil {
 		t.Fatalf("upsert empty subject templates: %v", err)
 	}
@@ -254,7 +254,7 @@ func TestSubjectTemplateUpsertAcceptsCreatedStatus(t *testing.T) {
 		}, nil
 	})
 
-	err := client.SubjectTemplate.Upsert(context.Background(), "plugin-a", types.SubjectTemplate{
+	_, err := client.SubjectTemplate.Upsert(context.Background(), "plugin-a", types.SubjectTemplate{
 		ID:         "template-a",
 		Name:       "Template A",
 		Type:       "component",
@@ -274,7 +274,7 @@ func TestSubjectTemplateUpsertReturnsErrorOnUnexpectedStatus(t *testing.T) {
 		}, nil
 	})
 
-	err := client.SubjectTemplate.Upsert(context.Background(), "plugin-a", types.SubjectTemplate{
+	_, err := client.SubjectTemplate.Upsert(context.Background(), "plugin-a", types.SubjectTemplate{
 		ID:         "template-a",
 		Name:       "Template A",
 		Type:       "component",
@@ -285,5 +285,129 @@ func TestSubjectTemplateUpsertReturnsErrorOnUnexpectedStatus(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "418") {
 		t.Fatalf("expected error to mention status code 418, got %q", err.Error())
+	}
+}
+
+func TestSubjectTemplateUpsertSendsDisplayPriorityAndComponentType(t *testing.T) {
+	var payload map[string]any
+
+	client := newSubjectTemplateTestClient(func(r *http.Request) (*http.Response, error) {
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Fatalf("read request body: %v", err)
+		}
+		if err := json.Unmarshal(body, &payload); err != nil {
+			t.Fatalf("unmarshal request body: %v", err)
+		}
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Body:       io.NopCloser(strings.NewReader("")),
+			Header:     make(http.Header),
+		}, nil
+	})
+
+	_, err := client.SubjectTemplate.Upsert(context.Background(), "plugin-a",
+		types.SubjectTemplate{
+			ID:              "template-a",
+			Name:            "Template A",
+			Type:            "component",
+			SourceMode:      "runtime-derived",
+			DisplayPriority: 10,
+			ComponentType:   stringPtr("software"),
+		},
+		types.SubjectTemplate{
+			ID:         "template-b",
+			Name:       "Template B",
+			Type:       "component",
+			SourceMode: "runtime-derived",
+		},
+	)
+	if err != nil {
+		t.Fatalf("upsert subject templates: %v", err)
+	}
+
+	templates, ok := payload["templates"].([]any)
+	if !ok || len(templates) != 2 {
+		t.Fatalf("expected 2 templates in payload, got %#v", payload["templates"])
+	}
+
+	first := templates[0].(map[string]any)
+	if first["display-priority"] != float64(10) {
+		t.Fatalf("expected display-priority 10, got %#v", first["display-priority"])
+	}
+	if first["component-type"] != "software" {
+		t.Fatalf("expected component-type %q, got %#v", "software", first["component-type"])
+	}
+
+	second := templates[1].(map[string]any)
+	if second["display-priority"] != float64(0) {
+		t.Fatalf("expected display-priority 0 to be sent explicitly, got %#v", second["display-priority"])
+	}
+	if got, exists := second["component-type"]; exists {
+		t.Fatalf("expected component-type to be omitted when unset, got %#v", got)
+	}
+}
+
+func TestSubjectTemplateUpsertParsesWarnings(t *testing.T) {
+	client := newSubjectTemplateTestClient(func(r *http.Request) (*http.Response, error) {
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Body: io.NopCloser(strings.NewReader(`{"data":{
+				"created":[],"updated":[],"deleted":[],"unchanged":[],
+				"warnings":["template Bucket has type resource and will not produce subjects"]
+			}}`)),
+			Header: make(http.Header),
+		}, nil
+	})
+
+	result, err := client.SubjectTemplate.Upsert(context.Background(), "plugin-a", types.SubjectTemplate{
+		ID:         "template-a",
+		Name:       "Bucket",
+		Type:       "resource",
+		SourceMode: "runtime-derived",
+	})
+	if err != nil {
+		t.Fatalf("upsert subject templates: %v", err)
+	}
+	if result == nil {
+		t.Fatal("expected non-nil result")
+	}
+	if len(result.Warnings) != 1 || result.Warnings[0] != "template Bucket has type resource and will not produce subjects" {
+		t.Fatalf("expected parsed warning, got %#v", result.Warnings)
+	}
+}
+
+func TestSubjectTemplateUpsertReturnsEmptyResultWithoutWarnings(t *testing.T) {
+	client := newSubjectTemplateTestClient(func(r *http.Request) (*http.Response, error) {
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Body:       io.NopCloser(strings.NewReader(`{"data":{"created":[],"updated":[],"deleted":[],"unchanged":[]}}`)),
+			Header:     make(http.Header),
+		}, nil
+	})
+
+	result, err := client.SubjectTemplate.Upsert(context.Background(), "plugin-a")
+	if err != nil {
+		t.Fatalf("upsert subject templates: %v", err)
+	}
+	if result == nil {
+		t.Fatal("expected non-nil result")
+	}
+	if len(result.Warnings) != 0 {
+		t.Fatalf("expected no warnings, got %#v", result.Warnings)
+	}
+}
+
+func TestSubjectTemplateUpsertReturnsErrorOnMalformedResponse(t *testing.T) {
+	client := newSubjectTemplateTestClient(func(r *http.Request) (*http.Response, error) {
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Body:       io.NopCloser(strings.NewReader(`{"data":`)),
+			Header:     make(http.Header),
+		}, nil
+	})
+
+	if _, err := client.SubjectTemplate.Upsert(context.Background(), "plugin-a"); err == nil {
+		t.Fatal("expected error for malformed response body")
 	}
 }

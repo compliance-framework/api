@@ -10601,8 +10601,12 @@ definitions:
     type: object
   templates.batchSubjectTemplateItem:
     properties:
+      component-type:
+        type: string
       description-template:
         type: string
+      display-priority:
+        type: integer
       id:
         type: string
       identity-label-keys:
@@ -10693,6 +10697,10 @@ definitions:
       updated:
         items:
           $ref: '#/definitions/templates.subjectTemplateResponse'
+        type: array
+      warnings:
+        items:
+          type: string
         type: array
     type: object
   templates.batchUpsertSubjectTemplatesRequest:
@@ -10834,10 +10842,14 @@ definitions:
     type: object
   templates.subjectTemplateResponse:
     properties:
+      component-type:
+        type: string
       createdAt:
         type: string
       description-template:
         type: string
+      display-priority:
+        type: integer
       id:
         type: string
       identity-label-keys:
@@ -10950,8 +10962,12 @@ definitions:
     type: object
   templates.upsertSubjectTemplateRequest:
     properties:
+      component-type:
+        type: string
       description-template:
         type: string
+      display-priority:
+        type: integer
       identity-label-keys:
         items:
           type: string
@@ -13685,6 +13701,7 @@ paths:
       description: |-
         Reconcile the full set of subject templates for a plugin (scoped via selector-label key="_plugin").
         Creates, updates, and deletes templates atomically. Templates not present in the payload are always deleted.
+        Templates whose type is not "component" are accepted but produce no subjects; each is reported in warnings.
       parameters:
       - description: Batch upsert payload
         in: body

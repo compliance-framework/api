@@ -52,6 +52,24 @@ var allowedSubjectTemplateSourceModes = map[string]struct{}{
 	subjectTemplateSourceModeRuntimeDerived: {},
 }
 
+// allowedSubjectTemplateComponentTypes are the OSCAL system-component types a
+// component subject template may declare via ComponentType.
+var allowedSubjectTemplateComponentTypes = map[string]struct{}{
+	"this-system":       {},
+	"system":            {},
+	"interconnection":   {},
+	"software":          {},
+	"hardware":          {},
+	"service":           {},
+	"policy":            {},
+	"physical":          {},
+	"process-procedure": {},
+	"plan":              {},
+	"guidance":          {},
+	"standard":          {},
+	"validation":        {},
+}
+
 func NormalizeSubjectTemplateType(value string) string {
 	return strings.ToLower(strings.TrimSpace(value))
 }
@@ -69,6 +87,11 @@ func NormalizeSubjectTemplateSourceMode(value string) string {
 func IsValidSubjectTemplateSourceMode(value string) bool {
 	normalized := NormalizeSubjectTemplateSourceMode(value)
 	_, ok := allowedSubjectTemplateSourceModes[normalized]
+	return ok
+}
+
+func IsValidSubjectTemplateComponentType(value string) bool {
+	_, ok := allowedSubjectTemplateComponentTypes[NormalizeSubjectTemplateType(value)]
 	return ok
 }
 
@@ -112,6 +135,8 @@ type SubjectTemplatePayload struct {
 	Props               []relational.Prop
 	Links               []relational.Link
 	SourceMode          string
+	DisplayPriority     int
+	ComponentType       *string
 	SelectorLabels      []SubjectTemplateSelectorLabelInput
 	LabelSchema         []SubjectTemplateLabelSchemaFieldInput
 }
@@ -236,6 +261,8 @@ func (s *SubjectTemplateService) Create(payload SubjectTemplatePayload) (*Subjec
 		Props:               datatypes.NewJSONSlice(payload.Props),
 		Links:               datatypes.NewJSONSlice(payload.Links),
 		SourceMode:          payload.SourceMode,
+		DisplayPriority:     payload.DisplayPriority,
+		ComponentType:       payload.ComponentType,
 	}
 
 	if err := tx.Select(
@@ -252,6 +279,8 @@ func (s *SubjectTemplateService) Create(payload SubjectTemplatePayload) (*Subjec
 		"Props",
 		"Links",
 		"SourceMode",
+		"DisplayPriority",
+		"ComponentType",
 	).Create(&row).Error; err != nil {
 		tx.Rollback()
 		return nil, err
@@ -306,6 +335,8 @@ func (s *SubjectTemplateService) Update(id uuid.UUID, payload SubjectTemplatePay
 	existing.Props = datatypes.NewJSONSlice(payload.Props)
 	existing.Links = datatypes.NewJSONSlice(payload.Links)
 	existing.SourceMode = payload.SourceMode
+	existing.DisplayPriority = payload.DisplayPriority
+	existing.ComponentType = payload.ComponentType
 
 	if err := tx.Omit("SelectorLabels", "LabelSchema").Save(&existing).Error; err != nil {
 		tx.Rollback()
@@ -1310,6 +1341,9 @@ func validateSubjectTemplatePayload(payload *SubjectTemplatePayload) error {
 	if !IsValidSubjectTemplateSourceMode(payload.SourceMode) {
 		return newValidationError("invalid sourceMode")
 	}
+	if payload.ComponentType != nil && !IsValidSubjectTemplateComponentType(*payload.ComponentType) {
+		return newValidationError(fmt.Sprintf("invalid componentType %q", *payload.ComponentType))
+	}
 
 	if err := validateSubjectTemplateIdentityLabelKeys(payload.IdentityLabelKeys); err != nil {
 		return err
@@ -1462,6 +1496,10 @@ func normalizeSubjectTemplatePayload(payload *SubjectTemplatePayload) {
 	payload.Name = strings.TrimSpace(payload.Name)
 	payload.Type = NormalizeSubjectTemplateType(payload.Type)
 	payload.SourceMode = NormalizeSubjectTemplateSourceMode(payload.SourceMode)
+	if payload.ComponentType != nil {
+		normalizedComponentType := NormalizeSubjectTemplateType(*payload.ComponentType)
+		payload.ComponentType = &normalizedComponentType
+	}
 
 	for i := range payload.IdentityLabelKeys {
 		payload.IdentityLabelKeys[i] = strings.ToLower(strings.TrimSpace(payload.IdentityLabelKeys[i]))
@@ -1548,6 +1586,8 @@ type BatchSubjectTemplateItem struct {
 	Props               []relational.Prop
 	Links               []relational.Link
 	SourceMode          string
+	DisplayPriority     int
+	ComponentType       *string
 	SelectorLabels      []SubjectTemplateSelectorLabelInput
 	LabelSchema         []SubjectTemplateLabelSchemaFieldInput
 }
@@ -1558,6 +1598,9 @@ type BatchUpsertSubjectTemplatesResult struct {
 	Updated   []SubjectTemplate
 	Deleted   []uuid.UUID
 	Unchanged []uuid.UUID
+	// Warnings are non-fatal notices about accepted templates, e.g. templates whose
+	// type is not "component" and therefore will not produce subjects.
+	Warnings []string `json:"warnings,omitempty"`
 }
 
 // BatchUpsert reconciles the full set of subject templates scoped to a given pluginID.
@@ -1641,6 +1684,11 @@ func (s *SubjectTemplateService) BatchUpsert(pluginID string, items []BatchSubje
 		Updated:   make([]SubjectTemplate, 0),
 		Deleted:   make([]uuid.UUID, 0),
 		Unchanged: make([]uuid.UUID, 0),
+	}
+	for _, r := range resolved {
+		if r.item.Type != subjectTemplateTypeComponent {
+			result.Warnings = append(result.Warnings, fmt.Sprintf("template %s has type %s and will not produce subjects", r.item.Name, r.item.Type))
+		}
 	}
 
 	// Collect IDs that need to be created (not already in this scope), then check
@@ -1743,6 +1791,8 @@ func batchSubjectItemToPayload(item BatchSubjectTemplateItem) SubjectTemplatePay
 		Props:               append([]relational.Prop{}, item.Props...),
 		Links:               append([]relational.Link{}, item.Links...),
 		SourceMode:          item.SourceMode,
+		DisplayPriority:     item.DisplayPriority,
+		ComponentType:       item.ComponentType,
 		SelectorLabels:      append([]SubjectTemplateSelectorLabelInput{}, item.SelectorLabels...),
 		LabelSchema:         append([]SubjectTemplateLabelSchemaFieldInput{}, item.LabelSchema...),
 	}
@@ -1760,6 +1810,8 @@ func batchSubjectItemFromPayload(item BatchSubjectTemplateItem, payload SubjectT
 	item.Props = payload.Props
 	item.Links = payload.Links
 	item.SourceMode = payload.SourceMode
+	item.DisplayPriority = payload.DisplayPriority
+	item.ComponentType = payload.ComponentType
 	item.SelectorLabels = payload.SelectorLabels
 	item.LabelSchema = payload.LabelSchema
 	return item
@@ -1778,6 +1830,8 @@ func createSubjectTemplateInTx(tx *gorm.DB, id uuid.UUID, payload SubjectTemplat
 		Props:               datatypes.NewJSONSlice(payload.Props),
 		Links:               datatypes.NewJSONSlice(payload.Links),
 		SourceMode:          payload.SourceMode,
+		DisplayPriority:     payload.DisplayPriority,
+		ComponentType:       payload.ComponentType,
 	}
 	row.ID = &id
 
@@ -1795,6 +1849,8 @@ func createSubjectTemplateInTx(tx *gorm.DB, id uuid.UUID, payload SubjectTemplat
 		"Props",
 		"Links",
 		"SourceMode",
+		"DisplayPriority",
+		"ComponentType",
 	).Create(&row).Error; err != nil {
 		return nil, err
 	}
@@ -1826,6 +1882,8 @@ func updateSubjectTemplateInTx(tx *gorm.DB, id uuid.UUID, payload SubjectTemplat
 	existing.Props = datatypes.NewJSONSlice(payload.Props)
 	existing.Links = datatypes.NewJSONSlice(payload.Links)
 	existing.SourceMode = payload.SourceMode
+	existing.DisplayPriority = payload.DisplayPriority
+	existing.ComponentType = payload.ComponentType
 
 	if err := tx.Omit("SelectorLabels", "LabelSchema").Save(&existing).Error; err != nil {
 		return nil, err
@@ -1847,6 +1905,8 @@ type subjectTemplateFP struct {
 	Name                string            `json:"n"`
 	Type                string            `json:"ty"`
 	SourceMode          string            `json:"sm"`
+	DisplayPriority     int               `json:"dp"`
+	ComponentType       *string           `json:"ct,omitempty"`
 	TitleTemplate       *string           `json:"tt,omitempty"`
 	DescriptionTemplate *string           `json:"dt,omitempty"`
 	PurposeTemplate     *string           `json:"pt,omitempty"`
@@ -1902,6 +1962,8 @@ func subjectTemplateFPFromExisting(t SubjectTemplate) subjectTemplateFP {
 		Name:                t.Name,
 		Type:                t.Type,
 		SourceMode:          t.SourceMode,
+		DisplayPriority:     t.DisplayPriority,
+		ComponentType:       t.ComponentType,
 		TitleTemplate:       t.TitleTemplate,
 		DescriptionTemplate: t.DescriptionTemplate,
 		PurposeTemplate:     t.PurposeTemplate,
@@ -1944,6 +2006,8 @@ func subjectTemplateFPFromPayload(payload SubjectTemplatePayload) subjectTemplat
 		Name:                payload.Name,
 		Type:                payload.Type,
 		SourceMode:          payload.SourceMode,
+		DisplayPriority:     payload.DisplayPriority,
+		ComponentType:       payload.ComponentType,
 		TitleTemplate:       payload.TitleTemplate,
 		DescriptionTemplate: payload.DescriptionTemplate,
 		PurposeTemplate:     payload.PurposeTemplate,
