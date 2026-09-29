@@ -252,8 +252,8 @@ func (suite *SubjectTemplateApiIntegrationSuite) TestSubjectTemplateRequiresAuth
 
 type batchSubjectTemplateResult struct {
 	Data struct {
-		Created []subjectTemplateAPIResponse `json:"created"`
-		Updated []subjectTemplateAPIResponse `json:"updated"`
+		Created  []subjectTemplateAPIResponse `json:"created"`
+		Updated  []subjectTemplateAPIResponse `json:"updated"`
 		Deleted  []uuid.UUID                  `json:"deleted"`
 		Warnings []string                     `json:"warnings"`
 	} `json:"data"`
@@ -565,6 +565,9 @@ func (suite *SubjectTemplateApiIntegrationSuite) TestSubjectTemplateBatchUpsertR
 				"component-type":   "software",
 			}),
 			batchSubjectTemplateItemBody(resourceID, "Bucket", "resource", nil),
+			batchSubjectTemplateItemBody(uuid.New(), "Operator", "user", map[string]any{
+				"component-type": "software",
+			}),
 		},
 	})
 	suite.server.E().ServeHTTP(rec, req)
@@ -572,8 +575,11 @@ func (suite *SubjectTemplateApiIntegrationSuite) TestSubjectTemplateBatchUpsertR
 
 	var result batchSubjectTemplateResult
 	require.NoError(suite.T(), json.Unmarshal(rec.Body.Bytes(), &result))
-	require.Len(suite.T(), result.Data.Created, 2)
-	require.Equal(suite.T(), []string{"template Bucket has type resource and will not produce subjects"}, result.Data.Warnings)
+	require.Len(suite.T(), result.Data.Created, 3)
+	require.ElementsMatch(suite.T(), []string{
+		"template Bucket has type resource and will not produce subjects",
+		"template Operator has type user and will not produce subjects (component-type ignored)",
+	}, result.Data.Warnings)
 
 	var createdComponent *subjectTemplateAPIResponse
 	for i := range result.Data.Created {
@@ -605,7 +611,10 @@ func (suite *SubjectTemplateApiIntegrationSuite) TestSubjectTemplateBatchUpsertO
 
 	var raw map[string]map[string]any
 	require.NoError(suite.T(), json.Unmarshal(rec.Body.Bytes(), &raw))
-	_, hasWarnings := raw["data"]["warnings"]
+	data, ok := raw["data"]
+	require.True(suite.T(), ok, rec.Body.String())
+	require.Len(suite.T(), data["created"], 1)
+	_, hasWarnings := data["warnings"]
 	require.False(suite.T(), hasWarnings)
 }
 

@@ -1691,7 +1691,11 @@ func (s *SubjectTemplateService) BatchUpsert(pluginID string, items []BatchSubje
 	}
 	for _, r := range resolved {
 		if r.item.Type != subjectTemplateTypeComponent {
-			result.Warnings = append(result.Warnings, fmt.Sprintf("template %s has type %s and will not produce subjects", r.item.Name, r.item.Type))
+			warning := fmt.Sprintf("template %s has type %s and will not produce subjects", r.item.Name, r.item.Type)
+			if r.item.ComponentType != nil {
+				warning += " (component-type ignored)"
+			}
+			result.Warnings = append(result.Warnings, warning)
 		}
 	}
 

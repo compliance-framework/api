@@ -1534,3 +1534,37 @@ func TestSubjectTemplateService_BlankComponentTypeIsUnset(t *testing.T) {
 		require.Nil(t, payload.ComponentType, "%q", blank)
 	}
 }
+
+func TestSubjectTemplateService_BatchUpsertWarnsComponentTypeIgnoredOnNonComponent(t *testing.T) {
+	db := newSubjectTemplateTestDB(t)
+	svc := NewSubjectTemplateService(db)
+
+	pluginID := "ignored-component-type-plugin"
+	resourceID := uuid.New()
+
+	result, err := svc.BatchUpsert(pluginID, []BatchSubjectTemplateItem{
+		{
+			ID:                resourceID,
+			Name:              "Bucket",
+			Type:              "resource",
+			SourceMode:        "runtime-derived",
+			ComponentType:     strPtr("software"),
+			IdentityLabelKeys: []string{"asset_id"},
+			SelectorLabels: []SubjectTemplateSelectorLabelInput{
+				{Key: "_plugin", Value: pluginID},
+			},
+			LabelSchema: []SubjectTemplateLabelSchemaFieldInput{
+				{Key: "asset_id"},
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.Len(t, result.Created, 1)
+	require.Equal(t, []string{"template Bucket has type resource and will not produce subjects (component-type ignored)"}, result.Warnings)
+
+	// Accepted and stored as declared.
+	stored, err := svc.GetByID(resourceID)
+	require.NoError(t, err)
+	require.NotNil(t, stored.ComponentType)
+	require.Equal(t, "software", *stored.ComponentType)
+}
