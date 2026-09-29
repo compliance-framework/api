@@ -272,8 +272,8 @@ func (h *EvidenceHandler) Create(ctx echo.Context) error {
 				protocol.UnmarshalOscal(op)
 				return protocol
 			}),
-			Props: relational.ConvertOscalToProps(&input.Props),
-			Links: relational.ConvertOscalToLinks(&input.Links),
+			Props: relational.ConvertOscalToProps(&i.Props),
+			Links: relational.ConvertOscalToLinks(&i.Links),
 		}
 		components = append(components, model)
 	}
@@ -291,8 +291,8 @@ func (h *EvidenceHandler) Create(ctx echo.Context) error {
 				ID: &id,
 			},
 			Description: i.Description,
-			Props:       relational.ConvertOscalToProps(&input.Props),
-			Links:       relational.ConvertOscalToLinks(&input.Links),
+			Props:       relational.ConvertOscalToProps(&i.Props),
+			Links:       relational.ConvertOscalToLinks(&i.Links),
 			Remarks:     i.Remarks,
 		}
 		for _, k := range i.ImplementedComponents {
@@ -323,8 +323,8 @@ func (h *EvidenceHandler) Create(ctx echo.Context) error {
 			Title:       &i.Title,
 			Description: i.Description,
 			Remarks:     &i.Remarks,
-			Props:       relational.ConvertOscalToProps(&input.Props),
-			Links:       relational.ConvertOscalToLinks(&input.Links),
+			Props:       relational.ConvertOscalToProps(&i.Props),
+			Links:       relational.ConvertOscalToLinks(&i.Links),
 		}
 		for _, k := range i.Steps {
 			model.Steps = append(model.Steps, relational.Step{
@@ -334,8 +334,8 @@ func (h *EvidenceHandler) Create(ctx echo.Context) error {
 				Title:       &k.Title,
 				Description: k.Description,
 				Remarks:     &k.Remarks,
-				Props:       relational.ConvertOscalToProps(&input.Props),
-				Links:       relational.ConvertOscalToLinks(&input.Links),
+				Props:       relational.ConvertOscalToProps(&k.Props),
+				Links:       relational.ConvertOscalToLinks(&k.Links),
 			})
 		}
 		activities = append(activities, model)
@@ -358,8 +358,8 @@ func (h *EvidenceHandler) Create(ctx echo.Context) error {
 			},
 			Description: &i.Description,
 			Remarks:     &i.Remarks,
-			Props:       relational.ConvertOscalToProps(&input.Props),
-			Links:       relational.ConvertOscalToLinks(&input.Links),
+			Props:       relational.ConvertOscalToProps(&i.Props),
+			Links:       relational.ConvertOscalToLinks(&i.Links),
 		}
 		subjects = append(subjects, model)
 	}
