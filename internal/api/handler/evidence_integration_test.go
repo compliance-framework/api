@@ -495,6 +495,118 @@ func (suite *EvidenceApiIntegrationSuite) TestSharedInventoryItemLinksDoNotInval
 	suite.Len(*getResp.Data.InventoryItems[0].ImplementedComponents, 2)
 }
 
+// TestCreatePersistsSubObjectPropsAndLinks captures the overwritten props/links bug
+// (CCF Evidence Subjects and Playback design §3, §10.2.1).
+//
+// Observed: components, inventory items, activities, steps and subjects were all
+// persisted with the evidence-level props/links instead of their own, so plugin-supplied
+// sub-object links (e.g. a subject's canonical URL) were lost.
+// Expected: each sub-object persists its own props/links, independent of the evidence.
+func (suite *EvidenceApiIntegrationSuite) TestCreatePersistsSubObjectPropsAndLinks() {
+	err := suite.Migrator.Refresh()
+	suite.Require().NoError(err)
+	suite.Config.StrictDisablePublicAgentEndpoints = false
+
+	propsFor := func(owner string) []oscalTypes_1_1_3.Property {
+		return []oscalTypes_1_1_3.Property{{Name: "owner", Value: owner}}
+	}
+	linksFor := func(owner string) []oscalTypes_1_1_3.Link {
+		return []oscalTypes_1_1_3.Link{{Href: "https://example.com/" + owner, Rel: "canonical"}}
+	}
+
+	activityID := uuid.New()
+	stepID := uuid.New()
+	evidence := EvidenceCreateRequest{
+		UUID:  uuid.New(),
+		Title: "Evidence with distinct sub-object props and links",
+		Start: time.Now().Add(-time.Hour),
+		End:   time.Now().Add(-time.Hour).Add(time.Minute),
+		Props: propsFor("evidence"),
+		Links: linksFor("evidence"),
+		Activities: []EvidenceActivity{
+			{
+				UUID:  activityID,
+				Title: "Collect evidence",
+				Props: propsFor("activity"),
+				Links: linksFor("activity"),
+				Steps: []EvidenceActivityStep{
+					{
+						UUID:  stepID,
+						Title: "Run CLI to collect configuration",
+						Props: propsFor("step"),
+						Links: linksFor("step"),
+					},
+				},
+			},
+		},
+		InventoryItems: []EvidenceInventoryItem{
+			{
+				Identifier: "web-server/ec2/i-props-links",
+				Type:       "web-server",
+				Title:      "EC2 Instance",
+				Props:      propsFor("inventory-item"),
+				Links:      linksFor("inventory-item"),
+			},
+		},
+		Components: []EvidenceComponent{
+			{
+				Identifier: "components/common/props-links",
+				Type:       "software",
+				Title:      "Component",
+				Props:      propsFor("component"),
+				Links:      linksFor("component"),
+			},
+		},
+		Subjects: []EvidenceSubject{
+			{
+				Identifier: "components/common/props-links",
+				Type:       "component",
+				Props:      propsFor("subject"),
+				Links:      linksFor("subject"),
+			},
+		},
+		Status: oscalTypes_1_1_3.ObjectiveStatus{State: "satisfied"},
+	}
+
+	server := suite.setupServer()
+	rec := httptest.NewRecorder()
+	reqBody, _ := json.Marshal(evidence)
+	req := httptest.NewRequest(http.MethodPost, "/api/evidence", bytes.NewReader(reqBody))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	server.E().ServeHTTP(rec, req)
+	suite.Require().Equal(http.StatusCreated, rec.Code, rec.Body.String())
+
+	var persisted relational.Evidence
+	suite.Require().NoError(suite.DB.
+		Preload("Components").
+		Preload("InventoryItems").
+		Preload("Activities.Steps").
+		Preload("Subjects").
+		First(&persisted, "uuid = ?", evidence.UUID).Error)
+
+	assertOwn := func(owner string, props datatypes.JSONSlice[relational.Prop], links datatypes.JSONSlice[relational.Link]) {
+		suite.Equal(propsFor(owner), *relational.ConvertPropsToOscal(props), "%s props", owner)
+		suite.Equal(linksFor(owner), *relational.ConvertLinksToOscal(links), "%s links", owner)
+	}
+
+	assertOwn("evidence", persisted.Props, persisted.Links)
+
+	suite.Require().Len(persisted.Components, 1)
+	assertOwn("component", persisted.Components[0].Props, persisted.Components[0].Links)
+
+	suite.Require().Len(persisted.InventoryItems, 1)
+	assertOwn("inventory-item", persisted.InventoryItems[0].Props, persisted.InventoryItems[0].Links)
+
+	suite.Require().Len(persisted.Activities, 1)
+	assertOwn("activity", persisted.Activities[0].Props, persisted.Activities[0].Links)
+
+	suite.Require().Len(persisted.Activities[0].Steps, 1)
+	assertOwn("step", persisted.Activities[0].Steps[0].Props, persisted.Activities[0].Steps[0].Links)
+
+	suite.Require().Len(persisted.Subjects, 1)
+	assertOwn("subject", persisted.Subjects[0].Props, persisted.Subjects[0].Links)
+}
+
 func (suite *EvidenceApiIntegrationSuite) TestCreateRequiresAgentAuthWhenUnsafeDisabled() {
 	err := suite.Migrator.Refresh()
 	suite.Require().NoError(err)
