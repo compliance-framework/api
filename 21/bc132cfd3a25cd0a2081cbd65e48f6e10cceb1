@@ -1,0 +1,3 @@
+lisa-addressed:
+self-review pass 1:
+- [medium] blank-component-type-400: normalizeSubjectTemplatePayload now maps blank/whitespace component-type to nil (unset → "service" at resolution) instead of 400. Tests: TestSubjectTemplateService_BlankComponentTypeIsUnset, TestSubjectTemplateAdminBlankComponentTypeIsUnset.
