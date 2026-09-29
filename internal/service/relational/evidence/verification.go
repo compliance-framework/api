@@ -141,12 +141,13 @@ func (s *EvidenceService) parseSignedPayload(jws string) (*relational.EvidenceSi
 
 func createEvidenceParamsFromModel(evidence *relational.Evidence) CreateEvidenceParams {
 	return CreateEvidenceParams{
-		Evidence:       *evidence,
-		Components:     append([]relational.SystemComponent(nil), evidence.Components...),
-		InventoryItems: append([]relational.InventoryItem(nil), evidence.InventoryItems...),
-		Activities:     append([]relational.Activity(nil), evidence.Activities...),
-		Subjects:       append([]relational.AssessmentSubject(nil), evidence.Subjects...),
-		Labels:         append([]relational.Labels(nil), evidence.Labels...),
+		Evidence:           *evidence,
+		Components:         append([]relational.SystemComponent(nil), evidence.Components...),
+		InventoryItems:     append([]relational.InventoryItem(nil), evidence.InventoryItems...),
+		InventorySnapshots: append([]relational.EvidenceInventorySnapshot(nil), evidence.InventorySnapshots...),
+		Activities:         append([]relational.Activity(nil), evidence.Activities...),
+		Subjects:           append([]relational.AssessmentSubject(nil), evidence.Subjects...),
+		Labels:             append([]relational.Labels(nil), evidence.Labels...),
 	}
 }
 

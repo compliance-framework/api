@@ -10,8 +10,10 @@ import (
 	"github.com/compliance-framework/api/internal/converters/labelfilter"
 	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/compliance-framework/api/internal/service/relational/templates"
+	oscalTypes_1_1_3 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
+	"gorm.io/datatypes"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -91,10 +93,13 @@ type CreateEvidenceParams struct {
 	Evidence       relational.Evidence
 	Components     []relational.SystemComponent
 	InventoryItems []relational.InventoryItem
-	Activities     []relational.Activity
-	Subjects       []relational.AssessmentSubject
-	Labels         []relational.Labels
-	Signer         *SignerContext
+	// InventorySnapshots are read back from the database for signing and
+	// verification; Create records them from InventoryItems.
+	InventorySnapshots []relational.EvidenceInventorySnapshot
+	Activities         []relational.Activity
+	Subjects           []relational.AssessmentSubject
+	Labels             []relational.Labels
+	Signer             *SignerContext
 }
 
 func (s *EvidenceService) Create(ctx context.Context, params CreateEvidenceParams) (*relational.Evidence, error) {
@@ -120,8 +125,14 @@ func (s *EvidenceService) Create(ctx context.Context, params CreateEvidenceParam
 			}
 		}
 
+		// Inventory items are the shared, current asset record: later submissions
+		// update them. What each evidence record reported is kept in its own
+		// snapshot (below), so these updates do not change earlier records.
 		for i := range params.InventoryItems {
-			if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&params.InventoryItems[i]).Error; err != nil {
+			if err := tx.Clauses(clause.OnConflict{
+				Columns:   []clause.Column{{Name: "id"}},
+				DoUpdates: clause.AssignmentColumns([]string{"description", "props", "links", "remarks"}),
+			}).Create(&params.InventoryItems[i]).Error; err != nil {
 				return err
 			}
 		}
@@ -187,6 +198,14 @@ func (s *EvidenceService) Create(ctx context.Context, params CreateEvidenceParam
 			}
 		}
 
+		if len(params.InventoryItems) > 0 {
+			snapshots, err := recordInventorySnapshots(tx, *params.Evidence.ID, params.InventoryItems)
+			if err != nil {
+				return err
+			}
+			params.Evidence.InventorySnapshots = snapshots
+		}
+
 		if len(params.Components) > 0 {
 			if err := tx.Model(&params.Evidence).Association("Components").Append(params.Components); err != nil {
 				return err
@@ -209,6 +228,9 @@ func (s *EvidenceService) Create(ctx context.Context, params CreateEvidenceParam
 			var persisted relational.Evidence
 			if err := s.evidenceQuery(tx).
 				First(&persisted, "id = ?", *params.Evidence.ID).Error; err != nil {
+				return err
+			}
+			if err := loadInventorySnapshots(tx, &persisted); err != nil {
 				return err
 			}
 
@@ -249,10 +271,111 @@ func (s *EvidenceService) Create(ctx context.Context, params CreateEvidenceParam
 	return evidence, nil
 }
 
+// recordInventorySnapshots stores each inventory item as reported by this
+// evidence record and points the record's evidence_inventory_items row at it.
+// Items and implemented components repeated in the request are collapsed,
+// matching how the shared rows are upserted. Unchanged items reuse the
+// existing version.
+func recordInventorySnapshots(tx *gorm.DB, evidenceID uuid.UUID, items []relational.InventoryItem) ([]relational.EvidenceInventorySnapshot, error) {
+	snapshots := make([]relational.EvidenceInventorySnapshot, 0, len(items))
+	indexByItem := make(map[uuid.UUID]int, len(items))
+	for i := range items {
+		snapshot := relational.EvidenceInventorySnapshot{
+			InventoryItemID: *items[i].ID,
+			Item:            reportedInventoryItem(items[i]),
+		}
+		if idx, ok := indexByItem[*items[i].ID]; ok {
+			snapshots[idx] = snapshot
+			continue
+		}
+		indexByItem[*items[i].ID] = len(snapshots)
+		snapshots = append(snapshots, snapshot)
+	}
+
+	for _, snapshot := range snapshots {
+		version, err := relational.NewInventoryItemVersion(snapshot.Item)
+		if err != nil {
+			return nil, err
+		}
+		if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&version).Error; err != nil {
+			return nil, err
+		}
+		if err := tx.Model(&relational.EvidenceInventoryItem{}).
+			Where("evidence_id = ? AND inventory_item_id = ?", evidenceID, snapshot.InventoryItemID).
+			Update("inventory_item_version_hash", version.Hash).Error; err != nil {
+			return nil, err
+		}
+	}
+	return snapshots, nil
+}
+
+// reportedInventoryItem is the OSCAL form of an item as submitted, with
+// implemented components de-duplicated and sorted so identical reports hash
+// to the same version.
+func reportedInventoryItem(item relational.InventoryItem) oscalTypes_1_1_3.InventoryItem {
+	osc := item.MarshalOscal()
+	if osc.ImplementedComponents != nil {
+		seen := make(map[string]bool, len(*osc.ImplementedComponents))
+		components := make([]oscalTypes_1_1_3.ImplementedComponent, 0, len(*osc.ImplementedComponents))
+		for _, component := range *osc.ImplementedComponents {
+			if seen[component.ComponentUuid] {
+				continue
+			}
+			seen[component.ComponentUuid] = true
+			components = append(components, component)
+		}
+		components = sortByJSONValue(components)
+		osc.ImplementedComponents = &components
+	}
+	return osc
+}
+
+// loadInventorySnapshots fills InventorySnapshots from the versions the
+// evidence_inventory_items rows point at. Rows without a version (evidence
+// created before versions existed) are skipped.
+func loadInventorySnapshots(db *gorm.DB, evidences ...*relational.Evidence) error {
+	ids := make([]uuid.UUID, 0, len(evidences))
+	byID := make(map[uuid.UUID]*relational.Evidence, len(evidences))
+	for _, evidence := range evidences {
+		if evidence.ID == nil || len(evidence.InventoryItems) == 0 {
+			continue
+		}
+		ids = append(ids, *evidence.ID)
+		byID[*evidence.ID] = evidence
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+
+	var rows []struct {
+		EvidenceID      uuid.UUID
+		InventoryItemID uuid.UUID
+		Item            datatypes.JSONType[oscalTypes_1_1_3.InventoryItem]
+	}
+	if err := db.Table("evidence_inventory_items").
+		Select("evidence_inventory_items.evidence_id, evidence_inventory_items.inventory_item_id, inventory_item_versions.item").
+		Joins("JOIN inventory_item_versions ON inventory_item_versions.hash = evidence_inventory_items.inventory_item_version_hash").
+		Where("evidence_inventory_items.evidence_id IN ?", ids).
+		Scan(&rows).Error; err != nil {
+		return err
+	}
+	for _, row := range rows {
+		evidence := byID[row.EvidenceID]
+		evidence.InventorySnapshots = append(evidence.InventorySnapshots, relational.EvidenceInventorySnapshot{
+			InventoryItemID: row.InventoryItemID,
+			Item:            row.Item.Data(),
+		})
+	}
+	return nil
+}
+
 func (s *EvidenceService) GetByID(id uuid.UUID) (*relational.Evidence, error) {
 	var evidence relational.Evidence
 	if err := s.evidenceQuery(s.db).
 		First(&evidence, "id = ?", id).Error; err != nil {
+		return nil, err
+	}
+	if err := loadInventorySnapshots(s.db, &evidence); err != nil {
 		return nil, err
 	}
 	return &evidence, nil
@@ -263,6 +386,9 @@ func (s *EvidenceService) GetHistory(streamUUID uuid.UUID) ([]relational.Evidenc
 	if err := s.evidenceQuery(s.db).
 		Order("evidences.end DESC").
 		Find(&evidences, "uuid = ?", streamUUID).Error; err != nil {
+		return nil, err
+	}
+	if err := loadInventorySnapshotsForAll(s.db, evidences); err != nil {
 		return nil, err
 	}
 	return evidences, nil
@@ -284,6 +410,9 @@ func (s *EvidenceService) GetHistoryPaginated(streamUUID uuid.UUID, limit, offse
 		Find(&evidences).Error; err != nil {
 		return nil, 0, err
 	}
+	if err := loadInventorySnapshotsForAll(s.db, evidences); err != nil {
+		return nil, 0, err
+	}
 
 	return evidences, total, nil
 }
@@ -295,7 +424,18 @@ func (s *EvidenceService) GetLatestByUUID(streamUUID uuid.UUID) (*relational.Evi
 		First(&evidence, "uuid = ?", streamUUID).Error; err != nil {
 		return nil, err
 	}
+	if err := loadInventorySnapshots(s.db, &evidence); err != nil {
+		return nil, err
+	}
 	return &evidence, nil
+}
+
+func loadInventorySnapshotsForAll(db *gorm.DB, evidences []relational.Evidence) error {
+	ptrs := make([]*relational.Evidence, len(evidences))
+	for i := range evidences {
+		ptrs[i] = &evidences[i]
+	}
+	return loadInventorySnapshots(db, ptrs...)
 }
 
 func (s *EvidenceService) evidenceQuery(db *gorm.DB) *gorm.DB {

@@ -29,6 +29,8 @@ func setupTestDB(t *testing.T) *gorm.DB {
 	// Auto migrate all tables
 	err = db.AutoMigrate(
 		&relational.Evidence{},
+		&relational.EvidenceInventoryItem{},
+		&relational.InventoryItemVersion{},
 		&workflows.WorkflowDefinition{},
 		&workflows.WorkflowStepDefinition{},
 		&workflows.StepDependency{},

@@ -15,6 +15,7 @@ import (
 	"github.com/compliance-framework/api/internal/service/relational"
 	oscalTypes_1_1_3 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 	"gorm.io/datatypes"
 )
 
@@ -238,13 +239,24 @@ func canonicalizeEvidence(params CreateEvidenceParams) (*canonicalEvidence, erro
 		activities = append(activities, *osc)
 	}
 
+	snapshots := make(map[uuid.UUID]relational.EvidenceInventorySnapshot, len(params.InventorySnapshots))
+	for _, snapshot := range params.InventorySnapshots {
+		snapshots[snapshot.InventoryItemID] = snapshot
+	}
 	inventoryItems := make([]oscalTypes_1_1_3.InventoryItem, 0, len(params.InventoryItems))
 	for _, item := range params.InventoryItems {
+		if snapshot, ok := snapshots[*item.ID]; ok {
+			osc := snapshot.Item
+			if osc.ImplementedComponents != nil {
+				sortedComponents := sortByJSONValue(*osc.ImplementedComponents)
+				osc.ImplementedComponents = &sortedComponents
+			}
+			inventoryItems = append(inventoryItems, osc)
+			continue
+		}
+		// Evidence signed before snapshots existed: the item comes from the
+		// shared row, and its implemented-component links were never signed.
 		osc := item.MarshalOscal()
-		// Implemented-component links hang off inventory items shared across
-		// evidence records, and later submissions add to them. They are not part
-		// of what this record attests to, so signing them would invalidate
-		// earlier signatures. Evidence-scoped links are tracked under BCH-1364.
 		osc.ImplementedComponents = nil
 		inventoryItems = append(inventoryItems, osc)
 	}

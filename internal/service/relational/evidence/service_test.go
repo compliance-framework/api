@@ -27,6 +27,8 @@ func newEvidenceServiceTestDB(t *testing.T) *gorm.DB {
 	require.NoError(t, err)
 	require.NoError(t, db.AutoMigrate(
 		&relational.Evidence{},
+		&relational.EvidenceInventoryItem{},
+		&relational.InventoryItemVersion{},
 		&relational.Labels{},
 		&relational.BackMatter{},
 		&relational.BackMatterResource{},
@@ -294,7 +296,7 @@ func TestSigningService_ContentHashChangesWhenEvidenceChanges(t *testing.T) {
 	require.NotEqual(t, baseSig.Data().ContentHash.Value, labelSig.Data().ContentHash.Value)
 }
 
-func TestSigningService_ContentHashIgnoresSharedImplementedComponentLinks(t *testing.T) {
+func TestSigningService_ContentHashIgnoresSharedImplementedComponentLinksWithoutSnapshot(t *testing.T) {
 	privateKey, _, err := config.GenerateKeyPair(2048)
 	require.NoError(t, err)
 
@@ -321,8 +323,8 @@ func TestSigningService_ContentHashIgnoresSharedImplementedComponentLinks(t *tes
 		}
 	}
 
-	// Links live on inventory items shared across evidence, so a later submission
-	// that adds one must not change the hash of evidence already signed.
+	// Evidence signed before inventory snapshots existed never signed the links
+	// on the shared item, so adding one must not change its hash.
 	oneLink, err := signingSvc.SignEvidence(withLinks(uuid.New()), signer)
 	require.NoError(t, err)
 	twoLinks, err := signingSvc.SignEvidence(withLinks(uuid.New(), uuid.New()), signer)
@@ -335,6 +337,60 @@ func TestSigningService_ContentHashIgnoresSharedImplementedComponentLinks(t *tes
 	changedSig, err := signingSvc.SignEvidence(changedItem, signer)
 	require.NoError(t, err)
 	require.NotEqual(t, oneLink.Data().ContentHash.Value, changedSig.Data().ContentHash.Value)
+}
+
+func TestSigningService_ContentHashUsesInventorySnapshot(t *testing.T) {
+	privateKey, _, err := config.GenerateKeyPair(2048)
+	require.NoError(t, err)
+
+	signingSvc := NewSigningService(privateKey)
+	signer := NewUserSignerContextFromClaims(&authn.UserClaims{
+		RegisteredClaims: jwt.RegisteredClaims{Subject: "signer@example.com"},
+	})
+	now := time.Date(2026, 4, 7, 11, 30, 0, 0, time.UTC)
+	itemID := uuid.MustParse("0b8b2f0e-6f55-4a2e-9d7a-1c1f4f3f8a10")
+	sshID := uuid.MustParse("5f1d2b8e-1c43-4e0e-9a8b-0f4c6c2a7d11")
+	ubuntuID := uuid.MustParse("7a2e3c9f-2d54-4f1f-8b9c-1a5d7d3b8e22")
+	params := func(shared relational.InventoryItem, snapshot oscalTypes_1_1_3.InventoryItem) CreateEvidenceParams {
+		return CreateEvidenceParams{
+			Evidence: relational.Evidence{
+				UUID:   uuid.MustParse("f700fda2-e4b9-4f0c-b673-bcf9bb6dbfe8"),
+				Title:  "signed-evidence",
+				Start:  now.Add(-time.Hour),
+				End:    now,
+				Status: datatypes.NewJSONType(oscalTypes_1_1_3.ObjectiveStatus{State: relational.EvidenceStatusSatisfied}),
+			},
+			InventoryItems: []relational.InventoryItem{shared},
+			InventorySnapshots: []relational.EvidenceInventorySnapshot{{
+				InventoryItemID: itemID,
+				Item:            snapshot,
+			}},
+		}
+	}
+	reported := oscalTypes_1_1_3.InventoryItem{
+		UUID:                  itemID.String(),
+		Description:           "web server",
+		ImplementedComponents: &[]oscalTypes_1_1_3.ImplementedComponent{{ComponentUuid: sshID.String()}},
+	}
+	shared := relational.InventoryItem{UUIDModel: relational.UUIDModel{ID: &itemID}, Description: "web server"}
+
+	base, err := signingSvc.SignEvidence(params(shared, reported), signer)
+	require.NoError(t, err)
+
+	// Later writes to the shared item do not affect the hash.
+	laterShared := shared
+	laterShared.Description = "db server"
+	laterShared.ImplementedComponents = []relational.ImplementedComponent{{ComponentID: sshID}, {ComponentID: ubuntuID}}
+	laterSig, err := signingSvc.SignEvidence(params(laterShared, reported), signer)
+	require.NoError(t, err)
+	require.Equal(t, base.Data().ContentHash.Value, laterSig.Data().ContentHash.Value)
+
+	// The snapshot's implemented components are signed.
+	withUbuntu := reported
+	withUbuntu.ImplementedComponents = &[]oscalTypes_1_1_3.ImplementedComponent{{ComponentUuid: sshID.String()}, {ComponentUuid: ubuntuID.String()}}
+	ubuntuSig, err := signingSvc.SignEvidence(params(shared, withUbuntu), signer)
+	require.NoError(t, err)
+	require.NotEqual(t, base.Data().ContentHash.Value, ubuntuSig.Data().ContentHash.Value)
 }
 
 func TestEvidenceService_Create_SignsWithUserAndAgentContexts(t *testing.T) {

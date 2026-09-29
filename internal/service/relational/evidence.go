@@ -1,7 +1,11 @@
 package relational
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"sort"
 	"strings"
 	"time"
@@ -51,6 +55,13 @@ type Evidence struct {
 	Activities []Activity `gorm:"many2many:evidence_activities" json:"activities,omitempty"`
 
 	InventoryItems []InventoryItem `gorm:"many2many:evidence_inventory_items" json:"inventory-items,omitempty"`
+	// InventorySnapshots hold each inventory item as this record reported it.
+	// InventoryItems are shared across evidence records and track the current
+	// asset, so later submissions change them; signing, verification and reads
+	// use the snapshot instead. They are loaded from the version each
+	// evidence_inventory_items row points at. Evidence created before
+	// snapshots existed has none.
+	InventorySnapshots []EvidenceInventorySnapshot `gorm:"-" json:"-"`
 
 	// Which components of the subject are being observed. A tool, user, policy etc.
 	Components []SystemComponent `gorm:"many2many:evidence_components" json:"components,omitempty"`
@@ -59,6 +70,69 @@ type Evidence struct {
 
 	// Did we satisfy what was being tested for, or did we fail ?
 	Status datatypes.JSONType[oscalTypes_1_1_3.ObjectiveStatus] `json:"status"`
+}
+
+// EvidenceInventoryItem maps the evidence_inventory_items join table so the
+// version column can be migrated and written. The Evidence.InventoryItems
+// many2many still owns the evidence_id and inventory_item_id columns.
+type EvidenceInventoryItem struct {
+	EvidenceID      uuid.UUID `gorm:"type:uuid;primaryKey"`
+	InventoryItemID uuid.UUID `gorm:"type:uuid;primaryKey"`
+	// InventoryItemVersionHash is the version this evidence reported. It is
+	// null for evidence created before versions existed.
+	InventoryItemVersionHash *string `gorm:"index"`
+}
+
+func (EvidenceInventoryItem) TableName() string {
+	return "evidence_inventory_items"
+}
+
+// InventoryItemVersion is one distinct reported state of an inventory item,
+// including its implemented components. It is keyed by the SHA-256 of its
+// content, so evidence that reports an unchanged item shares one row.
+type InventoryItemVersion struct {
+	Hash string                                             `gorm:"primaryKey"`
+	Item datatypes.JSONType[oscalTypes_1_1_3.InventoryItem] `gorm:"not null"`
+}
+
+// NewInventoryItemVersion keys a reported item by the SHA-256 of its JSON.
+func NewInventoryItemVersion(item oscalTypes_1_1_3.InventoryItem) (InventoryItemVersion, error) {
+	content, err := json.Marshal(item)
+	if err != nil {
+		return InventoryItemVersion{}, fmt.Errorf("marshal inventory item version: %w", err)
+	}
+	sum := sha256.Sum256(content)
+	return InventoryItemVersion{Hash: hex.EncodeToString(sum[:]), Item: datatypes.NewJSONType(item)}, nil
+}
+
+// EvidenceInventorySnapshot is an inventory item as one evidence record reported it.
+type EvidenceInventorySnapshot struct {
+	InventoryItemID uuid.UUID
+	Item            oscalTypes_1_1_3.InventoryItem
+}
+
+// ReportedInventoryItems returns the inventory items as this record reported
+// them: the snapshot where there is one, otherwise the shared item's current state.
+func (e *Evidence) ReportedInventoryItems() []oscalTypes_1_1_3.InventoryItem {
+	snapshots := e.InventorySnapshotsByItemID()
+	items := make([]oscalTypes_1_1_3.InventoryItem, 0, len(e.InventoryItems))
+	for i := range e.InventoryItems {
+		if snapshot, ok := snapshots[*e.InventoryItems[i].ID]; ok {
+			items = append(items, snapshot.Item)
+			continue
+		}
+		items = append(items, e.InventoryItems[i].MarshalOscal())
+	}
+	return items
+}
+
+// InventorySnapshotsByItemID indexes the record's snapshots by inventory item ID.
+func (e *Evidence) InventorySnapshotsByItemID() map[uuid.UUID]EvidenceInventorySnapshot {
+	snapshots := make(map[uuid.UUID]EvidenceInventorySnapshot, len(e.InventorySnapshots))
+	for _, snapshot := range e.InventorySnapshots {
+		snapshots[snapshot.InventoryItemID] = snapshot
+	}
+	return snapshots
 }
 
 // StatusCount is one (status-state, distinct-stream-count) row of an evidence

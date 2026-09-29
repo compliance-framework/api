@@ -241,6 +241,15 @@ func implementedComponentLinkID(itemIdentifier, componentIdentifier string) (uui
 	})
 }
 
+func hasProp(props []relational.Prop, name, value string) bool {
+	for _, prop := range props {
+		if prop.Name == name && prop.Value == value {
+			return true
+		}
+	}
+	return false
+}
+
 // Create godoc
 //
 //	@Summary		Create new Evidence
@@ -325,6 +334,11 @@ func (h *EvidenceHandler) Create(ctx echo.Context) error {
 			Props:       relational.ConvertOscalToProps(&i.Props),
 			Links:       relational.ConvertOscalToLinks(&i.Links),
 			Remarks:     i.Remarks,
+		}
+		// OSCAL inventory items have no type field, so the reported type is kept
+		// as an asset-type prop alongside any the plugin sent itself.
+		if i.Type != "" && !hasProp(model.Props, "asset-type", i.Type) {
+			model.Props = append(model.Props, relational.Prop{Name: "asset-type", Value: i.Type})
 		}
 		for _, k := range i.ImplementedComponents {
 			id, err := internal.SeededUUID(map[string]string{
@@ -605,9 +619,9 @@ func buildEvidenceFields(evidence *relational.Evidence) (*EvidenceFields, error)
 	out.Activities = relational.ConvertList(&evidence.Activities, func(in relational.Activity) oscalTypes_1_1_3.Activity {
 		return *in.MarshalOscal()
 	})
-	out.InventoryItems = relational.ConvertList(&evidence.InventoryItems, func(in relational.InventoryItem) oscalTypes_1_1_3.InventoryItem {
-		return in.MarshalOscal()
-	})
+	if len(evidence.InventoryItems) > 0 {
+		out.InventoryItems = evidence.ReportedInventoryItems()
+	}
 	out.Origins = func() []oscalTypes_1_1_3.Origin {
 		out := make([]oscalTypes_1_1_3.Origin, 0)
 		for _, v := range evidence.Origins {

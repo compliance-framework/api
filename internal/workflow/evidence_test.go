@@ -33,6 +33,8 @@ func setupEvidenceTestDB(t *testing.T) *gorm.DB {
 		&workflows.StepReassignmentHistory{},
 		&workflows.ControlRelationship{},
 		&relational.Evidence{},
+		&relational.EvidenceInventoryItem{},
+		&relational.InventoryItemVersion{},
 		&relational.Labels{},
 	)
 	require.NoError(t, err)

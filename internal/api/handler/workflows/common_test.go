@@ -25,6 +25,8 @@ func setupTestDB(t *testing.T) *gorm.DB {
 		&relational.BackMatterResource{},
 		&relational.BackMatter{},
 		&relational.Evidence{},
+		&relational.EvidenceInventoryItem{},
+		&relational.InventoryItemVersion{},
 		&relational.Labels{},
 		&workflows.WorkflowDefinition{},
 		&workflows.WorkflowStepDefinition{},

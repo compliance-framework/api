@@ -59,6 +59,8 @@ func newRiskWorkersTestDB(t *testing.T) *gorm.DB {
 		&relational.SystemSecurityPlan{},
 		&relational.SystemCharacteristics{},
 		&relational.Evidence{},
+		&relational.EvidenceInventoryItem{},
+		&relational.InventoryItemVersion{},
 		&relational.Labels{},
 		&relational.AssessmentSubject{},
 		&relational.SystemComponent{},

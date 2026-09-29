@@ -189,6 +189,8 @@ func MigrateUpWithConfig(db *gorm.DB, cfg *config.Config) error {
 		&Heartbeat{},
 		&relational.Evidence{},
 		&relational.Artifact{},
+		&relational.EvidenceInventoryItem{},
+		&relational.InventoryItemVersion{},
 		&relational.Labels{},
 		&relational.SelectSubjectById{},
 		&relational.Filter{},
@@ -239,6 +241,9 @@ func MigrateUpWithConfig(db *gorm.DB, cfg *config.Config) error {
 		return err
 	}
 	if err := migrateBackfillOfferingItemStatementIDs(db); err != nil {
+		return err
+	}
+	if err := migrateBackfillEvidenceInventoryItemVersions(db); err != nil {
 		return err
 	}
 
@@ -939,6 +944,72 @@ func migrateBackfillOfferingItemStatementIDs(db *gorm.DB) error {
 // migrateSSPProfileIDToJoinTable copies the legacy single profile_id FK from
 // system_security_plans into the new ssp_profiles join table. Rows that already
 // exist (ON CONFLICT DO NOTHING) are skipped, making the migration idempotent.
+// migrateBackfillEvidenceInventoryItemVersions points evidence_inventory_items
+// rows written before inventory item versions existed at a version built from
+// the shared inventory item, without its implemented components. That is
+// exactly what such evidence signed: inventory items were insert-only, so the
+// shared row still holds what was signed, and links were excluded. Once pinned,
+// the upsert on the shared row no longer changes their signed content.
+//
+// Every legacy row for an item gets the same version, so versions are built per
+// distinct item and each chunk is applied with one UPDATE. Only rows with a NULL
+// hash are touched, so this is a no-op after the first run.
+func migrateBackfillEvidenceInventoryItemVersions(db *gorm.DB) error {
+	if !db.Migrator().HasColumn(&relational.EvidenceInventoryItem{}, "inventory_item_version_hash") {
+		return nil
+	}
+	return db.Transaction(func(tx *gorm.DB) error {
+		var itemIDs []uuid.UUID
+		if err := tx.Model(&relational.EvidenceInventoryItem{}).
+			Where("inventory_item_version_hash IS NULL").
+			Distinct().
+			Pluck("inventory_item_id", &itemIDs).Error; err != nil {
+			return err
+		}
+
+		for start := 0; start < len(itemIDs); start += inClauseChunkSize {
+			end := min(start+inClauseChunkSize, len(itemIDs))
+			var items []relational.InventoryItem
+			if err := tx.Where("id IN ?", itemIDs[start:end]).Find(&items).Error; err != nil {
+				return err
+			}
+			if len(items) == 0 {
+				continue
+			}
+
+			versions := make([]relational.InventoryItemVersion, 0, len(items))
+			ids := make([]uuid.UUID, 0, len(items))
+			hashCase := strings.Builder{}
+			hashCase.WriteString("CASE inventory_item_id")
+			args := make([]any, 0, 2*len(items)+1)
+			for i := range items {
+				version, err := relational.NewInventoryItemVersion(items[i].MarshalOscal())
+				if err != nil {
+					return err
+				}
+				versions = append(versions, version)
+				ids = append(ids, *items[i].ID)
+				hashCase.WriteString(" WHEN ? THEN ?")
+				args = append(args, *items[i].ID, version.Hash)
+			}
+			hashCase.WriteString(" END")
+			args = append(args, ids)
+
+			if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&versions).Error; err != nil {
+				return err
+			}
+			if err := tx.Exec(
+				"UPDATE evidence_inventory_items SET inventory_item_version_hash = "+hashCase.String()+
+					" WHERE inventory_item_version_hash IS NULL AND inventory_item_id IN ?",
+				args...,
+			).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
 func migrateSSPProfileIDToJoinTable(db *gorm.DB) error {
 	if !db.Migrator().HasTable("ssp_profiles") {
 		return nil
@@ -1135,6 +1206,7 @@ func MigrateDown(db *gorm.DB) error {
 		&relational.SystemNotificationDestination{},
 
 		&Heartbeat{},
+		&relational.InventoryItemVersion{},
 		&relational.Evidence{},
 		&relational.Artifact{},
 		"evidence_activities",

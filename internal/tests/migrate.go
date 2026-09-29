@@ -193,6 +193,8 @@ func (t *TestMigrator) Up() error {
 		&poamrel.PoamItemFindingLink{},
 		&relational.Evidence{},
 		&relational.Artifact{},
+		&relational.EvidenceInventoryItem{},
+		&relational.InventoryItemVersion{},
 		&relational.Labels{},
 		&relational.SelectSubjectById{},
 		&relational.Filter{},
@@ -564,6 +566,7 @@ func (t *TestMigrator) Down() error {
 		&relational.SystemNotificationDestination{},
 
 		&service.Heartbeat{},
+		&relational.InventoryItemVersion{},
 		&relational.Evidence{},
 		&relational.Artifact{},
 		"evidence_activities",

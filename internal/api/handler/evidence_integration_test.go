@@ -423,13 +423,9 @@ func (suite *EvidenceApiIntegrationSuite) TestCreateFromSDKShapedJSON() {
 	suite.Equal(int64(2), linkCount)
 }
 
-// TestSharedInventoryItemLinksDoNotInvalidateSignatures pins the current
-// behaviour for inventory items shared across evidence records: the
-// implemented-component links are shared state, so a later submission for the
-// same host adds to them. They are excluded from signed content so earlier
-// signatures keep verifying, but GET still returns the shared union.
-// BCH-1364 (evidence-scoped subjects) should make the links evidence-scoped
-// and flip the union assertion below.
+// TestSharedInventoryItemLinksDoNotInvalidateSignatures covers inventory items
+// shared across evidence records. Later submissions update the shared item, but
+// each record signs, verifies and returns its own snapshot of what it reported.
 func (suite *EvidenceApiIntegrationSuite) TestSharedInventoryItemLinksDoNotInvalidateSignatures() {
 	err := suite.Migrator.Refresh()
 	suite.Require().NoError(err)
@@ -439,7 +435,7 @@ func (suite *EvidenceApiIntegrationSuite) TestSharedInventoryItemLinksDoNotInval
 	token, err := suite.GetAuthToken()
 	suite.Require().NoError(err)
 
-	post := func(component string) string {
+	post := func(description, component string) string {
 		reqBody, err := json.Marshal(sdktypes.Evidence{
 			UUID:  uuid.New(),
 			Title: "Host scan via " + component,
@@ -447,6 +443,7 @@ func (suite *EvidenceApiIntegrationSuite) TestSharedInventoryItemLinksDoNotInval
 			End:   time.Now().Add(-time.Minute),
 			InventoryItems: []sdktypes.InventoryItem{{
 				Identifier:            "web-server/ec2/i-1",
+				Description:           description,
 				ImplementedComponents: []sdktypes.ComponentIdentifier{{Identifier: component}},
 			}},
 			Status: sdktypes.ObjectiveStatus{State: relational.EvidenceStatusSatisfied},
@@ -473,26 +470,243 @@ func (suite *EvidenceApiIntegrationSuite) TestSharedInventoryItemLinksDoNotInval
 		suite.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &resp))
 		return resp.Data
 	}
+	reported := func(id string) oscalTypes_1_1_3.InventoryItem {
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, "/api/evidence/"+id, nil)
+		server.E().ServeHTTP(rec, req)
+		suite.Require().Equal(http.StatusOK, rec.Code, rec.Body.String())
+		var getResp GenericDataResponse[PublicEvidenceResponse]
+		suite.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &getResp))
+		suite.Require().Len(getResp.Data.InventoryItems, 1)
+		return getResp.Data.InventoryItems[0]
+	}
+	componentIDs := func(item oscalTypes_1_1_3.InventoryItem) []string {
+		suite.Require().NotNil(item.ImplementedComponents)
+		ids := []string{}
+		for _, ic := range *item.ImplementedComponents {
+			ids = append(ids, ic.ComponentUuid)
+		}
+		return ids
+	}
+	sshID, err := internal.SeededUUID(map[string]string{"identifier": "components/common/ssh"})
+	suite.Require().NoError(err)
+	ubuntuID, err := internal.SeededUUID(map[string]string{"identifier": "components/common/ubuntu-22"})
+	suite.Require().NoError(err)
 
-	evidenceA := post("components/common/ssh")
+	evidenceA := post("Web server", "components/common/ssh")
 	suite.Require().True(verify(evidenceA).IsValid)
 
-	// Another stream reports the same host with a different component.
-	post("components/common/ubuntu-22")
+	// Another stream reports the same host with a different description and component.
+	evidenceB := post("Web server, patched", "components/common/ubuntu-22")
 
 	resultA := verify(evidenceA)
 	suite.True(resultA.IsValid, "a later submission for a shared host must not invalidate A: %v", resultA.Errors)
+	resultB := verify(evidenceB)
+	suite.True(resultB.IsValid, "B must verify: %v", resultB.Errors)
 
-	// Pinned current behaviour: GET returns the shared links, including the one A never reported.
+	// Each record returns what it reported.
+	itemA := reported(evidenceA)
+	suite.Equal("Web server", itemA.Description)
+	suite.ElementsMatch([]string{sshID.String()}, componentIDs(itemA))
+	itemB := reported(evidenceB)
+	suite.Equal("Web server, patched", itemB.Description)
+	suite.ElementsMatch([]string{ubuntuID.String()}, componentIDs(itemB))
+
+	// The shared item is the current asset record: latest description, all links seen.
+	itemID, err := internal.SeededUUID(map[string]string{"identifier": "web-server/ec2/i-1"})
+	suite.Require().NoError(err)
+	var shared relational.InventoryItem
+	suite.Require().NoError(suite.DB.Preload("ImplementedComponents").First(&shared, "id = ?", itemID).Error)
+	suite.Equal("Web server, patched", shared.Description)
+	suite.Len(shared.ImplementedComponents, 2)
+}
+
+// TestInventoryItemWithoutSnapshotStillVerifies covers evidence signed before
+// inventory item versions existed. Until the migration backfills it, it is
+// signed and returned from the shared item, with implemented-component links
+// unsigned. After the backfill it keeps verifying when the shared item changes.
+func (suite *EvidenceApiIntegrationSuite) TestInventoryItemWithoutSnapshotStillVerifies() {
+	err := suite.Migrator.Refresh()
+	suite.Require().NoError(err)
+	suite.Config.StrictDisablePublicAgentEndpoints = false
+
+	server := suite.setupServer()
+	token, err := suite.GetAuthToken()
+	suite.Require().NoError(err)
+
+	itemID, err := internal.SeededUUID(map[string]string{"identifier": "web-server/ec2/i-legacy"})
+	suite.Require().NoError(err)
+	sshID, err := internal.SeededUUID(map[string]string{"identifier": "components/common/ssh"})
+	suite.Require().NoError(err)
+	ubuntuID, err := internal.SeededUUID(map[string]string{"identifier": "components/common/ubuntu-22"})
+	suite.Require().NoError(err)
+
+	// Sign legacy evidence the way the service did before snapshots: from the
+	// shared item without its links.
+	item := relational.InventoryItem{
+		UUIDModel:             relational.UUIDModel{ID: &itemID},
+		Description:           "Legacy host",
+		ImplementedComponents: []relational.ImplementedComponent{{ComponentID: sshID}},
+	}
+	suite.Require().NoError(suite.DB.Create(&item).Error)
+	evidence := relational.Evidence{
+		UUID:           uuid.New(),
+		Title:          "Legacy evidence",
+		Start:          time.Now().Add(-time.Hour).UTC(),
+		End:            time.Now().Add(-time.Minute).UTC(),
+		Status:         datatypes.NewJSONType(oscalTypes_1_1_3.ObjectiveStatus{State: relational.EvidenceStatusSatisfied}),
+		InventoryItems: []relational.InventoryItem{item},
+	}
+	suite.Require().NoError(suite.DB.Omit("InventoryItems.*").Create(&evidence).Error)
+	evidenceSvc := evidencesvc.NewEvidenceService(suite.DB, nil, suite.Config, nil)
+	persisted, err := evidenceSvc.GetByID(*evidence.ID)
+	suite.Require().NoError(err)
+	suite.Require().Empty(persisted.InventorySnapshots)
+	signer := evidencesvc.NewUserSignerContextFromClaims(&authn.UserClaims{})
+	signer.User.Claims.Subject = "legacy@example.com"
+	signature, err := evidencesvc.NewSigningService(suite.Config.JWTPrivateKey).SignEvidence(evidencesvc.CreateEvidenceParams{
+		Evidence:       *persisted,
+		InventoryItems: persisted.InventoryItems,
+	}, signer)
+	suite.Require().NoError(err)
+	suite.Require().NoError(suite.DB.Model(&evidence).Update("signature", signature).Error)
+
+	// A later link on the shared item does not invalidate it.
+	suite.Require().NoError(suite.DB.Create(&relational.ImplementedComponent{InventoryItemId: itemID, ComponentID: ubuntuID}).Error)
+
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/api/evidence/"+evidenceA, nil)
+	req := httptest.NewRequest(http.MethodPost, "/api/evidence/"+evidence.ID.String()+"/verify", nil)
+	req.Header.Set(echo.HeaderAuthorization, fmt.Sprintf("Bearer %s", *token))
+	server.E().ServeHTTP(rec, req)
+	suite.Require().Equal(http.StatusOK, rec.Code, rec.Body.String())
+	var verifyResp GenericDataResponse[evidencesvc.VerificationResult]
+	suite.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &verifyResp))
+	suite.True(verifyResp.Data.IsValid, "legacy evidence must still verify: %v", verifyResp.Data.Errors)
+
+	// GET falls back to the shared item.
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/api/evidence/"+evidence.ID.String(), nil)
 	server.E().ServeHTTP(rec, req)
 	suite.Require().Equal(http.StatusOK, rec.Code, rec.Body.String())
 	var getResp GenericDataResponse[PublicEvidenceResponse]
 	suite.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &getResp))
 	suite.Require().Len(getResp.Data.InventoryItems, 1)
+	suite.Equal("Legacy host", getResp.Data.InventoryItems[0].Description)
 	suite.Require().NotNil(getResp.Data.InventoryItems[0].ImplementedComponents)
 	suite.Len(*getResp.Data.InventoryItems[0].ImplementedComponents, 2)
+
+	// The migration pins the legacy row to a version of what it signed. Running
+	// it twice is a no-op.
+	suite.Require().NoError(svc.MigrateUp(suite.DB))
+	suite.Require().NoError(svc.MigrateUp(suite.DB))
+	var link relational.EvidenceInventoryItem
+	suite.Require().NoError(suite.DB.First(&link, "evidence_id = ?", *evidence.ID).Error)
+	suite.Require().NotNil(link.InventoryItemVersionHash)
+	var versionCount int64
+	suite.Require().NoError(suite.DB.Model(&relational.InventoryItemVersion{}).Count(&versionCount).Error)
+	suite.Equal(int64(1), versionCount)
+
+	// Now a later submission can change the shared item without invalidating it.
+	reqBody, err := json.Marshal(sdktypes.Evidence{
+		UUID:  uuid.New(),
+		Title: "Newer scan",
+		Start: time.Now().Add(-time.Hour),
+		End:   time.Now().Add(-time.Minute),
+		InventoryItems: []sdktypes.InventoryItem{{
+			Identifier:  "web-server/ec2/i-legacy",
+			Description: "Rebuilt host",
+		}},
+		Status: sdktypes.ObjectiveStatus{State: relational.EvidenceStatusSatisfied},
+	})
+	suite.Require().NoError(err)
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/api/evidence", bytes.NewReader(reqBody))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	server.E().ServeHTTP(rec, req)
+	suite.Require().Equal(http.StatusCreated, rec.Code, rec.Body.String())
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/api/evidence/"+evidence.ID.String()+"/verify", nil)
+	req.Header.Set(echo.HeaderAuthorization, fmt.Sprintf("Bearer %s", *token))
+	server.E().ServeHTTP(rec, req)
+	suite.Require().Equal(http.StatusOK, rec.Code, rec.Body.String())
+	verifyResp = GenericDataResponse[evidencesvc.VerificationResult]{}
+	suite.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &verifyResp))
+	suite.True(verifyResp.Data.IsValid, "backfilled evidence must survive a shared item change: %v", verifyResp.Data.Errors)
+
+	// GET returns what it signed: the old description and no links.
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/api/evidence/"+evidence.ID.String(), nil)
+	server.E().ServeHTTP(rec, req)
+	suite.Require().Equal(http.StatusOK, rec.Code, rec.Body.String())
+	getResp = GenericDataResponse[PublicEvidenceResponse]{}
+	suite.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &getResp))
+	suite.Require().Len(getResp.Data.InventoryItems, 1)
+	suite.Equal("Legacy host", getResp.Data.InventoryItems[0].Description)
+	suite.Nil(getResp.Data.InventoryItems[0].ImplementedComponents)
+}
+
+// TestInventoryItemTypeAndUpsert checks the reported type is kept as an
+// asset-type prop, that resubmitting an item updates the shared row, and that
+// only distinct reported states are stored as versions.
+func (suite *EvidenceApiIntegrationSuite) TestInventoryItemTypeAndUpsert() {
+	err := suite.Migrator.Refresh()
+	suite.Require().NoError(err)
+	suite.Config.StrictDisablePublicAgentEndpoints = false
+
+	server := suite.setupServer()
+	post := func(description string) {
+		reqBody, err := json.Marshal(sdktypes.Evidence{
+			UUID:  uuid.New(),
+			Title: "Host scan",
+			Start: time.Now().Add(-time.Hour),
+			End:   time.Now().Add(-time.Minute),
+			InventoryItems: []sdktypes.InventoryItem{{
+				Identifier:  "web-server/ec2/i-2",
+				Type:        "web-server",
+				Description: description,
+			}},
+			Status: sdktypes.ObjectiveStatus{State: relational.EvidenceStatusSatisfied},
+		})
+		suite.Require().NoError(err)
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodPost, "/api/evidence", bytes.NewReader(reqBody))
+		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+		server.E().ServeHTTP(rec, req)
+		suite.Require().Equal(http.StatusCreated, rec.Code, rec.Body.String())
+	}
+
+	itemID, err := internal.SeededUUID(map[string]string{"identifier": "web-server/ec2/i-2"})
+	suite.Require().NoError(err)
+
+	post("Before")
+	var item relational.InventoryItem
+	suite.Require().NoError(suite.DB.First(&item, "id = ?", itemID).Error)
+	suite.Equal("Before", item.Description)
+	suite.Contains(item.Props, relational.Prop{Name: "asset-type", Value: "web-server"})
+
+	// Reporting the item unchanged reuses its version.
+	post("Before")
+	var versionCount int64
+	suite.Require().NoError(suite.DB.Model(&relational.InventoryItemVersion{}).Count(&versionCount).Error)
+	suite.Equal(int64(1), versionCount)
+
+	post("After")
+	suite.Require().NoError(suite.DB.Model(&relational.InventoryItemVersion{}).Count(&versionCount).Error)
+	suite.Equal(int64(2), versionCount)
+	var unversioned int64
+	suite.Require().NoError(suite.DB.Model(&relational.EvidenceInventoryItem{}).
+		Where("inventory_item_version_hash IS NULL").Count(&unversioned).Error)
+	suite.Zero(unversioned)
+
+	item = relational.InventoryItem{}
+	suite.Require().NoError(suite.DB.First(&item, "id = ?", itemID).Error)
+	suite.Equal("After", item.Description)
+	suite.Contains(item.Props, relational.Prop{Name: "asset-type", Value: "web-server"})
+
+	var itemCount int64
+	suite.Require().NoError(suite.DB.Model(&relational.InventoryItem{}).Count(&itemCount).Error)
+	suite.Equal(int64(1), itemCount)
 }
 
 // TestCreatePersistsSubObjectPropsAndLinks captures the overwritten props/links bug
