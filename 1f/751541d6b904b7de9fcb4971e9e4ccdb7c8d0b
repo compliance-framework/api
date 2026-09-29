@@ -1,0 +1,4 @@
+lisa-selfreview:
+pass 1 (strict) verdict=request_changes
+- [medium] blank-component-type-400 internal/service/relational/templates/subject_template_service.go normalizeSubjectTemplatePayload: component-type "" or whitespace is kept as a non-nil empty string and rejected as invalid (400). Admin UI forms typically send "" for an unselected option; blank should mean unset (nil → "service" at resolution). Fix: normalize blank to nil; add unit + handler tests.
+- [low] warnings-json-tag internal/service/relational/templates/subject_template_service.go BatchUpsertSubjectTemplatesResult.Warnings carries a json tag while sibling fields don't. Spec explicitly asks for the tag; keep.
