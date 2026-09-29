@@ -1,0 +1,40 @@
+lisa-addressed:
+---
+Comment (internal/api/handler/templates/subject_template_integration_test.go:258):
+**Low — gofmt.** Adding `Warnings` widened the field column, so the unchanged `Created`/`Updated` lines (255–256) are now misaligned. `gofmt -l .` flags this file on the branch but not on `main`. CI lint does not catch it because the file is only built under the `integration` build tag, so the "golangci-lint: 0 issues" in the description doesn't cover it.
+
+Suggestion: `gofmt -w internal/api/handler/templates/subject_template_integration_test.go`.
+Replies:
+**lisa implementation guidance:** Fix: run gofmt -w on internal/api/handler/templates/subject_template_integration_test.go (realigns batchSubjectTemplateResult fields). Also run gofmt -l over all changed files, since integration-tagged files aren't covered by golangci-lint.
+
+<!-- lisa-guidance-posted -->
+---
+Comment (internal/api/handler/templates/subject_template_integration_test.go:608):
+**Low — this assertion can pass with no data.** `raw["data"]["warnings"]` indexes a nil map when `data` is missing, which returns `ok == false`. So if the response envelope ever changes (a different key, `data` dropped), `require.False(hasWarnings)` still passes and the test stops checking anything.
+
+Suggestion: add a precondition before the negative check, e.g.
+```go
+data, ok := raw["data"]
+require.True(suite.T(), ok, rec.Body.String())
+require.Len(suite.T(), data["created"], 1)
+_, hasWarnings := data["warnings"]
+require.False(suite.T(), hasWarnings)
+```
+(Or decode into `batchSubjectTemplateResult`, assert `Created` has length 1, and keep the raw map only for the key-absence check.)
+Replies:
+**lisa implementation guidance:** Fix: in TestSubjectTemplateBatchUpsertOmitsWarningsForComponentOnlyBatch, first require that raw["data"] exists and that data["created"] has length 1, then assert the warnings key is absent. This makes the negative check non-vacuous.
+
+<!-- lisa-guidance-posted -->
+---
+Comment (internal/service/relational/templates/subject_template_service.go:1344):
+**Low — `component-type` on a template that isn't `component` is silently accepted and stored.** A `resource` (or `user`, `party`, …) template sent with `component-type: software` passes validation and is persisted. That value is never used: these templates produce no subjects, and the resolver in API-06 only reads `ComponentType` for component templates. A plugin author gets no signal that the field was ignored. The warning at L1694 only mentions the type.
+
+Suggestion, either one:
+- reject it: `if payload.ComponentType != nil && payload.Type != subjectTemplateTypeComponent { return newValidationError("componentType is only valid for component templates") }`, or
+- keep accepting it and extend the non-component warning (L1694) to mention that `component-type` is ignored, e.g. `template <name> has type <type> and will not produce subjects (component-type ignored)`.
+
+Either way, add a test for the chosen behaviour.
+Replies:
+**lisa implementation guidance:** Fix (option 2, keep accepting): the design already accepts non-component templates and warns about them, so rejecting them would widen what counts as a hard failure. In BatchUpsert's warning loop, when a non-component item has ComponentType != nil, append ' (component-type ignored)' to the existing spec message. Templates without component-type keep the exact spec text. Add a service unit test and extend the handler integration test for this case.
+
+<!-- lisa-guidance-posted -->
