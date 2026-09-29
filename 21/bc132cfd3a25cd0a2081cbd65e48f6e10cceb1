@@ -1,3 +1,6 @@
 lisa-addressed:
 self-review pass 1:
 - [medium] blank-component-type-400: normalizeSubjectTemplatePayload now maps blank/whitespace component-type to nil (unset → "service" at resolution) instead of 400. Tests: TestSubjectTemplateService_BlankComponentTypeIsUnset, TestSubjectTemplateAdminBlankComponentTypeIsUnset.
+
+lisa-selfreview:
+pass 2 (strict) verdict=approve — no findings; all SubjectTemplate construction sites (handler create/update/batch, service create/update/in-tx, batch<->payload, fingerprint, response mapper, SDK types) carry the new fields.
