@@ -1,0 +1,9 @@
+lisa-design:
+- Spec source: Jira BCH-1368 (HLD Confluence BP 2676195330 §5.2, §5.5). Scope is API+SDK only; subject resolution using display-priority/component-type is BCH-1387, not here.
+- component-type is optional (*string); nil is persisted as NULL and means "service" at resolution time (BCH-1387). The API does NOT default it to "service" on write, so the stored value reflects what the plugin declared.
+- component-type is normalized (trim + lowercase) before validation/storage, like type/source-mode; validated against the 13 OSCAL system-component types. It is validated for all template types, not only type=component.
+- display-priority is a plain int (0 default, negatives allowed); no ordering semantics are enforced in this ticket.
+- Non-component templates are accepted (not rejected) and produce a warning "template <name> has type <type> and will not produce subjects". Warnings are emitted for every non-component item in the batch, including unchanged ones, so the agent sees them on every sync. Warnings are omitted (omitempty) when empty.
+- Both new fields are part of the batch no-op fingerprint (subjectTemplateMatchesPayload), so changing only priority/type is reported as Updated.
+- SDK Upsert is a deliberate breaking change: returns (*UpsertSubjectTemplatesResult, error). Only caller is the agent (BCH-1406). UpsertSubjectTemplatesResult carries only Warnings for now. Empty 2xx body is tolerated (empty result); malformed JSON is an error.
+- No explicit migration needed: SubjectTemplate is already AutoMigrated; gorm adds display_priority (NOT NULL DEFAULT 0) and component_type (nullable text).
