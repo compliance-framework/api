@@ -1,0 +1,112 @@
+lisa-addressed:
+---
+Comment (docs/authz-oss-cedar.md:43):
+Non-blocking (R57 doc note): "redacted" is true for the instance `base`/`effective` reports, but not for the **overlay**. `GET …/config` and `GET …/config/revisions/:rev` return it verbatim (A4.3), so a literal secret typed into `plugins.*.config` in an overlay can be read by anyone with `agent:read`. That includes viewer, auditor, contributor and policy-author through `"*": [read]`.
+
+The owner decided on **document only** (R57, 2026-09-30), so the code doesn't need to change. Please make this sentence (and the same comment at `internal/authz/manifest.yaml:292`) say that overlays are returned unredacted to `agent:read` holders, and that secrets should use `${env:NAME}` placeholders. A short line in the `Get` swagger description would also help the UI/API consumer.
+Replies:
+**lisa implementation guidance:** fix (R57, document only): reword docs/authz-oss-cedar.md:43 and the matching comment in internal/authz/manifest.yaml to say that instance base/effective reports are redacted but overlays are returned unredacted to every agent:read holder (incl. policy-author), and recommend ${env:NAME} placeholders; add the same note to the Get swagger description and regenerate swagger. No code change.
+
+<!-- lisa-guidance-posted -->
+---
+Comment (pkg/agentconfig/policyonly.go:40):
+Non-blocking question (needs an owner decision): step 1 accepts **any** change under `/policy_bundles`, including setting `extends` to a source the host doesn't use yet. So a `configure-policy`-only user can do in two steps what the `nonInline(f) == nonInline(t)` rule stops them doing in one. Instead of adding `ghcr.io/evil/pol:v9` to `plugins.x.policies` (403), they add `policy_bundles.b: {extends: "ghcr.io/evil/pol:v9"}` plus `inline:b` (accepted). I checked this with `PolicyOnlyChange({}, <that>, [base])`, which returns `true`.
+
+This matches D18's wording ("change `policy_bundles.*`"). Hosts on `apply_safe` still reject it, because `Classify` gives an untrusted `extends` an `untrusted-source` result. But `apply_all` hosts would load that vendor tree, and vendor modules are not builtin-checked (R20). Options:
+1. Keep it and document that `configure-policy` can introduce new `extends` sources.
+2. Also require that a new or changed `extends` is already used by the validation bases, or is the source it replaces (the same idea as the R22 swap).
+3. Require `agent:configure` whenever `extends` changes to a source that isn't already used.
+Replies:
+**Blocking: decided as R58 (design §12, option 2).** This is now a required change.
+
+**Rule:** `PolicyOnlyChange` accepts a new or changed `policy_bundles.<b>.extends` only in two cases:
+- the source is already used by the validation base, meaning it is in `usedSources(B)`: plugin sources, non-inline policy entries and `extends` values in the base;
+- the change is the R22 swap: `f[i] == S` and `t[i] == inline:<b>` at the same index, with `T.bundles[b].extends == S`.
+
+Any other `extends` requires `agent:configure`, so the caller gets a 403. Removing `extends`, or leaving it unchanged, is still allowed.
+
+**Implementation:**
+- In the per-base loop, after the plugin-set and policies checks, walk `unionMapKeys(from.PolicyBundles, to.PolicyBundles)`.
+- For each `tb := to.PolicyBundles[b]` with `tb.Extends != nil`, the extends is "new or changed" when `fb == nil || fb.Extends == nil || *fb.Extends != *tb.Extends`.
+- A new or changed extends must satisfy `used[*tb.Extends] || swapped[b] == *tb.Extends`.
+  - `used := usedSources(B)`, the helper `Classify` already uses.
+  - `swapped` maps the bundle name to the `S` recorded when `policiesChangeAllowed` takes branch (b), so that function needs to return the swaps it accepted.
+- This check must run even when the diff touches only `/policy_bundles` (no `/plugins/<p>/policies` change).
+- With no bases (the single zero `Config`), `used` is empty. Only the swap can then introduce an `extends`.
+
+**Tests to add:**
+- Unit (`policyonly_test.go`):
+  - a new bundle `{extends: "ghcr.io/evil/pol:v9"}` plus `inline:b` in `plugins.x.policies` returns false;
+  - changing an existing overlay bundle's `extends` to an unknown source, with no policies change, returns false;
+  - an `extends` whose source already appears in the base's policies or `extends` returns true;
+  - the existing `S → inline:B` swap still returns true;
+  - removing `extends` returns true.
+- Integration (Cedar `policy-author`):
+  - adding a bundle with an unknown `extends` and wiring it in gets 403 with no new revision;
+  - swapping `S → inline:B` where `B.extends == S` gets 201;
+  - adding a bundle whose `extends` is a source a fresh instance's base already uses gets 201.
+**lisa implementation guidance:** fix (R58, option 2 per owner reply): implement exactly the rule in the owner's reply. policiesChangeAllowed returns the S -> inline:<b> swaps it accepted; a new extendsChangeAllowed step runs per base (also for /policy_bundles-only diffs) and requires a new/changed extends to be in usedSources(base) or equal to swapped[b]. Unit cases + Cedar policy-author integration cases as listed.
+
+<!-- lisa-guidance-posted -->
+---
+Comment (internal/api/handler/agent_config.go:553):
+Non-blocking (needs an owner decision): `Merge(base, overlay).ValidateEditable()` also reports problems that come from the **file**, not the overlay. A reported base with a bad cron (which R34/R41 say the agent only warns about) makes every save for that agent return 422, even an unrelated `{"verbosity":1}`. I checked this: `ValidateEditable` returns `/plugins/x/schedule: invalid cron` for that overlay. Preview then shows `will-apply: false / invalid-config` for that instance, although the agent would apply the revision.
+
+The same happens with a literal `${env:…}` string in the file's `policy_data`. The LLD risk table accepts "422 until you fix the overlay or the host's file". But that is stricter than the agent under R34. A cheap fix is to drop errors whose pointer is also reported for `Merge(base, {})`, so only errors the overlay introduces or leaves unfixed on touched paths block the save.
+Replies:
+**Blocking: decided as R59 (design §12, option 2).** This is now a required change.
+
+**Rule:** PUT, revert and preview block only on errors the overlay **introduces**, meaning errors not already present in `Merge(base, {})`. File-origin errors come back as non-blocking **`warnings` per instance**. Preview must not mark an instance `will-apply: false / invalid-config` because of file-origin errors alone.
+
+**Implementation:**
+- Add a helper, e.g. `splitIntroduced(base, overlay) (introduced, fileOrigin []FieldError)`:
+  - `_, baseline := mergeAndValidate(b.Base, json.RawMessage("{}"))` and `_, all := mergeAndValidate(b.Base, overlay)`;
+  - an error is introduced when its `(Path, Code, Message)` key is not in `baseline`. The full key matters: an overlay that replaces a bad cron with a different bad cron is still blocking, because the message differs.
+- **`validateCandidate` / 422:** `instances[].errors` holds only the introduced errors, and `blocking()` counts only those. Optionally add `instances[].warnings` holding the file-origin ones.
+- **`previewInstance`:** `Errors` holds the introduced errors. Add `Warnings []agentconfig.FieldError` with the json tag `warnings`, always `[]` rather than null. Only introduced errors, or `overlayInvalid`, force `invalid-config`.
+- Regenerate swagger (`make swag`). Mention the new `instances[].warnings` field in the PR body so the UI LLD can pick it up.
+
+**Tests to add:**
+- Unit (handler helper):
+  - a base with `plugins.x.schedule: "not a cron"` and overlay `{"verbosity":1}` gives no introduced errors and one file-origin `/plugins/x/schedule` `cron` error;
+  - overlay `{"plugins":{"x":{"schedule":"also bad"}}}` gives an introduced error;
+  - a new bad cron on another plugin gives an introduced error.
+- Integration:
+  - report an `apply_safe` instance whose base has the bad cron;
+  - PUT `{"verbosity":1}` with `If-Match: "0"` gets **201**;
+  - preview of the same overlay returns that instance with `errors: []`, `warnings` containing `/plugins/x/schedule` (code `cron`), `validated: true` and `will-apply: true`;
+  - PUT of an overlay that introduces a new bad cron still gets 422.
+**lisa implementation guidance:** fix (R59, option 2 per owner reply): add splitIntroduced(base, overlay) keyed on (Path, Code, Message) against Merge(base, {}); validateCandidate/blocking and 422 instances[].errors use only introduced errors (instances[].warnings carries file-origin ones); previewInstance gets Warnings (always []) and only introduced errors or overlayInvalid force invalid-config. Regenerate swagger; unit + integration tests as listed.
+
+<!-- lisa-guidance-posted -->
+---
+Comment (internal/api/handler/agent_config.go:364):
+Non-blocking: when D18 narrows the request, `AuthorizeAny` has already audited `configure-policy` as **allow**, and this 403 is only returned to the client. The PEP audit trail, which §8 relies on for attribution, therefore shows an allowed write that was actually refused. A `sugar.Infow` or an audit record here with the subject, the agent id and the first non-policy path from the diff would make D18 denials traceable. There is also no integration test for a policy-author **revert** that crosses non-policy fields. It uses the same `save()` path, so a one-line case would guard that wiring.
+Replies:
+**lisa implementation guidance:** fix (cheap): on the D18 403 in save(), emit an info-level audit record in the PEP's 'authz decision' shape (audit=true, decision=deny, subject, resource agent + id, action configure, reason with the first non-policy path from the diff via a new agentconfig.FirstNonPolicyPath). Add a Cedar policy-author revert integration test that crosses non-policy fields (403, no new revision).
+
+<!-- lisa-guidance-posted -->
+---
+Comment (pkg/agentconfig/policyonly.go:55):
+Blocking: R58 (design §12). A `configure-policy`-only user can introduce a **new** vendor source through `policy_bundles.<b>.extends`, which bypasses D18/R22. `PolicyOnlyChange({}, {"policy_bundles":{"b":{"extends":"ghcr.io/evil/pol:v9"}},"plugins":{"x":{"policies":[...,"inline:b"]}}}, [base])` currently returns `true`.
+
+In this per-base loop, a new or changed `extends` must be either in `usedSources(base)` or the R22 swap source `S` at the same index. Otherwise return false, so the handler answers 403. This must also hold when only `/policy_bundles` changed. The full implementation guidance and the unit and integration tests are in the reply on the thread at line 40.
+Replies:
+**lisa implementation guidance:** fix (R58): same change as the thread at line 40 (per-base extends check after the plugin-set/policies checks).
+
+<!-- lisa-guidance-posted -->
+---
+Comment (internal/api/handler/agent_config.go:565):
+Blocking: R59 (design §12). Errors from `Merge(base, overlay).ValidateEditable()` that are already present in `Merge(base, {})` come from the file, e.g. a bad cron or a literal `${env:}` in `policy_data`. They must not block PUT or revert, and they must not force preview to `invalid-config`. Return them as per-instance `warnings` instead.
+
+Only errors the overlay introduces (by `(Path, Code, Message)` key) go into `instances[].errors` and `blocking()`. The implementation guidance and the tests are in the reply on the thread at line 553. The key test: a base with a bad cron, PUT `{"verbosity":1}`, expect 201 plus a warning in preview.
+Replies:
+**lisa implementation guidance:** fix (R59): same change as the thread at line 553.
+
+<!-- lisa-guidance-posted -->
+
+lisa-addressed (review pass, PR #465):
+- R58: PolicyOnlyChange step 3 (extendsChangeAllowed): per base, a new/changed policy_bundles.<b>.extends must be in usedSources(base) (the BASE only, not Merge(base, current)) or equal the S that policiesChangeAllowed accepted as an S -> inline:<b> swap at the same index. Runs for /policy_bundles-only diffs too. Removing/unchanged extends is allowed. No bases => only the swap can introduce an extends.
+- R59: splitIntroduced(base, overlay) keys errors on (Path, Code, Message) vs Merge(base, {}). validateCandidate lists an instance in the 422 only when it has introduced errors; instances[].warnings carries file-origin errors there. previewInstance: errors = introduced (+ Classify parse error), warnings = file-origin (always []), only introduced errors or overlayInvalid force invalid-config. A new bad cron typed in the overlay is still caught by ValidateOverlay (overlay-level 422).
+- R57: docs-only (authz-oss-cedar.md, manifest.yaml comment, Get swagger): overlays are unredacted to agent:read holders; use ${env:NAME}.
+- D18 audit: save() logs an "authz decision" record (audit=true, decision=deny, action=configure, reason with agentconfig.FirstNonPolicyPath or the D18/R22/R58 fallback) on the 403. Policy-author revert across non-policy fields is covered by an integration test.
