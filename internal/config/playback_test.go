@@ -47,3 +47,15 @@ func TestLoadPlaybackConfigIgnoresNonPositiveValues(t *testing.T) {
 
 	assert.Equal(t, DefaultPlaybackConfig(), cfg)
 }
+
+func TestLoadArtifactConfig(t *testing.T) {
+	viper.Reset()
+	t.Cleanup(viper.Reset)
+	assert.Equal(t, int64(16<<20), LoadArtifactConfig().MaxBytes)
+
+	viper.Set("artifact_max_bytes", 1024)
+	assert.Equal(t, int64(1024), LoadArtifactConfig().MaxBytes)
+
+	viper.Set("artifact_max_bytes", -1)
+	assert.Equal(t, DefaultArtifactConfig(), LoadArtifactConfig())
+}

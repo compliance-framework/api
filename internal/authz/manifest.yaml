@@ -239,6 +239,10 @@ resources:
   # execute it.
   playback:
     actions: [execute]           # action-only
+  # Immutable, content-addressed artifacts a policy evaluation used: the policy bundle, the
+  # input data and the policy data. Agents ingest them; any logged-in subject may read them.
+  artifact:
+    actions: [read, ingest]
 
   # ── Archetype F: platform / admin ──
   # The Phase-1 `admin` umbrella is retained as the resource the admin enforcement gates on
@@ -344,6 +348,7 @@ roles:
     ssp: [update]
     ssp-export-offering: [read, subscribe]
     playback: [execute]
+    artifact: [read]
 
   # Service accounts: ingest telemetry and register, and reconcile their own plugin templates
   # (the /agent/{risk,subject}-templates batch upsert — plugin v2). The batch routes enforce the
@@ -355,3 +360,4 @@ roles:
     risk-template: [update]
     subject-template: [update]
     playback: [execute]
+    artifact: [read, ingest]

@@ -188,6 +188,7 @@ func MigrateUpWithConfig(db *gorm.DB, cfg *config.Config) error {
 		&relational.SystemNotificationDestination{},
 		&Heartbeat{},
 		&relational.Evidence{},
+		&relational.Artifact{},
 		&relational.Labels{},
 		&relational.SelectSubjectById{},
 		&relational.Filter{},
@@ -1135,6 +1136,7 @@ func MigrateDown(db *gorm.DB) error {
 
 		&Heartbeat{},
 		&relational.Evidence{},
+		&relational.Artifact{},
 		"evidence_activities",
 		"evidence_components",
 		"evidence_inventory_items",

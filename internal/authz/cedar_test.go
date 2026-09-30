@@ -45,6 +45,7 @@ func TestCedarRBACMatrix(t *testing.T) {
 			"viewer@x":      "viewer",
 			"auditor@x":     "auditor",
 			"contributor@x": "contributor",
+			"subscriber@x":  "ssp-subscriber",
 		},
 	})
 	user := func(id string) Subject { return Subject{Type: "user", ID: id} }
@@ -96,8 +97,8 @@ func TestCedarRBACMatrix(t *testing.T) {
 		{agent, "register", "agent", true},
 		{agent, "ingest", "agent", true},
 		{agent, "update", "risk-template", true},    // plugin v2 batch upsert
-		{agent, "update", "subject-template", true},  // plugin v2 batch upsert
-		{agent, "delete", "risk-template", false},    // batch route only enforces update
+		{agent, "update", "subject-template", true}, // plugin v2 batch upsert
+		{agent, "delete", "risk-template", false},   // batch route only enforces update
 		{agent, "read", "catalog", false},
 		{agent, "delete", "evidence", false},
 		{agent, "manage", "admin", false},
@@ -109,6 +110,17 @@ func TestCedarRBACMatrix(t *testing.T) {
 		{user("contributor@x"), "execute", "playback", true},
 		{agent, "execute", "playback", true},
 		{user("nobody@x"), "execute", "playback", false},
+
+		// artifact: every role reads; only agents ingest
+		{user("viewer@x"), "read", "artifact", true},
+		{user("auditor@x"), "read", "artifact", true},
+		{user("contributor@x"), "read", "artifact", true},
+		{user("subscriber@x"), "read", "artifact", true},
+		{agent, "read", "artifact", true},
+		{agent, "ingest", "artifact", true},
+		{user("contributor@x"), "ingest", "artifact", false},
+		{user("subscriber@x"), "ingest", "artifact", false},
+		{user("nobody@x"), "read", "artifact", false},
 
 		// no role / anonymous: deny-by-default
 		{user("nobody@x"), "read", "evidence", false},
@@ -419,7 +431,7 @@ func TestCedarFactoryPublicAgentEndpoints(t *testing.T) {
 	_ = dir
 	cfgOverride := &config.Config{
 		StrictDisablePublicAgentEndpoints: false,
-		Authz: &config.AuthzConfig{RoleAssignmentsPath: rolesFile},
+		Authz:                             &config.AuthzConfig{RoleAssignmentsPath: rolesFile},
 	}
 	pdpOverride, err := cedarFactory(Options{}, Deps{Config: cfgOverride, Logger: zap.NewNop().Sugar()})
 	if err != nil {

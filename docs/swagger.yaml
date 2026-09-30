@@ -8,6 +8,15 @@ definitions:
         additionalProperties: {}
         type: object
     type: object
+  artifact.Info:
+    properties:
+      digest:
+        type: string
+      mediaType:
+        type: string
+      sizeBytes:
+        type: integer
+    type: object
   auth.AuthHandler:
     type: object
   authn.JWK:
@@ -338,6 +347,12 @@ definitions:
         items:
           $ref: '#/definitions/oscalTypes_1_1_3.Origin'
         type: array
+      policy-artifacts:
+        allOf:
+        - $ref: '#/definitions/handler.EvidencePolicyArtifacts'
+        description: |-
+          The stored artifacts the evidence was produced from, so its evaluation can be played
+          back. The API records them as signed props. Optional.
       props:
         items:
           $ref: '#/definitions/oscalTypes_1_1_3.Property'
@@ -417,6 +432,15 @@ definitions:
           consolidated, block-level data storage capability.\"\n\"appliance\"\t\t\tdescription=\"A
           physical or virtual machine that centralizes hardware, software, or services
           for a specific purpose.\""
+        type: string
+    type: object
+  handler.EvidencePolicyArtifacts:
+    properties:
+      bundle-digest:
+        type: string
+      input-digest:
+        type: string
+      policy-data-digest:
         type: string
     type: object
   handler.EvidenceRiskResponse:
@@ -13703,6 +13727,49 @@ paths:
       summary: Get a user's effective roles
       tags:
       - RoleAssignments
+  /agent/artifacts:
+    post:
+      consumes:
+      - application/json
+      - application/vnd.ccf.policy-bundle.v1+tar
+      description: Stores the request body as an immutable artifact and returns its
+        digest. The API converts the body to its canonical form first, so equal content
+        always gets one digest. Content-Type application/json accepts any JSON value;
+        application/vnd.ccf.policy-bundle.v1+tar accepts a policy bundle as a tar
+        or gzipped tar. Uploading content that is already stored returns 200 and changes
+        nothing. Agent token required.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Already stored
+          schema:
+            $ref: '#/definitions/artifact.Info'
+        "201":
+          description: Stored
+          schema:
+            $ref: '#/definitions/artifact.Info'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "413":
+          description: Request Entity Too Large
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Upload an artifact
+      tags:
+      - Artifacts
   /agent/heartbeat:
     post:
       consumes:
@@ -13812,6 +13879,45 @@ paths:
       summary: Batch upsert subject templates
       tags:
       - Subject Templates
+  /artifacts/{digest}:
+    get:
+      description: Returns the canonical bytes of the artifact with the digest, with
+        its media type. Any logged-in user or agent may read artifacts.
+      parameters:
+      - description: Artifact digest, sha256:<64 hex>
+        in: path
+        name: digest
+        required: true
+        type: string
+      produces:
+      - application/json
+      - application/vnd.ccf.policy-bundle.v1+tar
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: file
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Download an artifact
+      tags:
+      - Artifacts
   /auth/forgot-password:
     post:
       consumes:
