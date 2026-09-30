@@ -158,6 +158,10 @@ type Evidence struct {
 	Subjects []Subject `json:"subjects,omitempty"`
 	// Did we satisfy what was being tested for, or did we fail ?
 	Status ObjectiveStatus `json:"status"`
+
+	// PolicyArtifacts names the stored artifacts (see Client.Artifact) the evidence was
+	// produced from, so its evaluation can be played back. Optional.
+	PolicyArtifacts *PolicyArtifacts `json:"policy-artifacts,omitempty"`
 }
 
 type ThreatRef struct {
@@ -241,4 +245,12 @@ type Heartbeat struct {
 	// mode off) stays distinguishable server-side.
 	ConfigRevision *int64 `json:"config_revision,omitempty"`
 	ConfigDigest   string `json:"config_digest,omitempty"` // Digest(effective); required when mode != off (R11)
+}
+
+// PolicyArtifacts are the digests of the artifacts a policy evaluation used, as returned by
+// Client.Artifact.Upload.
+type PolicyArtifacts struct {
+	BundleDigest     string `json:"bundle-digest"`
+	InputDigest      string `json:"input-digest"`
+	PolicyDataDigest string `json:"policy-data-digest,omitempty"`
 }

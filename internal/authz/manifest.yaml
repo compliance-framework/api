@@ -240,6 +240,10 @@ resources:
   # execute it.
   playback:
     actions: [execute]           # action-only
+  # Immutable, content-addressed artifacts a policy evaluation used: the policy bundle, the
+  # input data and the policy data. Agents ingest them; any logged-in subject may read them.
+  artifact:
+    actions: [read, ingest]
 
   # ── Archetype F: platform / admin ──
   # The Phase-1 `admin` umbrella is retained as the resource the admin enforcement gates on
@@ -354,6 +358,7 @@ roles:
     ssp: [update]
     ssp-export-offering: [read, subscribe]
     playback: [execute]
+    artifact: [read]
 
   # Policy authors: viewer + configure-policy. Iterate on inline Rego without changing
   # binaries/sources (D18, R40, R53).
@@ -372,3 +377,4 @@ roles:
     risk-template: [update]
     subject-template: [update]
     playback: [execute]
+    artifact: [read, ingest]

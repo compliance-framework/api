@@ -3704,6 +3704,71 @@
                 ]
             }
         },
+        "/agent/artifacts": {
+            "post": {
+                "description": "Stores the request body as an immutable artifact and returns its digest. The API converts the body to its canonical form first, so equal content always gets one digest. Content-Type application/json accepts any JSON value; application/vnd.ccf.policy-bundle.v1+tar accepts a policy bundle as a tar or gzipped tar. Uploading content that is already stored returns 200 and changes nothing. Needs an agent token, or none while public agent endpoints are allowed.",
+                "consumes": [
+                    "application/json",
+                    "application/vnd.ccf.policy-bundle.v1+tar"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Artifacts"
+                ],
+                "summary": "Upload an artifact",
+                "responses": {
+                    "200": {
+                        "description": "Already stored",
+                        "schema": {
+                            "$ref": "#/definitions/artifact.Info"
+                        }
+                    },
+                    "201": {
+                        "description": "Stored",
+                        "schema": {
+                            "$ref": "#/definitions/artifact.Info"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "413": {
+                        "description": "Request Entity Too Large",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "429": {
+                        "description": "Too Many Requests",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
         "/agent/config": {
             "get": {
                 "description": "Returns the authenticated agent's current remote-configuration overlay (an RFC 7396 merge patch over its local config file, snake_case) with an opaque ETag. Send the raw ETag back as If-None-Match to get a 304 when nothing changed; never construct one. Revision 0 means no overlay. Agent JWT only; a 404 means the API predates remote configuration.",
@@ -3999,6 +4064,65 @@
                         }
                     }
                 }
+            }
+        },
+        "/artifacts/{digest}": {
+            "get": {
+                "description": "Returns the canonical bytes of the artifact with the digest, with its media type. Any logged-in user or agent may read artifacts.",
+                "produces": [
+                    "application/json",
+                    "application/vnd.ccf.policy-bundle.v1+tar"
+                ],
+                "tags": [
+                    "Artifacts"
+                ],
+                "summary": "Download an artifact",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Artifact digest, sha256:\u003c64 hex\u003e",
+                        "name": "digest",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "file"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
             }
         },
         "/auth/forgot-password": {
@@ -35651,6 +35775,20 @@
                 }
             }
         },
+        "artifact.Info": {
+            "type": "object",
+            "properties": {
+                "digest": {
+                    "type": "string"
+                },
+                "mediaType": {
+                    "type": "string"
+                },
+                "sizeBytes": {
+                    "type": "integer"
+                }
+            }
+        },
         "auth.AuthHandler": {
             "type": "object"
         },
@@ -36131,6 +36269,14 @@
                         "$ref": "#/definitions/oscalTypes_1_1_3.Origin"
                     }
                 },
+                "policy-artifacts": {
+                    "description": "The stored artifacts the evidence was produced from, so its evaluation can be played\nback. The API records them as signed props. Optional.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/handler.EvidencePolicyArtifacts"
+                        }
+                    ]
+                },
                 "props": {
                     "type": "array",
                     "items": {
@@ -36209,6 +36355,20 @@
                 },
                 "type": {
                     "description": "\"operating-system\"\tdescription=\"System software that manages computer hardware, software resources, and provides common services for computer programs.\"\n\"database\"\t\t\tdescription=\"An electronic collection of data, or information, that is specially organized for rapid search and retrieval.\"\n\"web-server\"\t\t\tdescription=\"A system that delivers content or services to end users over the Internet or an intranet.\"\n\"dns-server\"\t\t\tdescription=\"A system that resolves domain names to internet protocol (IP) addresses.\"\n\"email-server\"\t\tdescription=\"A computer system that sends and receives electronic mail messages.\"\n\"directory-server\"\tdescription=\"A system that stores, organizes and provides access to directory information in order to unify network resources.\"\n\"pbx\"\t\t\t\tdescription=\"A private branch exchange (PBX) provides a a private telephone switchboard.\"\n\"firewall\"\t\t\tdescription=\"A network security system that monitors and controls incoming and outgoing network traffic based on predetermined security rules.\"\n\"router\"\t\t\t\tdescription=\"A physical or virtual networking device that forwards data packets between computer networks.\"\n\"switch\"\t\t\t\tdescription=\"A physical or virtual networking device that connects devices within a computer network by using packet switching to receive and forward data to the destination device.\"\n\"storage-array\"\t\tdescription=\"A consolidated, block-level data storage capability.\"\n\"appliance\"\t\t\tdescription=\"A physical or virtual machine that centralizes hardware, software, or services for a specific purpose.\"",
+                    "type": "string"
+                }
+            }
+        },
+        "handler.EvidencePolicyArtifacts": {
+            "type": "object",
+            "properties": {
+                "bundle-digest": {
+                    "type": "string"
+                },
+                "input-digest": {
+                    "type": "string"
+                },
+                "policy-data-digest": {
                     "type": "string"
                 }
             }

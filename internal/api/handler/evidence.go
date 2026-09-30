@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -11,9 +12,11 @@ import (
 	"github.com/compliance-framework/api/internal"
 	"github.com/compliance-framework/api/internal/api"
 	"github.com/compliance-framework/api/internal/api/authcontext"
+	"github.com/compliance-framework/api/internal/artifact"
 	"github.com/compliance-framework/api/internal/converters/labelfilter"
 	svc "github.com/compliance-framework/api/internal/service"
 	"github.com/compliance-framework/api/internal/service/relational"
+	artifactsvc "github.com/compliance-framework/api/internal/service/relational/artifacts"
 	evidencesvc "github.com/compliance-framework/api/internal/service/relational/evidence"
 	riskrel "github.com/compliance-framework/api/internal/service/relational/risks"
 	oscalTypes_1_1_3 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
@@ -27,8 +30,16 @@ import (
 type EvidenceHandler struct {
 	evidenceService *evidencesvc.EvidenceService
 	riskService     *riskrel.RiskService
+	artifactService *artifactsvc.Service
 	pagination      *svc.PaginationConfig
 	sugar           *zap.SugaredLogger
+}
+
+// WithArtifactService lets evidence refer to stored policy artifacts. Without it, evidence
+// that refers to artifacts is rejected.
+func (h *EvidenceHandler) WithArtifactService(service *artifactsvc.Service) *EvidenceHandler {
+	h.artifactService = service
+	return h
 }
 
 func NewEvidenceHandler(sugar *zap.SugaredLogger, evidenceService *evidencesvc.EvidenceService, riskService *riskrel.RiskService) *EvidenceHandler {
@@ -201,6 +212,18 @@ type EvidenceCreateRequest struct {
 	Subjects []EvidenceSubject
 	// Did we satisfy what was being tested for, or did we fail ?
 	Status oscalTypes_1_1_3.ObjectiveStatus
+
+	// The stored artifacts the evidence was produced from, so its evaluation can be played
+	// back. The API records them as signed props. Optional.
+	PolicyArtifacts *EvidencePolicyArtifacts `json:"policy-artifacts,omitempty"`
+}
+
+// EvidencePolicyArtifacts names, by digest, the artifacts uploaded through
+// POST /api/agent/artifacts that a policy evaluation used.
+type EvidencePolicyArtifacts struct {
+	BundleDigest     string `json:"bundle-digest"`
+	InputDigest      string `json:"input-digest"`
+	PolicyDataDigest string `json:"policy-data-digest,omitempty"`
 }
 
 // implementedComponentLinkID is deterministic per (inventory item, component) so
@@ -240,6 +263,14 @@ func (h *EvidenceHandler) Create(ctx echo.Context) error {
 	err := ctx.Validate(input)
 	if err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.Validator(err))
+	}
+
+	if err := h.applyPolicyArtifacts(ctx.Request().Context(), input); err != nil {
+		var invalid *invalidPolicyArtifactsError
+		if errors.As(err, &invalid) {
+			return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+		}
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
 	now := time.Now().UTC()
@@ -1186,4 +1217,62 @@ func (h *EvidenceHandler) ComplianceByFilter(ctx echo.Context) error {
 	}
 
 	return ctx.JSON(http.StatusOK, GenericDataListResponse[evidencesvc.StatusCount]{Data: rows})
+}
+
+type invalidPolicyArtifactsError struct{ msg string }
+
+func (e *invalidPolicyArtifactsError) Error() string { return e.msg }
+
+func invalidPolicyArtifacts(format string, args ...any) error {
+	return &invalidPolicyArtifactsError{msg: fmt.Sprintf(format, args...)}
+}
+
+// applyPolicyArtifacts rejects client-supplied artifact props, checks the referenced
+// artifacts are stored with the expected media types, and records their digests as props,
+// before the evidence is converted and signed.
+func (h *EvidenceHandler) applyPolicyArtifacts(ctx context.Context, input *EvidenceCreateRequest) error {
+	for _, prop := range input.Props {
+		if artifact.IsReservedProp(prop.Name) {
+			return invalidPolicyArtifacts("prop %q is set by the API from policy-artifacts and may not be supplied", prop.Name)
+		}
+	}
+	refs := input.PolicyArtifacts
+	if refs == nil {
+		return nil
+	}
+	if h.artifactService == nil {
+		return invalidPolicyArtifacts("this API does not accept policy-artifacts")
+	}
+
+	type ref struct {
+		prop, field, digest, mediaType string
+		required                       bool
+	}
+	for _, r := range []ref{
+		{artifact.PropPolicyBundleDigest, "bundle-digest", refs.BundleDigest, artifact.MediaTypePolicyBundle, true},
+		{artifact.PropPolicyInputDigest, "input-digest", refs.InputDigest, artifact.MediaTypeJSON, true},
+		{artifact.PropPolicyDataDigest, "policy-data-digest", refs.PolicyDataDigest, artifact.MediaTypeJSON, false},
+	} {
+		if r.digest == "" {
+			if r.required {
+				return invalidPolicyArtifacts("policy-artifacts.%s is required", r.field)
+			}
+			continue
+		}
+		if !artifact.ValidDigest(r.digest) {
+			return invalidPolicyArtifacts("policy-artifacts.%s %q is not a valid digest", r.field, r.digest)
+		}
+		stored, err := h.artifactService.Head(ctx, r.digest)
+		if errors.Is(err, artifactsvc.ErrNotFound) {
+			return invalidPolicyArtifacts("policy-artifacts.%s %s is not a stored artifact", r.field, r.digest)
+		}
+		if err != nil {
+			return err
+		}
+		if stored.MediaType != r.mediaType {
+			return invalidPolicyArtifacts("policy-artifacts.%s %s is %s, not %s", r.field, r.digest, stored.MediaType, r.mediaType)
+		}
+		input.Props = append(input.Props, oscalTypes_1_1_3.Property{Name: r.prop, Value: r.digest})
+	}
+	return nil
 }

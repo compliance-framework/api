@@ -69,6 +69,8 @@ func TestCedarAgentConfigMatrix(t *testing.T) {
 		{user("author@x"), ActionCreate, ResourceCatalog, false},
 		{user("author@x"), ActionManage, ResourceAdmin, false},
 		{user("author@x"), ActionExecute, ResourcePlayback, true},
+		{user("author@x"), ActionRead, ResourceArtifact, true}, // "*": [read] covers #464 artifacts
+		{user("author@x"), ActionIngest, ResourceArtifact, false},
 
 		{user("viewer@x"), ActionRead, ResourceAgent, true},
 		{user("viewer@x"), ActionConfigure, ResourceAgent, false},

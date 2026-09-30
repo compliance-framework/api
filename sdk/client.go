@@ -52,6 +52,8 @@ type Client struct {
 	// AgentConfig fetches the remote configuration overlay and submits instance config reports.
 	// Both routes require agent credentials (Config.AgentAuth).
 	AgentConfig *agentConfigClient
+
+	Artifact *artifactClient
 }
 
 func NewClient(client *http.Client, config *Config) *Client {
@@ -73,6 +75,7 @@ func NewClient(client *http.Client, config *Config) *Client {
 	c.Heartbeat = &heartbeatClient{client: c}
 	c.Playback = &playbackClient{client: c}
 	c.AgentConfig = &agentConfigClient{client: c}
+	c.Artifact = &artifactClient{client: c}
 
 	return c
 }
@@ -102,9 +105,10 @@ func (c *Client) doRequest(ctx context.Context, method string, path string, body
 	return c.doRequestWithHeaders(ctx, method, path, body, nil)
 }
 
-// doRequestWithHeaders behaves like doRequest but also sends the given extra headers. The same
-// headers are re-sent on the single 401 token-refresh retry. Content-Type and Authorization are
-// managed by the client; an Authorization entry in headers is ignored.
+// doRequestWithHeaders behaves like doRequest but also sends the given extra headers, which
+// override the default Content-Type. The same headers are re-sent on the single 401
+// token-refresh retry. Authorization is managed by the client; an Authorization entry in
+// headers is ignored.
 func (c *Client) doRequestWithHeaders(ctx context.Context, method string, path string, body []byte, headers http.Header) (*http.Response, error) {
 	if !c.hasAgentAuth() {
 		return c.executeRequest(ctx, method, path, body, "", headers)

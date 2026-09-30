@@ -48,6 +48,7 @@ type Config struct {
 	Authz                             *AuthzConfig
 	Playback                          *PlaybackConfig
 	Agents                            *AgentsConfig
+	Artifact                          *ArtifactConfig
 }
 
 func NewConfig(logger *zap.SugaredLogger) *Config {
@@ -278,6 +279,7 @@ func NewConfig(logger *zap.SugaredLogger) *Config {
 		Authz:                             authzConfig,
 		Playback:                          LoadPlaybackConfig(),
 		Agents:                            LoadAgentsConfig(),
+		Artifact:                          LoadArtifactConfig(),
 	}
 
 }
