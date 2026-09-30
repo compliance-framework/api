@@ -11,6 +11,7 @@ import (
 	"github.com/compliance-framework/api/internal/config"
 	"github.com/compliance-framework/api/internal/service/digest"
 	"github.com/compliance-framework/api/internal/service/notification"
+	artifactsvc "github.com/compliance-framework/api/internal/service/relational/artifacts"
 	evidencesvc "github.com/compliance-framework/api/internal/service/relational/evidence"
 	poamsvc "github.com/compliance-framework/api/internal/service/relational/poam"
 	riskrel "github.com/compliance-framework/api/internal/service/relational/risks"
@@ -103,7 +104,8 @@ func RegisterHandlers(server *api.Server, logger *zap.SugaredLogger, db *gorm.DB
 	riskService := riskrel.NewRiskService(db)
 	riskGuard := pep.For(authz.ResourceRisk)
 
-	evidenceHandler := NewEvidenceHandler(logger, services.EvidenceService, riskService)
+	artifactService := artifactsvc.NewService(db)
+	evidenceHandler := NewEvidenceHandler(logger, services.EvidenceService, riskService).WithArtifactService(artifactService)
 	evidenceGuard := pep.For(authz.ResourceEvidence)
 	evidenceGroup := server.API().Group("/evidence")
 	evidenceHandler.RegisterCreate(
@@ -129,6 +131,22 @@ func RegisterHandlers(server *api.Server, logger *zap.SugaredLogger, db *gorm.DB
 			pep.For(authz.ResourcePlayback).Do(authz.ActionExecute),
 		)
 	}
+
+	// Policy evaluation artifacts. Uploads take the same auth as the other agent ingest
+	// routes, so agents running without credentials while public agent endpoints are allowed
+	// can store the artifacts their evidence refers to. Reads need any user or agent token.
+	artifactHandler := NewArtifactHandler(logger, artifactService, config.Artifact)
+	artifactGuard := pep.For(authz.ResourceArtifact, middleware.ResourceIDParam("digest"))
+	artifactHandler.RegisterAgent(
+		server.API().Group("/agent/artifacts"),
+		agentIngestMiddleware,
+		artifactGuard.Do(authz.ActionIngest),
+	)
+	artifactHandler.RegisterRead(
+		server.API().Group("/artifacts"),
+		middleware.OptionalUserOrAgentJWTMiddleware(db, config.JWTPublicKey, false),
+		artifactGuard.Read(),
+	)
 
 	evidenceSignatureGroup := server.API().Group("/evidence")
 	evidenceSignatureGroup.Use(middleware.JWTMiddleware(config.JWTPublicKey))

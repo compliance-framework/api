@@ -47,6 +47,7 @@ type Config struct {
 	StrictDisablePublicAgentEndpoints bool
 	Authz                             *AuthzConfig
 	Playback                          *PlaybackConfig
+	Artifact                          *ArtifactConfig
 }
 
 func NewConfig(logger *zap.SugaredLogger) *Config {
@@ -276,6 +277,7 @@ func NewConfig(logger *zap.SugaredLogger) *Config {
 		StrictDisablePublicAgentEndpoints: strictDisablePublicAgentEndpoints,
 		Authz:                             authzConfig,
 		Playback:                          LoadPlaybackConfig(),
+		Artifact:                          LoadArtifactConfig(),
 	}
 
 }
