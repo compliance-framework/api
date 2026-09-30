@@ -164,7 +164,7 @@ func CanonicalBundle(archive []byte, maxBytes int64) ([]byte, error) {
 		if err != nil {
 			return nil, fmt.Errorf("%w: bundle: %v", ErrInvalid, err)
 		}
-		total += int64(len(content))
+		total += 512 + int64(len(content))
 		if total > maxBytes {
 			return nil, fmt.Errorf("%w: bundle files exceed %d bytes", ErrInvalid, maxBytes)
 		}
