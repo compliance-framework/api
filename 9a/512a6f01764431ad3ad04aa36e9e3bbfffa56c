@@ -1,0 +1,11 @@
+lisa-addressed:
+Merge origin/main (181097e, #464 policy evaluation artifacts) into lisa/in-flight-agent-config.
+- .env.example: kept both blocks (CCF_AGENT_INSTANCE_*/CCF_AGENT_MAX_INSTANCES, then CCF_ARTIFACT_MAX_BYTES/CONCURRENT).
+- cmd/root.go: kept both sets of viper.MustBindEnv (agent_instance_*/agent_max_instances + artifact_max_bytes/artifact_max_concurrent).
+- internal/config/config.go: kept both Config fields and loaders (Agents: LoadAgentsConfig(), Artifact: LoadArtifactConfig()).
+- internal/api/handler/api.go: import conflict only; kept both agentcfg and artifactsvc imports; #464's artifact routes (/agent/artifacts, /artifacts) and our agent-config routes auto-merged side by side, no path collisions.
+- sdk/client.go: both sides added AgentConfig/Artifact clients and an identical doRequestWithHeaders/headers-param refactor; kept both client fields/initializers and our stricter header loop (drops caller Authorization, Del+Add), comment reworded to state headers override the default Content-Type (which sdk.Artifact.Upload relies on).
+- docs/docs.go, swagger.json, swagger.yaml: not hand-merged; took ours and regenerated with make swag (adds exactly #464's artifact paths/definitions).
+- Auto-merged, verified: manifest.yaml (artifact resource + ssp-subscriber/agent grants alongside policy-author and agent sync), pdp.go (ResourceArtifact + our configure/configure-policy/sync constants), migrator.go and tests/migrate.go (Artifact after Evidence; AgentConfigRevision/AgentInstance after AgentAuthEvent, reverse order in Down), sdk/types/types.go. go.mod/go.sum unchanged by main; go mod tidy clean, moby/go-archive pin retained.
+- Semantic: policy-author inherits artifact read via "*": [read]; added Cedar matrix cases (author read artifact=allow, ingest=deny) in agent_config_authz_test.go. Builtin PDP agent-resource special case does not touch ResourceArtifact (default authenticated-allow retained). authz-roles.yaml agent role description now mentions artifacts.
+- Verified: go build, go vet (incl. -tags integration), go test ./..., go test -tags integration ./... (all ok), golangci-lint 0 issues, make swag and go mod tidy leave no diff.
