@@ -163,10 +163,44 @@ func (suite *ArtifactApiIntegrationSuite) TestBundleArchiveShapesShareADigest() 
 	suite.EqualValues(1, suite.artifactCount())
 }
 
-func (suite *ArtifactApiIntegrationSuite) TestUploadNeedsAnAgentToken() {
-	suite.Equal(http.StatusUnauthorized, suite.upload("", artifact.MediaTypeJSON, []byte(`{}`)).Code, "anonymous")
+func (suite *ArtifactApiIntegrationSuite) TestUploadTakesAgentIngestAuth() {
+	// Public agent endpoints allowed (SetupTest): agents without credentials may upload.
+	suite.Equal(http.StatusCreated, suite.upload("", artifact.MediaTypeJSON, []byte(`{"anonymous":true}`)).Code, "anonymous")
 	suite.Equal(http.StatusUnauthorized, suite.upload(suite.userToken, artifact.MediaTypeJSON, []byte(`{}`)).Code, "user token")
-	suite.Zero(suite.artifactCount())
+
+	// Public agent endpoints disabled: only agent tokens.
+	suite.Config.StrictDisablePublicAgentEndpoints = true
+	defer func() { suite.Config.StrictDisablePublicAgentEndpoints = false }()
+	logger, _ := zap.NewDevelopment()
+	suite.server = api.NewServer(context.Background(), logger.Sugar(), suite.Config, api.NewMetricsHandler(context.Background(), logger.Sugar()))
+	RegisterHandlers(suite.server, logger.Sugar(), suite.DB, suite.Config, &APIServices{})
+	suite.Equal(http.StatusUnauthorized, suite.upload("", artifact.MediaTypeJSON, []byte(`{"strict":true}`)).Code, "anonymous, strict")
+	suite.Equal(http.StatusCreated, suite.upload(suite.agentToken, artifact.MediaTypeJSON, []byte(`{"strict":true}`)).Code, "agent token, strict")
+
+	var rows []relational.Artifact
+	suite.Require().NoError(suite.DB.Order("created_at").Find(&rows).Error)
+	suite.Require().Len(rows, 2)
+	suite.Nil(rows[0].CreatedByAgentID, "an anonymous upload records no agent")
+	suite.Require().NotNil(rows[1].CreatedByAgentID)
+}
+
+// TestAnonymousAgentFlow is an agent without credentials, as in local-dev: it uploads its
+// artifacts and creates evidence referring to them, all without a token.
+func (suite *ArtifactApiIntegrationSuite) TestAnonymousAgentFlow() {
+	bundle := suite.upload("", artifact.MediaTypePolicyBundle, suite.tarBundle(artifactTestBundle, true))
+	suite.Require().Equal(http.StatusCreated, bundle.Code, bundle.Body.String())
+	input := suite.upload("", artifact.MediaTypeJSON, []byte(`{"open_ports":[22]}`))
+	suite.Require().Equal(http.StatusCreated, input.Code, input.Body.String())
+
+	var bundleInfo, inputInfo artifact.Info
+	suite.Require().NoError(json.Unmarshal(bundle.Body.Bytes(), &bundleInfo))
+	suite.Require().NoError(json.Unmarshal(input.Body.Bytes(), &inputInfo))
+
+	rec := suite.createEvidence("", nil, &EvidencePolicyArtifacts{BundleDigest: bundleInfo.Digest, InputDigest: inputInfo.Digest})
+	suite.Require().Equal(http.StatusCreated, rec.Code, rec.Body.String())
+	var evidence relational.Evidence
+	suite.Require().NoError(suite.DB.First(&evidence).Error)
+	suite.Equal(inputInfo.Digest, propMap(evidence)[artifact.PropPolicyInputDigest])
 }
 
 func (suite *ArtifactApiIntegrationSuite) TestUploadRejectsInvalidContent() {

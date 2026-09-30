@@ -96,6 +96,7 @@ func bindEnvironmentVariables() {
 	viper.MustBindEnv("playback_max_bytes")
 	viper.MustBindEnv("playback_max_concurrent")
 	viper.MustBindEnv("artifact_max_bytes")
+	viper.MustBindEnv("artifact_max_concurrent")
 }
 
 func init() {

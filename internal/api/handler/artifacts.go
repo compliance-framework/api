@@ -1,12 +1,14 @@
 package handler
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
 	"mime"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/compliance-framework/api/internal/api"
 	"github.com/compliance-framework/api/internal/api/middleware"
@@ -25,29 +27,68 @@ type ArtifactHandler struct {
 	sugar    *zap.SugaredLogger
 	service  *artifactsvc.Service
 	maxBytes int64
+	// slots bounds uploads being canonicalised and stored at once, across all callers.
+	slots chan struct{}
+	// slotWait is how long an upload waits for a slot before getting 429. Agents upload at
+	// the start of each scheduled run, so short bursts are expected and queue rather than fail.
+	slotWait time.Duration
 }
+
+// artifactSlotWait is how long an upload waits for a free slot.
+const artifactSlotWait = 10 * time.Second
 
 func NewArtifactHandler(sugar *zap.SugaredLogger, service *artifactsvc.Service, cfg *config.ArtifactConfig) *ArtifactHandler {
 	if cfg == nil {
 		cfg = config.DefaultArtifactConfig()
 	}
-	return &ArtifactHandler{sugar: sugar, service: service, maxBytes: cfg.MaxBytes}
+	maxConcurrent := cfg.MaxConcurrent
+	if maxConcurrent <= 0 {
+		maxConcurrent = config.DefaultArtifactConfig().MaxConcurrent
+	}
+	return &ArtifactHandler{
+		sugar:    sugar,
+		service:  service,
+		maxBytes: cfg.MaxBytes,
+		slots:    make(chan struct{}, maxConcurrent),
+		slotWait: artifactSlotWait,
+	}
+}
+
+// acquireSlot waits up to slotWait for an upload slot. It reports false if none frees up in
+// time or the request ends first; otherwise the caller must call the returned release.
+func (h *ArtifactHandler) acquireSlot(ctx context.Context) (release func(), ok bool) {
+	select {
+	case h.slots <- struct{}{}:
+		return func() { <-h.slots }, true
+	default:
+	}
+
+	timer := time.NewTimer(h.slotWait)
+	defer timer.Stop()
+	select {
+	case h.slots <- struct{}{}:
+		return func() { <-h.slots }, true
+	case <-timer.C:
+		return nil, false
+	case <-ctx.Done():
+		return nil, false
+	}
 }
 
 // RegisterAgent registers the agent-facing upload route.
-func (h *ArtifactHandler) RegisterAgent(api *echo.Group, middlewares ...echo.MiddlewareFunc) {
-	api.POST("", h.Upload, middlewares...)
+func (h *ArtifactHandler) RegisterAgent(e *echo.Group, middlewares ...echo.MiddlewareFunc) {
+	e.POST("", h.Upload, middlewares...)
 }
 
 // RegisterRead registers the read route.
-func (h *ArtifactHandler) RegisterRead(api *echo.Group, middlewares ...echo.MiddlewareFunc) {
-	api.GET("/:digest", h.Get, middlewares...)
+func (h *ArtifactHandler) RegisterRead(e *echo.Group, middlewares ...echo.MiddlewareFunc) {
+	e.GET("/:digest", h.Get, middlewares...)
 }
 
 // Upload godoc
 //
 //	@Summary		Upload an artifact
-//	@Description	Stores the request body as an immutable artifact and returns its digest. The API converts the body to its canonical form first, so equal content always gets one digest. Content-Type application/json accepts any JSON value; application/vnd.ccf.policy-bundle.v1+tar accepts a policy bundle as a tar or gzipped tar. Uploading content that is already stored returns 200 and changes nothing. Agent token required.
+//	@Description	Stores the request body as an immutable artifact and returns its digest. The API converts the body to its canonical form first, so equal content always gets one digest. Content-Type application/json accepts any JSON value; application/vnd.ccf.policy-bundle.v1+tar accepts a policy bundle as a tar or gzipped tar. Uploading content that is already stored returns 200 and changes nothing. Needs an agent token, or none while public agent endpoints are allowed.
 //	@Tags			Artifacts
 //	@Accept			application/json
 //	@Accept			application/vnd.ccf.policy-bundle.v1+tar
@@ -57,6 +98,7 @@ func (h *ArtifactHandler) RegisterRead(api *echo.Group, middlewares ...echo.Midd
 //	@Failure		400	{object}	api.Error
 //	@Failure		401	{object}	api.Error
 //	@Failure		413	{object}	api.Error
+//	@Failure		429	{object}	api.Error
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/agent/artifacts [post]
@@ -76,6 +118,14 @@ func (h *ArtifactHandler) Upload(ctx echo.Context) error {
 	if err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("invalid Content-Type: %w", err)))
 	}
+
+	// The slot covers canonicalising and storing, the work that multiplies memory and CPU
+	// per upload. It is taken after the body is read, so a slow uploader cannot hold one.
+	release, ok := h.acquireSlot(ctx.Request().Context())
+	if !ok {
+		return ctx.JSON(http.StatusTooManyRequests, api.NewError(errors.New("too many artifact uploads in progress, retry shortly")))
+	}
+	defer release()
 
 	canonical, err := artifact.Canonical(mediaType, content, h.maxBytes)
 	if err != nil {

@@ -2515,7 +2515,7 @@ const docTemplate = `{
         },
         "/agent/artifacts": {
             "post": {
-                "description": "Stores the request body as an immutable artifact and returns its digest. The API converts the body to its canonical form first, so equal content always gets one digest. Content-Type application/json accepts any JSON value; application/vnd.ccf.policy-bundle.v1+tar accepts a policy bundle as a tar or gzipped tar. Uploading content that is already stored returns 200 and changes nothing. Agent token required.",
+                "description": "Stores the request body as an immutable artifact and returns its digest. The API converts the body to its canonical form first, so equal content always gets one digest. Content-Type application/json accepts any JSON value; application/vnd.ccf.policy-bundle.v1+tar accepts a policy bundle as a tar or gzipped tar. Uploading content that is already stored returns 200 and changes nothing. Needs an agent token, or none while public agent endpoints are allowed.",
                 "consumes": [
                     "application/json",
                     "application/vnd.ccf.policy-bundle.v1+tar"
@@ -2554,6 +2554,12 @@ const docTemplate = `{
                     },
                     "413": {
                         "description": "Request Entity Too Large",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "429": {
+                        "description": "Too Many Requests",
                         "schema": {
                             "$ref": "#/definitions/api.Error"
                         }

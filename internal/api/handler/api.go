@@ -132,13 +132,14 @@ func RegisterHandlers(server *api.Server, logger *zap.SugaredLogger, db *gorm.DB
 		)
 	}
 
-	// Policy evaluation artifacts. Uploads persist content, so they need an agent token even
-	// when public agent endpoints are allowed; reads need any user or agent token.
+	// Policy evaluation artifacts. Uploads take the same auth as the other agent ingest
+	// routes, so agents running without credentials while public agent endpoints are allowed
+	// can store the artifacts their evidence refers to. Reads need any user or agent token.
 	artifactHandler := NewArtifactHandler(logger, artifactService, config.Artifact)
 	artifactGuard := pep.For(authz.ResourceArtifact, middleware.ResourceIDParam("digest"))
 	artifactHandler.RegisterAgent(
 		server.API().Group("/agent/artifacts"),
-		middleware.AgentJWTMiddleware(db, config.JWTPublicKey),
+		agentIngestMiddleware,
 		artifactGuard.Do(authz.ActionIngest),
 	)
 	artifactHandler.RegisterRead(
