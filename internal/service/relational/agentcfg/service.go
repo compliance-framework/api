@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/compliance-framework/api/internal/config"
 	"github.com/compliance-framework/api/internal/service"
 	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/compliance-framework/api/pkg/agentconfig"
@@ -53,6 +54,19 @@ func (s Settings) WithDefaults() Settings {
 		s.MaxInstancesPerAgent = DefaultMaxInstancesPerAgent
 	}
 	return s
+}
+
+// SettingsFromConfig maps the CCF_AGENT_* config onto Settings (nil => defaults).
+func SettingsFromConfig(cfg *config.AgentsConfig) Settings {
+	if cfg == nil {
+		return Settings{}.WithDefaults()
+	}
+	return Settings{
+		InstanceStaleAfter:       cfg.InstanceStaleAfter,
+		InstanceRetention:        cfg.InstanceRetention,
+		OneShotInstanceRetention: cfg.OneShotInstanceRetention,
+		MaxInstancesPerAgent:     cfg.MaxInstancesPerAgent,
+	}.WithDefaults()
 }
 
 var (

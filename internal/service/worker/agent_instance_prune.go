@@ -74,13 +74,8 @@ func NewAgentInstancePrunePeriodicJob(schedule string, logger *zap.SugaredLogger
 
 // agentSettingsFromConfig maps the agents config onto the agentcfg settings.
 func agentSettingsFromConfig(cfg *config.Config) agentcfg.Settings {
-	if cfg == nil || cfg.Agents == nil {
-		return agentcfg.Settings{}.WithDefaults()
+	if cfg == nil {
+		return agentcfg.SettingsFromConfig(nil)
 	}
-	return agentcfg.Settings{
-		InstanceStaleAfter:       cfg.Agents.InstanceStaleAfter,
-		InstanceRetention:        cfg.Agents.InstanceRetention,
-		OneShotInstanceRetention: cfg.Agents.OneShotInstanceRetention,
-		MaxInstancesPerAgent:     cfg.Agents.MaxInstancesPerAgent,
-	}.WithDefaults()
+	return agentcfg.SettingsFromConfig(cfg.Agents)
 }

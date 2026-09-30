@@ -13,7 +13,7 @@ class). Attribute-rich (ABAC/ReBAC) policy is an Enterprise / bring-your-own-PDP
 
 | Driver    | What it is                                                              |
 | --------- | ---------------------------------------------------------------------- |
-| `builtin` | **Default.** Pre-authz rules: authenticated = allowed, admin via SSO groups. Zero behavior change. |
+| `builtin` | **Default.** Pre-authz rules: authenticated = allowed, admin via SSO groups. The `agent` resource (agent reads and remote configuration) also requires the admin check for users; agent service accounts are allowed. |
 | `cedar`   | Embedded Cedar RBAC against the bundled role policies (this document).  |
 | `authzen` | Delegate every decision to a remote AuthZen-compliant PDP (bring your own). |
 
@@ -28,7 +28,7 @@ CCF_AUTHZ_CEDAR_POLICY_DIR=/etc/ccf/policies  # optional operator .cedar files
 
 ## Bundled roles
 
-Four fixed global roles plus the agent service role, defined in the manifest's `roles:` block
+Four fixed global roles, `policy-author` and the agent service role (the manifest lists every role, e.g. `ssp-subscriber`), defined in the manifest's `roles:` block
 (`internal/authz/manifest.yaml`) and compiled to Cedar policies at startup:
 
 | Role          | Grants                                                                       |
@@ -37,7 +37,11 @@ Four fixed global roles plus the agent service role, defined in the manifest's `
 | `contributor` | Author content (OSCAL docs, risk/poam register, workflows, dashboards, evidence); read everything; no admin. |
 | `auditor`     | Read everything; record evidence; maintain the risk/poam register.           |
 | `viewer`      | Read everything; no writes.                                                  |
-| `agent`       | Service accounts: ingest evidence/heartbeats, register.                       |
+| `policy-author` | Viewer plus `agent:configure-policy`: edit inline policy bundles and plugin policy lists in agent configuration overlays, nothing else. |
+| `agent`       | Service accounts: ingest evidence/heartbeats, register, sync their remote configuration. |
+
+viewer, auditor and contributor read agent configurations (redacted, including inline Rego)
+through `"*": [read]`. This is intended; narrow it with an operator `forbid` policy if needed.
 
 Cedar is **deny-by-default**: a subject with no assigned role is denied every request.
 

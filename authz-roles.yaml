@@ -12,7 +12,8 @@
 #   contributor  author OSCAL/registers/workflows/dashboards/evidence; no admin
 #   auditor      read everything + record evidence and maintain the risk/poam register
 #   viewer       read-only
-#   agent        service accounts: ingest evidence/heartbeats, register
+#   policy-author  viewer + edit inline policies in agent configuration overlays
+#   agent        service accounts: ingest evidence/heartbeats, register, sync remote config
 #
 # Matching is case-insensitive. `users` keys are the login email (the subject id) and
 # work for every user today. `groups` keys are resolved group names (native CCF groups

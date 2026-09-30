@@ -440,14 +440,19 @@ func (h *AgentConfigHandler) Preview(ctx echo.Context) error {
 	if err != nil {
 		return h.internalError(ctx, "load agent configuration", err)
 	}
-	validation, standalone, err := h.svc.ValidationBases(reqCtx, agentID)
-	if err != nil {
-		return h.internalError(ctx, "load validation bases", err)
-	}
 	previewBases, err := h.svc.PreviewBases(reqCtx, agentID)
 	if err != nil {
 		return h.internalError(ctx, "load instances", err)
 	}
+	// PreviewBases marks the ValidationBases members; they are the set a save validates
+	// against (R48), and none means standalone.
+	var validation []agentcfg.InstanceBase
+	for _, b := range previewBases {
+		if b.Validated {
+			validation = append(validation, b)
+		}
+	}
+	standalone := len(validation) == 0
 
 	result := validateCandidate(req.Overlay, validation)
 	overlayInvalid := len(result.overlay) > 0 || agentconfig.HasPolicyErrors(result.policy)

@@ -26,7 +26,8 @@
 # or a BYO PDP. This file declares everything and ships the C0 role set, but does not wire
 # any of it into an engine on its own. The default `builtin` driver does NOT consume these
 # roles — it allows every authenticated non-admin request and only gates `admin` via SSO
-# groups (zero behavior change). The embedded Cedar engine (BCH-1316) DOES honor this C0 role
+# groups (zero behavior change), except the `agent` resource: users need the same admin
+# check there, agent service accounts are allowed and anonymous is denied (R39). The embedded Cedar engine (BCH-1316) DOES honor this C0 role
 # set; select it with `authz.driver: cedar` (see docs/authz-oss-cedar.md). C1/C2 stay
 # Enterprise/BYO.
 schemaVersion: 1
