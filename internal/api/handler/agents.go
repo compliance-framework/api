@@ -10,6 +10,7 @@ import (
 
 	"github.com/compliance-framework/api/internal/api"
 	"github.com/compliance-framework/api/internal/service/relational"
+	"github.com/compliance-framework/api/internal/service/relational/agentcfg"
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 	"go.uber.org/zap"
@@ -71,18 +72,32 @@ func NewAgentHandler(sugar *zap.SugaredLogger, db *gorm.DB) *AgentHandler {
 	return &AgentHandler{sugar: sugar, db: db}
 }
 
-func (h *AgentHandler) Register(api *echo.Group) {
-	api.GET("", h.ListAgents)
-	api.POST("", h.CreateAgent)
-	api.GET("/:id", h.GetAgent)
-	api.PUT("/:id", h.UpdateAgent)
-	api.DELETE("/:id", h.DeleteAgent)
-	api.POST("/:id/keys", h.CreateAgentKey)
-	api.GET("/:id/keys", h.ListAgentKeys)
-	api.GET("/:id/keys/:keyId", h.GetAgentKey)
-	api.DELETE("/:id/keys/:keyId", h.DeleteAgentKey)
+// Register mounts the agent routes with per-route guards (R40): the list and get reads use
+// readGuard (agent:read), while writes and every key route use adminGuard (admin:manage).
+func (h *AgentHandler) Register(api *echo.Group, readGuard, adminGuard echo.MiddlewareFunc) {
+	api.GET("", h.ListAgents, readGuard)
+	api.GET("/:id", h.GetAgent, readGuard)
+	api.POST("", h.CreateAgent, adminGuard)
+	api.PUT("/:id", h.UpdateAgent, adminGuard)
+	api.DELETE("/:id", h.DeleteAgent, adminGuard)
+	api.POST("/:id/keys", h.CreateAgentKey, adminGuard)
+	api.GET("/:id/keys", h.ListAgentKeys, adminGuard)
+	api.GET("/:id/keys/:keyId", h.GetAgentKey, adminGuard)
+	api.DELETE("/:id/keys/:keyId", h.DeleteAgentKey, adminGuard)
 }
 
+// ListAgents godoc
+//
+//	@Summary		List agents
+//	@Description	Lists agent service accounts with their active key counts (never the keys). Requires agent:read.
+//	@Tags			Agents
+//	@Produce		json
+//	@Success		200	{object}	handler.GenericDataListResponse[handler.agentResponse]
+//	@Failure		401	{object}	api.Error
+//	@Failure		403	{object}	api.Error
+//	@Failure		500	{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/admin/agents [get]
 func (h *AgentHandler) ListAgents(ctx echo.Context) error {
 	var agents []relational.Agent
 	if err := h.db.Order("created_at asc").Find(&agents).Error; err != nil {
@@ -103,6 +118,21 @@ func (h *AgentHandler) ListAgents(ctx echo.Context) error {
 	return ctx.JSON(http.StatusOK, GenericDataListResponse[agentResponse]{Data: resp})
 }
 
+// GetAgent godoc
+//
+//	@Summary		Get an agent
+//	@Description	Requires agent:read.
+//	@Tags			Agents
+//	@Produce		json
+//	@Param			id	path		string	true	"Agent ID"
+//	@Success		200	{object}	handler.GenericDataResponse[handler.agentResponse]
+//	@Failure		400	{object}	api.Error
+//	@Failure		401	{object}	api.Error
+//	@Failure		403	{object}	api.Error
+//	@Failure		404	{object}	api.Error
+//	@Failure		500	{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/admin/agents/{id} [get]
 func (h *AgentHandler) GetAgent(ctx echo.Context) error {
 	agent, err := h.getAgentByParam(ctx.Param("id"))
 	if err != nil {
@@ -119,6 +149,21 @@ func (h *AgentHandler) GetAgent(ctx echo.Context) error {
 	return ctx.JSON(http.StatusOK, GenericDataResponse[agentResponse]{Data: resp})
 }
 
+// CreateAgent godoc
+//
+//	@Summary		Create an agent
+//	@Description	Creates an agent service account. Requires admin:manage.
+//	@Tags			Agents
+//	@Accept			json
+//	@Produce		json
+//	@Param			agent	body		handler.createAgentRequest	true	"Agent"
+//	@Success		201		{object}	handler.GenericDataResponse[handler.agentResponse]
+//	@Failure		400		{object}	api.Error
+//	@Failure		401		{object}	api.Error
+//	@Failure		403		{object}	api.Error
+//	@Failure		500		{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/admin/agents [post]
 func (h *AgentHandler) CreateAgent(ctx echo.Context) error {
 	var req createAgentRequest
 	if err := ctx.Bind(&req); err != nil {
@@ -148,6 +193,23 @@ func (h *AgentHandler) CreateAgent(ctx echo.Context) error {
 	return ctx.JSON(http.StatusCreated, GenericDataResponse[agentResponse]{Data: resp})
 }
 
+// UpdateAgent godoc
+//
+//	@Summary		Update an agent
+//	@Description	Requires admin:manage.
+//	@Tags			Agents
+//	@Accept			json
+//	@Produce		json
+//	@Param			id		path		string						true	"Agent ID"
+//	@Param			agent	body		handler.updateAgentRequest	true	"Fields to update"
+//	@Success		200		{object}	handler.GenericDataResponse[handler.agentResponse]
+//	@Failure		400		{object}	api.Error
+//	@Failure		401		{object}	api.Error
+//	@Failure		403		{object}	api.Error
+//	@Failure		404		{object}	api.Error
+//	@Failure		500		{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/admin/agents/{id} [put]
 func (h *AgentHandler) UpdateAgent(ctx echo.Context) error {
 	agent, err := h.getAgentByParam(ctx.Param("id"))
 	if err != nil {
@@ -183,6 +245,20 @@ func (h *AgentHandler) UpdateAgent(ctx echo.Context) error {
 	return ctx.JSON(http.StatusOK, GenericDataResponse[agentResponse]{Data: resp})
 }
 
+// DeleteAgent godoc
+//
+//	@Summary		Delete an agent
+//	@Description	Deactivates and deletes the agent, revokes its keys and removes its reported instances. Configuration revisions are kept. Requires admin:manage.
+//	@Tags			Agents
+//	@Param			id	path	string	true	"Agent ID"
+//	@Success		204	"No Content"
+//	@Failure		400	{object}	api.Error
+//	@Failure		401	{object}	api.Error
+//	@Failure		403	{object}	api.Error
+//	@Failure		404	{object}	api.Error
+//	@Failure		500	{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/admin/agents/{id} [delete]
 func (h *AgentHandler) DeleteAgent(ctx echo.Context) error {
 	agent, err := h.getAgentByParam(ctx.Param("id"))
 	if err != nil {
@@ -205,6 +281,10 @@ func (h *AgentHandler) DeleteAgent(ctx echo.Context) error {
 			return err
 		}
 
+		if err := agentcfg.DeleteInstancesForAgent(tx, *agent.ID); err != nil {
+			return err
+		}
+
 		if err := tx.Delete(agent).Error; err != nil {
 			return err
 		}
@@ -216,6 +296,23 @@ func (h *AgentHandler) DeleteAgent(ctx echo.Context) error {
 	return ctx.NoContent(http.StatusNoContent)
 }
 
+// CreateAgentKey godoc
+//
+//	@Summary		Create an agent key
+//	@Description	Creates a service-account key; the client secret is returned only once. Requires admin:manage.
+//	@Tags			Agents
+//	@Accept			json
+//	@Produce		json
+//	@Param			id	path		string							true	"Agent ID"
+//	@Param			key	body		handler.createAgentKeyRequest	true	"Key"
+//	@Success		201	{object}	handler.GenericDataResponse[handler.agentKeyCreateResponse]
+//	@Failure		400	{object}	api.Error
+//	@Failure		401	{object}	api.Error
+//	@Failure		403	{object}	api.Error
+//	@Failure		404	{object}	api.Error
+//	@Failure		500	{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/admin/agents/{id}/keys [post]
 func (h *AgentHandler) CreateAgentKey(ctx echo.Context) error {
 	agent, err := h.getAgentByParam(ctx.Param("id"))
 	if err != nil {
@@ -261,6 +358,21 @@ func (h *AgentHandler) CreateAgentKey(ctx echo.Context) error {
 	})
 }
 
+// ListAgentKeys godoc
+//
+//	@Summary		List an agent's keys
+//	@Description	Requires admin:manage.
+//	@Tags			Agents
+//	@Produce		json
+//	@Param			id	path		string	true	"Agent ID"
+//	@Success		200	{object}	handler.GenericDataListResponse[handler.agentKeyResponse]
+//	@Failure		400	{object}	api.Error
+//	@Failure		401	{object}	api.Error
+//	@Failure		403	{object}	api.Error
+//	@Failure		404	{object}	api.Error
+//	@Failure		500	{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/admin/agents/{id}/keys [get]
 func (h *AgentHandler) ListAgentKeys(ctx echo.Context) error {
 	agent, err := h.getAgentByParam(ctx.Param("id"))
 	if err != nil {
@@ -282,6 +394,22 @@ func (h *AgentHandler) ListAgentKeys(ctx echo.Context) error {
 	return ctx.JSON(http.StatusOK, GenericDataListResponse[agentKeyResponse]{Data: resp})
 }
 
+// GetAgentKey godoc
+//
+//	@Summary		Get an agent key
+//	@Description	Requires admin:manage.
+//	@Tags			Agents
+//	@Produce		json
+//	@Param			id		path		string	true	"Agent ID"
+//	@Param			keyId	path		string	true	"Key ID"
+//	@Success		200		{object}	handler.GenericDataResponse[handler.agentKeyResponse]
+//	@Failure		400		{object}	api.Error
+//	@Failure		401		{object}	api.Error
+//	@Failure		403		{object}	api.Error
+//	@Failure		404		{object}	api.Error
+//	@Failure		500		{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/admin/agents/{id}/keys/{keyId} [get]
 func (h *AgentHandler) GetAgentKey(ctx echo.Context) error {
 	key, status, err := h.getAgentKey(ctx.Param("id"), ctx.Param("keyId"))
 	if err != nil {
@@ -290,6 +418,21 @@ func (h *AgentHandler) GetAgentKey(ctx echo.Context) error {
 	return ctx.JSON(http.StatusOK, GenericDataResponse[agentKeyResponse]{Data: buildAgentKeyResponse(key)})
 }
 
+// DeleteAgentKey godoc
+//
+//	@Summary		Revoke an agent key
+//	@Description	Requires admin:manage.
+//	@Tags			Agents
+//	@Param			id		path	string	true	"Agent ID"
+//	@Param			keyId	path	string	true	"Key ID"
+//	@Success		204		"No Content"
+//	@Failure		400		{object}	api.Error
+//	@Failure		401		{object}	api.Error
+//	@Failure		403		{object}	api.Error
+//	@Failure		404		{object}	api.Error
+//	@Failure		500		{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/admin/agents/{id}/keys/{keyId} [delete]
 func (h *AgentHandler) DeleteAgentKey(ctx echo.Context) error {
 	key, status, err := h.getAgentKey(ctx.Param("id"), ctx.Param("keyId"))
 	if err != nil {

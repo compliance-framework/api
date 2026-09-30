@@ -11,6 +11,7 @@ import (
 	"github.com/compliance-framework/api/internal/config"
 	"github.com/compliance-framework/api/internal/service/digest"
 	"github.com/compliance-framework/api/internal/service/notification"
+	"github.com/compliance-framework/api/internal/service/relational/agentcfg"
 	evidencesvc "github.com/compliance-framework/api/internal/service/relational/evidence"
 	poamsvc "github.com/compliance-framework/api/internal/service/relational/poam"
 	riskrel "github.com/compliance-framework/api/internal/service/relational/risks"
@@ -93,7 +94,11 @@ func RegisterHandlers(server *api.Server, logger *zap.SugaredLogger, db *gorm.DB
 	lineageGroup.Use(middleware.JWTMiddleware(config.JWTPublicKey))
 	lineageHandler.Register(lineageGroup, pep.For(authz.ResourceLineage))
 
-	heartbeatHandler := NewHeartbeatHandler(logger, db)
+	// Agent remote configuration (overlay revisions + reporting instances).
+	agentCfgSvc := agentcfg.NewService(db, agentConfigSettings(config), logger)
+	agentGuard := pep.For(authz.ResourceAgent)
+
+	heartbeatHandler := NewHeartbeatHandler(logger, db).WithAgentInstances(agentCfgSvc)
 	heartbeatGuard := pep.For(authz.ResourceHeartbeat)
 	agentIngestMiddleware := middleware.AgentJWTOrPublicMiddleware(db, config.JWTPublicKey, !config.StrictDisablePublicAgentEndpoints)
 	heartbeatHandler.RegisterCreate(server.API().Group("/agent/heartbeat"), agentIngestMiddleware, heartbeatGuard.Do(authz.ActionIngest))
@@ -180,11 +185,28 @@ func RegisterHandlers(server *api.Server, logger *zap.SugaredLogger, db *gorm.DB
 	agentSubjectTemplateGroup := server.API().Group("/agent/subject-templates")
 	subjectTemplateHandler.RegisterAgent(agentSubjectTemplateGroup, agentIngestMiddleware, pep.For(authz.ResourceSubjectTemplate).Update())
 
+	// Agent routes are guarded per route (R40): list/get need agent:read, writes and keys stay
+	// admin:manage. The builtin PDP still requires the admin check for users on agent:*.
 	agentHandler := NewAgentHandler(logger, db)
 	agentsGroup := server.API().Group("/admin/agents")
 	agentsGroup.Use(middleware.JWTMiddleware(config.JWTPublicKey))
-	agentsGroup.Use(pep.Authorize(authz.ResourceAdmin, authz.ActionManage))
-	agentHandler.Register(agentsGroup)
+	agentHandler.Register(agentsGroup, agentGuard.Read(), pep.Authorize(authz.ResourceAdmin, authz.ActionManage))
+
+	// Admin agent-configuration routes, on their own group object so they inherit no group
+	// guard (same prefix; precedent /admin/users).
+	agentConfigHandler := NewAgentConfigHandler(logger, db, agentCfgSvc)
+	agentConfigGroup := server.API().Group("/admin/agents")
+	agentConfigGroup.Use(middleware.JWTMiddleware(config.JWTPublicKey))
+	agentConfigHandler.Register(agentConfigGroup, agentGuard)
+
+	// Agent-facing configuration sync: agent JWT only (strict — it ignores
+	// StrictDisablePublicAgentEndpoints) and agent:sync.
+	agentConfigSyncHandler := NewAgentConfigSyncHandler(logger, agentCfgSvc)
+	agentConfigSyncHandler.Register(
+		server.API().Group("/agent"),
+		middleware.AgentJWTMiddleware(db, config.JWTPublicKey),
+		agentGuard.Do(authz.ActionSync),
+	)
 
 	userHandler := NewUserHandler(logger, db)
 
@@ -247,6 +269,19 @@ func RegisterHandlers(server *api.Server, logger *zap.SugaredLogger, db *gorm.DB
 
 	// Register workflow handlers
 	registerWorkflowHandlers(server, logger, db, config, pep, services, services.WorkflowManager, services.NotificationEnqueuer, services.DAGExecutor)
+}
+
+// agentConfigSettings maps the agents config onto the agent-configuration service settings.
+func agentConfigSettings(cfg *config.Config) agentcfg.Settings {
+	if cfg == nil || cfg.Agents == nil {
+		return agentcfg.Settings{}.WithDefaults()
+	}
+	return agentcfg.Settings{
+		InstanceStaleAfter:       cfg.Agents.InstanceStaleAfter,
+		InstanceRetention:        cfg.Agents.InstanceRetention,
+		OneShotInstanceRetention: cfg.Agents.OneShotInstanceRetention,
+		MaxInstancesPerAgent:     cfg.Agents.MaxInstancesPerAgent,
+	}.WithDefaults()
 }
 
 // registerWorkflowHandlers registers all workflow-related HTTP handlers with authentication

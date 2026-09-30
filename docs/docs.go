@@ -21,6 +21,1203 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
+        "/admin/agents": {
+            "get": {
+                "description": "Lists agent service accounts with their active key counts (never the keys). Requires agent:read.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "List agents",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataListResponse-handler_agentResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            },
+            "post": {
+                "description": "Creates an agent service account. Requires admin:manage.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "Create an agent",
+                "parameters": [
+                    {
+                        "description": "Agent",
+                        "name": "agent",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.createAgentRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-handler_agentResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/admin/agents/{id}": {
+            "get": {
+                "description": "Requires agent:read.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "Get an agent",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Agent ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-handler_agentResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            },
+            "put": {
+                "description": "Requires admin:manage.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "Update an agent",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Agent ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Fields to update",
+                        "name": "agent",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.updateAgentRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-handler_agentResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            },
+            "delete": {
+                "description": "Deactivates and deletes the agent, revokes its keys and removes its reported instances. Configuration revisions are kept. Requires admin:manage.",
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "Delete an agent",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Agent ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/admin/agents/{id}/config": {
+            "get": {
+                "description": "Returns the current configuration revision (overlay as an RFC 7396 merge patch, snake_case) and, when the overlay defines policy bundles, when each was first seen. Revision 0 means no overlay. The ETag is the plain revision number; send it as If-Match when saving.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agent Configuration"
+                ],
+                "summary": "Get an agent's configuration overlay",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Agent ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-handler_agentConfigRevisionResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            },
+            "put": {
+                "description": "Creates the next configuration revision. Requires If-Match with the current revision (\"0\" for the first save): missing is 428, stale is 409 with current-revision. A semantically unchanged overlay returns 200 with the current revision and creates nothing. The overlay is validated on its own, its inline Rego is checked at parse level (advisory: the agent is the security boundary; direct calls to http.send, net.lookup_ip_addr and opa.runtime are rejected; cross-bundle imports are unsupported), and the merged config is validated against every fresh apply-mode instance's reported base (or the latest reported one); errors are a 422 with overlay, instances and policy-errors lists. Needs agent:configure, or agent:configure-policy for changes limited to policy bundles and plugin policy lists.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agent Configuration"
+                ],
+                "summary": "Save an agent's configuration overlay",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Agent ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Current revision, e.g. \\",
+                        "name": "If-Match",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "description": "Overlay and optional comment",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.agentConfigPutRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-handler_agentConfigRevisionResponse"
+                        }
+                    },
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-handler_agentConfigRevisionResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "413": {
+                        "description": "Request Entity Too Large",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "415": {
+                        "description": "Unsupported Media Type",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "428": {
+                        "description": "Precondition Required",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/admin/agents/{id}/config/preview": {
+            "post": {
+                "description": "Validates a candidate overlay without saving it and shows, per reporting instance (fresh and stale), the redacted effective config, its diff against the instance's current effective config, the classified changes and whether the agent would apply it. validated marks the instances a save validates against; only their errors block a save. The inline Rego check is parse-level and advisory; cross-bundle imports are unsupported. Validation problems are returned in the 200 body.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agent Configuration"
+                ],
+                "summary": "Preview an agent configuration overlay",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Agent ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Candidate overlay",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.agentConfigPreviewRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-handler_configPreviewResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "413": {
+                        "description": "Request Entity Too Large",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "415": {
+                        "description": "Unsupported Media Type",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/admin/agents/{id}/config/revisions": {
+            "get": {
+                "description": "Revisions newest first, without overlays.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agent Configuration"
+                ],
+                "summary": "List an agent's configuration revisions",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Agent ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page (default 1)",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page size (default 50, max 100)",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/service.ListResponse-handler_agentConfigRevisionResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/admin/agents/{id}/config/revisions/{rev}": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agent Configuration"
+                ],
+                "summary": "Get one configuration revision",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Agent ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Revision number",
+                        "name": "rev",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-handler_agentConfigRevisionResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/admin/agents/{id}/config/revisions/{rev}/revert": {
+            "post": {
+                "description": "Creates the next revision with the overlay of revision :rev (revert-of records it). Same If-Match, validation and authorization rules as PUT. The body is optional.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agent Configuration"
+                ],
+                "summary": "Revert an agent's configuration to an earlier revision",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Agent ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Revision to restore",
+                        "name": "rev",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Current revision, e.g. \\",
+                        "name": "If-Match",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "description": "Optional comment",
+                        "name": "body",
+                        "in": "body",
+                        "schema": {
+                            "$ref": "#/definitions/handler.agentConfigRevertRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-handler_agentConfigRevisionResponse"
+                        }
+                    },
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-handler_agentConfigRevisionResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "413": {
+                        "description": "Request Entity Too Large",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "415": {
+                        "description": "Unsupported Media Type",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "428": {
+                        "description": "Precondition Required",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/admin/agents/{id}/instances": {
+            "get": {
+                "description": "Summaries of the instances that reported or heartbeated with a config digest, with the derived status (pending and unknown are server-derived), sync status, staleness and counts. Base/effective configs are on the instance detail route.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agent Configuration"
+                ],
+                "summary": "List an agent's instances",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Agent ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.agentInstanceListResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/admin/agents/{id}/instances/{instanceId}": {
+            "get": {
+                "description": "The instance's summary plus its redacted base and effective configs (snake_case) and loaded policy bundles. instanceId is the agent-side instance UUID.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agent Configuration"
+                ],
+                "summary": "Get one agent instance",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Agent ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Instance ID",
+                        "name": "instanceId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-handler_agentInstanceDetail"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/admin/agents/{id}/keys": {
+            "get": {
+                "description": "Requires admin:manage.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "List an agent's keys",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Agent ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataListResponse-handler_agentKeyResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            },
+            "post": {
+                "description": "Creates a service-account key; the client secret is returned only once. Requires admin:manage.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "Create an agent key",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Agent ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Key",
+                        "name": "key",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.createAgentKeyRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-handler_agentKeyCreateResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/admin/agents/{id}/keys/{keyId}": {
+            "get": {
+                "description": "Requires admin:manage.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "Get an agent key",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Agent ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Key ID",
+                        "name": "keyId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-handler_agentKeyResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            },
+            "delete": {
+                "description": "Requires admin:manage.",
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "Revoke an agent key",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Agent ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Key ID",
+                        "name": "keyId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
         "/admin/ai-diagnostics/runs": {
             "get": {
                 "description": "Lists dashboard suggestion runs across all SSPs, newest first, with optional status and SSP filters.",
@@ -2513,9 +3710,63 @@ const docTemplate = `{
                 ]
             }
         },
+        "/agent/config": {
+            "get": {
+                "description": "Returns the authenticated agent's current remote-configuration overlay (an RFC 7396 merge patch over its local config file, snake_case) with an opaque ETag. Send the raw ETag back as If-None-Match to get a 304 when nothing changed; never construct one. Revision 0 means no overlay. Agent JWT only; a 404 means the API predates remote configuration.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "Get this agent's configuration overlay",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ETag of the overlay the agent already has",
+                        "name": "If-None-Match",
+                        "in": "header"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-agentconfig_OverlayDocument"
+                        }
+                    },
+                    "304": {
+                        "description": "Not Modified"
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
         "/agent/heartbeat": {
             "post": {
-                "description": "Creates a new heartbeat record for monitoring.",
+                "description": "Creates a new heartbeat record for monitoring. An authenticated agent heartbeat also refreshes the instance's last-seen time; with config_digest (new agents, mode != off) it records config_revision/config_digest and registers the instance if needed.",
                 "consumes": [
                     "application/json"
                 ],
@@ -2580,6 +3831,88 @@ const docTemplate = `{
                         }
                     }
                 }
+            }
+        },
+        "/agent/instances/{instanceId}/config-report": {
+            "put": {
+                "description": "Stores the authenticated agent instance's config report: mode, applied/attempted revision, status (applied, rejected, failed or not-applicable; the server derives pending and unknown), the redacted base and effective configs (snake_case), the effective digest, loaded policy bundles, policy errors, unsafe changes, warnings and the normalized local remote_config block. The server re-redacts base and effective as a best effort and stores effective-digest as sent. Body limit 4 MiB. A 409 means the per-agent instance cap is reached; back off.",
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "Report this instance's effective configuration",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Agent instance ID (UUID)",
+                        "name": "instanceId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Config report",
+                        "name": "report",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/agentconfig.Report"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "413": {
+                        "description": "Request Entity Too Large",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "415": {
+                        "description": "Unsupported Media Type",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
             }
         },
         "/agent/risk-templates/batch": {
@@ -34035,6 +35368,286 @@ const docTemplate = `{
         }
     },
     "definitions": {
+        "agentconfig.Change": {
+            "type": "object",
+            "properties": {
+                "path": {
+                    "description": "RFC 6901 pointer",
+                    "type": "string"
+                },
+                "reason": {
+                    "type": "string"
+                },
+                "safety": {
+                    "$ref": "#/definitions/agentconfig.Safety"
+                },
+                "value": {
+                    "description": "the source / env name that triggered the class",
+                    "type": "string"
+                }
+            }
+        },
+        "agentconfig.DiffEntry": {
+            "type": "object",
+            "properties": {
+                "from": {
+                    "type": "object"
+                },
+                "op": {
+                    "description": "add | remove | replace",
+                    "type": "string"
+                },
+                "path": {
+                    "type": "string"
+                },
+                "to": {
+                    "type": "object"
+                }
+            }
+        },
+        "agentconfig.FieldError": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "description": "stable machine code (R43), one of FieldCode*",
+                    "type": "string"
+                },
+                "message": {
+                    "description": "human text",
+                    "type": "string"
+                },
+                "path": {
+                    "description": "RFC 6901 pointer into the snake_case config (\"\" = root)",
+                    "type": "string"
+                }
+            }
+        },
+        "agentconfig.OverlayDocument": {
+            "type": "object",
+            "properties": {
+                "created-at": {
+                    "description": "omitted for revision 0",
+                    "type": "string"
+                },
+                "overlay": {
+                    "type": "object"
+                },
+                "revision": {
+                    "type": "integer"
+                }
+            }
+        },
+        "agentconfig.PolicyBundleReport": {
+            "type": "object",
+            "properties": {
+                "digest": {
+                    "description": "tree digest on main (R10)",
+                    "type": "string"
+                },
+                "extends": {
+                    "description": "inline bundles with extends: the vendor tree (R10)",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/agentconfig.PolicyExtendsReport"
+                        }
+                    ]
+                },
+                "files": {
+                    "description": "inline: the materialized tree; others: their tree",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/agentconfig.PolicyFileReport"
+                    }
+                },
+                "source": {
+                    "type": "string"
+                }
+            }
+        },
+        "agentconfig.PolicyError": {
+            "type": "object",
+            "properties": {
+                "bundle": {
+                    "type": "string"
+                },
+                "col": {
+                    "type": "integer"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "path": {
+                    "type": "string"
+                },
+                "row": {
+                    "type": "integer"
+                },
+                "severity": {
+                    "description": "\"error\" | \"warning\"",
+                    "type": "string"
+                }
+            }
+        },
+        "agentconfig.PolicyExtendsReport": {
+            "type": "object",
+            "properties": {
+                "digest": {
+                    "type": "string"
+                },
+                "files": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/agentconfig.PolicyFileReport"
+                    }
+                },
+                "source": {
+                    "type": "string"
+                }
+            }
+        },
+        "agentconfig.PolicyFileReport": {
+            "type": "object",
+            "properties": {
+                "package": {
+                    "type": "string"
+                },
+                "path": {
+                    "description": "relative to the policy root",
+                    "type": "string"
+                },
+                "sha256": {
+                    "type": "string"
+                }
+            }
+        },
+        "agentconfig.RemoteConfig": {
+            "type": "object",
+            "properties": {
+                "allow_inline_policies": {
+                    "description": "default true",
+                    "type": "boolean"
+                },
+                "allow_local_sources": {
+                    "description": "default false",
+                    "type": "boolean"
+                },
+                "mode": {
+                    "type": "string"
+                },
+                "overridable_config_flags": {
+                    "description": "default []",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "poll_interval": {
+                    "type": "string"
+                },
+                "trusted_sources": {
+                    "description": "default []",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "agentconfig.Report": {
+            "type": "object",
+            "properties": {
+                "agent-version": {
+                    "description": "\u003c= 64",
+                    "type": "string"
+                },
+                "applied-revision": {
+                    "type": "integer"
+                },
+                "attempted-revision": {
+                    "type": "integer"
+                },
+                "base": {
+                    "type": "object"
+                },
+                "daemon": {
+                    "description": "false = one-shot run; pruned after 24h (R10, R37)",
+                    "type": "boolean"
+                },
+                "effective": {
+                    "type": "object"
+                },
+                "effective-digest": {
+                    "type": "string"
+                },
+                "error": {
+                    "description": "\u003c= 8 KiB, truncated server-side",
+                    "type": "string"
+                },
+                "hostname": {
+                    "description": "\u003c= 255",
+                    "type": "string"
+                },
+                "mode": {
+                    "type": "string"
+                },
+                "policy-bundles": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/agentconfig.PolicyBundleReport"
+                    }
+                },
+                "policy-errors": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/agentconfig.PolicyError"
+                    }
+                },
+                "reason": {
+                    "type": "string"
+                },
+                "remote-config": {
+                    "description": "normalized; snake_case inside",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/agentconfig.RemoteConfig"
+                        }
+                    ]
+                },
+                "status": {
+                    "type": "string"
+                },
+                "truncated": {
+                    "description": "agent dropped/trimmed parts to fit MaxReportBytes (R10)",
+                    "type": "boolean"
+                },
+                "unsafe": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/agentconfig.Change"
+                    }
+                },
+                "warnings": {
+                    "description": "R41: tolerated file-origin problems",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/agentconfig.FieldError"
+                    }
+                }
+            }
+        },
+        "agentconfig.Safety": {
+            "type": "string",
+            "enum": [
+                "safe",
+                "unsafe",
+                "forbidden"
+            ],
+            "x-enum-varnames": [
+                "Safe",
+                "Unsafe",
+                "Forbidden"
+            ]
+        },
         "api.Error": {
             "type": "object",
             "properties": {
@@ -34862,6 +36475,32 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/handler.StatusInterval"
+                    }
+                },
+                "meta": {}
+            }
+        },
+        "handler.GenericDataListResponse-handler_agentKeyResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handler.agentKeyResponse"
+                    }
+                },
+                "meta": {}
+            }
+        },
+        "handler.GenericDataListResponse-handler_agentResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handler.agentResponse"
                     }
                 },
                 "meta": {}
@@ -35816,6 +37455,19 @@ const docTemplate = `{
                 "meta": {}
             }
         },
+        "handler.GenericDataResponse-agentconfig_OverlayDocument": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Wrapped response data",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/agentconfig.OverlayDocument"
+                        }
+                    ]
+                }
+            }
+        },
         "handler.GenericDataResponse-array_handler_catalogLinkSummary": {
             "type": "object",
             "properties": {
@@ -35955,6 +37607,71 @@ const docTemplate = `{
                 }
             }
         },
+        "handler.GenericDataResponse-handler_agentConfigRevisionResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Wrapped response data",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/handler.agentConfigRevisionResponse"
+                        }
+                    ]
+                }
+            }
+        },
+        "handler.GenericDataResponse-handler_agentInstanceDetail": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Wrapped response data",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/handler.agentInstanceDetail"
+                        }
+                    ]
+                }
+            }
+        },
+        "handler.GenericDataResponse-handler_agentKeyCreateResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Wrapped response data",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/handler.agentKeyCreateResponse"
+                        }
+                    ]
+                }
+            }
+        },
+        "handler.GenericDataResponse-handler_agentKeyResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Wrapped response data",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/handler.agentKeyResponse"
+                        }
+                    ]
+                }
+            }
+        },
+        "handler.GenericDataResponse-handler_agentResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Wrapped response data",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/handler.agentResponse"
+                        }
+                    ]
+                }
+            }
+        },
         "handler.GenericDataResponse-handler_bulkControlLinkResponse": {
             "type": "object",
             "properties": {
@@ -35976,6 +37693,19 @@ const docTemplate = `{
                     "allOf": [
                         {
                             "$ref": "#/definitions/handler.catalogLinkResponse"
+                        }
+                    ]
+                }
+            }
+        },
+        "handler.GenericDataResponse-handler_configPreviewResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Wrapped response data",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/handler.configPreviewResponse"
                         }
                     ]
                 }
@@ -37300,10 +39030,19 @@ const docTemplate = `{
                 "uuid"
             ],
             "properties": {
+                "config_digest": {
+                    "description": "ConfigDigest is agentconfig.Digest of the effective config; sent whenever mode != off.",
+                    "type": "string"
+                },
+                "config_revision": {
+                    "description": "ConfigRevision is the APPLIED configuration revision, 0 when running from the file only\n(R45). Absent for old agents and mode off.",
+                    "type": "integer"
+                },
                 "created_at": {
                     "type": "string"
                 },
                 "uuid": {
+                    "description": "UUID is the agent instance id.",
                     "type": "string"
                 }
             }
@@ -37920,6 +39659,409 @@ const docTemplate = `{
                 }
             }
         },
+        "handler.agentConfigPreviewRequest": {
+            "type": "object",
+            "properties": {
+                "overlay": {
+                    "type": "object"
+                }
+            }
+        },
+        "handler.agentConfigPutRequest": {
+            "type": "object",
+            "properties": {
+                "comment": {
+                    "type": "string"
+                },
+                "overlay": {
+                    "type": "object"
+                }
+            }
+        },
+        "handler.agentConfigRevertRequest": {
+            "type": "object",
+            "properties": {
+                "comment": {
+                    "type": "string"
+                }
+            }
+        },
+        "handler.agentConfigRevisionResponse": {
+            "type": "object",
+            "properties": {
+                "agent-id": {
+                    "type": "string"
+                },
+                "bundles-first-seen": {
+                    "description": "GET .../config only (12.6)",
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "comment": {
+                    "type": "string"
+                },
+                "created-at": {
+                    "type": "string"
+                },
+                "created-by": {
+                    "type": "string"
+                },
+                "overlay": {
+                    "description": "omitted in lists",
+                    "type": "object"
+                },
+                "overlay-size": {
+                    "type": "integer"
+                },
+                "revert-of": {
+                    "type": "integer"
+                },
+                "revision": {
+                    "type": "integer"
+                }
+            }
+        },
+        "handler.agentInstanceCounts": {
+            "type": "object",
+            "properties": {
+                "failed": {
+                    "type": "integer"
+                },
+                "fresh": {
+                    "type": "integer"
+                },
+                "in-sync": {
+                    "type": "integer"
+                },
+                "out-of-sync": {
+                    "type": "integer"
+                },
+                "pending": {
+                    "type": "integer"
+                },
+                "rejected": {
+                    "type": "integer"
+                },
+                "stale": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
+                },
+                "unknown": {
+                    "type": "integer"
+                }
+            }
+        },
+        "handler.agentInstanceDetail": {
+            "type": "object",
+            "properties": {
+                "agent-version": {
+                    "type": "string"
+                },
+                "applied-revision": {
+                    "type": "integer"
+                },
+                "attempted-revision": {
+                    "type": "integer"
+                },
+                "base": {
+                    "type": "object"
+                },
+                "daemon": {
+                    "type": "boolean"
+                },
+                "effective": {
+                    "type": "object"
+                },
+                "effective-digest": {
+                    "type": "string"
+                },
+                "error": {
+                    "type": "string"
+                },
+                "first-seen-at": {
+                    "type": "string"
+                },
+                "heartbeat-config-revision": {
+                    "type": "integer"
+                },
+                "hostname": {
+                    "type": "string"
+                },
+                "instance-id": {
+                    "type": "string"
+                },
+                "last-seen-at": {
+                    "type": "string"
+                },
+                "mode": {
+                    "type": "string"
+                },
+                "policy-bundles": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/agentconfig.PolicyBundleReport"
+                    }
+                },
+                "policy-errors": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/agentconfig.PolicyError"
+                    }
+                },
+                "reason": {
+                    "type": "string"
+                },
+                "remote-config": {
+                    "type": "object"
+                },
+                "report-stale": {
+                    "description": "heartbeat digest != reported digest",
+                    "type": "boolean"
+                },
+                "reported-at": {
+                    "type": "string"
+                },
+                "stale": {
+                    "type": "boolean"
+                },
+                "status": {
+                    "description": "applied|rejected|failed|not-applicable|pending|unknown",
+                    "type": "string"
+                },
+                "sync-status": {
+                    "description": "in-sync|out-of-sync|not-applicable|unknown",
+                    "type": "string"
+                },
+                "truncated": {
+                    "type": "boolean"
+                },
+                "unsafe": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/agentconfig.Change"
+                    }
+                },
+                "warnings": {
+                    "description": "R41",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/agentconfig.FieldError"
+                    }
+                }
+            }
+        },
+        "handler.agentInstanceListResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handler.agentInstanceSummary"
+                    }
+                },
+                "meta": {
+                    "$ref": "#/definitions/handler.agentInstancesMeta"
+                }
+            }
+        },
+        "handler.agentInstanceSummary": {
+            "type": "object",
+            "properties": {
+                "agent-version": {
+                    "type": "string"
+                },
+                "applied-revision": {
+                    "type": "integer"
+                },
+                "attempted-revision": {
+                    "type": "integer"
+                },
+                "daemon": {
+                    "type": "boolean"
+                },
+                "effective-digest": {
+                    "type": "string"
+                },
+                "error": {
+                    "type": "string"
+                },
+                "first-seen-at": {
+                    "type": "string"
+                },
+                "heartbeat-config-revision": {
+                    "type": "integer"
+                },
+                "hostname": {
+                    "type": "string"
+                },
+                "instance-id": {
+                    "type": "string"
+                },
+                "last-seen-at": {
+                    "type": "string"
+                },
+                "mode": {
+                    "type": "string"
+                },
+                "policy-errors": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/agentconfig.PolicyError"
+                    }
+                },
+                "reason": {
+                    "type": "string"
+                },
+                "remote-config": {
+                    "type": "object"
+                },
+                "report-stale": {
+                    "description": "heartbeat digest != reported digest",
+                    "type": "boolean"
+                },
+                "reported-at": {
+                    "type": "string"
+                },
+                "stale": {
+                    "type": "boolean"
+                },
+                "status": {
+                    "description": "applied|rejected|failed|not-applicable|pending|unknown",
+                    "type": "string"
+                },
+                "sync-status": {
+                    "description": "in-sync|out-of-sync|not-applicable|unknown",
+                    "type": "string"
+                },
+                "truncated": {
+                    "type": "boolean"
+                },
+                "unsafe": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/agentconfig.Change"
+                    }
+                },
+                "warnings": {
+                    "description": "R41",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/agentconfig.FieldError"
+                    }
+                }
+            }
+        },
+        "handler.agentInstancesMeta": {
+            "type": "object",
+            "properties": {
+                "counts": {
+                    "$ref": "#/definitions/handler.agentInstanceCounts"
+                },
+                "desired-revision": {
+                    "type": "integer"
+                }
+            }
+        },
+        "handler.agentKeyCreateResponse": {
+            "type": "object",
+            "properties": {
+                "client-id": {
+                    "type": "string"
+                },
+                "client-secret": {
+                    "type": "string"
+                },
+                "created-at": {
+                    "type": "string"
+                },
+                "expires-at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "last-used-at": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "never-expires": {
+                    "type": "boolean"
+                },
+                "revoked-at": {
+                    "type": "string"
+                },
+                "updated-at": {
+                    "type": "string"
+                }
+            }
+        },
+        "handler.agentKeyResponse": {
+            "type": "object",
+            "properties": {
+                "client-id": {
+                    "type": "string"
+                },
+                "created-at": {
+                    "type": "string"
+                },
+                "expires-at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "last-used-at": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "never-expires": {
+                    "type": "boolean"
+                },
+                "revoked-at": {
+                    "type": "string"
+                },
+                "updated-at": {
+                    "type": "string"
+                }
+            }
+        },
+        "handler.agentResponse": {
+            "type": "object",
+            "properties": {
+                "created-at": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "is-active": {
+                    "type": "boolean"
+                },
+                "last-authenticated-at": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "service-account-key-count": {
+                    "type": "integer"
+                },
+                "updated-at": {
+                    "type": "string"
+                }
+            }
+        },
         "handler.attachFilterResponsibilityRequest": {
             "type": "object",
             "required": [
@@ -38039,6 +40181,36 @@ const docTemplate = `{
                 }
             }
         },
+        "handler.configPreviewResponse": {
+            "type": "object",
+            "properties": {
+                "desired-revision": {
+                    "type": "integer"
+                },
+                "instances": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handler.instancePreview"
+                    }
+                },
+                "overlay-errors": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/agentconfig.FieldError"
+                    }
+                },
+                "policy-errors": {
+                    "description": "incl. warnings",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/agentconfig.PolicyError"
+                    }
+                },
+                "standalone": {
+                    "type": "boolean"
+                }
+            }
+        },
         "handler.configuredSystemDestinationResponse": {
             "type": "object",
             "properties": {
@@ -38074,6 +40246,37 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "controlId": {
+                    "type": "string"
+                }
+            }
+        },
+        "handler.createAgentKeyRequest": {
+            "type": "object",
+            "properties": {
+                "expires-at": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "never-expires": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "handler.createAgentRequest": {
+            "type": "object",
+            "required": [
+                "name"
+            ],
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "is-active": {
+                    "type": "boolean"
+                },
+                "name": {
                     "type": "string"
                 }
             }
@@ -38416,6 +40619,55 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "updatedAt": {
+                    "type": "string"
+                }
+            }
+        },
+        "handler.instancePreview": {
+            "type": "object",
+            "properties": {
+                "changes": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/agentconfig.Change"
+                    }
+                },
+                "diff-vs-current": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/agentconfig.DiffEntry"
+                    }
+                },
+                "effective": {
+                    "type": "object"
+                },
+                "errors": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/agentconfig.FieldError"
+                    }
+                },
+                "hostname": {
+                    "type": "string"
+                },
+                "instance-id": {
+                    "type": "string"
+                },
+                "mode": {
+                    "type": "string"
+                },
+                "stale": {
+                    "type": "boolean"
+                },
+                "validated": {
+                    "description": "R48: PUT validates against this instance; its errors block a save",
+                    "type": "boolean"
+                },
+                "will-apply": {
+                    "type": "boolean"
+                },
+                "will-apply-reason": {
+                    "description": "mode-off|mode-report|unsafe-changes|forbidden-changes|invalid-config",
                     "type": "string"
                 }
             }
@@ -39009,6 +41261,20 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "url": {
+                    "type": "string"
+                }
+            }
+        },
+        "handler.updateAgentRequest": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "is-active": {
+                    "type": "boolean"
+                },
+                "name": {
                     "type": "string"
                 }
             }
@@ -49581,6 +51847,29 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/handler.PublicEvidenceResponse"
+                    }
+                },
+                "limit": {
+                    "type": "integer"
+                },
+                "page": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
+                },
+                "totalPages": {
+                    "type": "integer"
+                }
+            }
+        },
+        "service.ListResponse-handler_agentConfigRevisionResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handler.agentConfigRevisionResponse"
                     }
                 },
                 "limit": {

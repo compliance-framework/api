@@ -319,6 +319,10 @@ func NewServiceWithDigest(
 	poamOpenDigestSchedulerWorker := NewPoamOpenDigestSchedulerWorker(db, clientProxy, poamCfg.OpenDigestWindow, logger)
 	river.AddWorker(workers, river.WorkFunc(poamOpenDigestSchedulerWorker.Work))
 
+	// Agent instance pruning (R37)
+	agentInstancePruneWorker := NewAgentInstancePruneWorker(db, agentSettingsFromConfig(digestCfg), logger)
+	river.AddWorker(workers, river.WorkFunc(agentInstancePruneWorker.Work))
+
 	aiEnabled := digestCfg != nil && digestCfg.AI != nil && digestCfg.AI.Enabled
 	if aiEnabled {
 		llmClient := llm.NewAnthropicClient(llm.AnthropicConfig{
@@ -713,6 +717,10 @@ func periodicJobsFromConfig(cfg *config.Config, logger *zap.SugaredLogger) []*ri
 	// POAM digest periodic job (BCH-1186 Phase 4)
 	if cfg.Poam != nil && cfg.Poam.OpenDigestEnabled {
 		periodicJobs = append(periodicJobs, NewPoamOpenDigestPeriodicJob(cfg.Poam.OpenDigestSchedule, logger))
+	}
+	// Agent instance pruning (R37); LoadAgentsConfig enables it by default.
+	if cfg.Agents != nil && cfg.Agents.InstancePruneEnabled {
+		periodicJobs = append(periodicJobs, NewAgentInstancePrunePeriodicJob(cfg.Agents.InstancePruneSchedule, logger))
 	}
 	return periodicJobs
 }

@@ -125,20 +125,7 @@ func (p *PEP) Authorize(resource, action string, opts ...AuthorizeOption) echo.M
 	}
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
-			subject := SubjectFromContext(c)
-			res := authz.Resource{Type: resource, ID: c.Param(cfg.idParam)}
-			for attr, param := range cfg.scopeParams {
-				if v := c.Param(param); v != "" {
-					if res.Props == nil {
-						res.Props = map[string]any{}
-					}
-					res.Props[attr] = v
-				}
-			}
-			reqCtx := map[string]any{
-				"method": c.Request().Method,
-				"path":   c.Path(),
-			}
+			subject, res, reqCtx := cfg.tuple(c, resource)
 
 			start := time.Now()
 			decision, err := p.pdp.Evaluate(c.Request().Context(), subject, action, res, reqCtx)
@@ -168,6 +155,108 @@ func (p *PEP) Authorize(resource, action string, opts ...AuthorizeOption) echo.M
 			return next(c)
 		}
 	}
+}
+
+// tuple builds the evaluation subject, resource and request context for the matched route.
+func (cfg authorizeConfig) tuple(c echo.Context, resource string) (authz.Subject, authz.Resource, map[string]any) {
+	subject := SubjectFromContext(c)
+	res := authz.Resource{Type: resource, ID: c.Param(cfg.idParam)}
+	for attr, param := range cfg.scopeParams {
+		if v := c.Param(param); v != "" {
+			if res.Props == nil {
+				res.Props = map[string]any{}
+			}
+			res.Props[attr] = v
+		}
+	}
+	reqCtx := map[string]any{
+		"method": c.Request().Method,
+		"path":   c.Path(),
+	}
+	return subject, res, reqCtx
+}
+
+// allowedActionsKey is the echo context key AuthorizeAny stores its per-action decisions in.
+const allowedActionsKey = "authz_allowed_actions"
+
+// AuthorizeAny returns middleware that allows the request when the subject may perform ANY
+// of actions on resource ("configure OR configure-policy"). All actions are evaluated in one
+// Evaluations batch and each decision is audited. The allowed subset is stored in the context
+// for the handler (AllowedActions), which can then apply finer checks (e.g. D18's
+// policy-only rule). When the PDP is unavailable the configured fail mode applies: fail-open
+// lets the request through with NO action recorded as allowed, so handler-level narrowing
+// still applies; fail-closed returns 403.
+func (p *PEP) AuthorizeAny(resource string, actions []string, opts ...AuthorizeOption) echo.MiddlewareFunc {
+	cfg := authorizeConfig{idParam: "id"}
+	for _, o := range opts {
+		o(&cfg)
+	}
+	actions = append([]string(nil), actions...)
+	return func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c echo.Context) error {
+			subject, res, reqCtx := cfg.tuple(c, resource)
+			reqs := make([]authz.EvalRequest, len(actions))
+			for i, action := range actions {
+				reqs[i] = authz.EvalRequest{Subject: subject, Action: action, Resource: res, Context: reqCtx}
+			}
+
+			start := time.Now()
+			decisions, err := p.pdp.Evaluations(c.Request().Context(), reqs)
+			latency := time.Since(start)
+
+			if err == nil && len(decisions) != len(actions) {
+				err = errors.New("authz: PDP returned a decision count that does not match the batch")
+			}
+			if err != nil {
+				if errors.Is(err, authz.ErrUnavailable) {
+					allow := p.failMode == authz.FailOpen
+					for _, action := range actions {
+						p.audit(subject, action, res, authz.Decision{Allow: allow, Reason: "pdp unavailable: fail-" + string(p.failMode)}, latency)
+					}
+					p.logger.Warnw("authz PDP unavailable",
+						"resource", resource, "actions", actions, "failMode", p.failMode, "error", err)
+					if allow {
+						c.Set(allowedActionsKey, map[string]bool{})
+						return next(c)
+					}
+					return echo.NewHTTPError(http.StatusForbidden, "forbidden")
+				}
+				for _, action := range actions {
+					p.audit(subject, action, res, authz.Decision{Allow: false, Reason: "evaluation error"}, latency)
+				}
+				p.logger.Errorw("authz evaluation failed",
+					"resource", resource, "actions", actions, "error", err)
+				return echo.NewHTTPError(http.StatusInternalServerError, "authorization error")
+			}
+
+			allowed := make(map[string]bool, len(actions))
+			anyAllowed := false
+			for i, action := range actions {
+				p.audit(subject, action, res, decisions[i], latency)
+				if decisions[i].Allow {
+					allowed[action] = true
+					anyAllowed = true
+				}
+			}
+			if !anyAllowed {
+				return echo.NewHTTPError(http.StatusForbidden, "forbidden")
+			}
+			c.Set(allowedActionsKey, allowed)
+			return next(c)
+		}
+	}
+}
+
+// Any enforces "any of actions" on the bound resource (see PEP.AuthorizeAny).
+func (g ResourceGuard) Any(actions ...string) echo.MiddlewareFunc {
+	return g.pep.AuthorizeAny(g.resource, actions, g.opts...)
+}
+
+// AllowedActions returns the actions AuthorizeAny found allowed for this request (nil when
+// the route is not guarded by AuthorizeAny). Callers must treat a missing action as denied.
+func AllowedActions(c echo.Context) map[string]bool {
+	allowed, _ := c.Get(allowedActionsKey).(map[string]bool)
+	return allowed
 }
 
 // audit emits the decision audit record for every PEP call (subject, action, resource,

@@ -2,6 +2,195 @@ basePath: /api
 consumes:
 - application/json
 definitions:
+  agentconfig.Change:
+    properties:
+      path:
+        description: RFC 6901 pointer
+        type: string
+      reason:
+        type: string
+      safety:
+        $ref: '#/definitions/agentconfig.Safety'
+      value:
+        description: the source / env name that triggered the class
+        type: string
+    type: object
+  agentconfig.DiffEntry:
+    properties:
+      from:
+        type: object
+      op:
+        description: add | remove | replace
+        type: string
+      path:
+        type: string
+      to:
+        type: object
+    type: object
+  agentconfig.FieldError:
+    properties:
+      code:
+        description: stable machine code (R43), one of FieldCode*
+        type: string
+      message:
+        description: human text
+        type: string
+      path:
+        description: RFC 6901 pointer into the snake_case config ("" = root)
+        type: string
+    type: object
+  agentconfig.OverlayDocument:
+    properties:
+      created-at:
+        description: omitted for revision 0
+        type: string
+      overlay:
+        type: object
+      revision:
+        type: integer
+    type: object
+  agentconfig.PolicyBundleReport:
+    properties:
+      digest:
+        description: tree digest on main (R10)
+        type: string
+      extends:
+        allOf:
+        - $ref: '#/definitions/agentconfig.PolicyExtendsReport'
+        description: 'inline bundles with extends: the vendor tree (R10)'
+      files:
+        description: 'inline: the materialized tree; others: their tree'
+        items:
+          $ref: '#/definitions/agentconfig.PolicyFileReport'
+        type: array
+      source:
+        type: string
+    type: object
+  agentconfig.PolicyError:
+    properties:
+      bundle:
+        type: string
+      col:
+        type: integer
+      message:
+        type: string
+      path:
+        type: string
+      row:
+        type: integer
+      severity:
+        description: '"error" | "warning"'
+        type: string
+    type: object
+  agentconfig.PolicyExtendsReport:
+    properties:
+      digest:
+        type: string
+      files:
+        items:
+          $ref: '#/definitions/agentconfig.PolicyFileReport'
+        type: array
+      source:
+        type: string
+    type: object
+  agentconfig.PolicyFileReport:
+    properties:
+      package:
+        type: string
+      path:
+        description: relative to the policy root
+        type: string
+      sha256:
+        type: string
+    type: object
+  agentconfig.RemoteConfig:
+    properties:
+      allow_inline_policies:
+        description: default true
+        type: boolean
+      allow_local_sources:
+        description: default false
+        type: boolean
+      mode:
+        type: string
+      overridable_config_flags:
+        description: default []
+        items:
+          type: string
+        type: array
+      poll_interval:
+        type: string
+      trusted_sources:
+        description: default []
+        items:
+          type: string
+        type: array
+    type: object
+  agentconfig.Report:
+    properties:
+      agent-version:
+        description: <= 64
+        type: string
+      applied-revision:
+        type: integer
+      attempted-revision:
+        type: integer
+      base:
+        type: object
+      daemon:
+        description: false = one-shot run; pruned after 24h (R10, R37)
+        type: boolean
+      effective:
+        type: object
+      effective-digest:
+        type: string
+      error:
+        description: <= 8 KiB, truncated server-side
+        type: string
+      hostname:
+        description: <= 255
+        type: string
+      mode:
+        type: string
+      policy-bundles:
+        items:
+          $ref: '#/definitions/agentconfig.PolicyBundleReport'
+        type: array
+      policy-errors:
+        items:
+          $ref: '#/definitions/agentconfig.PolicyError'
+        type: array
+      reason:
+        type: string
+      remote-config:
+        allOf:
+        - $ref: '#/definitions/agentconfig.RemoteConfig'
+        description: normalized; snake_case inside
+      status:
+        type: string
+      truncated:
+        description: agent dropped/trimmed parts to fit MaxReportBytes (R10)
+        type: boolean
+      unsafe:
+        items:
+          $ref: '#/definitions/agentconfig.Change'
+        type: array
+      warnings:
+        description: 'R41: tolerated file-origin problems'
+        items:
+          $ref: '#/definitions/agentconfig.FieldError'
+        type: array
+    type: object
+  agentconfig.Safety:
+    enum:
+    - safe
+    - unsafe
+    - forbidden
+    type: string
+    x-enum-varnames:
+    - Safe
+    - Unsafe
+    - Forbidden
   api.Error:
     properties:
       errors:
@@ -589,6 +778,24 @@ definitions:
         description: Items from the list response
         items:
           $ref: '#/definitions/handler.StatusInterval'
+        type: array
+      meta: {}
+    type: object
+  handler.GenericDataListResponse-handler_agentKeyResponse:
+    properties:
+      data:
+        description: Items from the list response
+        items:
+          $ref: '#/definitions/handler.agentKeyResponse'
+        type: array
+      meta: {}
+    type: object
+  handler.GenericDataListResponse-handler_agentResponse:
+    properties:
+      data:
+        description: Items from the list response
+        items:
+          $ref: '#/definitions/handler.agentResponse'
         type: array
       meta: {}
     type: object
@@ -1249,6 +1456,13 @@ definitions:
         type: array
       meta: {}
     type: object
+  handler.GenericDataResponse-agentconfig_OverlayDocument:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/agentconfig.OverlayDocument'
+        description: Wrapped response data
+    type: object
   handler.GenericDataResponse-array_handler_catalogLinkSummary:
     properties:
       data:
@@ -1330,6 +1544,41 @@ definitions:
         - $ref: '#/definitions/handler.SubscriptionsResponse'
         description: Wrapped response data
     type: object
+  handler.GenericDataResponse-handler_agentConfigRevisionResponse:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/handler.agentConfigRevisionResponse'
+        description: Wrapped response data
+    type: object
+  handler.GenericDataResponse-handler_agentInstanceDetail:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/handler.agentInstanceDetail'
+        description: Wrapped response data
+    type: object
+  handler.GenericDataResponse-handler_agentKeyCreateResponse:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/handler.agentKeyCreateResponse'
+        description: Wrapped response data
+    type: object
+  handler.GenericDataResponse-handler_agentKeyResponse:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/handler.agentKeyResponse'
+        description: Wrapped response data
+    type: object
+  handler.GenericDataResponse-handler_agentResponse:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/handler.agentResponse'
+        description: Wrapped response data
+    type: object
   handler.GenericDataResponse-handler_bulkControlLinkResponse:
     properties:
       data:
@@ -1342,6 +1591,13 @@ definitions:
       data:
         allOf:
         - $ref: '#/definitions/handler.catalogLinkResponse'
+        description: Wrapped response data
+    type: object
+  handler.GenericDataResponse-handler_configPreviewResponse:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/handler.configPreviewResponse'
         description: Wrapped response data
     type: object
   handler.GenericDataResponse-handler_configuredSystemDestinationResponse:
@@ -2054,9 +2310,19 @@ definitions:
     type: object
   handler.HeartbeatCreateRequest:
     properties:
+      config_digest:
+        description: ConfigDigest is agentconfig.Digest of the effective config; sent
+          whenever mode != off.
+        type: string
+      config_revision:
+        description: |-
+          ConfigRevision is the APPLIED configuration revision, 0 when running from the file only
+          (R45). Absent for old agents and mode off.
+        type: integer
       created_at:
         type: string
       uuid:
+        description: UUID is the agent instance id.
         type: string
     required:
     - created_at
@@ -2481,6 +2747,274 @@ definitions:
       subject-id:
         type: string
     type: object
+  handler.agentConfigPreviewRequest:
+    properties:
+      overlay:
+        type: object
+    type: object
+  handler.agentConfigPutRequest:
+    properties:
+      comment:
+        type: string
+      overlay:
+        type: object
+    type: object
+  handler.agentConfigRevertRequest:
+    properties:
+      comment:
+        type: string
+    type: object
+  handler.agentConfigRevisionResponse:
+    properties:
+      agent-id:
+        type: string
+      bundles-first-seen:
+        additionalProperties:
+          type: string
+        description: GET .../config only (12.6)
+        type: object
+      comment:
+        type: string
+      created-at:
+        type: string
+      created-by:
+        type: string
+      overlay:
+        description: omitted in lists
+        type: object
+      overlay-size:
+        type: integer
+      revert-of:
+        type: integer
+      revision:
+        type: integer
+    type: object
+  handler.agentInstanceCounts:
+    properties:
+      failed:
+        type: integer
+      fresh:
+        type: integer
+      in-sync:
+        type: integer
+      out-of-sync:
+        type: integer
+      pending:
+        type: integer
+      rejected:
+        type: integer
+      stale:
+        type: integer
+      total:
+        type: integer
+      unknown:
+        type: integer
+    type: object
+  handler.agentInstanceDetail:
+    properties:
+      agent-version:
+        type: string
+      applied-revision:
+        type: integer
+      attempted-revision:
+        type: integer
+      base:
+        type: object
+      daemon:
+        type: boolean
+      effective:
+        type: object
+      effective-digest:
+        type: string
+      error:
+        type: string
+      first-seen-at:
+        type: string
+      heartbeat-config-revision:
+        type: integer
+      hostname:
+        type: string
+      instance-id:
+        type: string
+      last-seen-at:
+        type: string
+      mode:
+        type: string
+      policy-bundles:
+        items:
+          $ref: '#/definitions/agentconfig.PolicyBundleReport'
+        type: array
+      policy-errors:
+        items:
+          $ref: '#/definitions/agentconfig.PolicyError'
+        type: array
+      reason:
+        type: string
+      remote-config:
+        type: object
+      report-stale:
+        description: heartbeat digest != reported digest
+        type: boolean
+      reported-at:
+        type: string
+      stale:
+        type: boolean
+      status:
+        description: applied|rejected|failed|not-applicable|pending|unknown
+        type: string
+      sync-status:
+        description: in-sync|out-of-sync|not-applicable|unknown
+        type: string
+      truncated:
+        type: boolean
+      unsafe:
+        items:
+          $ref: '#/definitions/agentconfig.Change'
+        type: array
+      warnings:
+        description: R41
+        items:
+          $ref: '#/definitions/agentconfig.FieldError'
+        type: array
+    type: object
+  handler.agentInstanceListResponse:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/handler.agentInstanceSummary'
+        type: array
+      meta:
+        $ref: '#/definitions/handler.agentInstancesMeta'
+    type: object
+  handler.agentInstanceSummary:
+    properties:
+      agent-version:
+        type: string
+      applied-revision:
+        type: integer
+      attempted-revision:
+        type: integer
+      daemon:
+        type: boolean
+      effective-digest:
+        type: string
+      error:
+        type: string
+      first-seen-at:
+        type: string
+      heartbeat-config-revision:
+        type: integer
+      hostname:
+        type: string
+      instance-id:
+        type: string
+      last-seen-at:
+        type: string
+      mode:
+        type: string
+      policy-errors:
+        items:
+          $ref: '#/definitions/agentconfig.PolicyError'
+        type: array
+      reason:
+        type: string
+      remote-config:
+        type: object
+      report-stale:
+        description: heartbeat digest != reported digest
+        type: boolean
+      reported-at:
+        type: string
+      stale:
+        type: boolean
+      status:
+        description: applied|rejected|failed|not-applicable|pending|unknown
+        type: string
+      sync-status:
+        description: in-sync|out-of-sync|not-applicable|unknown
+        type: string
+      truncated:
+        type: boolean
+      unsafe:
+        items:
+          $ref: '#/definitions/agentconfig.Change'
+        type: array
+      warnings:
+        description: R41
+        items:
+          $ref: '#/definitions/agentconfig.FieldError'
+        type: array
+    type: object
+  handler.agentInstancesMeta:
+    properties:
+      counts:
+        $ref: '#/definitions/handler.agentInstanceCounts'
+      desired-revision:
+        type: integer
+    type: object
+  handler.agentKeyCreateResponse:
+    properties:
+      client-id:
+        type: string
+      client-secret:
+        type: string
+      created-at:
+        type: string
+      expires-at:
+        type: string
+      id:
+        type: string
+      last-used-at:
+        type: string
+      name:
+        type: string
+      never-expires:
+        type: boolean
+      revoked-at:
+        type: string
+      updated-at:
+        type: string
+    type: object
+  handler.agentKeyResponse:
+    properties:
+      client-id:
+        type: string
+      created-at:
+        type: string
+      expires-at:
+        type: string
+      id:
+        type: string
+      last-used-at:
+        type: string
+      name:
+        type: string
+      never-expires:
+        type: boolean
+      revoked-at:
+        type: string
+      updated-at:
+        type: string
+    type: object
+  handler.agentResponse:
+    properties:
+      created-at:
+        type: string
+      description:
+        type: string
+      id:
+        type: string
+      is-active:
+        type: boolean
+      last-authenticated-at:
+        type: string
+      name:
+        type: string
+      service-account-key-count:
+        type: integer
+      updated-at:
+        type: string
+    type: object
   handler.attachFilterResponsibilityRequest:
     properties:
       controlId:
@@ -2566,6 +3100,26 @@ definitions:
       targetControlId:
         type: string
     type: object
+  handler.configPreviewResponse:
+    properties:
+      desired-revision:
+        type: integer
+      instances:
+        items:
+          $ref: '#/definitions/handler.instancePreview'
+        type: array
+      overlay-errors:
+        items:
+          $ref: '#/definitions/agentconfig.FieldError'
+        type: array
+      policy-errors:
+        description: incl. warnings
+        items:
+          $ref: '#/definitions/agentconfig.PolicyError'
+        type: array
+      standalone:
+        type: boolean
+    type: object
   handler.configuredSystemDestinationResponse:
     properties:
       destinationTarget:
@@ -2590,6 +3144,26 @@ definitions:
         type: string
       controlId:
         type: string
+    type: object
+  handler.createAgentKeyRequest:
+    properties:
+      expires-at:
+        type: string
+      name:
+        type: string
+      never-expires:
+        type: boolean
+    type: object
+  handler.createAgentRequest:
+    properties:
+      description:
+        type: string
+      is-active:
+        type: boolean
+      name:
+        type: string
+    required:
+    - name
     type: object
   handler.createControlLinkRequest:
     properties:
@@ -2832,6 +3406,40 @@ definitions:
           stays manual.
         type: string
       updatedAt:
+        type: string
+    type: object
+  handler.instancePreview:
+    properties:
+      changes:
+        items:
+          $ref: '#/definitions/agentconfig.Change'
+        type: array
+      diff-vs-current:
+        items:
+          $ref: '#/definitions/agentconfig.DiffEntry'
+        type: array
+      effective:
+        type: object
+      errors:
+        items:
+          $ref: '#/definitions/agentconfig.FieldError'
+        type: array
+      hostname:
+        type: string
+      instance-id:
+        type: string
+      mode:
+        type: string
+      stale:
+        type: boolean
+      validated:
+        description: 'R48: PUT validates against this instance; its errors block a
+          save'
+        type: boolean
+      will-apply:
+        type: boolean
+      will-apply-reason:
+        description: mode-off|mode-report|unsafe-changes|forbidden-changes|invalid-config
         type: string
     type: object
   handler.milestoneResponse:
@@ -3229,6 +3837,15 @@ definitions:
       title:
         type: string
       url:
+        type: string
+    type: object
+  handler.updateAgentRequest:
+    properties:
+      description:
+        type: string
+      is-active:
+        type: boolean
+      name:
         type: string
     type: object
   handler.updateMilestoneRequest:
@@ -10350,6 +10967,21 @@ definitions:
       totalPages:
         type: integer
     type: object
+  service.ListResponse-handler_agentConfigRevisionResponse:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/handler.agentConfigRevisionResponse'
+        type: array
+      limit:
+        type: integer
+      page:
+        type: integer
+      total:
+        type: integer
+      totalPages:
+        type: integer
+    type: object
   service.ListResponse-handler_riskResponse:
     properties:
       data:
@@ -12081,6 +12713,808 @@ info:
   title: Continuous Compliance Framework API
   version: "1"
 paths:
+  /admin/agents:
+    get:
+      description: Lists agent service accounts with their active key counts (never
+        the keys). Requires agent:read.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-handler_agentResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: List agents
+      tags:
+      - Agents
+    post:
+      consumes:
+      - application/json
+      description: Creates an agent service account. Requires admin:manage.
+      parameters:
+      - description: Agent
+        in: body
+        name: agent
+        required: true
+        schema:
+          $ref: '#/definitions/handler.createAgentRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-handler_agentResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Create an agent
+      tags:
+      - Agents
+  /admin/agents/{id}:
+    delete:
+      description: Deactivates and deletes the agent, revokes its keys and removes
+        its reported instances. Configuration revisions are kept. Requires admin:manage.
+      parameters:
+      - description: Agent ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Delete an agent
+      tags:
+      - Agents
+    get:
+      description: Requires agent:read.
+      parameters:
+      - description: Agent ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-handler_agentResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Get an agent
+      tags:
+      - Agents
+    put:
+      consumes:
+      - application/json
+      description: Requires admin:manage.
+      parameters:
+      - description: Agent ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Fields to update
+        in: body
+        name: agent
+        required: true
+        schema:
+          $ref: '#/definitions/handler.updateAgentRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-handler_agentResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Update an agent
+      tags:
+      - Agents
+  /admin/agents/{id}/config:
+    get:
+      description: Returns the current configuration revision (overlay as an RFC 7396
+        merge patch, snake_case) and, when the overlay defines policy bundles, when
+        each was first seen. Revision 0 means no overlay. The ETag is the plain revision
+        number; send it as If-Match when saving.
+      parameters:
+      - description: Agent ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-handler_agentConfigRevisionResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Get an agent's configuration overlay
+      tags:
+      - Agent Configuration
+    put:
+      consumes:
+      - application/json
+      description: 'Creates the next configuration revision. Requires If-Match with
+        the current revision ("0" for the first save): missing is 428, stale is 409
+        with current-revision. A semantically unchanged overlay returns 200 with the
+        current revision and creates nothing. The overlay is validated on its own,
+        its inline Rego is checked at parse level (advisory: the agent is the security
+        boundary; direct calls to http.send, net.lookup_ip_addr and opa.runtime are
+        rejected; cross-bundle imports are unsupported), and the merged config is
+        validated against every fresh apply-mode instance''s reported base (or the
+        latest reported one); errors are a 422 with overlay, instances and policy-errors
+        lists. Needs agent:configure, or agent:configure-policy for changes limited
+        to policy bundles and plugin policy lists.'
+      parameters:
+      - description: Agent ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Current revision, e.g. \
+        in: header
+        name: If-Match
+        required: true
+        type: string
+      - description: Overlay and optional comment
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handler.agentConfigPutRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-handler_agentConfigRevisionResponse'
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-handler_agentConfigRevisionResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/api.Error'
+        "413":
+          description: Request Entity Too Large
+          schema:
+            $ref: '#/definitions/api.Error'
+        "415":
+          description: Unsupported Media Type
+          schema:
+            $ref: '#/definitions/api.Error'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/api.Error'
+        "428":
+          description: Precondition Required
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Save an agent's configuration overlay
+      tags:
+      - Agent Configuration
+  /admin/agents/{id}/config/preview:
+    post:
+      consumes:
+      - application/json
+      description: Validates a candidate overlay without saving it and shows, per
+        reporting instance (fresh and stale), the redacted effective config, its diff
+        against the instance's current effective config, the classified changes and
+        whether the agent would apply it. validated marks the instances a save validates
+        against; only their errors block a save. The inline Rego check is parse-level
+        and advisory; cross-bundle imports are unsupported. Validation problems are
+        returned in the 200 body.
+      parameters:
+      - description: Agent ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Candidate overlay
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handler.agentConfigPreviewRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-handler_configPreviewResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "413":
+          description: Request Entity Too Large
+          schema:
+            $ref: '#/definitions/api.Error'
+        "415":
+          description: Unsupported Media Type
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Preview an agent configuration overlay
+      tags:
+      - Agent Configuration
+  /admin/agents/{id}/config/revisions:
+    get:
+      description: Revisions newest first, without overlays.
+      parameters:
+      - description: Agent ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Page (default 1)
+        in: query
+        name: page
+        type: integer
+      - description: Page size (default 50, max 100)
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/service.ListResponse-handler_agentConfigRevisionResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: List an agent's configuration revisions
+      tags:
+      - Agent Configuration
+  /admin/agents/{id}/config/revisions/{rev}:
+    get:
+      parameters:
+      - description: Agent ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Revision number
+        in: path
+        name: rev
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-handler_agentConfigRevisionResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Get one configuration revision
+      tags:
+      - Agent Configuration
+  /admin/agents/{id}/config/revisions/{rev}/revert:
+    post:
+      consumes:
+      - application/json
+      description: Creates the next revision with the overlay of revision :rev (revert-of
+        records it). Same If-Match, validation and authorization rules as PUT. The
+        body is optional.
+      parameters:
+      - description: Agent ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Revision to restore
+        in: path
+        name: rev
+        required: true
+        type: integer
+      - description: Current revision, e.g. \
+        in: header
+        name: If-Match
+        required: true
+        type: string
+      - description: Optional comment
+        in: body
+        name: body
+        schema:
+          $ref: '#/definitions/handler.agentConfigRevertRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-handler_agentConfigRevisionResponse'
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-handler_agentConfigRevisionResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/api.Error'
+        "413":
+          description: Request Entity Too Large
+          schema:
+            $ref: '#/definitions/api.Error'
+        "415":
+          description: Unsupported Media Type
+          schema:
+            $ref: '#/definitions/api.Error'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/api.Error'
+        "428":
+          description: Precondition Required
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Revert an agent's configuration to an earlier revision
+      tags:
+      - Agent Configuration
+  /admin/agents/{id}/instances:
+    get:
+      description: Summaries of the instances that reported or heartbeated with a
+        config digest, with the derived status (pending and unknown are server-derived),
+        sync status, staleness and counts. Base/effective configs are on the instance
+        detail route.
+      parameters:
+      - description: Agent ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.agentInstanceListResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: List an agent's instances
+      tags:
+      - Agent Configuration
+  /admin/agents/{id}/instances/{instanceId}:
+    get:
+      description: The instance's summary plus its redacted base and effective configs
+        (snake_case) and loaded policy bundles. instanceId is the agent-side instance
+        UUID.
+      parameters:
+      - description: Agent ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Instance ID
+        in: path
+        name: instanceId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-handler_agentInstanceDetail'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Get one agent instance
+      tags:
+      - Agent Configuration
+  /admin/agents/{id}/keys:
+    get:
+      description: Requires admin:manage.
+      parameters:
+      - description: Agent ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-handler_agentKeyResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: List an agent's keys
+      tags:
+      - Agents
+    post:
+      consumes:
+      - application/json
+      description: Creates a service-account key; the client secret is returned only
+        once. Requires admin:manage.
+      parameters:
+      - description: Agent ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Key
+        in: body
+        name: key
+        required: true
+        schema:
+          $ref: '#/definitions/handler.createAgentKeyRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-handler_agentKeyCreateResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Create an agent key
+      tags:
+      - Agents
+  /admin/agents/{id}/keys/{keyId}:
+    delete:
+      description: Requires admin:manage.
+      parameters:
+      - description: Agent ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Key ID
+        in: path
+        name: keyId
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Revoke an agent key
+      tags:
+      - Agents
+    get:
+      description: Requires admin:manage.
+      parameters:
+      - description: Agent ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Key ID
+        in: path
+        name: keyId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-handler_agentKeyResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Get an agent key
+      tags:
+      - Agents
   /admin/ai-diagnostics/runs:
     get:
       description: Lists dashboard suggestion runs across all SSPs, newest first,
@@ -13703,11 +15137,52 @@ paths:
       summary: Get a user's effective roles
       tags:
       - RoleAssignments
+  /agent/config:
+    get:
+      description: Returns the authenticated agent's current remote-configuration
+        overlay (an RFC 7396 merge patch over its local config file, snake_case) with
+        an opaque ETag. Send the raw ETag back as If-None-Match to get a 304 when
+        nothing changed; never construct one. Revision 0 means no overlay. Agent JWT
+        only; a 404 means the API predates remote configuration.
+      parameters:
+      - description: ETag of the overlay the agent already has
+        in: header
+        name: If-None-Match
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-agentconfig_OverlayDocument'
+        "304":
+          description: Not Modified
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Get this agent's configuration overlay
+      tags:
+      - Agents
   /agent/heartbeat:
     post:
       consumes:
       - application/json
-      description: Creates a new heartbeat record for monitoring.
+      description: Creates a new heartbeat record for monitoring. An authenticated
+        agent heartbeat also refreshes the instance's last-seen time; with config_digest
+        (new agents, mode != off) it records config_revision/config_digest and registers
+        the instance if needed.
       parameters:
       - description: Heartbeat payload
         in: body
@@ -13748,6 +15223,66 @@ paths:
       summary: Get Heartbeat Metrics Over Time
       tags:
       - Heartbeat
+  /agent/instances/{instanceId}/config-report:
+    put:
+      consumes:
+      - application/json
+      description: 'Stores the authenticated agent instance''s config report: mode,
+        applied/attempted revision, status (applied, rejected, failed or not-applicable;
+        the server derives pending and unknown), the redacted base and effective configs
+        (snake_case), the effective digest, loaded policy bundles, policy errors,
+        unsafe changes, warnings and the normalized local remote_config block. The
+        server re-redacts base and effective as a best effort and stores effective-digest
+        as sent. Body limit 4 MiB. A 409 means the per-agent instance cap is reached;
+        back off.'
+      parameters:
+      - description: Agent instance ID (UUID)
+        in: path
+        name: instanceId
+        required: true
+        type: string
+      - description: Config report
+        in: body
+        name: report
+        required: true
+        schema:
+          $ref: '#/definitions/agentconfig.Report'
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/api.Error'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/api.Error'
+        "413":
+          description: Request Entity Too Large
+          schema:
+            $ref: '#/definitions/api.Error'
+        "415":
+          description: Unsupported Media Type
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Report this instance's effective configuration
+      tags:
+      - Agents
   /agent/risk-templates/batch:
     post:
       consumes:

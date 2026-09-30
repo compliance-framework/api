@@ -232,7 +232,13 @@ type SubjectTemplate struct {
 	LabelSchema         []SubjectTemplateLabelSchema   `json:"label-schema"`
 }
 
+// Heartbeat is the body of POST /api/agent/heartbeat.
 type Heartbeat struct {
 	UUID      uuid.UUID `json:"uuid"`
 	CreatedAt time.Time `json:"created_at"`
+	// R45: the APPLIED revision (0 = running from the file only). Never null: new agents always set it
+	// (together with ConfigDigest) when mode != off. It is a pointer only so that absence (old agents,
+	// mode off) stays distinguishable server-side.
+	ConfigRevision *int64 `json:"config_revision,omitempty"`
+	ConfigDigest   string `json:"config_digest,omitempty"` // Digest(effective); required when mode != off (R11)
 }

@@ -48,6 +48,10 @@ type Client struct {
 	Heartbeat *heartbeatClient
 
 	Playback *playbackClient
+
+	// AgentConfig fetches the remote configuration overlay and submits instance config reports.
+	// Both routes require agent credentials (Config.AgentAuth).
+	AgentConfig *agentConfigClient
 }
 
 func NewClient(client *http.Client, config *Config) *Client {
@@ -68,13 +72,14 @@ func NewClient(client *http.Client, config *Config) *Client {
 	c.SubjectTemplate = &subjectTemplateClient{client: c}
 	c.Heartbeat = &heartbeatClient{client: c}
 	c.Playback = &playbackClient{client: c}
+	c.AgentConfig = &agentConfigClient{client: c}
 
 	return c
 }
 
 func (c *Client) NewRequest(ctx context.Context, method string, path string, reader io.Reader) (*http.Response, error) {
 	if !c.hasAgentAuth() {
-		return c.executeStreamingRequest(ctx, method, path, reader, "")
+		return c.executeStreamingRequest(ctx, method, path, reader, "", nil)
 	}
 
 	return c.doStreamingRequest(ctx, method, path, reader)
@@ -94,8 +99,15 @@ func (c *Client) doJSONRequest(ctx context.Context, method string, path string, 
 }
 
 func (c *Client) doRequest(ctx context.Context, method string, path string, body []byte) (*http.Response, error) {
+	return c.doRequestWithHeaders(ctx, method, path, body, nil)
+}
+
+// doRequestWithHeaders behaves like doRequest but also sends the given extra headers. The same
+// headers are re-sent on the single 401 token-refresh retry. Content-Type and Authorization are
+// managed by the client; an Authorization entry in headers is ignored.
+func (c *Client) doRequestWithHeaders(ctx context.Context, method string, path string, body []byte, headers http.Header) (*http.Response, error) {
 	if !c.hasAgentAuth() {
-		return c.executeRequest(ctx, method, path, body, "")
+		return c.executeRequest(ctx, method, path, body, "", headers)
 	}
 
 	tokenType, accessToken, err := c.getAgentAccessToken(ctx)
@@ -103,7 +115,7 @@ func (c *Client) doRequest(ctx context.Context, method string, path string, body
 		return nil, err
 	}
 
-	resp, err := c.executeRequest(ctx, method, path, body, formatAuthorizationHeader(tokenType, accessToken))
+	resp, err := c.executeRequest(ctx, method, path, body, formatAuthorizationHeader(tokenType, accessToken), headers)
 	if err != nil {
 		return nil, err
 	}
@@ -119,7 +131,7 @@ func (c *Client) doRequest(ctx context.Context, method string, path string, body
 		return nil, err
 	}
 
-	return c.executeRequest(ctx, method, path, body, formatAuthorizationHeader(tokenType, accessToken))
+	return c.executeRequest(ctx, method, path, body, formatAuthorizationHeader(tokenType, accessToken), headers)
 }
 
 func (c *Client) doStreamingRequest(ctx context.Context, method string, path string, reader io.Reader) (*http.Response, error) {
@@ -134,7 +146,7 @@ func (c *Client) doStreamingRequest(ctx context.Context, method string, path str
 	if err != nil {
 		return nil, err
 	}
-	resp, err := c.executeStreamingRequest(ctx, method, path, reqBody, formatAuthorizationHeader(tokenType, accessToken))
+	resp, err := c.executeStreamingRequest(ctx, method, path, reqBody, formatAuthorizationHeader(tokenType, accessToken), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -154,14 +166,17 @@ func (c *Client) doStreamingRequest(ctx context.Context, method string, path str
 	if err != nil {
 		return nil, err
 	}
-	return c.executeStreamingRequest(ctx, method, path, reqBody, formatAuthorizationHeader(tokenType, accessToken))
+	return c.executeStreamingRequest(ctx, method, path, reqBody, formatAuthorizationHeader(tokenType, accessToken), nil)
 }
 
-func (c *Client) executeRequest(ctx context.Context, method string, path string, body []byte, authorization string) (*http.Response, error) {
-	return c.executeStreamingRequest(ctx, method, path, bytes.NewReader(body), authorization)
+func (c *Client) executeRequest(ctx context.Context, method string, path string, body []byte, authorization string, headers http.Header) (*http.Response, error) {
+	return c.executeStreamingRequest(ctx, method, path, bytes.NewReader(body), authorization, headers)
 }
 
-func (c *Client) executeStreamingRequest(ctx context.Context, method string, path string, body io.Reader, authorization string) (*http.Response, error) {
+// executeStreamingRequest sends a single request. Extra headers are applied after Content-Type
+// (so a caller may override it) but Authorization is always owned by the client: any
+// Authorization entry in headers is dropped.
+func (c *Client) executeStreamingRequest(ctx context.Context, method string, path string, body io.Reader, authorization string, headers http.Header) (*http.Response, error) {
 	path = strings.TrimPrefix(path, "/")
 	url := strings.TrimSuffix(c.config.BaseURL, "/")
 	req, err := http.NewRequestWithContext(ctx, method, fmt.Sprintf("%s/%s", url, path), body)
@@ -169,6 +184,15 @@ func (c *Client) executeStreamingRequest(ctx context.Context, method string, pat
 		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/json")
+	for name, values := range headers {
+		if http.CanonicalHeaderKey(name) == "Authorization" {
+			continue
+		}
+		req.Header.Del(name)
+		for _, v := range values {
+			req.Header.Add(name, v)
+		}
+	}
 	if authorization != "" {
 		req.Header.Set("Authorization", authorization)
 	}

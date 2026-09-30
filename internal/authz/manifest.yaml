@@ -254,7 +254,10 @@ resources:
       is_active: bool
       is_locked: bool
   agent:
-    actions: [read, create, update, delete, register, ingest]
+    # configure / configure-policy gate writes of the agent's remote-configuration overlay
+    # (configure-policy: only inline policy bundles and plugin policy lists, D18); sync is
+    # the agent service account fetching its overlay and reporting its effective config.
+    actions: [read, create, update, delete, register, ingest, configure, configure-policy, sync]
     attributes:
       is_active: bool
   notification:
@@ -285,6 +288,10 @@ resources:
 # does not consume these roles; the cedar driver does. Operators may override or extend them
 # in their PAP. "*" means all resources / all actions.
 roles:
+  # viewer/auditor/contributor read agent configurations (redacted, including inline Rego)
+  # through "*": [read]. This is intended (R40/RA-21). Operators can narrow it with a Cedar
+  # `forbid`.
+  #
   # Full access.
   admin:
     "*": ["*"]
@@ -345,13 +352,20 @@ roles:
     ssp-export-offering: [read, subscribe]
     playback: [execute]
 
+  # Policy authors: viewer + configure-policy. Iterate on inline Rego without changing
+  # binaries/sources (D18, R40, R53).
+  policy-author:
+    "*": [read]
+    agent: [read, configure-policy]
+    playback: [execute]
+
   # Service accounts: ingest telemetry and register, and reconcile their own plugin templates
   # (the /agent/{risk,subject}-templates batch upsert — plugin v2). The batch routes enforce the
   # `update` action, so the agent role grants update on both template resources.
   agent:
     evidence: [create]
     heartbeat: [ingest]
-    agent: [register, ingest]
+    agent: [register, ingest, sync]
     risk-template: [update]
     subject-template: [update]
     playback: [execute]
