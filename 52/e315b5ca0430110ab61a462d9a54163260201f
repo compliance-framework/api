@@ -1,0 +1,6 @@
+lisa-addressed:
+pass 1 fixed:
+- docs-authz-stale: manifest.yaml header, docs/authz-oss-cedar.md (builtin row, role table incl. policy-author, "*":[read] note), authz-roles.yaml comment.
+- preview-double-validation-query: Preview uses PreviewBases' Validated members as the validation set; standalone = none validated.
+- settings-mapping-duplicated: agentcfg.SettingsFromConfig used by api.go and the prune worker.
+deferred: overlay-secrets-readable (contract returns raw overlay; PR open question), preview-memory.
