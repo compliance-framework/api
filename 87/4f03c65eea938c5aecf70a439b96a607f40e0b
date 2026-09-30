@@ -26,3 +26,11 @@ lisa-design:
 - Preview forces will-apply=false/"invalid-config" for every instance when the overlay itself is invalid (overlay errors or error-severity policy errors), not only on per-instance errors, since the agent would reject such a revision.
 - The LLD "A4 tests" line "only stale instances => 201 (standalone)" contradicts R48; the code follows R48 (validate against the latest reported apply-mode instance) and so do the tests.
 - A report may carry a reason with status=applied; it is accepted (owner decision). The 4 MiB report limit is enforced by readJSONBody after auth instead of a separate BodyLimit middleware (same 413).
+
+lisa-selfreview:
+pass 1 (strict) verdict=request_changes
+- [medium] docs-authz-stale (internal/authz/manifest.yaml:28, docs/authz-oss-cedar.md:16,37, authz-roles.yaml:10): header comments/docs still say builtin "allows every authenticated non-admin request" and list only the four roles; builtin now gates resource agent for users (R39) and policy-author is a bundled role. -> fix: update comments/docs.
+- [medium] preview-double-validation-query (internal/api/handler/agent_config.go Preview): Preview calls ValidationBases and PreviewBases, which calls ValidationBases again (two extra instance scans per preview). -> fix: derive validation set from PreviewBases (Validated) and standalone from it.
+- [low] settings-mapping-duplicated (internal/api/handler/api.go agentConfigSettings, internal/service/worker/agent_instance_prune.go agentSettingsFromConfig): identical config->agentcfg.Settings mapping in two packages. -> fix: single agentcfg.SettingsFromConfig.
+- [medium] overlay-secrets-readable (internal/api/handler/agent_config.go Get/GetRevision): overlays are returned verbatim to agent:read (viewer/auditor/contributor via "*":[read]); a literal secret put in plugins.*.config of an overlay is readable. Contract (LLD A4.3) returns the raw overlay so it can be edited; recommend ${env:} placeholders. -> defer: document in PR open questions.
+- [low] preview-memory (internal/service/relational/agentcfg/service.go PreviewBases): loads base+effective for every instance with a base (cap 500) per preview. -> defer.
