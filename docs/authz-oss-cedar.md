@@ -40,8 +40,13 @@ Four fixed global roles, `policy-author` and the agent service role (the manifes
 | `policy-author` | Viewer plus `agent:configure-policy`: edit inline policy bundles and plugin policy lists in agent configuration overlays, nothing else. |
 | `agent`       | Service accounts: ingest evidence/heartbeats, register, sync their remote configuration. |
 
-viewer, auditor and contributor read agent configurations (redacted, including inline Rego)
-through `"*": [read]`. This is intended; narrow it with an operator `forbid` policy if needed.
+viewer, auditor, contributor and policy-author read agent configurations (including inline
+Rego) through `"*": [read]`. This is intended; narrow it with an operator `forbid` policy if
+needed. The instance reports (`base`/`effective`) are redacted, but the **overlay** is not:
+`GET …/config` and `GET …/config/revisions/{rev}` return it verbatim so it can be edited, so a
+literal secret typed into an overlay's `plugins.*.config` is readable by every `agent:read`
+holder. Put secrets on the host and reference them with `${env:NAME}` placeholders instead
+(R57).
 
 Cedar is **deny-by-default**: a subject with no assigned role is denied every request.
 

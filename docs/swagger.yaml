@@ -3421,6 +3421,7 @@ definitions:
       effective:
         type: object
       errors:
+        description: introduced by the overlay (R59)
         items:
           $ref: '#/definitions/agentconfig.FieldError'
         type: array
@@ -3436,6 +3437,12 @@ definitions:
         description: 'R48: PUT validates against this instance; its errors block a
           save'
         type: boolean
+      warnings:
+        description: 'already in Merge(base, {}): from the host file, non-blocking
+          (R59)'
+        items:
+          $ref: '#/definitions/agentconfig.FieldError'
+        type: array
       will-apply:
         type: boolean
       will-apply-reason:
@@ -12911,7 +12918,9 @@ paths:
       description: Returns the current configuration revision (overlay as an RFC 7396
         merge patch, snake_case) and, when the overlay defines policy bundles, when
         each was first seen. Revision 0 means no overlay. The ETag is the plain revision
-        number; send it as If-Match when saving.
+        number; send it as If-Match when saving. The overlay is returned unredacted
+        to every agent:read holder, so do not put literal secrets in it; use ${env:NAME}
+        placeholders (R57).
       parameters:
       - description: Agent ID
         in: path
@@ -12957,9 +12966,12 @@ paths:
         boundary; direct calls to http.send, net.lookup_ip_addr and opa.runtime are
         rejected; cross-bundle imports are unsupported), and the merged config is
         validated against every fresh apply-mode instance''s reported base (or the
-        latest reported one); errors are a 422 with overlay, instances and policy-errors
-        lists. Needs agent:configure, or agent:configure-policy for changes limited
-        to policy bundles and plugin policy lists.'
+        latest reported one); only errors the overlay introduces block (errors already
+        present in the instance''s own file are ignored, R59). Errors are a 422 with
+        overlay, instances (errors plus non-blocking warnings) and policy-errors lists.
+        Needs agent:configure, or agent:configure-policy for changes limited to policy
+        bundles and plugin policy lists (a new policy_bundles extends must name a
+        source the instances already use, or the source it swaps out, R58).'
       parameters:
       - description: Agent ID
         in: path
@@ -13037,9 +13049,11 @@ paths:
         reporting instance (fresh and stale), the redacted effective config, its diff
         against the instance's current effective config, the classified changes and
         whether the agent would apply it. validated marks the instances a save validates
-        against; only their errors block a save. The inline Rego check is parse-level
-        and advisory; cross-bundle imports are unsupported. Validation problems are
-        returned in the 200 body.
+        against; only their errors block a save. errors are the problems the overlay
+        introduces; warnings are problems already in the instance's own file (present
+        in Merge(base, {})), which never block a save or force invalid-config (R59).
+        The inline Rego check is parse-level and advisory; cross-bundle imports are
+        unsupported. Validation problems are returned in the 200 body.
       parameters:
       - description: Agent ID
         in: path

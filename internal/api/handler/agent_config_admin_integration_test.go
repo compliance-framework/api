@@ -696,7 +696,7 @@ func (s *AgentConfigAdminIntegrationSuite) TestPreviewStandaloneAndSlices() {
 	s.False(body.Data.Standalone)
 	s.Require().Len(body.Data.Instances, 1)
 	inst := body.Data.Instances[0]
-	for _, k := range []string{"diff-vs-current", "errors", "changes"} {
+	for _, k := range []string{"diff-vs-current", "errors", "warnings", "changes"} {
 		s.JSONEq(`[]`, string(inst[k]), k)
 	}
 	s.JSONEq(`true`, string(inst["will-apply"]))
@@ -734,6 +734,64 @@ func (s *AgentConfigAdminIntegrationSuite) TestPreviewInvalidOverlay() {
 	s.Equal(http.StatusBadRequest, rec.Code, rec.Body.String())
 	rec = s.call(http.MethodPost, s.path("/config/preview"), acaPutBody(`{}`), echo.HeaderContentType, "text/plain")
 	s.Equal(http.StatusUnsupportedMediaType, rec.Code, rec.Body.String())
+}
+
+// R59: errors already present in Merge(base, {}) come from the host file. They are
+// non-blocking warnings; only errors the overlay introduces block a save or force
+// invalid-config.
+func (s *AgentConfigAdminIntegrationSuite) TestFileOriginErrorsDoNotBlock() {
+	badCron := "not a cron"
+	instance := s.report(*s.agent.ID, agentconfig.ModeApplySafe, func(r *agentconfig.Report) {
+		base := acaBase(agentconfig.ModeApplySafe, map[string]*agentconfig.Plugin{
+			"x": {Source: acaVendorPlugin, Schedule: &badCron},
+		})
+		r.Base, r.Effective = base, base
+	})
+
+	// An unrelated overlay saves.
+	s.save(`"0"`, `{"verbosity":1}`, 1)
+
+	// Preview shows the file error as a warning and the instance still applies.
+	rec := s.call(http.MethodPost, s.path("/config/preview"), acaPutBody(`{"verbosity":2}`))
+	s.Require().Equal(http.StatusOK, rec.Code, rec.Body.String())
+	preview := acaData[configPreviewResponse](s, rec)
+	s.Require().Len(preview.Instances, 1)
+	p := preview.Instances[0]
+	s.Equal(instance.String(), p.InstanceID)
+	s.True(p.Validated)
+	s.Empty(p.Errors)
+	s.NotNil(p.Errors)
+	s.Require().Len(p.Warnings, 1)
+	s.Equal("/plugins/x/schedule", p.Warnings[0].Path)
+	s.Equal(agentconfig.FieldCodeCron, p.Warnings[0].Code)
+	s.True(p.WillApply)
+	s.Empty(p.WillApplyReason)
+
+	// A new bad cron in the overlay is still refused (caught on the overlay itself).
+	rec = s.put(s.server, s.token, `"1"`, `{"plugins":{"ssh":{"schedule":"also bad"}}}`)
+	body := s.unprocessable(rec)
+	s.Require().NotEmpty(body.Overlay)
+	s.Equal("/plugins/ssh/schedule", body.Overlay[0].Path)
+
+	// An error that only appears once merged is introduced: 422, listed per instance with
+	// the file-origin error as a warning.
+	rec = s.put(s.server, s.token, `"1"`, `{"plugins":{"newp":{"schedule":"* * * * *"}}}`)
+	body = s.unprocessable(rec)
+	s.Empty(body.Overlay)
+	s.Require().Len(body.Instances, 1)
+	s.Require().NotEmpty(body.Instances[0].Errors)
+	s.Equal("/plugins/newp/source", body.Instances[0].Errors[0].Path)
+	s.Require().Len(body.Instances[0].Warnings, 1)
+	s.Equal("/plugins/x/schedule", body.Instances[0].Warnings[0].Path)
+
+	// Preview agrees: an introduced error forces invalid-config.
+	rec = s.call(http.MethodPost, s.path("/config/preview"), acaPutBody(`{"plugins":{"newp":{"schedule":"* * * * *"}}}`))
+	s.Require().Equal(http.StatusOK, rec.Code, rec.Body.String())
+	preview = acaData[configPreviewResponse](s, rec)
+	s.Require().Len(preview.Instances, 1)
+	s.False(preview.Instances[0].WillApply)
+	s.Equal(agentconfig.ReasonInvalidConfig, preview.Instances[0].WillApplyReason)
+	s.Equal(int64(1), s.revisionCount(*s.agent.ID))
 }
 
 // ---- Instances ----
@@ -1038,6 +1096,36 @@ func (s *AgentConfigAdminIntegrationSuite) TestCedarPolicyAuthorCannotChangeNonP
 	rec = s.send(srv, author, http.MethodPost, "/api/admin/agents", []byte(`{"name":"a"}`))
 	s.Equal(http.StatusForbidden, rec.Code, rec.Body.String())
 	s.Equal(int64(0), s.revisionCount(*s.agent.ID))
+}
+
+// R58: configure-policy may not introduce a new vendor source through extends.
+func (s *AgentConfigAdminIntegrationSuite) TestCedarPolicyAuthorCannotIntroduceExtendsSource() {
+	srv, author := s.policyAuthorSetup()
+	overlay := fmt.Sprintf(`{"policy_bundles":{"b":{"extends":"ghcr.io/evil/pol:v9","modules":{"banner.rego":%q}}},"plugins":{"ssh":{"policies":[%q,"inline:b"]}}}`, acaCleanRego, acaVendorPolicy)
+	rec := s.put(srv, author, `"0"`, overlay)
+	s.Require().Equal(http.StatusForbidden, rec.Code, rec.Body.String())
+	s.Equal("only policy changes are permitted with agent:configure-policy", s.errorBody(rec))
+	s.Equal(int64(0), s.revisionCount(*s.agent.ID))
+}
+
+// R58: an extends naming a source the instance's base already uses is fine.
+func (s *AgentConfigAdminIntegrationSuite) TestCedarPolicyAuthorExtendsAlreadyUsedSource() {
+	srv, author := s.policyAuthorSetup()
+	overlay := fmt.Sprintf(`{"policy_bundles":{"b":{"extends":%q,"modules":{"banner.rego":%q}}},"plugins":{"ssh":{"policies":[%q,"inline:b"]}}}`, acaVendorPolicy, acaCleanRego, acaVendorPolicy)
+	rec := s.put(srv, author, `"0"`, overlay)
+	s.Require().Equal(http.StatusCreated, rec.Code, rec.Body.String())
+}
+
+// D18 also guards revert: it runs through the same save path.
+func (s *AgentConfigAdminIntegrationSuite) TestCedarPolicyAuthorCannotRevertNonPolicyFields() {
+	srv, author := s.policyAuthorSetup()
+	s.save(`"0"`, `{"verbosity":1}`, 1)
+	s.save(`"1"`, `{"verbosity":2}`, 2)
+
+	rec := s.send(srv, author, http.MethodPost, s.path("/config/revisions/1/revert"), nil, "If-Match", `"2"`)
+	s.Require().Equal(http.StatusForbidden, rec.Code, rec.Body.String())
+	s.Equal("only policy changes are permitted with agent:configure-policy", s.errorBody(rec))
+	s.Equal(int64(2), s.revisionCount(*s.agent.ID))
 }
 
 func (s *AgentConfigAdminIntegrationSuite) TestCedarAdminCanEditSchedule() {

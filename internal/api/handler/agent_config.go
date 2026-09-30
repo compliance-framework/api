@@ -145,17 +145,21 @@ type instancePreview struct {
 	Validated       bool                     `json:"validated"` // R48: PUT validates against this instance; its errors block a save
 	Effective       json.RawMessage          `json:"effective" swaggertype:"object"`
 	DiffVsCurrent   []agentconfig.DiffEntry  `json:"diff-vs-current"`
-	Errors          []agentconfig.FieldError `json:"errors"`
+	Errors          []agentconfig.FieldError `json:"errors"`   // introduced by the overlay (R59)
+	Warnings        []agentconfig.FieldError `json:"warnings"` // already in Merge(base, {}): from the host file, non-blocking (R59)
 	Changes         []agentconfig.Change     `json:"changes"`
 	WillApply       bool                     `json:"will-apply"`
 	WillApplyReason string                   `json:"will-apply-reason,omitempty"` // mode-off|mode-report|unsafe-changes|forbidden-changes|invalid-config
 }
 
 // instanceValidationErrors groups the errors of one validated instance in a 422 body.
+// Errors are the ones the overlay introduces (they block); Warnings are already present in
+// Merge(base, {}), i.e. they come from the host file, and do not block (R59).
 type instanceValidationErrors struct {
 	InstanceID string                   `json:"instance-id"`
 	Hostname   *string                  `json:"hostname"`
 	Errors     []agentconfig.FieldError `json:"errors"`
+	Warnings   []agentconfig.FieldError `json:"warnings"`
 }
 
 // agentConfigPutRequest is the PUT body.
@@ -179,7 +183,7 @@ type agentConfigPreviewRequest struct {
 // Get godoc
 //
 //	@Summary		Get an agent's configuration overlay
-//	@Description	Returns the current configuration revision (overlay as an RFC 7396 merge patch, snake_case) and, when the overlay defines policy bundles, when each was first seen. Revision 0 means no overlay. The ETag is the plain revision number; send it as If-Match when saving.
+//	@Description	Returns the current configuration revision (overlay as an RFC 7396 merge patch, snake_case) and, when the overlay defines policy bundles, when each was first seen. Revision 0 means no overlay. The ETag is the plain revision number; send it as If-Match when saving. The overlay is returned unredacted to every agent:read holder, so do not put literal secrets in it; use ${env:NAME} placeholders (R57).
 //	@Tags			Agent Configuration
 //	@Produce		json
 //	@Param			id	path		string	true	"Agent ID"
@@ -217,7 +221,7 @@ func (h *AgentConfigHandler) Get(ctx echo.Context) error {
 // Put godoc
 //
 //	@Summary		Save an agent's configuration overlay
-//	@Description	Creates the next configuration revision. Requires If-Match with the current revision ("0" for the first save): missing is 428, stale is 409 with current-revision. A semantically unchanged overlay returns 200 with the current revision and creates nothing. The overlay is validated on its own, its inline Rego is checked at parse level (advisory: the agent is the security boundary; direct calls to http.send, net.lookup_ip_addr and opa.runtime are rejected; cross-bundle imports are unsupported), and the merged config is validated against every fresh apply-mode instance's reported base (or the latest reported one); errors are a 422 with overlay, instances and policy-errors lists. Needs agent:configure, or agent:configure-policy for changes limited to policy bundles and plugin policy lists.
+//	@Description	Creates the next configuration revision. Requires If-Match with the current revision ("0" for the first save): missing is 428, stale is 409 with current-revision. A semantically unchanged overlay returns 200 with the current revision and creates nothing. The overlay is validated on its own, its inline Rego is checked at parse level (advisory: the agent is the security boundary; direct calls to http.send, net.lookup_ip_addr and opa.runtime are rejected; cross-bundle imports are unsupported), and the merged config is validated against every fresh apply-mode instance's reported base (or the latest reported one); only errors the overlay introduces block (errors already present in the instance's own file are ignored, R59). Errors are a 422 with overlay, instances (errors plus non-blocking warnings) and policy-errors lists. Needs agent:configure, or agent:configure-policy for changes limited to policy bundles and plugin policy lists (a new policy_bundles extends must name a source the instances already use, or the source it swaps out, R58).
 //	@Tags			Agent Configuration
 //	@Accept			json
 //	@Produce		json
@@ -361,6 +365,7 @@ func (h *AgentConfigHandler) save(ctx echo.Context, agent *relational.Agent, exp
 			configs = append(configs, b.Base)
 		}
 		if !agentconfig.PolicyOnlyChange(curOverlay, overlay, configs) {
+			h.auditPolicyOnlyDenial(ctx, agentID, curOverlay, overlay)
 			return ctx.JSON(http.StatusForbidden, api.NewError(errors.New("only policy changes are permitted with agent:configure-policy")))
 		}
 	}
@@ -399,10 +404,32 @@ func (h *AgentConfigHandler) save(ctx echo.Context, agent *relational.Agent, exp
 	return ctx.JSON(http.StatusCreated, GenericDataResponse[agentConfigRevisionResponse]{Data: revisionResponse(agentID, rev, true)})
 }
 
+// auditPolicyOnlyDenial records a D18 refusal. AuthorizeAny has already audited
+// configure-policy as allow for this request, so without this record the PEP trail would
+// show an allowed write that was actually refused. It uses the PEP's "authz decision"
+// shape so the same audit query picks it up.
+func (h *AgentConfigHandler) auditPolicyOnlyDenial(ctx echo.Context, agentID uuid.UUID, current, next json.RawMessage) {
+	subject := middleware.SubjectFromContext(ctx)
+	reason := "D18/R22/R58: policy change not permitted with configure-policy"
+	if p := agentconfig.FirstNonPolicyPath(current, next); p != "" {
+		reason = "D18: non-policy path " + p
+	}
+	h.sugar.Infow("authz decision",
+		"audit", true,
+		"decision", "deny",
+		"subjectType", subject.Type,
+		"subjectID", subject.ID,
+		"resource", authz.ResourceAgent,
+		"resourceID", agentID.String(),
+		"action", authz.ActionConfigure,
+		"reason", reason,
+	)
+}
+
 // Preview godoc
 //
 //	@Summary		Preview an agent configuration overlay
-//	@Description	Validates a candidate overlay without saving it and shows, per reporting instance (fresh and stale), the redacted effective config, its diff against the instance's current effective config, the classified changes and whether the agent would apply it. validated marks the instances a save validates against; only their errors block a save. The inline Rego check is parse-level and advisory; cross-bundle imports are unsupported. Validation problems are returned in the 200 body.
+//	@Description	Validates a candidate overlay without saving it and shows, per reporting instance (fresh and stale), the redacted effective config, its diff against the instance's current effective config, the classified changes and whether the agent would apply it. validated marks the instances a save validates against; only their errors block a save. errors are the problems the overlay introduces; warnings are problems already in the instance's own file (present in Merge(base, {})), which never block a save or force invalid-config (R59). The inline Rego check is parse-level and advisory; cross-bundle imports are unsupported. Validation problems are returned in the 200 body.
 //	@Tags			Agent Configuration
 //	@Accept			json
 //	@Produce		json
@@ -479,10 +506,12 @@ func previewInstance(b agentcfg.InstanceBase, overlay json.RawMessage, overlayIn
 		Validated:     b.Validated,
 		DiffVsCurrent: []agentconfig.DiffEntry{},
 		Errors:        []agentconfig.FieldError{},
+		Warnings:      []agentconfig.FieldError{},
 		Changes:       []agentconfig.Change{},
 	}
-	eff, errs := mergeAndValidate(b.Base, overlay)
-	p.Errors = append(p.Errors, errs...)
+	eff, introduced, fileOrigin := splitIntroduced(b.Base, overlay)
+	p.Errors = append(p.Errors, introduced...)
+	p.Warnings = append(p.Warnings, fileOrigin...)
 	if eff != nil {
 		if raw, err := agentconfig.CanonicalJSON(agentconfig.Redact(*eff)); err == nil {
 			p.Effective = raw
@@ -499,6 +528,8 @@ func previewInstance(b agentcfg.InstanceBase, overlay json.RawMessage, overlayIn
 		}
 	}
 	p.WillApply, p.WillApplyReason = agentconfig.WillApply(b.Remote, p.Changes)
+	// Only errors the overlay introduces force invalid-config; file-origin warnings do not,
+	// since the agent only warns about them (R34, R41, R59).
 	if len(p.Errors) > 0 || overlayInvalid {
 		p.WillApply, p.WillApplyReason = false, agentconfig.ReasonInvalidConfig
 	}
@@ -513,7 +544,8 @@ type candidateResult struct {
 }
 
 // blocking reports whether a save must be refused (422): overlay errors, error-severity
-// policy errors, or errors on a validated instance (R6, R48, R54).
+// policy errors, or errors the overlay introduces on a validated instance (R6, R48, R54,
+// R59). File-origin errors never block.
 func (r candidateResult) blocking() bool {
 	return len(r.overlay) > 0 || agentconfig.HasPolicyErrors(r.policy) || len(r.instances) > 0
 }
@@ -532,7 +564,9 @@ func (r candidateResult) errorBody() api.Error {
 //  2. the parse-level Rego checks on the bundles the overlay defines (only non-null
 //     modules); advisory, but error-severity entries block (R20, R54);
 //  3. when (1) passed: Merge(base, overlay).ValidateEditable() for every validation base,
-//     grouped by instance. With no bases (standalone) only (1) and (2) run.
+//     grouped by instance. Only errors the overlay introduces are kept (R59, see
+//     splitIntroduced); an instance is listed only when it has at least one. With no bases
+//     (standalone) only (1) and (2) run.
 func validateCandidate(overlay json.RawMessage, bases []agentcfg.InstanceBase) candidateResult {
 	var r candidateResult
 	if err := agentconfig.ValidateOverlay(overlay); err != nil {
@@ -550,15 +584,41 @@ func validateCandidate(overlay json.RawMessage, bases []agentcfg.InstanceBase) c
 		return r
 	}
 	for _, b := range bases {
-		if _, errs := mergeAndValidate(b.Base, overlay); len(errs) > 0 {
+		if _, introduced, fileOrigin := splitIntroduced(b.Base, overlay); len(introduced) > 0 {
 			r.instances = append(r.instances, instanceValidationErrors{
 				InstanceID: b.Instance.InstanceID.String(),
 				Hostname:   b.Instance.Hostname,
-				Errors:     errs,
+				Errors:     introduced,
+				Warnings:   nonNil(fileOrigin),
 			})
 		}
 	}
 	return r
+}
+
+// splitIntroduced validates Merge(base, overlay) and splits its errors into the ones the
+// overlay introduces and the ones already present in Merge(base, {}) (file-origin, R59).
+// Errors are matched on (Path, Code, Message), so an overlay that replaces a bad value
+// with a different bad value still introduces an error.
+func splitIntroduced(base agentconfig.Config, overlay json.RawMessage) (eff *agentconfig.Config, introduced, fileOrigin []agentconfig.FieldError) {
+	eff, all := mergeAndValidate(base, overlay)
+	if len(all) == 0 {
+		return eff, nil, nil
+	}
+	_, baseline := mergeAndValidate(base, json.RawMessage(`{}`))
+	type key struct{ path, code, message string }
+	seen := make(map[key]bool, len(baseline))
+	for _, e := range baseline {
+		seen[key{e.Path, e.Code, e.Message}] = true
+	}
+	for _, e := range all {
+		if seen[key{e.Path, e.Code, e.Message}] {
+			fileOrigin = append(fileOrigin, e)
+		} else {
+			introduced = append(introduced, e)
+		}
+	}
+	return eff, introduced, fileOrigin
 }
 
 // mergeAndValidate merges the overlay onto a base and validates the editable part.

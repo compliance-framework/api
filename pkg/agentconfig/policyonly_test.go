@@ -10,6 +10,8 @@ import (
 const (
 	vendorS = "ghcr.io/compliance-framework/plugin-local-ssh-policies:v1.0.0"
 	vendorT = "ghcr.io/compliance-framework/common-policies:v1"
+	// srcEvilPolicy is a policy source no test base uses.
+	srcEvilPolicy = "ghcr.io/evil/pol:v9"
 )
 
 // policyBase is a reported base with plugin p running two vendor policy sets.
@@ -217,6 +219,80 @@ func TestPolicyOnlyChange(t *testing.T) {
 		{name: "empty plugins object is no change", current: `{}`, next: `{"plugins":{}}`, bases: []Config{policyBase()}, want: true},
 		{name: "invalid current", current: `{`, next: `{}`, bases: []Config{policyBase()}, want: false},
 		{name: "invalid next", current: `{}`, next: `nope`, bases: []Config{policyBase()}, want: false},
+		// R58: a new or changed extends must be a source the base already uses, or the
+		// source swapped for inline:<b> at the same index.
+		{
+			name:    "R58: new bundle with an unknown extends wired in",
+			current: `{}`,
+			next:    `{"plugins":{"p":{"policies":["` + vendorS + `","` + vendorT + `","inline:b"]}},"policy_bundles":{"b":{"extends":"` + srcEvilPolicy + `"}}}`,
+			bases:   []Config{policyBase()},
+			want:    false,
+		},
+		{
+			name:    "R58: new bundle with an unknown extends, bundle only",
+			current: `{}`,
+			next:    `{"policy_bundles":{"b":{"extends":"` + srcEvilPolicy + `"}}}`,
+			bases:   []Config{policyBase()},
+			want:    false,
+		},
+		{
+			name:    "R58: no bases, bundle with an extends and no swap",
+			current: `{}`,
+			next:    `{"policy_bundles":{"b":{"extends":"` + vendorS + `"}}}`,
+			bases:   nil,
+			want:    false,
+		},
+		{
+			name:    "R58: change an overlay bundle's extends to an unknown source",
+			current: `{` + bundleB + `}`,
+			next:    `{"policy_bundles":{"b":{"extends":"` + srcEvilPolicy + `"}}}`,
+			bases:   []Config{policyBase()},
+			want:    false,
+		},
+		{
+			name:    "R58: new bundle extending a source the base's policies use",
+			current: `{}`,
+			next:    `{"plugins":{"p":{"policies":["` + vendorS + `","` + vendorT + `","inline:b"]}},"policy_bundles":{"b":{"extends":"` + vendorT + `"}}}`,
+			bases:   []Config{policyBase()},
+			want:    true,
+		},
+		{
+			name:    "R58: new bundle extending a source the base's bundles extend",
+			current: `{}`,
+			next:    `{"policy_bundles":{"b":{"extends":"` + srcEvilPolicy + `"}}}`,
+			bases: []Config{{Plugins: policyBase().Plugins, PolicyBundles: map[string]*PolicyBundle{
+				"fileb": {Extends: strPtr(srcEvilPolicy)},
+			}}},
+			want: true,
+		},
+		{
+			name:    "R58: unknown extends set by the current overlay stays while modules change",
+			current: `{"policy_bundles":{"b":{"extends":"` + srcEvilPolicy + `","modules":{"x.rego":"package x"}}}}`,
+			next:    `{"policy_bundles":{"b":{"extends":"` + srcEvilPolicy + `","modules":{"x.rego":"package x\nallow := true"}}}}`,
+			bases:   []Config{policyBase()},
+			want:    true,
+		},
+		{
+			name:    "R58: removing extends",
+			current: `{"policy_bundles":{"b":{"extends":"` + srcEvilPolicy + `","modules":{"x.rego":"package x"}}}}`,
+			next:    `{"policy_bundles":{"b":{"extends":null,"modules":{"x.rego":"package x"}}}}`,
+			bases:   []Config{policyBase()},
+			want:    true,
+		},
+		{
+			name:    "R58: no bases, swap S to inline:B introduces extends S",
+			current: `{"plugins":{"p":{"source":"` + srcSSH + `","policies":["` + srcEvilPolicy + `"]}}}`,
+			next:    `{"plugins":{"p":{"source":"` + srcSSH + `","policies":["inline:b"]}},"policy_bundles":{"b":{"extends":"` + srcEvilPolicy + `"}}}`,
+			bases:   nil,
+			want:    true,
+		},
+		{
+			name:    "R58: swap on another bundle does not cover an unknown extends",
+			current: `{}`,
+			next:    `{"plugins":{"p":{"policies":["inline:b","` + vendorT + `"]}},"policy_bundles":{"b":{"extends":"` + vendorS + `"},"c":{"extends":"` + srcEvilPolicy + `"}}}`,
+			bases:   []Config{policyBase()},
+			want:    false,
+		},
 		{
 			name:    "merge failure",
 			current: `{}`,
@@ -228,6 +304,20 @@ func TestPolicyOnlyChange(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			assert.Equal(t, tt.want, PolicyOnlyChange(json.RawMessage(tt.current), json.RawMessage(tt.next), tt.bases))
+		})
+	}
+}
+
+func TestFirstNonPolicyPath(t *testing.T) {
+	tests := []struct{ name, current, next, want string }{
+		{name: "policies only", current: `{}`, next: `{"plugins":{"p":{"policies":["inline:x"]}},"policy_bundles":{"x":{"modules":{"x.rego":"package x"}}}}`, want: ""},
+		{name: "schedule", current: `{}`, next: `{"plugins":{"p":{"schedule":"@hourly"}}}`, want: "/plugins/p/schedule"},
+		{name: "verbosity", current: `{"verbosity":1}`, next: `{}`, want: "/verbosity"},
+		{name: "invalid", current: `{`, next: `{}`, want: ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, FirstNonPolicyPath(json.RawMessage(tt.current), json.RawMessage(tt.next)))
 		})
 	}
 }

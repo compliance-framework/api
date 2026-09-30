@@ -289,9 +289,11 @@ resources:
 # does not consume these roles; the cedar driver does. Operators may override or extend them
 # in their PAP. "*" means all resources / all actions.
 roles:
-  # viewer/auditor/contributor read agent configurations (redacted, including inline Rego)
-  # through "*": [read]. This is intended (R40/RA-21). Operators can narrow it with a Cedar
-  # `forbid`.
+  # viewer/auditor/contributor/policy-author read agent configurations (including inline
+  # Rego) through "*": [read]. This is intended (R40/RA-21). Operators can narrow it with a
+  # Cedar `forbid`. Instance base/effective reports are redacted, but overlays are returned
+  # unredacted to agent:read holders, so secrets belong in ${env:NAME} placeholders, not
+  # literal overlay values (R57).
   #
   # Full access.
   admin:

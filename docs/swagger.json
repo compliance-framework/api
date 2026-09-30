@@ -315,7 +315,7 @@
         },
         "/admin/agents/{id}/config": {
             "get": {
-                "description": "Returns the current configuration revision (overlay as an RFC 7396 merge patch, snake_case) and, when the overlay defines policy bundles, when each was first seen. Revision 0 means no overlay. The ETag is the plain revision number; send it as If-Match when saving.",
+                "description": "Returns the current configuration revision (overlay as an RFC 7396 merge patch, snake_case) and, when the overlay defines policy bundles, when each was first seen. Revision 0 means no overlay. The ETag is the plain revision number; send it as If-Match when saving. The overlay is returned unredacted to every agent:read holder, so do not put literal secrets in it; use ${env:NAME} placeholders (R57).",
                 "produces": [
                     "application/json"
                 ],
@@ -371,7 +371,7 @@
                 ]
             },
             "put": {
-                "description": "Creates the next configuration revision. Requires If-Match with the current revision (\"0\" for the first save): missing is 428, stale is 409 with current-revision. A semantically unchanged overlay returns 200 with the current revision and creates nothing. The overlay is validated on its own, its inline Rego is checked at parse level (advisory: the agent is the security boundary; direct calls to http.send, net.lookup_ip_addr and opa.runtime are rejected; cross-bundle imports are unsupported), and the merged config is validated against every fresh apply-mode instance's reported base (or the latest reported one); errors are a 422 with overlay, instances and policy-errors lists. Needs agent:configure, or agent:configure-policy for changes limited to policy bundles and plugin policy lists.",
+                "description": "Creates the next configuration revision. Requires If-Match with the current revision (\"0\" for the first save): missing is 428, stale is 409 with current-revision. A semantically unchanged overlay returns 200 with the current revision and creates nothing. The overlay is validated on its own, its inline Rego is checked at parse level (advisory: the agent is the security boundary; direct calls to http.send, net.lookup_ip_addr and opa.runtime are rejected; cross-bundle imports are unsupported), and the merged config is validated against every fresh apply-mode instance's reported base (or the latest reported one); only errors the overlay introduces block (errors already present in the instance's own file are ignored, R59). Errors are a 422 with overlay, instances (errors plus non-blocking warnings) and policy-errors lists. Needs agent:configure, or agent:configure-policy for changes limited to policy bundles and plugin policy lists (a new policy_bundles extends must name a source the instances already use, or the source it swaps out, R58).",
                 "consumes": [
                     "application/json"
                 ],
@@ -484,7 +484,7 @@
         },
         "/admin/agents/{id}/config/preview": {
             "post": {
-                "description": "Validates a candidate overlay without saving it and shows, per reporting instance (fresh and stale), the redacted effective config, its diff against the instance's current effective config, the classified changes and whether the agent would apply it. validated marks the instances a save validates against; only their errors block a save. The inline Rego check is parse-level and advisory; cross-bundle imports are unsupported. Validation problems are returned in the 200 body.",
+                "description": "Validates a candidate overlay without saving it and shows, per reporting instance (fresh and stale), the redacted effective config, its diff against the instance's current effective config, the classified changes and whether the agent would apply it. validated marks the instances a save validates against; only their errors block a save. errors are the problems the overlay introduces; warnings are problems already in the instance's own file (present in Merge(base, {})), which never block a save or force invalid-config (R59). The inline Rego check is parse-level and advisory; cross-bundle imports are unsupported. Validation problems are returned in the 200 body.",
                 "consumes": [
                     "application/json"
                 ],
@@ -40636,6 +40636,7 @@
                     "type": "object"
                 },
                 "errors": {
+                    "description": "introduced by the overlay (R59)",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/agentconfig.FieldError"
@@ -40656,6 +40657,13 @@
                 "validated": {
                     "description": "R48: PUT validates against this instance; its errors block a save",
                     "type": "boolean"
+                },
+                "warnings": {
+                    "description": "already in Merge(base, {}): from the host file, non-blocking (R59)",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/agentconfig.FieldError"
+                    }
                 },
                 "will-apply": {
                     "type": "boolean"
