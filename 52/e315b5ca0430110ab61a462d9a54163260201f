@@ -4,3 +4,10 @@ pass 1 fixed:
 - preview-double-validation-query: Preview uses PreviewBases' Validated members as the validation set; standalone = none validated.
 - settings-mapping-duplicated: agentcfg.SettingsFromConfig used by api.go and the prune worker.
 deferred: overlay-secrets-readable (contract returns raw overlay; PR open question), preview-memory.
+
+lisa-selfreview:
+pass 2 (strict) verdict=approve (after thinker dismissals)
+- [low] regocheck-double-report (pkg/agentconfig/regocheck/regocheck.go checkModule): `f(x) with f as http.send({})` yields two errors (replacement + call) at different columns. Both are accurate; dismissed.
+- [low] digest-swallows-encode-error (pkg/agentconfig/digest.go Digest): an encoding error would hash nil; Redact normalizes every free-form value (map[any]any -> map[string]any) so it cannot occur; dismissed.
+Verified: go build/vet/test ./..., golangci-lint ./... (0 issues; integration-tag findings are all pre-existing files), go mod tidy + make swag produce no diff, full `go test -tags integration ./...` green (45 packages).
+Still deferred from pass 1: overlay-secrets-readable (PR open question), preview-memory.
