@@ -95,8 +95,6 @@ func (e *EvalErrors) Error() string {
 // Evaluate runs req in the sandbox: no I/O builtins, modules only from the request, and
 // the caller's context deadline as the time limit.
 func Evaluate(ctx context.Context, req EvaluateRequest) (*EvaluateResponse, error) {
-	started := time.Now()
-
 	modules := make(map[string]string, len(req.Modules)+1)
 	for name, source := range req.Modules {
 		if name == "" || name == PolicyModuleName {
@@ -109,13 +107,44 @@ func Evaluate(ctx context.Context, req EvaluateRequest) (*EvaluateResponse, erro
 	}
 	modules[PolicyModuleName] = req.Policy
 
+	return EvaluateModules(ctx, EvaluateModulesRequest{
+		Modules:     modules,
+		Input:       req.Input,
+		Data:        req.Data,
+		EvaluatedAt: req.EvaluatedAt,
+	})
+}
+
+// EvaluateModulesRequest evaluates a set of Rego modules as given, for example the files of
+// a stored policy bundle. No module name is reserved.
+type EvaluateModulesRequest struct {
+	// Modules maps each module's file name to its source.
+	Modules map[string]string
+	// Input is bound to `input`.
+	Input any
+	// Data is merged into data.* exactly as the agent merges policy data.
+	Data map[string]any
+	// EvaluatedAt pins time.now_ns(). Defaults to now.
+	EvaluatedAt *time.Time
+}
+
+// EvaluateModules runs req in the same sandbox as Evaluate.
+func EvaluateModules(ctx context.Context, req EvaluateModulesRequest) (*EvaluateResponse, error) {
+	started := time.Now()
+
+	for name := range req.Modules {
+		if name == "" {
+			return nil, &EvalErrors{Errors: []EvalError{{Code: ErrCodeModuleName, Message: "module name is empty"}}}
+		}
+	}
+
 	evaluatedAt := started
 	if req.EvaluatedAt != nil {
 		evaluatedAt = *req.EvaluatedAt
 	}
 
 	prints := &printCollector{}
-	evaluator := NewFromModules(modules, req.Data, Options{
+	evaluator := NewFromModules(req.Modules, req.Data, Options{
 		Capabilities: SandboxCapabilities(),
 		Time:         evaluatedAt,
 		PrintHook:    prints,
@@ -141,6 +170,26 @@ func Evaluate(ctx context.Context, req EvaluateRequest) (*EvaluateResponse, erro
 	}
 	response.DurationMs = time.Since(started).Milliseconds()
 	return response, nil
+}
+
+// MergeData deep-merges overlay into a copy of base: nested objects are merged key by key,
+// and any other value in overlay replaces the one in base. This is how the agent layers its
+// configured policy data over a bundle's own data documents.
+func MergeData(base, overlay map[string]any) map[string]any {
+	out := make(map[string]any, len(base)+len(overlay))
+	for key, value := range base {
+		out[key] = value
+	}
+	for key, value := range overlay {
+		baseMap, baseIsMap := out[key].(map[string]any)
+		overlayMap, overlayIsMap := value.(map[string]any)
+		if baseIsMap && overlayIsMap {
+			out[key] = MergeData(baseMap, overlayMap)
+			continue
+		}
+		out[key] = value
+	}
+	return out
 }
 
 func toEvaluateResult(result Result) EvaluateResult {

@@ -109,3 +109,33 @@ The policy runs inside the API process, so it is restricted:
 | `CCF_PLAYBACK_TIMEOUT` | `5s` | Time limit for one evaluation. |
 | `CCF_PLAYBACK_MAX_BYTES` | `2097152` | Request body limit, in bytes. |
 | `CCF_PLAYBACK_MAX_CONCURRENT` | `4` | Evaluations allowed at once, across all callers. |
+
+## Playing back stored evidence
+
+`GET /api/evidence/{id}/playback` replays the evaluation that produced a piece of evidence,
+from the artifacts the agent stored for it (see [artifacts.md](./artifacts.md)), and
+compares the result with what the evidence recorded. The UI's evidence Playback tab uses it.
+
+The API:
+
+1. reads the evidence's `_policy_bundle_digest`, `_policy_input_digest` and
+   `_policy_data_digest` props and its `_policy` label (the policy package);
+2. loads the artifacts, unpacks the bundle, and layers the policy data over the bundle's own
+   data documents, as the agent does;
+3. replays every file of the bundle in the same sandbox as `/api/playback/evaluate`, with
+   `time.now_ns()` pinned to the evidence's end time;
+4. compares the replayed package's status and violation IDs with the evidence's recorded
+   status and `_violation_id` props.
+
+The response carries the bundle files, the input, policy data and bundle data as
+pretty-printed JSON strings (the input is cut at 1 MiB, with `inputTruncated`; the full
+input is the input artifact), the recorded and replayed results, and the comparison:
+`statusMatches`, `missingViolationIds` (recorded, not replayed), `newViolationIds` (replayed,
+not recorded) and `unidentifiedViolations` (replayed without an ID).
+
+- Evidence recorded without artifacts, or whose artifacts are not stored, returns `200`
+  with `available: false` and a `reason`.
+- A policy that cannot run in the sandbox (for example one calling `http.send`) returns the
+  artifacts with `errors` and no `replay`.
+- It needs any user or agent token, since the response contains the raw input, and shares
+  the playback endpoint's time limit and concurrency limit (`429` when busy).
