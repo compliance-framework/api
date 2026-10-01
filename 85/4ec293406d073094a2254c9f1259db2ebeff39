@@ -1,2 +1,7 @@
 lisa-addressed:
 Round 3 pass 1 fixed: r3p1-libversion-name (renamed maxReportPluginLibVersionLen); r3p1-seedpath-invalid-id (SeedPath treats an ID ValidPolicyID rejects as absent, tested); r3p1-doc-policy-path-wording (policy-identity.md speaks of seed values, label unchanged); r3p1-evaluateresult-alignment (trailing comment).
+
+lisa-selfreview:
+Round 3 pass 2 (strict) findings:
+- r3p2-redundant-nil-guards (low) internal/api/handler/evidence_playback.go: nil checks on replayed.Issues / result.Issues are dead (EvaluateModules and toEvaluateResult never return nil issues).
+- r3p2-policyiddefs-comment (low) pkg/policyeval/contract.go: policyIDDefs comment says "counts" but it is a slice; clarify the candidate/policyID semantics.
