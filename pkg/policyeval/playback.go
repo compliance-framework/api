@@ -54,8 +54,10 @@ type EvaluateResponse struct {
 
 // EvaluateResult is one evaluated compliance_framework package.
 type EvaluateResult struct {
-	Package             string            `json:"package"`
-	File                string            `json:"file"`
+	Package string `json:"package"`
+	File    string `json:"file"`
+	// PolicyID is the package's policy_id (R74), when it declares a valid one.
+	PolicyID            string            `json:"policyId,omitempty"`
 	Status              string            `json:"status"`
 	Title               *string           `json:"title"`
 	Description         *string           `json:"description"`
@@ -218,6 +220,7 @@ func toEvaluateResult(result Result) EvaluateResult {
 	out := EvaluateResult{
 		Package:             result.Policy.Package.PurePackage(),
 		File:                result.Policy.File,
+		PolicyID:            result.Policy.ID,
 		Status:              Status(result),
 		Labels:              map[string]string{},
 		Violations:          []Violation{},

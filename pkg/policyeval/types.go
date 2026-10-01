@@ -35,6 +35,9 @@ type Policy struct {
 	File        string
 	Package     Package
 	Annotations []*ast.Annotations
+	// ID is the module's policy_id (R74): set only when the package's output has a
+	// policy_id that ValidPolicyID accepts. SeedPath turns it into evidence seed values.
+	ID string `json:"id,omitempty"`
 }
 
 type Result struct {

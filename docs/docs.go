@@ -35772,6 +35772,23 @@ const docTemplate = `{
                 }
             }
         },
+        "agentconfig.PluginReport": {
+            "type": "object",
+            "properties": {
+                "lib-version": {
+                    "description": "LibVersion is the version of github.com/compliance-framework/agent the plugin binary\nwas built with, from its Go build info. Empty when unknown: no build info, or a\nreplace or devel build.",
+                    "type": "string"
+                },
+                "name": {
+                    "description": "the plugin's key under plugins in the config",
+                    "type": "string"
+                },
+                "source": {
+                    "description": "the configured source",
+                    "type": "string"
+                }
+            }
+        },
         "agentconfig.PolicyBundleReport": {
             "type": "object",
             "properties": {
@@ -35798,6 +35815,10 @@ const docTemplate = `{
                         "$ref": "#/definitions/agentconfig.PolicyFileReport"
                     }
                 },
+                "plugin-path": {
+                    "description": "PluginPath is the exact path string the agent passes to plugins for this source, which\nplugins seed evidence UUIDs with (R77). A policy_id of PluginPath + \"/\" + a file's\npath continues that file's evidence stream (see policyeval.SeedPath). Empty from older\nagents.",
+                    "type": "string"
+                },
                 "source": {
                     "type": "string"
                 }
@@ -35810,7 +35831,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "code": {
-                    "description": "Code classifies the problem when known: a policyeval.Issue* code for policy contract\nproblems (R63), or one of the regocheck codes. Empty for older producers.",
+                    "description": "Code classifies the problem when known: a policyeval.Issue* code for policy contract\nproblems (R63), one of the regocheck codes, or one of the PolicyCode* codes. Empty for\nolder producers.",
                     "type": "string"
                 },
                 "col": {
@@ -35936,6 +35957,13 @@ const docTemplate = `{
                 },
                 "mode": {
                     "type": "string"
+                },
+                "plugins": {
+                    "description": "Plugins are the instance's plugins and the agent library each was built with (R76),\nso the UI can show policy compatibility before a save. Older agents omit it.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/agentconfig.PluginReport"
+                    }
                 },
                 "policy-bundles": {
                     "type": "array",
@@ -40448,6 +40476,13 @@ const docTemplate = `{
                 "mode": {
                     "type": "string"
                 },
+                "plugins": {
+                    "description": "Plugins are the reported plugins and the agent library each was built with (R76).\nEmpty until an agent that reports them does.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/agentconfig.PluginReport"
+                    }
+                },
                 "policy-bundles": {
                     "type": "array",
                     "items": {
@@ -40554,6 +40589,13 @@ const docTemplate = `{
                 },
                 "mode": {
                     "type": "string"
+                },
+                "plugins": {
+                    "description": "Plugins are the reported plugins and the agent library each was built with (R76).\nEmpty until an agent that reports them does.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/agentconfig.PluginReport"
+                    }
                 },
                 "policy-errors": {
                     "type": "array",
@@ -48821,6 +48863,10 @@ const docTemplate = `{
                     }
                 },
                 "package": {
+                    "type": "string"
+                },
+                "policyId": {
+                    "description": "PolicyID is the package's policy_id (R74), when it declares a valid one.",
                     "type": "string"
                 },
                 "raw": {

@@ -378,6 +378,53 @@ func (s *AgentConfigSyncIntegrationSuite) TestPutReportArtifactDigests() {
 	s.NotContains(string(row.PolicyBundles), `"artifact-digest":""`, "omitted when empty")
 }
 
+// TestPutReportPluginsAndPluginPath: plugins[] (R76) and policy-bundles[].plugin-path (R77)
+// are stored as sent and replaced by the next report; an agent that omits them clears them.
+func (s *AgentConfigSyncIntegrationSuite) TestPutReportPluginsAndPluginPath() {
+	a := s.newAgent("plugins")
+	instanceID := uuid.New()
+	inlinePath := "/app/.compliance-framework/state/local-dev/inline/ssh/current/bundle"
+	vendorPath := ".compliance-framework/policies/compliance-framework/plugin-local-ssh-policies/v0.2.0/policies"
+	body := validReportBody()
+	body["plugins"] = []map[string]any{
+		{"name": "ssh", "source": "ghcr.io/compliance-framework/plugin-local-ssh:v0.2.0", "lib-version": "v0.1.9"},
+		{"name": "local", "source": "/plugins/local"},
+	}
+	body["policy-bundles"] = []map[string]any{
+		{"source": "inline:ssh", "digest": "tree:" + syncTestDigest, "files": []any{}, "plugin-path": inlinePath},
+		{"source": "ghcr.io/compliance-framework/plugin-local-ssh-policies:v0.2.0", "digest": "tree:" + syncTestDigest, "files": []any{}, "plugin-path": vendorPath},
+		{"source": "ghcr.io/vendor/other:v1", "digest": "tree:" + syncTestDigest, "files": []any{}},
+	}
+
+	rec := s.putReport(s.server, a.token, instanceID.String(), body, nil)
+	s.Require().Equal(http.StatusNoContent, rec.Code, rec.Body.String())
+
+	row, ok := s.instance(*a.agent.ID, instanceID)
+	s.Require().True(ok)
+	var plugins []agentconfig.PluginReport
+	s.Require().NoError(json.Unmarshal(row.Plugins, &plugins))
+	s.Equal([]agentconfig.PluginReport{
+		{Name: "ssh", Source: "ghcr.io/compliance-framework/plugin-local-ssh:v0.2.0", LibVersion: "v0.1.9"},
+		{Name: "local", Source: "/plugins/local"},
+	}, plugins)
+	s.NotContains(string(row.Plugins), `"lib-version":""`, "omitted when unknown")
+	var bundles []agentconfig.PolicyBundleReport
+	s.Require().NoError(json.Unmarshal(row.PolicyBundles, &bundles))
+	s.Require().Len(bundles, 3)
+	s.Equal(inlinePath, bundles[0].PluginPath)
+	s.Equal(vendorPath, bundles[1].PluginPath)
+	s.Empty(bundles[2].PluginPath)
+	s.NotContains(string(row.PolicyBundles), `"plugin-path":""`, "omitted when empty")
+
+	// An older agent's report has neither: both are cleared.
+	rec = s.putReport(s.server, a.token, instanceID.String(), validReportBody(), nil)
+	s.Require().Equal(http.StatusNoContent, rec.Code, rec.Body.String())
+	row, ok = s.instance(*a.agent.ID, instanceID)
+	s.Require().True(ok)
+	s.Empty(row.Plugins)
+	s.Empty(row.PolicyBundles)
+}
+
 func (s *AgentConfigSyncIntegrationSuite) TestPutReportReRedacts() {
 	a := s.newAgent("redact")
 	instanceID := uuid.New()
@@ -444,6 +491,10 @@ func (s *AgentConfigSyncIntegrationSuite) TestPutReportValidation() {
 		"bad artifact-digest": func(b map[string]any) {
 			b["policy-bundles"] = []map[string]any{{"source": "inline:a", "digest": "tree:" + syncTestDigest, "files": []any{}, "artifact-digest": "sha256:XYZ"}}
 		},
+		"plugin without a name": func(b map[string]any) {
+			b["plugins"] = []map[string]any{{"source": "ghcr.io/x/p:1", "lib-version": "v0.7.1"}}
+		},
+		"plugins not a list": func(b map[string]any) { b["plugins"] = map[string]any{"ssh": "v0.7.1"} },
 		"bad extends artifact-digest": func(b map[string]any) {
 			b["policy-bundles"] = []map[string]any{{"source": "inline:a", "digest": "tree:" + syncTestDigest, "files": []any{},
 				"extends": map[string]any{"source": "ghcr.io/v/p:1", "digest": "tree:" + syncTestDigest, "files": []any{}, "artifact-digest": "nope"}}}

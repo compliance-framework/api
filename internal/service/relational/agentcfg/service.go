@@ -326,7 +326,7 @@ var reportColumns = []string{
 	"last_seen_at", "reported_at", "applied_revision", "attempted_revision",
 	"reported_status", "apply_reason", "apply_error", "truncated", "warnings",
 	"base_config", "effective_config", "effective_digest", "remote_config",
-	"policy_bundles", "policy_errors", "unsafe_changes", "updated_at",
+	"policy_bundles", "policy_errors", "unsafe_changes", "plugins", "updated_at",
 }
 
 // UpsertReport stores a (validated, re-redacted) config report. A new instance over the
@@ -381,6 +381,9 @@ func reportRow(agentID uuid.UUID, credentialID *uuid.UUID, instanceID uuid.UUID,
 		return nil, err
 	}
 	if row.UnsafeChanges, err = jsonOrNil(r.Unsafe); err != nil {
+		return nil, err
+	}
+	if row.Plugins, err = jsonOrNil(r.Plugins); err != nil {
 		return nil, err
 	}
 	return row, nil
@@ -516,6 +519,8 @@ func columnValue(row *relational.AgentInstance, column string) any {
 		return row.PolicyErrors
 	case "unsafe_changes":
 		return row.UnsafeChanges
+	case "plugins":
+		return row.Plugins
 	case "heartbeat_config_revision":
 		return row.HeartbeatConfigRevision
 	case "heartbeat_config_digest":
@@ -533,7 +538,7 @@ var summaryColumns = []string{
 	"hostname", "agent_version", "mode", "daemon", "first_seen_at", "last_seen_at",
 	"reported_at", "applied_revision", "attempted_revision", "reported_status",
 	"apply_reason", "apply_error", "truncated", "warnings", "effective_digest",
-	"remote_config", "policy_errors", "unsafe_changes",
+	"remote_config", "policy_errors", "unsafe_changes", "plugins",
 	"heartbeat_config_revision", "heartbeat_config_digest",
 }
 

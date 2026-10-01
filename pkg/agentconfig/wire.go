@@ -72,6 +72,19 @@ type Report struct {
 	PolicyErrors      []PolicyError        `json:"policy-errors,omitempty"`
 	Unsafe            []Change             `json:"unsafe,omitempty"`
 	RemoteConfig      *RemoteConfig        `json:"remote-config,omitempty"` // normalized; snake_case inside
+	// Plugins are the instance's plugins and the agent library each was built with (R76),
+	// so the UI can show policy compatibility before a save. Older agents omit it.
+	Plugins []PluginReport `json:"plugins,omitempty"`
+}
+
+// PluginReport is one plugin of an instance (R76).
+type PluginReport struct {
+	Name   string `json:"name"`             // the plugin's key under plugins in the config
+	Source string `json:"source,omitempty"` // the configured source
+	// LibVersion is the version of github.com/compliance-framework/agent the plugin binary
+	// was built with, from its Go build info. Empty when unknown: no build info, or a
+	// replace or devel build.
+	LibVersion string `json:"lib-version,omitempty"`
 }
 
 // PolicyBundleReport describes one policy path the agent loaded.
@@ -86,6 +99,11 @@ type PolicyBundleReport struct {
 	// agent does not upload. Agents keep it when they drop Files to fit the report size.
 	// The API checks its format only, not that the artifact exists.
 	ArtifactDigest string `json:"artifact-digest,omitempty"`
+	// PluginPath is the exact path string the agent passes to plugins for this source, which
+	// plugins seed evidence UUIDs with (R77). A policy_id of PluginPath + "/" + a file's
+	// path continues that file's evidence stream (see policyeval.SeedPath). Empty from older
+	// agents.
+	PluginPath string `json:"plugin-path,omitempty"`
 }
 
 // PolicyExtendsReport is the vendor tree an inline bundle extends.

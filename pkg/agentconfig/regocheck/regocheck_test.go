@@ -201,6 +201,24 @@ func TestContractChecks(t *testing.T) {
 				"lib.rego":      "package ccf_libs.ssh\n\nimport rego.v1\n\nf(x) := x\n",
 			}},
 		},
+		"policy_id must be a literal, even when extending": {
+			bundle: &agentconfig.PolicyBundle{Extends: &vendor, Modules: map[string]string{
+				"ssh.rego": pkg + "title := \"t\"\npolicy_id := concat(\"/\", [\"a\", \"b\"])\nviolation contains {\"id\": \"pw\"} if { input.pw }\n",
+			}},
+			want: []want{{policyeval.IssueInvalidPolicyID, agentconfig.SeverityError}},
+		},
+		"a literal policy_id is valid": {
+			bundle: &agentconfig.PolicyBundle{Extends: &vendor, Modules: map[string]string{
+				"ssh.rego": pkg + "title := \"t\"\npolicy_id := \"vendor/ssh.rego\"\nviolation contains {\"id\": \"pw\"} if { input.pw }\n",
+			}},
+		},
+		"duplicate policy_id within a bundle": {
+			bundle: &agentconfig.PolicyBundle{Modules: map[string]string{
+				"a.rego": "package compliance_framework.a\n\nimport rego.v1\n\ntitle := \"t\"\npolicy_id := \"same\"\nviolation contains {\"id\": \"pw\"} if { input.pw }\n",
+				"b.rego": "package compliance_framework.b\n\nimport rego.v1\n\ntitle := \"t\"\npolicy_id := \"same\"\nviolation contains {\"id\": \"pw\"} if { input.pw }\n",
+			}},
+			want: []want{{policyeval.IssueDuplicatePolicyID, agentconfig.SeverityError}},
+		},
 		"modules that do not parse are left to the parse error": {
 			bundle: &agentconfig.PolicyBundle{Modules: map[string]string{
 				"ssh.rego": pkg + "violation contains {\"id\": \"pw\"} if {\n",
@@ -275,4 +293,22 @@ func TestParseLevelCodes(t *testing.T) {
 		codes[e.Code] = true
 	}
 	assert.Equal(t, map[string]bool{CodeParse: true, CodeMissingRegoV1: true, CodePackageNamespace: true, CodeForbiddenBuiltin: true}, codes)
+}
+
+// TestPolicyIDAcrossBundles: each bundle is checked on its own; a policy_id two bundles
+// share is the agent's per-plugin check (duplicate-policy-id across a plugin's paths).
+func TestPolicyIDAcrossBundles(t *testing.T) {
+	module := "package compliance_framework.a\n\nimport rego.v1\n\ntitle := \"t\"\npolicy_id := \"same\"\nviolation contains {\"id\": \"pw\"} if { input.pw }\n"
+	errs := ValidatePolicyBundles(map[string]*agentconfig.PolicyBundle{
+		"one": {Modules: map[string]string{"a.rego": module}},
+		"two": {Modules: map[string]string{"a.rego": module}},
+	})
+	assert.Empty(t, errs)
+}
+
+// TestPolicyCodesMatchPolicyeval: agentconfig cannot import policyeval (it would compile
+// OPA), so the shared codes are repeated there.
+func TestPolicyCodesMatchPolicyeval(t *testing.T) {
+	assert.Equal(t, policyeval.IssueInvalidPolicyID, agentconfig.PolicyCodeInvalidPolicyID)
+	assert.Equal(t, policyeval.IssueDuplicatePolicyID, agentconfig.PolicyCodeDuplicatePolicyID)
 }

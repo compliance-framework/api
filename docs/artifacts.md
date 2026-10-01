@@ -132,6 +132,12 @@ The field is best effort: it is empty when the agent could not upload, and it is
 the agent drops `files` to fit the report size. The API checks its format only, not that
 the artifact is stored, so a reader must handle `404`.
 
+Each `policy-bundles[]` entry also carries `plugin-path`: the exact path string the agent
+passes to plugins for that tree, which plugins seed evidence UUIDs with. The UI uses it to
+write a `policy_id` that continues a vendor policy's evidence stream; see
+[policy-identity.md](./policy-identity.md). It is empty from older agents, and the API
+drops one longer than 4096 bytes (and marks the report `truncated`) rather than cut it.
+
 ## Who can read artifacts
 
 Every bundled authz role holds `artifact:read`, including `ssp-subscriber`, which has no

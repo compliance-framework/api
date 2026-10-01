@@ -49,6 +49,21 @@ definitions:
       revision:
         type: integer
     type: object
+  agentconfig.PluginReport:
+    properties:
+      lib-version:
+        description: |-
+          LibVersion is the version of github.com/compliance-framework/agent the plugin binary
+          was built with, from its Go build info. Empty when unknown: no build info, or a
+          replace or devel build.
+        type: string
+      name:
+        description: the plugin's key under plugins in the config
+        type: string
+      source:
+        description: the configured source
+        type: string
+    type: object
   agentconfig.PolicyBundleReport:
     properties:
       artifact-digest:
@@ -71,6 +86,13 @@ definitions:
         items:
           $ref: '#/definitions/agentconfig.PolicyFileReport'
         type: array
+      plugin-path:
+        description: |-
+          PluginPath is the exact path string the agent passes to plugins for this source, which
+          plugins seed evidence UUIDs with (R77). A policy_id of PluginPath + "/" + a file's
+          path continues that file's evidence stream (see policyeval.SeedPath). Empty from older
+          agents.
+        type: string
       source:
         type: string
     type: object
@@ -81,7 +103,8 @@ definitions:
       code:
         description: |-
           Code classifies the problem when known: a policyeval.Issue* code for policy contract
-          problems (R63), or one of the regocheck codes. Empty for older producers.
+          problems (R63), one of the regocheck codes, or one of the PolicyCode* codes. Empty for
+          older producers.
         type: string
       col:
         type: integer
@@ -170,6 +193,13 @@ definitions:
         type: string
       mode:
         type: string
+      plugins:
+        description: |-
+          Plugins are the instance's plugins and the agent library each was built with (R76),
+          so the UI can show policy compatibility before a save. Older agents omit it.
+        items:
+          $ref: '#/definitions/agentconfig.PluginReport'
+        type: array
       policy-bundles:
         items:
           $ref: '#/definitions/agentconfig.PolicyBundleReport'
@@ -3076,6 +3106,13 @@ definitions:
         type: string
       mode:
         type: string
+      plugins:
+        description: |-
+          Plugins are the reported plugins and the agent library each was built with (R76).
+          Empty until an agent that reports them does.
+        items:
+          $ref: '#/definitions/agentconfig.PluginReport'
+        type: array
       policy-bundles:
         items:
           $ref: '#/definitions/agentconfig.PolicyBundleReport'
@@ -3148,6 +3185,13 @@ definitions:
         type: string
       mode:
         type: string
+      plugins:
+        description: |-
+          Plugins are the reported plugins and the agent library each was built with (R76).
+          Empty until an agent that reports them does.
+        items:
+          $ref: '#/definitions/agentconfig.PluginReport'
+        type: array
       policy-errors:
         items:
           $ref: '#/definitions/agentconfig.PolicyError'
@@ -8682,6 +8726,10 @@ definitions:
           type: string
         type: object
       package:
+        type: string
+      policyId:
+        description: PolicyID is the package's policy_id (R74), when it declares a
+          valid one.
         type: string
       raw:
         additionalProperties: {}

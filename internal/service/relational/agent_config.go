@@ -72,6 +72,7 @@ type AgentInstance struct {
 	PolicyBundles   datatypes.JSON `gorm:"type:jsonb"`
 	PolicyErrors    datatypes.JSON `gorm:"type:jsonb"`
 	UnsafeChanges   datatypes.JSON `gorm:"type:jsonb"`
+	Plugins         datatypes.JSON `gorm:"type:jsonb"` // R76: []agentconfig.PluginReport
 
 	HeartbeatConfigRevision *int64
 	HeartbeatConfigDigest   *string `gorm:"type:text"`

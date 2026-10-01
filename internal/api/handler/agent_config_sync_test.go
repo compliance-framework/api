@@ -88,6 +88,9 @@ func TestNormalizeReport_Rejects(t *testing.T) {
 		"artifact-digest is a tree digest": func(r *agentconfig.Report) {
 			r.PolicyBundles = []agentconfig.PolicyBundleReport{{Source: "inline:a", ArtifactDigest: "tree:" + testDigest}}
 		},
+		"plugin without a name": func(r *agentconfig.Report) {
+			r.Plugins = []agentconfig.PluginReport{{Name: "ssh"}, {Name: "  ", LibVersion: "v0.7.1"}}
+		},
 		"extends artifact-digest malformed": func(r *agentconfig.Report) {
 			r.PolicyBundles = []agentconfig.PolicyBundleReport{{Source: "inline:a", Extends: &agentconfig.PolicyExtendsReport{ArtifactDigest: strings.ToUpper(testDigest)}}}
 		},
@@ -134,6 +137,47 @@ func TestNormalizeReport_Truncates(t *testing.T) {
 	r = validReport()
 	r.Truncated = true
 	require.NoError(t, normalizeReport(&r))
+	assert.True(t, r.Truncated)
+}
+
+func TestNormalizeReport_PluginsAndPluginPath(t *testing.T) {
+	r := validReport()
+	r.Plugins = []agentconfig.PluginReport{
+		{Name: "ssh", Source: "ghcr.io/compliance-framework/plugin-local-ssh:v0.2.0", LibVersion: " v0.1.9 "},
+		{Name: "local"},
+	}
+	r.PolicyBundles = []agentconfig.PolicyBundleReport{
+		{Source: "inline:ssh", PluginPath: "/app/.compliance-framework/state/local-dev/inline/ssh/current/bundle"},
+		{Source: "ghcr.io/v/p:1", PluginPath: strings.Repeat("p", maxReportPluginPathLen)},
+	}
+	require.NoError(t, normalizeReport(&r))
+	assert.Equal(t, []agentconfig.PluginReport{
+		{Name: "ssh", Source: "ghcr.io/compliance-framework/plugin-local-ssh:v0.2.0", LibVersion: "v0.1.9"},
+		{Name: "local"},
+	}, r.Plugins)
+	assert.Equal(t, "/app/.compliance-framework/state/local-dev/inline/ssh/current/bundle", r.PolicyBundles[0].PluginPath)
+	assert.Len(t, r.PolicyBundles[1].PluginPath, maxReportPluginPathLen, "a path at the cap is kept")
+	assert.False(t, r.Truncated)
+
+	// Over the caps: the plugin list and its free text are cut; an oversized path is
+	// dropped, never cut.
+	r = validReport()
+	r.Plugins = make([]agentconfig.PluginReport, maxReportPlugins+1)
+	for i := range r.Plugins {
+		r.Plugins[i].Name = "p"
+	}
+	r.Plugins[0] = agentconfig.PluginReport{
+		Name:       strings.Repeat("n", maxReportPluginNameLen+1),
+		Source:     strings.Repeat("s", maxReportPluginSourceLen+1),
+		LibVersion: strings.Repeat("v", maxReportPluginLibVersion+1),
+	}
+	r.PolicyBundles = []agentconfig.PolicyBundleReport{{Source: "inline:a", PluginPath: strings.Repeat("p", maxReportPluginPathLen+1)}}
+	require.NoError(t, normalizeReport(&r))
+	assert.Len(t, r.Plugins, maxReportPlugins)
+	assert.Len(t, r.Plugins[0].Name, maxReportPluginNameLen)
+	assert.Len(t, r.Plugins[0].Source, maxReportPluginSourceLen)
+	assert.Len(t, r.Plugins[0].LibVersion, maxReportPluginLibVersion)
+	assert.Empty(t, r.PolicyBundles[0].PluginPath)
 	assert.True(t, r.Truncated)
 }
 

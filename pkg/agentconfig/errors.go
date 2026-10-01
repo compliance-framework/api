@@ -91,9 +91,40 @@ type PolicyError struct {
 	Message  string `json:"message"`
 	Severity string `json:"severity"` // "error" | "warning"
 	// Code classifies the problem when known: a policyeval.Issue* code for policy contract
-	// problems (R63), or one of the regocheck codes. Empty for older producers.
+	// problems (R63), one of the regocheck codes, or one of the PolicyCode* codes. Empty for
+	// older producers.
 	Code string `json:"code,omitempty"`
 }
+
+// PolicyError codes for policy identity (R74, R75) and plugin compatibility (R76), besides
+// the policyeval.Issue* and regocheck codes. The first two are also policyeval contract
+// codes (repeated here because agentconfig does not import OPA); the agent alone produces
+// the others, and the UI labels them. See docs/policy-identity.md.
+const (
+	// PolicyCodeInvalidPolicyID: policy_id is not a constant, non-empty string literal of
+	// at most 512 characters (= policyeval.IssueInvalidPolicyID). Error.
+	PolicyCodeInvalidPolicyID = "invalid-policy-id"
+	// PolicyCodeDuplicatePolicyID: two modules checked together, or loaded by one plugin,
+	// declare the same policy_id (= policyeval.IssueDuplicatePolicyID). Error.
+	PolicyCodeDuplicatePolicyID = "duplicate-policy-id"
+	// PolicyCodeDuplicatePolicyIdentity: one plugin loads the same evidence identity (a
+	// policy_id, or a package and bundle-relative file) from two policy paths, so it would
+	// report it twice. Error when the overlay introduces it, warning when it comes from the
+	// agent's config file.
+	PolicyCodeDuplicatePolicyIdentity = "duplicate-policy-identity"
+	// PolicyCodePolicyPackageChanged: an override changes the package line of the module it
+	// replaces, which starts a new evidence stream. Warning.
+	PolicyCodePolicyPackageChanged = "policy-package-changed"
+	// PolicyCodePluginLibViolationSetUnsupported: an authored module defines violation as a
+	// set (`violation contains ...`) for a plugin built against an agent library older than
+	// v0.7.1, which would crash the plugin. Error; a warning when the plugin's library
+	// version is unknown.
+	PolicyCodePluginLibViolationSetUnsupported = "plugin-lib-violation-set-unsupported"
+	// PolicyCodePluginLibPolicyIDUnsupported: an authored module declares policy_id for a
+	// plugin built against an agent library without R74, which ignores it, so the module
+	// starts a new path-based evidence stream. Warning.
+	PolicyCodePluginLibPolicyIDUnsupported = "plugin-lib-policy-id-unsupported"
+)
 
 // HasPolicyErrors reports whether any entry has Severity "error".
 func HasPolicyErrors(errs []PolicyError) bool {

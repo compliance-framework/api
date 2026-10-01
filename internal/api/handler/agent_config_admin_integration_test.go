@@ -864,10 +864,12 @@ func (s *AgentConfigAdminIntegrationSuite) TestInstances() {
 	inSync := s.report(agentID, agentconfig.ModeApplySafe, func(r *agentconfig.Report) {
 		r.AppliedRevision = acaI64(1)
 		r.PolicyBundles = []agentconfig.PolicyBundleReport{{
-			Source: acaVendorPolicy,
-			Digest: acaDigest,
-			Files:  []agentconfig.PolicyFileReport{{Path: "ssh.rego", SHA256: strings.Repeat("a", 64), Package: "compliance_framework.ssh"}},
+			Source:     acaVendorPolicy,
+			Digest:     acaDigest,
+			Files:      []agentconfig.PolicyFileReport{{Path: "ssh.rego", SHA256: strings.Repeat("a", 64), Package: "compliance_framework.ssh"}},
+			PluginPath: ".compliance-framework/policies/vendor/ssh/v1/policies",
 		}}
+		r.Plugins = []agentconfig.PluginReport{{Name: "ssh", Source: acaVendorPlugin, LibVersion: "v0.7.1"}, {Name: "local"}}
 	})
 	pending := s.report(agentID, agentconfig.ModeApplySafe, nil) // applied nil, attempted nil
 	rejected := s.report(agentID, agentconfig.ModeApplyAll, func(r *agentconfig.Report) {
@@ -910,11 +912,13 @@ func (s *AgentConfigAdminIntegrationSuite) TestInstances() {
 	s.Equal(agentconfig.StatusApplied, st.Status)
 	s.Equal(agentcfg.SyncInSync, st.SyncStatus)
 	s.True(st.ReportStale)
+	s.Equal([]agentconfig.PluginReport{{Name: "ssh", Source: acaVendorPlugin, LibVersion: "v0.7.1"}, {Name: "local"}}, st.Plugins, "R76: listed with the summary")
 	s.Require().NotNil(st.HeartbeatConfigRevision)
 	s.Equal(int64(1), *st.HeartbeatConfigRevision)
 	s.NotEmpty(st.RemoteConfig)
 
 	st = byID[pending.String()]
+	s.Equal([]agentconfig.PluginReport{}, st.Plugins, "an agent that does not report plugins")
 	s.Equal(agentconfig.StatusPending, st.Status)
 	s.Equal(agentcfg.SyncOutOfSync, st.SyncStatus)
 	s.False(st.Stale)
@@ -945,6 +949,7 @@ func (s *AgentConfigAdminIntegrationSuite) TestInstances() {
 		for _, k := range []string{"unsafe", "policy-errors", "warnings"} {
 			s.JSONEq(`[]`, string(item[k]), k)
 		}
+		s.Contains(item, "plugins")
 	}
 
 	// Detail: base, effective and policy bundles.
@@ -957,6 +962,8 @@ func (s *AgentConfigAdminIntegrationSuite) TestInstances() {
 	s.Require().Len(detail.PolicyBundles, 1)
 	s.Equal(acaVendorPolicy, detail.PolicyBundles[0].Source)
 	s.Len(detail.PolicyBundles[0].Files, 1)
+	s.Equal(".compliance-framework/policies/vendor/ssh/v1/policies", detail.PolicyBundles[0].PluginPath, "R77")
+	s.Len(detail.Plugins, 2)
 
 	// A heartbeat-only instance has null configs and [] bundles.
 	rec = s.call(http.MethodGet, s.path("/instances/"+heartbeatOnly.String()), nil)
@@ -967,6 +974,7 @@ func (s *AgentConfigAdminIntegrationSuite) TestInstances() {
 	s.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &rawDetail))
 	s.JSONEq(`null`, string(rawDetail.Data["base"]))
 	s.JSONEq(`[]`, string(rawDetail.Data["policy-bundles"]))
+	s.JSONEq(`[]`, string(rawDetail.Data["plugins"]))
 
 	// Another agent's instance => 404; a bad instance id => 400.
 	rec = s.call(http.MethodGet, s.path("/instances/"+foreign.String()), nil)

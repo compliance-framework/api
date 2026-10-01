@@ -98,6 +98,9 @@ type agentInstanceSummary struct {
 	Unsafe                  []agentconfig.Change      `json:"unsafe"`
 	PolicyErrors            []agentconfig.PolicyError `json:"policy-errors"`
 	Warnings                []agentconfig.FieldError  `json:"warnings"` // R41
+	// Plugins are the reported plugins and the agent library each was built with (R76).
+	// Empty until an agent that reports them does.
+	Plugins []agentconfig.PluginReport `json:"plugins"`
 }
 
 type agentInstanceDetail struct {
@@ -868,6 +871,7 @@ func (h *AgentConfigHandler) instanceSummary(inst relational.AgentInstance, desi
 		Unsafe:       []agentconfig.Change{},
 		PolicyErrors: []agentconfig.PolicyError{},
 		Warnings:     []agentconfig.FieldError{},
+		Plugins:      []agentconfig.PluginReport{},
 	}
 	if len(inst.RemoteConfig) > 0 && string(inst.RemoteConfig) != "null" {
 		s.RemoteConfig = json.RawMessage(inst.RemoteConfig)
@@ -875,6 +879,7 @@ func (h *AgentConfigHandler) instanceSummary(inst relational.AgentInstance, desi
 	h.decodeColumn(&inst, "unsafe_changes", inst.UnsafeChanges, &s.Unsafe)
 	h.decodeColumn(&inst, "policy_errors", inst.PolicyErrors, &s.PolicyErrors)
 	h.decodeColumn(&inst, "warnings", inst.Warnings, &s.Warnings)
+	h.decodeColumn(&inst, "plugins", inst.Plugins, &s.Plugins)
 	return s
 }
 
