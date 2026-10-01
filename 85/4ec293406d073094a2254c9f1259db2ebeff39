@@ -1,0 +1,2 @@
+lisa-addressed:
+Round 3 pass 1 fixed: r3p1-libversion-name (renamed maxReportPluginLibVersionLen); r3p1-seedpath-invalid-id (SeedPath treats an ID ValidPolicyID rejects as absent, tested); r3p1-doc-policy-path-wording (policy-identity.md speaks of seed values, label unchanged); r3p1-evaluateresult-alignment (trailing comment).
