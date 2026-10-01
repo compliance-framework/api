@@ -35819,7 +35819,7 @@
                     }
                 },
                 "plugin-path": {
-                    "description": "PluginPath is the exact path string the agent passes to plugins for this source, which\nplugins seed evidence UUIDs with (R77). It may be un-cleaned (for example \"./x\" or\n\"x/\"). Build a policy_id that continues a file's evidence stream as\npath.Join(PluginPath, file): that cleaned form equals the file's legacy policy_file\nseed (see policyeval.SeedPath). Empty from older agents.",
+                    "description": "PluginPath is the exact path string the agent passes to plugins for this source, which\nplugins seed evidence UUIDs with (R77). It may be un-cleaned (for example \"./x\" or\n\"x/\"). Build a policy_id that continues a file's evidence stream as the literal\nPluginPath + \"/\" + file, not path.Join: plugins seeded OPA's cleaned file with the\nliteral PluginPath, and policyeval.SeedPath cleans the ID for the file seed but trims\nthe raw ID for the path seed, so only the literal form keeps \"./x\" or \"x/\" in\n_policy_path. Empty from older agents.",
                     "type": "string"
                 },
                 "source": {

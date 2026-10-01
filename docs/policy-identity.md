@@ -52,22 +52,25 @@ agent's `policy-manager` calls it, so the API, the agent and the UI agree:
   pair, byte for byte. The `policy_file` comes from OPA's loader and is clean, while
   `_policy_path` is the literal policy path (which may be `./x` or `x/`), so this keeps a
   module's own stream whatever the shape of its policy path.
-- Any other `policy_id`: the `policy_file` seed is the `policy_id`. The `_policy_path` seed is
-  the `policy_id` without the module's bundle-relative path when the `policy_id` ends in
-  `/<that path>`, and the `policy_id` itself otherwise. The bundle-relative path is the file
-  path relative to the cleaned policy path. Nothing is made absolute.
+- Any other `policy_id`: the `policy_file` seed is the cleaned `policy_id`, as OPA cleans
+  `policy_file`. The `_policy_path` seed is the **raw** `policy_id` without the module's
+  bundle-relative path when the raw `policy_id` ends in `/<that path>`, and the raw
+  `policy_id` itself otherwise. The bundle-relative path is the file path relative to the
+  cleaned policy path. Nothing is made absolute.
 
 So there are two ways to use it:
 
 - **Continue a stream.** A `policy_id` equal to the policy's old `policy_file` reproduces
   the old seed. An override of a vendor policy can therefore keep writing to the vendor
   policy's stream. Config reports carry each policy path as
-  `policy-bundles[].plugin-path`. Clients build the `policy_id` as
-  `path.Join(plugin-path, file)`: that is the cleaned form, which equals the old
-  `policy_file` even when `plugin-path` is `./x` or `x/`. The UI pre-fills it when it
-  overrides a vendor module that has none. From another location, the `_policy_path` seed
-  is the cleaned vendor path, so it matches the old one only when the agent passed that
-  path clean.
+  `policy-bundles[].plugin-path`. Clients build the `policy_id` as the **literal**
+  `plugin-path + "/" + file` (string concatenation, **not** `path.Join`). The old seed was
+  OPA's cleaned file plus the literal plugin path, for example `("policies/a.rego",
+  "./policies")` for plugin path `./policies`. `path.Join` would clean the plugin path away
+  (`policies/a.rego` gives `_policy_path` `policies`); the literal `./policies/a.rego`
+  keeps it, and `SeedPath` cleans it only for the `policy_file` seed. The same holds for a
+  trailing slash: `x/` + `/` + `a.rego` is `x//a.rego`, which seeds `("x/a.rego", "x/")`.
+  The UI pre-fills it when it overrides a vendor module that has none.
 - **A stable stream.** Any other `policy_id`, for example `ssh-deny-password-auth` or
   `<bundle>/<file>`, gives a stream that does not depend on where the bundle lives.
 

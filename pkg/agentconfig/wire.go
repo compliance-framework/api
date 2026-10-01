@@ -117,9 +117,11 @@ type PolicyBundleReport struct {
 	ArtifactDigest string `json:"artifact-digest,omitempty"`
 	// PluginPath is the exact path string the agent passes to plugins for this source, which
 	// plugins seed evidence UUIDs with (R77). It may be un-cleaned (for example "./x" or
-	// "x/"). Build a policy_id that continues a file's evidence stream as
-	// path.Join(PluginPath, file): that cleaned form equals the file's legacy policy_file
-	// seed (see policyeval.SeedPath). Empty from older agents.
+	// "x/"). Build a policy_id that continues a file's evidence stream as the literal
+	// PluginPath + "/" + file, not path.Join: plugins seeded OPA's cleaned file with the
+	// literal PluginPath, and policyeval.SeedPath cleans the ID for the file seed but trims
+	// the raw ID for the path seed, so only the literal form keeps "./x" or "x/" in
+	// _policy_path. Empty from older agents.
 	PluginPath string `json:"plugin-path,omitempty"`
 }
 

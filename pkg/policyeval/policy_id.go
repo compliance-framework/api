@@ -44,16 +44,20 @@ func policyIDFrom(outputs map[string]any) string {
 // evidence stream keeps its UUIDs. An ID that ValidPolicyID rejects counts as none, as
 // Execute does when it sets Policy.ID.
 //
-// An ID equal to policyFile, or that cleans to it, also gives that legacy pair exactly. So
-// a policy_id built as path.Join(plugin-path, file) never changes a policy's own stream,
-// whatever the shape of the policy path.
+// An ID equal to policyFile, or that cleans to it, also gives that legacy pair exactly, so a
+// policy_id naming the policy's own location never changes its own stream, whatever the
+// shape of the policy path.
 //
-// Any other ID is the file seed. The path seed is the ID minus "/" + the policy's
-// bundle-relative path when the ID ends in that, and the ID itself otherwise. The
-// bundle-relative path is policyFile relative to the cleaned policyPath. So an ID equal to
-// another location's file (for example a vendor module that an inline bundle overrides)
-// continues that file's stream, and an opaque ID (for example "ssh-deny-password-auth")
-// gives a stream that does not depend on where the bundle lives.
+// For any other ID the file seed is the cleaned ID, matching OPA's clean policy_file. The
+// path seed is the raw (un-cleaned) ID minus "/" + the policy's bundle-relative path when
+// the raw ID ends in that, and the raw ID itself otherwise. The bundle-relative path is
+// policyFile relative to the cleaned policyPath. So an ID built as the literal
+// plugin-path + "/" + file of another location (for example a vendor module that an inline
+// bundle overrides) continues that file's stream even when that plugin path is un-cleaned:
+// "./policies" + "/" + "a.rego" seeds ("policies/a.rego", "./policies"), as the vendor
+// plugin did. An opaque ID (for example "ssh-deny-password-auth") gives a stream that does
+// not depend on where the bundle lives; its file seed is also cleaned, which leaves a plain
+// slug as it is.
 //
 // The agent's policy-manager calls this when it seeds evidence, so the API, the agent and
 // the UI agree on the identity a policy_id produces.
@@ -61,11 +65,13 @@ func SeedPath(policyID, policyFile, policyPath string) (seedFile, seedPolicyPath
 	if !ValidPolicyID(policyID) || policyID == policyFile || path.Clean(policyID) == policyFile {
 		return policyFile, policyPath
 	}
+	seedFile = path.Clean(policyID)
 	rel := bundleRelative(policyFile, policyPath)
 	if rel != "" && strings.HasSuffix(policyID, "/"+rel) {
-		return policyID, policyID[:len(policyID)-len(rel)-1]
+		// Trim the raw ID so a literal plugin path such as "./x" or "x/" survives as is.
+		return seedFile, strings.TrimSuffix(policyID, "/"+rel)
 	}
-	return policyID, policyID
+	return seedFile, policyID
 }
 
 // bundleRelative returns policyFile's path relative to the cleaned policyPath, or "" when

@@ -111,6 +111,14 @@ func TestSeedPath(t *testing.T) {
 			"/root.rego", "bundle/root.rego", "bundle",
 			"/root.rego", "",
 		},
+		"a literal un-cleaned plugin path keeps its shape in the path seed": {
+			"./vendor//root.rego", "/abs/bundle/root.rego", "/abs/bundle",
+			"vendor/root.rego", "./vendor/",
+		},
+		"an un-cleaned opaque id is cleaned for the file seed only": {
+			"ssh//deny/", "/abs/bundle/root.rego", "/abs/bundle",
+			"ssh/deny", "ssh//deny/",
+		},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -166,6 +174,24 @@ func TestSeedPathLegacyRoundTrip(t *testing.T) {
 			gotFile, gotPath := SeedPath(legacy.file, path.Join(now, rel), now)
 			assert.Equal(t, legacy.file, gotFile, "%v from %s", legacy, now)
 			assert.Equal(t, legacy.path, gotPath, "%v from %s", legacy, now)
+		}
+	}
+}
+
+// TestSeedPathLiteralPluginPathRoundTrip: a vendor plugin given an un-cleaned policy path
+// seeds (OPA's cleaned file, the literal path). A policy_id built as the literal
+// plugin-path + "/" + file (not path.Join) reproduces that pair exactly from an override
+// in a bundle at another (clean, absolute) path.
+func TestSeedPathLiteralPluginPathRoundTrip(t *testing.T) {
+	const overridePath = "/app/.compliance-framework/state/local-dev/inline/ssh/current/bundle"
+	for _, vendorPath := range []string{"./policies", "./policies/", "policies/", "/abs/p/", "policies", "/abs/p", "./a/b"} {
+		for _, rel := range []string{"a.rego", "ssh/deny/password.rego"} {
+			legacyFile, legacyPath := path.Clean(vendorPath+"/"+rel), vendorPath
+			id := vendorPath + "/" + rel
+
+			gotFile, gotPath := SeedPath(id, path.Join(overridePath, rel), overridePath)
+			assert.Equal(t, legacyFile, gotFile, "seed file: %s + %s", vendorPath, rel)
+			assert.Equal(t, legacyPath, gotPath, "seed policy path: %s + %s", vendorPath, rel)
 		}
 	}
 }
