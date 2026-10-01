@@ -35825,7 +35825,7 @@ const docTemplate = `{
                     }
                 },
                 "plugin-path": {
-                    "description": "PluginPath is the exact path string the agent passes to plugins for this source, which\nplugins seed evidence UUIDs with (R77). A policy_id of PluginPath + \"/\" + a file's\npath continues that file's evidence stream (see policyeval.SeedPath). Empty from older\nagents.",
+                    "description": "PluginPath is the exact path string the agent passes to plugins for this source, which\nplugins seed evidence UUIDs with (R77). It may be un-cleaned (for example \"./x\" or\n\"x/\"). Build a policy_id that continues a file's evidence stream as\npath.Join(PluginPath, file): that cleaned form equals the file's legacy policy_file\nseed (see policyeval.SeedPath). Empty from older agents.",
                     "type": "string"
                 },
                 "source": {

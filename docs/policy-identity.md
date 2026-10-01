@@ -48,18 +48,26 @@ agent's `policy-manager` calls it, so the API, the agent and the UI agree:
 
 - No `policy_id`: `policy_file` and `_policy_path` stay as they are, byte for byte. Every
   existing stream keeps its UUIDs.
-- With a `policy_id`: the `policy_file` seed is the `policy_id`. The `_policy_path` seed is
+- A `policy_id` equal to the module's `policy_file`, or one that cleans to it: the same
+  pair, byte for byte. The `policy_file` comes from OPA's loader and is clean, while
+  `_policy_path` is the literal policy path (which may be `./x` or `x/`), so this keeps a
+  module's own stream whatever the shape of its policy path.
+- Any other `policy_id`: the `policy_file` seed is the `policy_id`. The `_policy_path` seed is
   the `policy_id` without the module's bundle-relative path when the `policy_id` ends in
-  `/<that path>`, and the `policy_id` itself otherwise. The bundle-relative path is taken literally: the
-  file path is `<policy path>/<relative path>`. Nothing is cleaned or made absolute.
+  `/<that path>`, and the `policy_id` itself otherwise. The bundle-relative path is the file
+  path relative to the cleaned policy path. Nothing is made absolute.
 
 So there are two ways to use it:
 
-- **Continue a stream.** A `policy_id` equal to the policy's old `policy_file` (the policy
-  path the plugin used, a `/`, and the file) reproduces the old seed exactly. An override
-  of a vendor policy can therefore keep writing to the vendor policy's stream. Config
-  reports carry each policy path as `policy-bundles[].plugin-path`, and the UI pre-fills
-  `policy_id := "<plugin-path>/<file>"` when it overrides a vendor module that has none.
+- **Continue a stream.** A `policy_id` equal to the policy's old `policy_file` reproduces
+  the old seed. An override of a vendor policy can therefore keep writing to the vendor
+  policy's stream. Config reports carry each policy path as
+  `policy-bundles[].plugin-path`. Clients build the `policy_id` as
+  `path.Join(plugin-path, file)`: that is the cleaned form, which equals the old
+  `policy_file` even when `plugin-path` is `./x` or `x/`. The UI pre-fills it when it
+  overrides a vendor module that has none. From another location, the `_policy_path` seed
+  is the cleaned vendor path, so it matches the old one only when the agent passed that
+  path clean.
 - **A stable stream.** Any other `policy_id`, for example `ssh-deny-password-auth` or
   `<bundle>/<file>`, gives a stream that does not depend on where the bundle lives.
 

@@ -1,6 +1,9 @@
 package policyeval
 
-import "strings"
+import (
+	"path"
+	"strings"
+)
 
 // A policy module may declare its evidence identity with `policy_id := "<string>"` (R74).
 // Plugins seed each evidence UUID with the policy's file path and the policy path the agent
@@ -33,48 +36,55 @@ func policyIDFrom(outputs map[string]any) string {
 // SeedPath returns the two values a plugin seeds a policy's evidence UUID with, as
 // `policy_file` and as the `_policy_path` label (R74). policyFile is Result.Policy.File and
 // policyPath is the path string the agent passed to the plugin for the policy's bundle.
+// policyFile comes from OPA's loader, which joins the bundle directory and the file, so it
+// is clean even when policyPath is not (for example "./x" or "x/"); the `_policy_path` seed
+// is policyPath as passed.
 //
 // Without a policy ID, they are policyFile and policyPath unchanged, so every existing
 // evidence stream keeps its UUIDs. An ID that ValidPolicyID rejects counts as none, as
 // Execute does when it sets Policy.ID.
 //
-// With a policy ID, the file seed is the ID. The path seed is the ID minus the policy's
-// bundle-relative path when the ID ends in "/" + that path, and the ID itself otherwise.
-// The bundle-relative path rel is the literal relationship policyFile == policyPath + "/" +
-// rel (or policyPath + rel when policyPath already ends in "/", in which case the trailing
-// "/" is kept in the path seed); nothing is cleaned or made absolute, since plugins seed
-// with the literal strings. So an ID equal to the legacy
-// policyFile reproduces the legacy pair exactly, which lets an override continue the stream
-// of the policy it replaces, and an opaque ID (for example "ssh-deny-password-auth") gives a
-// stream that does not depend on where the bundle lives.
+// An ID equal to policyFile, or that cleans to it, also gives that legacy pair exactly. So
+// a policy_id built as path.Join(plugin-path, file) never changes a policy's own stream,
+// whatever the shape of the policy path.
+//
+// Any other ID is the file seed. The path seed is the ID minus "/" + the policy's
+// bundle-relative path when the ID ends in that, and the ID itself otherwise. The
+// bundle-relative path is policyFile relative to the cleaned policyPath. So an ID equal to
+// another location's file (for example a vendor module that an inline bundle overrides)
+// continues that file's stream, and an opaque ID (for example "ssh-deny-password-auth")
+// gives a stream that does not depend on where the bundle lives.
 //
 // The agent's policy-manager calls this when it seeds evidence, so the API, the agent and
 // the UI agree on the identity a policy_id produces.
 func SeedPath(policyID, policyFile, policyPath string) (seedFile, seedPolicyPath string) {
-	if !ValidPolicyID(policyID) {
+	if !ValidPolicyID(policyID) || policyID == policyFile || path.Clean(policyID) == policyFile {
 		return policyFile, policyPath
 	}
-	rel, sep := bundleRelative(policyFile, policyPath)
+	rel := bundleRelative(policyFile, policyPath)
 	if rel != "" && strings.HasSuffix(policyID, "/"+rel) {
-		return policyID, policyID[:len(policyID)-len(rel)-len(sep)]
+		return policyID, policyID[:len(policyID)-len(rel)-1]
 	}
 	return policyID, policyID
 }
 
-// bundleRelative splits policyFile into policyPath, a separator and the bundle-relative path
-// rel, by their literal strings. sep is "/", or "" when policyPath already ends in "/". rel
-// is "" when policyFile is not under policyPath.
-func bundleRelative(policyFile, policyPath string) (rel, sep string) {
+// bundleRelative returns policyFile's path relative to the cleaned policyPath, or "" when
+// policyPath is empty or policyFile is not under it.
+func bundleRelative(policyFile, policyPath string) string {
 	if policyPath == "" {
-		return "", ""
+		return ""
 	}
-	if rest, ok := strings.CutPrefix(policyFile, policyPath+"/"); ok {
-		return rest, "/"
-	}
-	if strings.HasSuffix(policyPath, "/") {
-		if rest, ok := strings.CutPrefix(policyFile, policyPath); ok {
-			return rest, ""
+	dir := path.Clean(policyPath)
+	if dir == "." {
+		// OPA joins "." away: a relative file is under it unless it climbs out.
+		if path.IsAbs(policyFile) || policyFile == ".." || strings.HasPrefix(policyFile, "../") {
+			return ""
 		}
+		return policyFile
 	}
-	return "", ""
+	rest, ok := strings.CutPrefix(policyFile, strings.TrimSuffix(dir, "/")+"/")
+	if !ok {
+		return ""
+	}
+	return rest
 }

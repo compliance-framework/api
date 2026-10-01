@@ -1,6 +1,7 @@
 package policyeval
 
 import (
+	"path"
 	"strings"
 	"testing"
 
@@ -66,13 +67,29 @@ func TestSeedPath(t *testing.T) {
 			"x/root.rego", "/other/root.rego", "/abs/bundle",
 			"x/root.rego", "x/root.rego",
 		},
-		"paths are compared literally, not cleaned": {
+		"the file is not cleaned (OPA gives it clean)": {
 			"bundle/root.rego", "./bundle/root.rego", "bundle",
 			"bundle/root.rego", "bundle/root.rego",
 		},
-		"a policy path with a trailing slash keeps it": {
+		"a policy path with a trailing slash is cleaned for the relative path": {
 			"vendor/root.rego", "bundle/root.rego", "bundle/",
-			"vendor/root.rego", "vendor/",
+			"vendor/root.rego", "vendor",
+		},
+		"an un-cleaned id equal to the file once cleaned gives the legacy pair": {
+			"./bundle//root.rego", "bundle/root.rego", "./bundle/",
+			"bundle/root.rego", "./bundle/",
+		},
+		"a policy path of . takes the whole relative file": {
+			"vendor/ssh/root.rego", "ssh/root.rego", ".",
+			"vendor/ssh/root.rego", "vendor",
+		},
+		"a policy path of . does not take a file outside it": {
+			"vendor/root.rego", "../root.rego", ".",
+			"vendor/root.rego", "vendor/root.rego",
+		},
+		"a policy path of / takes the absolute file": {
+			"vendor/root.rego", "/root.rego", "/",
+			"vendor/root.rego", "vendor",
 		},
 		"a policy path with a trailing slash reproduces the legacy pair": {
 			"bundle/root.rego", "bundle/root.rego", "bundle/",
@@ -97,28 +114,58 @@ func TestSeedPath(t *testing.T) {
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
-			file, path := SeedPath(tc.id, tc.file, tc.path)
-			assert.Equal(t, tc.wantFile, file, "seed file")
-			assert.Equal(t, tc.wantPath, path, "seed policy path")
+			gotFile, gotPath := SeedPath(tc.id, tc.file, tc.path)
+			assert.Equal(t, tc.wantFile, gotFile, "seed file")
+			assert.Equal(t, tc.wantPath, gotPath, "seed policy path")
 		})
 	}
 }
 
-// TestSeedPathLegacyRoundTrip: for a legacy pair whose path has no trailing slash (the agent
-// never passes one), a policy_id equal to the legacy file reproduces the pair exactly,
-// wherever the policy now lives.
+// TestSeedPathUncleanedPolicyPath: OPA's loader gives Policy.File cleaned
+// (path.Join(policyPath, rel)) while plugins seed _policy_path with the literal policy path.
+// A policy_id equal to that File, or to an un-cleaned spelling of it, reproduces the legacy
+// pair exactly, so the stream does not fork; other ids still find the relative path.
+func TestSeedPathUncleanedPolicyPath(t *testing.T) {
+	for _, policyPath := range []string{"./x", "./x/", "./a/b", "x/", "/abs/x/", "x", "/abs/x"} {
+		for _, rel := range []string{"root.rego", "ssh/deny/password.rego"} {
+			file := path.Join(policyPath, rel)
+			name := policyPath + " " + rel
+
+			f, p := SeedPath("", file, policyPath)
+			assert.Equal(t, file, f, "no id: %s", name)
+			assert.Equal(t, policyPath, p, "no id: %s", name)
+
+			for _, id := range []string{file, policyPath + "/" + rel, strings.TrimSuffix(policyPath, "/") + "/" + rel} {
+				f, p = SeedPath(id, file, policyPath)
+				assert.Equal(t, file, f, "id %q: %s", id, name)
+				assert.Equal(t, policyPath, p, "id %q: %s", id, name)
+			}
+
+			f, p = SeedPath("vendor/policies/"+rel, file, policyPath)
+			assert.Equal(t, "vendor/policies/"+rel, f, "another location: %s", name)
+			assert.Equal(t, "vendor/policies", p, "another location: %s", name)
+
+			f, p = SeedPath("ssh-deny-password-auth", file, policyPath)
+			assert.Equal(t, "ssh-deny-password-auth", f, "opaque: %s", name)
+			assert.Equal(t, "ssh-deny-password-auth", p, "opaque: %s", name)
+		}
+	}
+}
+
+// TestSeedPathLegacyRoundTrip: for a legacy pair whose path is clean (the usual case), a
+// policy_id equal to the legacy file reproduces the pair exactly, wherever the policy now
+// lives, and whatever the shape of the new policy path.
 func TestSeedPathLegacyRoundTrip(t *testing.T) {
 	for _, legacy := range []struct{ file, path string }{
 		{"policies/a.rego", "policies"},
 		{"/abs/policies/a.rego", "/abs/policies"},
 		{"policies/nested/deep/a.rego", "policies"},
-		{"./policies/a.rego", "./policies"},
 	} {
-		for _, now := range []string{"/state/inline/b/current/bundle", "relative/bundle", legacy.path} {
+		for _, now := range []string{"/state/inline/b/current/bundle", "relative/bundle", "./relative/bundle/", legacy.path} {
 			rel := strings.TrimPrefix(strings.TrimPrefix(legacy.file, legacy.path), "/")
-			file, path := SeedPath(legacy.file, now+"/"+rel, now)
-			assert.Equal(t, legacy.file, file, "%v from %s", legacy, now)
-			assert.Equal(t, legacy.path, path, "%v from %s", legacy, now)
+			gotFile, gotPath := SeedPath(legacy.file, path.Join(now, rel), now)
+			assert.Equal(t, legacy.file, gotFile, "%v from %s", legacy, now)
+			assert.Equal(t, legacy.path, gotPath, "%v from %s", legacy, now)
 		}
 	}
 }
