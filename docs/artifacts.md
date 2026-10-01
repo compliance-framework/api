@@ -122,10 +122,11 @@ max-age=31536000, immutable` and an `ETag` (the digest of the response body), an
 ### Agent config reports
 
 Agents that report artifact digests also upload the policy trees they load when they
-apply a configuration, not only when they evaluate. A config report (`PUT /api/agent/instances/{id}/config-report`) names
-each tree's artifact in `policy-bundles[].artifact-digest` and, for an inline bundle that
-extends a source, the vendor tree's artifact in `policy-bundles[].extends.artifact-digest`.
-The UI reads vendor sources through the file routes, for example to pre-fill an override.
+apply a configuration, not only when they evaluate. A config report
+(`PUT /api/agent/instances/{id}/config-report`) names each tree's artifact in
+`policy-bundles[].artifact-digest` and, for an inline bundle that extends a source, the
+vendor tree's artifact in `policy-bundles[].extends.artifact-digest`. The UI reads vendor
+sources through the file routes, for example to pre-fill an override.
 
 The field is best effort: it is empty when the agent could not upload, and it is kept when
 the agent drops `files` to fit the report size. The API checks its format only, not that
@@ -137,7 +138,8 @@ Every bundled authz role holds `artifact:read`, including `ssp-subscriber`, whic
 `agent:read`. Artifacts include the inline Rego agents upload (at evaluation since #464,
 and with config reports, which add the vendor trees inline bundles extend). So a role
 without `agent:read` can read an agent's inline policies through the artifact routes if
-it knows their digests. Config reports, which hold the digests, need `agent:read`. This is
+it knows their digests. The digests are in config reports, which need `agent:read`, and
+in evidence props (`_policy_bundle_digest`), which need `evidence:read`. This is
 documented rather than changed (R72); operators who need to narrow it can add a Cedar
 `forbid` on `artifact:read`.
 
