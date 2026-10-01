@@ -370,7 +370,8 @@ func (s *AgentCfgServiceIntegrationSuite) TestUpsertReportInsertsThenUpdates() {
 	t0 := s.now
 
 	warnings := []agentconfig.FieldError{{Path: "/plugins/p1/foo", Code: "unknown-field", Message: "unknown"}}
-	bundles := []agentconfig.PolicyBundleReport{{Source: "inline:b1", Digest: "sha256:1", Files: []agentconfig.PolicyFileReport{{Path: "a.rego", SHA256: "x"}}}}
+	bundles := []agentconfig.PolicyBundleReport{{Source: "inline:b1", Digest: "sha256:1", Files: []agentconfig.PolicyFileReport{{Path: "a.rego", SHA256: "x"}}, PluginPath: "/state/inline/b1/current/bundle"}}
+	plugins := []agentconfig.PluginReport{{Name: "p1", Source: "ghcr.io/x/p1:v1", LibVersion: "v0.7.1"}}
 	policyErrs := []agentconfig.PolicyError{{Bundle: "b1", Path: "a.rego", Row: 3, Message: "boom", Severity: "error"}}
 	unsafe := []agentconfig.Change{{Path: "/plugins/p1/source", Safety: agentconfig.Unsafe, Reason: "source-changed"}}
 	remote := &agentconfig.RemoteConfig{Mode: agentconfig.ModeApplyAll, PollInterval: "30s", TrustedSources: []string{"ghcr.io/x/*"}}
@@ -382,7 +383,7 @@ func (s *AgentCfgServiceIntegrationSuite) TestUpsertReportInsertsThenUpdates() {
 		Reason: agentconfig.ReasonDownloadFailed, Error: ptr("oci pull failed"), Truncated: true,
 		Warnings: warnings, Base: json.RawMessage(baseConfig), Effective: json.RawMessage(effective),
 		EffectiveDigest: "sha256:eff", PolicyBundles: bundles, PolicyErrors: policyErrs, Unsafe: unsafe,
-		RemoteConfig: remote,
+		RemoteConfig: remote, Plugins: plugins,
 	})
 	s.Require().NoError(err)
 
@@ -409,6 +410,7 @@ func (s *AgentCfgServiceIntegrationSuite) TestUpsertReportInsertsThenUpdates() {
 	s.JSONEq(mustJSON(bundles), string(got.PolicyBundles))
 	s.JSONEq(mustJSON(policyErrs), string(got.PolicyErrors))
 	s.JSONEq(mustJSON(unsafe), string(got.UnsafeChanges))
+	s.JSONEq(mustJSON(plugins), string(got.Plugins))
 	s.True(got.FirstSeenAt.Equal(t0))
 	s.True(got.LastSeenAt.Equal(t0))
 	s.Require().NotNil(got.ReportedAt)
@@ -446,6 +448,7 @@ func (s *AgentCfgServiceIntegrationSuite) TestUpsertReportInsertsThenUpdates() {
 	s.Nil(got.PolicyBundles)
 	s.Nil(got.PolicyErrors)
 	s.Nil(got.UnsafeChanges)
+	s.Nil(got.Plugins)
 	s.Equal("sha256:eff2", *got.EffectiveDigest)
 }
 
