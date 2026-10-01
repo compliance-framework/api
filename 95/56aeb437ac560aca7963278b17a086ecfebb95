@@ -1,0 +1,22 @@
+lisa-addressed:
+---
+Comment (docs/policy-identity.md:28):
+Not accurate against the agent today: `policy-stream-forked` is only emitted for an **authored override** whose seed differs from the vendor's (`OverrideStreams`). Inherited modules of an unshadowed bundle forked silently — agent#95 adds a per-(bundle, plugin) `policy-stream-forked` warning for unshadowed extends bundles in this round. Once that lands, describe both cases here: (1) the bundle can't be shadowed for a plugin → one warning, all its modules start new streams; (2) an authored override that changes the seed (package or `policy_id`) → per-module warning. Also complete the list of reasons (L28-30): absolute/local `extends`; the plugin also loads the source, or another bundle on the same path; no symlink support; the plugin's other relative paths can't be placed in a view.
+Replies:
+**lisa implementation guidance:** **lisa implementation guidance:** Plan (agent#95 @ bce3ad3, `cmd/shadow.go` planShadowing/unshadowedWarnings, `inlinepolicy.OverrideStreams`/`UnshadowedForks`): rewrite the 'can't be shadowed' paragraph in `docs/policy-identity.md` as two cases. (1) Bundle not shadowed for a plugin: it reaches the plugin at `.compliance-framework/policies/_inline/<bundle>/policies`; one `policy-stream-forked` warning per (bundle, plugin), with `bundle` set and no `path`, giving the reason and listing the modules that start new streams. Reasons: the `extends` path is absolute or not a relative `policies/` tree (a local source), the plugin also loads the source or another bundle extending the same source, no writable state dir or no symlinks, or another relative path of the plugin can't be placed in its view. (2) An authored override that forks even at the source's path gets a per-module warning: changed package → `policy-package-changed`, changed `policy_id` → `policy-stream-forked`.
+
+<!-- lisa-guidance-posted -->
+---
+Comment (docs/policy-identity.md:83):
+Codes table is missing `policy-stream-forked` (agent, warning) — the code users will actually see when streams fork. Add it (meaning per the thread above).
+Replies:
+**lisa implementation guidance:** **lisa implementation guidance:** Plan: add a `policy-stream-forked` row (agent, warning) to the codes table, covering both cases from the thread above. Note that it is defined in the agent (`inlinepolicy.CodePolicyStreamForked`), not in `pkg/agentconfig`, so the table's 'constants in pkg/agentconfig' lead stays accurate.
+
+<!-- lisa-guidance-posted -->
+---
+Comment (docs/policy-identity.md:7):
+Nit-level accuracy (matters for anyone reproducing UUIDs): `policy_file` is OPA's **cleaned** `<policy path>/<file>`, while `_policy_path` is the **literal** string (R77). Say so in one line, e.g. `policy_file: clean(<policy path>/<file>)`.
+Replies:
+**lisa implementation guidance:** **lisa implementation guidance:** Plan: change the formula to `policy_file: clean(<policy path>/<file>)` and add one line saying `policy_file` is OPA's cleaned join, while `_policy_path` is the literal string (R77; agent `inlinepolicy.SeedOf` uses `filepath.Join`).
+
+<!-- lisa-guidance-posted -->
