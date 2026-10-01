@@ -133,6 +133,13 @@ type PolicyExtendsReport struct {
 	// ArtifactDigest names the artifact of the vendor tree alone; see
 	// PolicyBundleReport.ArtifactDigest.
 	ArtifactDigest string `json:"artifact-digest,omitempty"`
+	// PluginPath is the exact (literal) path the agent would pass to plugins for the extends
+	// source if a plugin loaded it directly (R78). Clients build continuity ids as
+	// PluginPath + "/" + file (literal concatenation, see PolicyBundleReport.PluginPath). It
+	// lets a client keep a vendor file's evidence stream after an inline bundle has replaced
+	// the source in every plugin, when no policy-bundles[] entry names the source any more.
+	// Empty from older agents.
+	PluginPath string `json:"plugin-path,omitempty"`
 }
 
 // PolicyBundleExtendsReport is an alias of PolicyExtendsReport (the name the agent LLD uses).

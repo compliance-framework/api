@@ -234,6 +234,10 @@ func normalizeReport(r *agentconfig.Report) error {
 			r.PolicyBundles[i].PluginPath = ""
 			r.Truncated = true
 		}
+		if b.Extends != nil && len(b.Extends.PluginPath) > maxReportPluginPathLen {
+			b.Extends.PluginPath = ""
+			r.Truncated = true
+		}
 	}
 	for i, p := range r.Plugins {
 		if strings.TrimSpace(p.Name) == "" {

@@ -63,8 +63,12 @@ So there are two ways to use it:
 - **Continue a stream.** A `policy_id` equal to the policy's old `policy_file` reproduces
   the old seed. An override of a vendor policy can therefore keep writing to the vendor
   policy's stream. Config reports carry each policy path as
-  `policy-bundles[].plugin-path`. Clients build the `policy_id` as the **literal**
-  `plugin-path + "/" + file` (string concatenation, **not** `path.Join`). The old seed was
+  `policy-bundles[].plugin-path`, and an inline bundle's `extends` source as
+  `policy-bundles[].extends.plugin-path` (the path a plugin would get if it loaded the
+  source directly), so the vendor stream can be continued after the inline bundle has
+  replaced the source in every plugin and no entry names it any more. Clients build the
+  `policy_id` as the **literal** `plugin-path + "/" + file` (string concatenation, **not**
+  `path.Join`). The old seed was
   OPA's cleaned file plus the literal plugin path, for example `("policies/a.rego",
   "./policies")` for plugin path `./policies`. `path.Join` would clean the plugin path away
   (`policies/a.rego` gives `_policy_path` `policies`); the literal `./policies/a.rego`
@@ -152,5 +156,6 @@ silently starts a path-based evidence stream.
 - `policyeval.Policy.ID` (JSON `id`): the evaluated `policy_id`, set only when valid.
 - `policyeval.SeedPath`, `policyeval.ValidPolicyID`, `policyeval.MaxPolicyIDLength`.
 - Playback results carry `policyId` ([playback.md](./playback.md)).
-- Config reports: `policy-bundles[].plugin-path` and `plugins[]` (`name`, `source`,
-  `lib-version`, `inline-policies`), returned on agent instances ([artifacts.md](./artifacts.md)).
+- Config reports: `policy-bundles[].plugin-path`, `policy-bundles[].extends.plugin-path`
+  and `plugins[]` (`name`, `source`, `lib-version`, `inline-policies`), returned on agent
+  instances ([artifacts.md](./artifacts.md)).

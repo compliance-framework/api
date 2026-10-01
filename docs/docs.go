@@ -35877,6 +35877,10 @@ const docTemplate = `{
                         "$ref": "#/definitions/agentconfig.PolicyFileReport"
                     }
                 },
+                "plugin-path": {
+                    "description": "PluginPath is the exact (literal) path the agent would pass to plugins for the extends\nsource if a plugin loaded it directly (R78). Clients build continuity ids as\nPluginPath + \"/\" + file (literal concatenation, see PolicyBundleReport.PluginPath). It\nlets a client keep a vendor file's evidence stream after an inline bundle has replaced\nthe source in every plugin, when no policy-bundles[] entry names the source any more.\nEmpty from older agents.",
+                    "type": "string"
+                },
                 "source": {
                     "type": "string"
                 }

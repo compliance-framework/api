@@ -868,6 +868,18 @@ func (s *AgentConfigAdminIntegrationSuite) TestInstances() {
 			Digest:     acaDigest,
 			Files:      []agentconfig.PolicyFileReport{{Path: "ssh.rego", SHA256: strings.Repeat("a", 64), Package: "compliance_framework.ssh"}},
 			PluginPath: ".compliance-framework/policies/vendor/ssh/v1/policies",
+		}, {
+			// R78: the extends source after the swap, named by no other entry.
+			Source: "inline:custom",
+			Digest: acaDigest,
+			Files:  []agentconfig.PolicyFileReport{},
+			Extends: &agentconfig.PolicyExtendsReport{
+				Source:     "ghcr.io/vendor/swapped:v1",
+				Digest:     acaDigest,
+				Files:      []agentconfig.PolicyFileReport{},
+				PluginPath: ".compliance-framework/policies/vendor/swapped/v1/policies",
+			},
+			PluginPath: "/state/inline/custom/current/bundle",
 		}}
 		r.Plugins = []agentconfig.PluginReport{{Name: "ssh", Source: acaVendorPlugin, LibVersion: "v0.7.1", InlinePolicies: agentconfig.InlinePoliciesSupported}, {Name: "local", InlinePolicies: agentconfig.InlinePoliciesUnknown}}
 	})
@@ -959,10 +971,12 @@ func (s *AgentConfigAdminIntegrationSuite) TestInstances() {
 	s.Equal(inSync.String(), detail.InstanceID)
 	s.Contains(string(detail.Base), acaVendorPlugin)
 	s.Contains(string(detail.Effective), acaVendorPolicy)
-	s.Require().Len(detail.PolicyBundles, 1)
+	s.Require().Len(detail.PolicyBundles, 2)
 	s.Equal(acaVendorPolicy, detail.PolicyBundles[0].Source)
 	s.Len(detail.PolicyBundles[0].Files, 1)
 	s.Equal(".compliance-framework/policies/vendor/ssh/v1/policies", detail.PolicyBundles[0].PluginPath, "R77")
+	s.Require().NotNil(detail.PolicyBundles[1].Extends)
+	s.Equal(".compliance-framework/policies/vendor/swapped/v1/policies", detail.PolicyBundles[1].Extends.PluginPath, "R78")
 	s.Equal([]agentconfig.PluginReport{{Name: "ssh", Source: acaVendorPlugin, LibVersion: "v0.7.1", InlinePolicies: agentconfig.InlinePoliciesSupported}, {Name: "local", InlinePolicies: agentconfig.InlinePoliciesUnknown}}, detail.Plugins, "R76, R79")
 
 	// A heartbeat-only instance has null configs and [] bundles.
