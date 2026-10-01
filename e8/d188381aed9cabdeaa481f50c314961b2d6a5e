@@ -14,3 +14,10 @@ lisa-design:
 - R63 Execute: Result.Issues = ValidateResult(result) for every result; Execute's error semantics are unchanged. Playback: top-level `issues` (CheckContract on the request modules parsed as v1) and `results[].issues`; both always [] when empty; neither fails the request.
 - PolicyError gains `code` (omitempty): policyeval.Issue* codes for contract problems and regocheck.Code{Parse,MissingRegoV1,PackageNamespace,ForbiddenBuiltin} for the parse-level checks. Bundle-shape PolicyErrors keep an empty code.
 - Agent impact: regocheck.ValidatePolicyBundles (called by agent prepareInline on merged bundles) now includes the contract layer, so the agent gets the static R63 check by bumping the pin; it should not run CheckContract again on the same authored modules.
+
+lisa-selfreview:
+round 2 pass 1 (strict) verdict=request_changes
+- [medium] lint-contract (pkg/policyeval/contract.go:99,960): golangci-lint fails: unused var textKeys; staticcheck QF1001 De Morgan in bodyBinding. -> fix: drop textKeys, rewrite the condition.
+- [medium] unknown-violation-id-normalization (pkg/policyeval/contract.go checkViolationElement/check): the API matches violation ids trimmed and case-insensitively (RiskTemplateService.ValidateViolationMatch), but the static check compares raw ids, so `"violation_ids": ["SSH.pw"]` vs id "ssh.pw" is a false warning. -> fix: normalize both sides (TrimSpace+ToLower) and test it.
+- [medium] regocheck-warning-wording (pkg/agentconfig/regocheck/regocheck.go checkContract): the downgrade suffix says "modules outside this overlay", but the agent calls ValidatePolicyBundles on merged bundles, not overlays. -> fix: neutral wording ("the extended source or the rest of the bundle may define it").
+- [low] file-listing-cost (internal/api/handler/artifacts.go ListFiles): every request re-reads the artifact and parses each .rego (v1 then v0), and 304 is decided after building the body. Bounded by CCF_ARTIFACT_MAX_BYTES and immutable caching on the client. -> defer.
