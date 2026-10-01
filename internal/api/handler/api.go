@@ -135,6 +135,14 @@ func RegisterHandlers(server *api.Server, logger *zap.SugaredLogger, db *gorm.DB
 			middleware.OptionalUserOrAgentJWTMiddleware(db, config.JWTPublicKey, !config.StrictDisablePublicAgentEndpoints),
 			pep.For(authz.ResourcePlayback).Do(authz.ActionExecute),
 		)
+		// Playing back stored evidence returns its raw input, so, like artifact reads, it
+		// needs any user or agent token.
+		playbackHandler.WithEvidencePlayback(services.EvidenceService, artifactService)
+		playbackHandler.RegisterEvidence(
+			server.API().Group("/evidence"),
+			middleware.OptionalUserOrAgentJWTMiddleware(db, config.JWTPublicKey, false),
+			pep.For(authz.ResourceArtifact).Read(),
+		)
 	}
 
 	// Policy evaluation artifacts. Uploads take the same auth as the other agent ingest

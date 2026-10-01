@@ -683,6 +683,151 @@ definitions:
           for a specific purpose.\""
         type: string
     type: object
+  handler.EvidencePlaybackArtifacts:
+    properties:
+      bundle:
+        $ref: '#/definitions/artifact.Info'
+      input:
+        $ref: '#/definitions/artifact.Info'
+      policyData:
+        $ref: '#/definitions/artifact.Info'
+    type: object
+  handler.EvidencePlaybackComparison:
+    properties:
+      missingViolationIds:
+        description: MissingViolationIDs were recorded but not found by the replay.
+        items:
+          type: string
+        type: array
+      newViolationIds:
+        description: NewViolationIDs were found by the replay but not recorded.
+        items:
+          type: string
+        type: array
+      statusMatches:
+        type: boolean
+      unidentifiedViolations:
+        description: UnidentifiedViolations have no id, so cannot be compared.
+        type: integer
+    type: object
+  handler.EvidencePlaybackFile:
+    properties:
+      containsPackage:
+        description: ContainsPackage marks the file defining the package that produced
+          the evidence.
+        type: boolean
+      path:
+        type: string
+      source:
+        type: string
+    type: object
+  handler.EvidencePlaybackRecorded:
+    properties:
+      status:
+        type: string
+      violationIds:
+        items:
+          type: string
+        type: array
+    type: object
+  handler.EvidencePlaybackReplay:
+    properties:
+      error:
+        description: Error explains why the agent would not have turned the result
+          into evidence.
+        type: string
+      issues:
+        description: |-
+          Issues are the policy contract problems policyeval.ValidateResult finds in the
+          replayed result.
+        items:
+          $ref: '#/definitions/policyeval.Issue'
+        type: array
+      rawJson:
+        type: string
+      status:
+        type: string
+      title:
+        type: string
+      violations:
+        items:
+          $ref: '#/definitions/handler.EvidencePlaybackViolation'
+        type: array
+    type: object
+  handler.EvidencePlaybackResponse:
+    properties:
+      artifacts:
+        $ref: '#/definitions/handler.EvidencePlaybackArtifacts'
+      available:
+        description: Available is false when the evidence cannot be played back; Reason
+          says why.
+        type: boolean
+      bundleDataJson:
+        type: string
+      comparison:
+        $ref: '#/definitions/handler.EvidencePlaybackComparison'
+      errors:
+        description: Errors are why the replay could not run, for example a policy
+          the sandbox forbids.
+        items:
+          $ref: '#/definitions/policyeval.EvalError'
+        type: array
+      evaluatedAt:
+        type: string
+      inputJson:
+        type: string
+      inputTruncated:
+        description: |-
+          InputTruncated means InputJSON holds only the first part of the input; the full input
+          is the input artifact.
+        type: boolean
+      issues:
+        description: |-
+          Issues are the static policy contract problems policyeval.CheckContract finds in the
+          stored bundle's modules, as POST /api/playback/evaluate reports them. They never fail
+          the playback.
+        items:
+          $ref: '#/definitions/policyeval.Issue'
+        type: array
+      package:
+        description: Package is the policy package that produced the evidence.
+        type: string
+      policyDataJson:
+        description: JSON documents are pretty-printed strings, shown as they are.
+        type: string
+      policyFiles:
+        items:
+          $ref: '#/definitions/handler.EvidencePlaybackFile'
+        type: array
+      prints:
+        items:
+          type: string
+        type: array
+      reason:
+        type: string
+      recorded:
+        $ref: '#/definitions/handler.EvidencePlaybackRecorded'
+      replay:
+        $ref: '#/definitions/handler.EvidencePlaybackReplay'
+    type: object
+  handler.EvidencePlaybackViolation:
+    properties:
+      description:
+        type: string
+      id:
+        type: string
+      remarks:
+        type: string
+      rules:
+        description: |-
+          Rules are the `violation` rules that produced it, by file and line. Empty when they
+          could not be located.
+        items:
+          $ref: '#/definitions/policyeval.RuleLocation'
+        type: array
+      title:
+        type: string
+    type: object
   handler.EvidencePolicyArtifacts:
     properties:
       bundle-digest:
@@ -1598,6 +1743,13 @@ definitions:
       data:
         allOf:
         - $ref: '#/definitions/handler.CreatedEvidenceResponse'
+        description: Wrapped response data
+    type: object
+  handler.GenericDataResponse-handler_EvidencePlaybackResponse:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/handler.EvidencePlaybackResponse'
         description: Wrapped response data
     type: object
   handler.GenericDataResponse-handler_FilterImportResponse:
@@ -8566,6 +8718,15 @@ definitions:
       severity:
         description: SeverityError | SeverityWarning
         type: string
+    type: object
+  policyeval.RuleLocation:
+    properties:
+      endLine:
+        type: integer
+      file:
+        type: string
+      startLine:
+        type: integer
     type: object
   policyeval.Violation:
     properties:
@@ -16202,6 +16363,52 @@ paths:
       summary: Get Evidence by ID
       tags:
       - Evidence
+  /evidence/{id}/playback:
+    get:
+      description: Loads the policy bundle, input and policy data stored for the evidence,
+        replays the evaluation in the playback sandbox at the evidence's end time,
+        and compares the result with what the evidence recorded. JSON documents are
+        returned as pretty-printed strings; inputs over 1 MiB are truncated (the full
+        input is the input artifact). Evidence recorded without artifacts returns
+        available false. Needs any user or agent token.
+      parameters:
+      - description: Evidence ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-handler_EvidencePlaybackResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "429":
+          description: Too Many Requests
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Play back an evidence's policy evaluation
+      tags:
+      - Playback
   /evidence/{id}/risks:
     get:
       description: Retrieves every risk register entry linked to the evidence record's

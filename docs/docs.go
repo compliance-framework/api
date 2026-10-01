@@ -5518,6 +5518,70 @@ const docTemplate = `{
                 }
             }
         },
+        "/evidence/{id}/playback": {
+            "get": {
+                "description": "Loads the policy bundle, input and policy data stored for the evidence, replays the evaluation in the playback sandbox at the evidence's end time, and compares the result with what the evidence recorded. JSON documents are returned as pretty-printed strings; inputs over 1 MiB are truncated (the full input is the input artifact). Evidence recorded without artifacts returns available false. Needs any user or agent token.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Playback"
+                ],
+                "summary": "Play back an evidence's policy evaluation",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Evidence ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-handler_EvidencePlaybackResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "429": {
+                        "description": "Too Many Requests",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
         "/evidence/{id}/risks": {
             "get": {
                 "description": "Retrieves every risk register entry linked to the evidence record's stream, across all System Security Plans.",
@@ -36581,6 +36645,201 @@ const docTemplate = `{
                 }
             }
         },
+        "handler.EvidencePlaybackArtifacts": {
+            "type": "object",
+            "properties": {
+                "bundle": {
+                    "$ref": "#/definitions/artifact.Info"
+                },
+                "input": {
+                    "$ref": "#/definitions/artifact.Info"
+                },
+                "policyData": {
+                    "$ref": "#/definitions/artifact.Info"
+                }
+            }
+        },
+        "handler.EvidencePlaybackComparison": {
+            "type": "object",
+            "properties": {
+                "missingViolationIds": {
+                    "description": "MissingViolationIDs were recorded but not found by the replay.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "newViolationIds": {
+                    "description": "NewViolationIDs were found by the replay but not recorded.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "statusMatches": {
+                    "type": "boolean"
+                },
+                "unidentifiedViolations": {
+                    "description": "UnidentifiedViolations have no id, so cannot be compared.",
+                    "type": "integer"
+                }
+            }
+        },
+        "handler.EvidencePlaybackFile": {
+            "type": "object",
+            "properties": {
+                "containsPackage": {
+                    "description": "ContainsPackage marks the file defining the package that produced the evidence.",
+                    "type": "boolean"
+                },
+                "path": {
+                    "type": "string"
+                },
+                "source": {
+                    "type": "string"
+                }
+            }
+        },
+        "handler.EvidencePlaybackRecorded": {
+            "type": "object",
+            "properties": {
+                "status": {
+                    "type": "string"
+                },
+                "violationIds": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "handler.EvidencePlaybackReplay": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "description": "Error explains why the agent would not have turned the result into evidence.",
+                    "type": "string"
+                },
+                "issues": {
+                    "description": "Issues are the policy contract problems policyeval.ValidateResult finds in the\nreplayed result.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/policyeval.Issue"
+                    }
+                },
+                "rawJson": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "violations": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handler.EvidencePlaybackViolation"
+                    }
+                }
+            }
+        },
+        "handler.EvidencePlaybackResponse": {
+            "type": "object",
+            "properties": {
+                "artifacts": {
+                    "$ref": "#/definitions/handler.EvidencePlaybackArtifacts"
+                },
+                "available": {
+                    "description": "Available is false when the evidence cannot be played back; Reason says why.",
+                    "type": "boolean"
+                },
+                "bundleDataJson": {
+                    "type": "string"
+                },
+                "comparison": {
+                    "$ref": "#/definitions/handler.EvidencePlaybackComparison"
+                },
+                "errors": {
+                    "description": "Errors are why the replay could not run, for example a policy the sandbox forbids.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/policyeval.EvalError"
+                    }
+                },
+                "evaluatedAt": {
+                    "type": "string"
+                },
+                "inputJson": {
+                    "type": "string"
+                },
+                "inputTruncated": {
+                    "description": "InputTruncated means InputJSON holds only the first part of the input; the full input\nis the input artifact.",
+                    "type": "boolean"
+                },
+                "issues": {
+                    "description": "Issues are the static policy contract problems policyeval.CheckContract finds in the\nstored bundle's modules, as POST /api/playback/evaluate reports them. They never fail\nthe playback.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/policyeval.Issue"
+                    }
+                },
+                "package": {
+                    "description": "Package is the policy package that produced the evidence.",
+                    "type": "string"
+                },
+                "policyDataJson": {
+                    "description": "JSON documents are pretty-printed strings, shown as they are.",
+                    "type": "string"
+                },
+                "policyFiles": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handler.EvidencePlaybackFile"
+                    }
+                },
+                "prints": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "reason": {
+                    "type": "string"
+                },
+                "recorded": {
+                    "$ref": "#/definitions/handler.EvidencePlaybackRecorded"
+                },
+                "replay": {
+                    "$ref": "#/definitions/handler.EvidencePlaybackReplay"
+                }
+            }
+        },
+        "handler.EvidencePlaybackViolation": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "rules": {
+                    "description": "Rules are the ` + "`" + `violation` + "`" + ` rules that produced it, by file and line. Empty when they\ncould not be located.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/policyeval.RuleLocation"
+                    }
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
         "handler.EvidencePolicyArtifacts": {
             "type": "object",
             "properties": {
@@ -37926,6 +38185,19 @@ const docTemplate = `{
                     "allOf": [
                         {
                             "$ref": "#/definitions/handler.CreatedEvidenceResponse"
+                        }
+                    ]
+                }
+            }
+        },
+        "handler.GenericDataResponse-handler_EvidencePlaybackResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Wrapped response data",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/handler.EvidencePlaybackResponse"
                         }
                     ]
                 }
@@ -48601,6 +48873,20 @@ const docTemplate = `{
                 "severity": {
                     "description": "SeverityError | SeverityWarning",
                     "type": "string"
+                }
+            }
+        },
+        "policyeval.RuleLocation": {
+            "type": "object",
+            "properties": {
+                "endLine": {
+                    "type": "integer"
+                },
+                "file": {
+                    "type": "string"
+                },
+                "startLine": {
+                    "type": "integer"
                 }
             }
         },

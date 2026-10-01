@@ -13,6 +13,8 @@ import (
 	"github.com/compliance-framework/api/internal/api"
 	"github.com/compliance-framework/api/internal/api/middleware"
 	"github.com/compliance-framework/api/internal/config"
+	artifactsvc "github.com/compliance-framework/api/internal/service/relational/artifacts"
+	evidencesvc "github.com/compliance-framework/api/internal/service/relational/evidence"
 	"github.com/compliance-framework/api/pkg/policyeval"
 	"github.com/labstack/echo/v4"
 	"go.uber.org/zap"
@@ -26,6 +28,10 @@ type PlaybackHandler struct {
 	timeout  time.Duration
 	maxBytes int64
 	slots    chan struct{}
+
+	// Set by WithEvidencePlayback, to replay stored evidence.
+	evidence  *evidencesvc.EvidenceService
+	artifacts *artifactsvc.Service
 }
 
 func NewPlaybackHandler(sugar *zap.SugaredLogger, cfg *config.PlaybackConfig) *PlaybackHandler {
