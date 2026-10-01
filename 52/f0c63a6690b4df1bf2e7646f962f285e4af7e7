@@ -6,3 +6,92 @@ Final review round (design §13.7, owner decisions):
 - Agent-facing helpers: regocheck.ToPolicyError(bundle, issue) (Path = issue.File, caller rebases), policyeval.RuleName, policyeval.StaticPolicyIDs(modules) map[pkg]id (same acceptance as CheckContract: policy packages, non-test modules, exactly one valid rule).
 - agentcfg.SettingsFromConfig takes *config.Config (nil or nil Agents => defaults).
 - New godoc on pre-existing /admin/agents and key routes reverted (separate docs PR later).
+
+lisa-addressed:
+---
+Comment (pkg/agentconfig/wire.go:91):
+**Owner decision R88 (design §13.7): drop R82; shadowing is the only automatic continuity.** `plugins[].inline-policies` now only means "lib version known" (every plugin can take inline policies; the agent no longer reports `unsupported`). Remove the field, the `InlinePolicies*` constants/vocabulary, its validation in `agent_config_sync.go` and tests. `lib-version` stays.
+Replies:
+**lisa implementation guidance:** Plan (R88): delete `PluginReport.InlinePolicies`, the `InlinePolicies*` constants and `InlinePoliciesValues`, the `plugins[].inline-policies` check in `validateReport`/`normalizeReport` (`agent_config_sync.go`), and the unit/integration test cases for it. `lib-version` stays as is. Regenerate swagger.
+
+<!-- lisa-guidance-posted -->
+---
+Comment (pkg/agentconfig/wire.go:125):
+R88: `plugin-path` (and `extends.plugin-path` at L136-142) only existed so the UI could write continuity `policy_id`s (R77/R78), then for the agent's R82 injection. Both are gone (shadowing keeps the vendor path string). Remove both report fields, their normalization/truncation handling in `agent_config_sync.go:~231`, swagger and tests.
+Replies:
+**lisa implementation guidance:** Plan (R88): delete `PolicyBundleReport.PluginPath` and `PolicyExtendsReport.PluginPath`, `maxReportPluginPathLen` and its drop logic in `normalizeReport`, the related unit tests (`TestNormalizeReport_*PluginPath*`) and the plugin-path parts of the integration tests. Point the `SeedPath` doc comment in `pkg/policyeval/policy_id.go` at a literal "path + / + file" id, not the removed field. Regenerate swagger.
+
+<!-- lisa-guidance-posted -->
+---
+Comment (pkg/agentconfig/errors.go:133):
+R88: the v0.9.0 gate is gone, so `plugin-lib-inline-unsupported` is no longer produced — remove it. Keep `plugin-lib-violation-set-unsupported` (< v0.7.1) and `plugin-lib-policy-id-unsupported` (authored `policy_id` ignored by an old lib). Also remove the agent-only `policy-id-continuity-skipped` code if it lives here. Separately (dead export): `PolicyCodeInvalidPolicyID` (L104-106) has no non-test consumer — drop it and its sync-test line.
+Replies:
+**lisa implementation guidance:** Plan (R88): delete `PolicyCodePluginLibInlineUnsupported`. `policy-id-continuity-skipped` is not defined in the API. Keep `PolicyCodePluginLibViolationSetUnsupported` and `PolicyCodePluginLibPolicyIDUnsupported`.
+
+The mirrored `PolicyCodeInvalidPolicyID` and the sync-test line go. With the vocabulary unification in the next thread, `invalid-policy-id` is defined only once, in agentconfig, as the code that `policyeval` itself emits. It is no longer a test-only mirror.
+
+<!-- lisa-guidance-posted -->
+---
+Comment (pkg/agentconfig/errors.go:86):
+Shrink (pure refactor): `PolicyError` {Bundle, Path, Row, Col, Message, Severity, Code} and `policyeval.Issue` {File, Row, Col, Package, Severity, Code, Message} are near-identical, with duplicated `Severity*` constants (here L78-82 and `policyeval/contract.go:34-38`) and mirrored policy-id codes kept in sync by a test (`regocheck_test.go:~309`). Move the shared vocabulary (Issue type or its fields, severity + code constants) into an OPA-free place (e.g. here, or a tiny `pkg/policyeval/issue` package) that `policyeval` imports, and delete the mirrors + sync test. Also export one Issue→PolicyError converter in `regocheck` (today written twice: `regocheck.checkContract` L135-155 and the agent's `inlinepolicy/contract.go:109-120`) so the agent can use it.
+Replies:
+**lisa implementation guidance:** Plan (pure refactor): `pkg/agentconfig/errors.go` (OPA-free) becomes the only home of the policy vocabulary.
+- Severity stays `agentconfig.SeverityError` / `SeverityWarning`. Delete `policyeval.SeverityError` / `SeverityWarning`.
+- Every `policyeval.Issue*` code moves to `agentconfig.PolicyCode*` (same string values). `policyeval` imports `agentconfig` for them, and `policyeval.Issue` keeps its fields.
+- Delete `TestPolicyCodesMatchPolicyeval`.
+- Export `regocheck.ToPolicyError(bundle string, issue policyeval.Issue) agentconfig.PolicyError`. `checkContract` uses it.
+
+<!-- lisa-guidance-posted -->
+---
+Comment (pkg/policyeval/contract.go:1068):
+Shrink (cross-repo): the agent re-implements `ruleName`, `unconditional`/`isTrue` and the static `policy_id` extraction (`internal/inlinepolicy/identity.go:312-379`, ~50 lines) with the same semantics as `packageChecker.checkPolicyIDRule` here — which `CheckContract` computes and throws away. Export `RuleName` and a static extractor (e.g. `StaticPolicyIDs(modules map[string]*ast.Module) map[string]string` keyed by package) so the agent has one definition of a valid `policy_id` (no drift on evidence identity). The agent's `mergePolicyData` will also switch to the existing exported `MergeData`.
+Replies:
+**lisa implementation guidance:** Plan: export `policyeval.RuleName(*ast.Rule) string`. Add `policyeval.StaticPolicyIDs(modules map[string]*ast.Module) map[string]string`, keyed by package path without "data.", built on the same `packageChecker` that `CheckContract` uses. It returns a package's id only when CheckContract would accept it: exactly one valid `policy_id := "<literal>"` rule in a non-test module of a policy package. Add a unit test.
+
+<!-- lisa-guidance-posted -->
+---
+Comment (pkg/agentconfig/etag.go:35):
+Dead export: `ParseETagRevision` has no non-test caller in the API or the agent (deadcode confirms). Remove it and `TestParseETagRevision`.
+Replies:
+**lisa implementation guidance:** Plan: delete `ParseETagRevision` and `TestParseETagRevision`, plus any helpers only they use.
+
+<!-- lisa-guidance-posted -->
+---
+Comment (internal/api/handler/agent_config.go:74):
+Owner decision R90: defer bundle age. `BundlesFirstSeen` scans every revision with `jsonb_each` on each config GET (append-only, unbounded). Remove the field, `agentcfg.Service.BundlesFirstSeen` (`service.go:~195-258`), the integration test and swagger. The UI drops the bundle-age display.
+Replies:
+**lisa implementation guidance:** Plan (R90): delete `agentConfigResponse.BundlesFirstSeen`, its population in the GET config handler, `agentcfg.Service.BundlesFirstSeen`, `TestBundlesFirstSeen` and `TestGetConfigAfterSaveHasBundlesFirstSeen`. Regenerate swagger.
+
+<!-- lisa-guidance-posted -->
+---
+Comment (internal/api/handler/api.go:300):
+Shrink (pure refactor): `agentConfigSettingsFor` is identical to `agentSettingsFromConfig` in `internal/service/worker/agent_instance_prune.go:76`. Keep one (e.g. a constructor in `agentcfg`, or have `agentcfg` take `config.AgentsConfig` directly).
+Replies:
+**lisa implementation guidance:** Plan: `agentcfg.SettingsFromConfig` takes `*config.Config` (nil, or nil Agents, gives the defaults). Delete `agentConfigSettingsFor` (api.go) and `agentSettingsFromConfig` (worker), and call it directly. Move the worker's unit test to agentcfg.
+
+<!-- lisa-guidance-posted -->
+---
+Comment (internal/api/handler/agents.go:121):
+Shrink: the new godoc on the 9 **pre-existing** `/admin/agents` and `/keys` routes (~140 lines here + ~1.6–1.9k generated swagger lines) is unrelated to this feature. Revert those godoc additions in this PR (keep the R40 read-guard change) and regenerate swagger; they can go in a separate docs PR later.
+Replies:
+**lisa implementation guidance:** Plan: delete the 9 godoc blocks on the pre-existing `/admin/agents` and `/keys` handlers. Keep the `Register(readGuard, adminGuard)` change (R40) and the `DeleteInstancesForAgent` call. Regenerate swagger.
+
+<!-- lisa-guidance-posted -->
+---
+Comment (docs/policy-identity.md:1):
+Stale after shadowing + R88. Rewrite short: path shadowing keeps vendor streams for inherited/overridden modules on any plugin build (agent doc is the detailed reference); bundles that can't be shadowed start path-based streams (`policy-stream-forked` warning); authored `policy_id` (R74) is optional and needs plugins on agent ≥ v0.9.0 (`plugin-lib-policy-id-unsupported` warning otherwise). Remove the client-built continuity `policy_id` section (L66-79), the "plugins must be rebuilt" continuity claim (L97-101), the R79 gate section (L113-131) and the codes-table row (L152); fix the inline-path example (L17-18).
+Replies:
+**lisa implementation guidance:** Plan: rewrite `docs/policy-identity.md` short.
+1. Path shadowing first.
+2. Unshadowable bundles start path-based streams (`policy-stream-forked`).
+3. Authored `policy_id` is optional and needs plugins built on agent >= v0.9.0 (`plugin-lib-policy-id-unsupported` otherwise).
+4. Drop the client-built continuity, rebuild-plugins, R79 gate and inline-unsupported material, and fix the inline-path example.
+
+<!-- lisa-guidance-posted -->
+---
+Comment (docs/artifacts.md:135):
+Stale (R88): remove the `plugin-path` paragraph (the field is removed). Regenerate `docs/swagger.*`/`docs.go` after all comment/field changes in this round.
+Replies:
+**lisa implementation guidance:** Plan: remove the `plugin-path` paragraph from `docs/artifacts.md`, then regenerate `docs/swagger.*` and `docs/docs.go` with `make swag` after all comment and field changes.
+
+<!-- lisa-guidance-posted -->
