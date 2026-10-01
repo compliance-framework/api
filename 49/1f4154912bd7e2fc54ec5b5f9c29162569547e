@@ -3,3 +3,9 @@ round 2 self-review pass 1:
 - lint-contract: removed unused textKeys, De Morgan in bodyBinding; golangci-lint 0 issues.
 - unknown-violation-id-normalization: producedIDs keyed by violationIDKey (TrimSpace+ToLower), as RiskTemplateService.ValidateViolationMatch matches; test added.
 - regocheck-warning-wording: suffix now "(a warning only: the extended source or the rest of the bundle may define it)".
+
+lisa-selfreview:
+round 2 pass 2 (strict) verdict=request_changes
+- [medium] contract-after-parse-error (pkg/agentconfig/regocheck/regocheck.go ValidateModules): a module that fails to parse is left out of the contract check, so if it held the package's title the save also gets a misleading missing-title error next to the parse error. -> fix: treat a bundle with any unparseable module as incomplete (missing-title downgraded to a warning).
+- [low] dynamic-missing-id-order (pkg/policyeval/contract.go ValidateResult): one warning per id-less violation, numbered by position; violations from a partial-object rule come from a Go map, so the numbering is not stable between runs and the list can be long. -> fix: one warning with the count.
+- [low] docs-agent-uploads (docs/artifacts.md "Agent config reports"): says agents upload trees at apply time, which only agents with R62 (agent#95) do. -> fix: say "agents that report artifact digests".
