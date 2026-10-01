@@ -1,2 +1,6 @@
 lisa-addressed:
 Round 3 pass 2 fixed: r3p2-redundant-nil-guards (assign directly, commented); r3p2-policyiddefs-comment.
+
+lisa-selfreview:
+Round 3 pass 3 (strict) findings:
+- r3p3-service-plugins-coverage (low) internal/service/relational/agentcfg/service_integration_test.go: UpsertReport insert/update test did not cover the new plugins column (stored, then cleared by a report without it) or plugin-path round-trip.
