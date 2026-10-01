@@ -6,3 +6,10 @@ lisa-design:
 - PolicyCode* constants live in pkg/agentconfig (no OPA import); the two shared with policyeval are asserted equal in a regocheck test. PolicyError.Code is not validated server-side, so no enum was extended.
 - R76/R77 storage: plugin-path rides inside the existing policy_bundles jsonb; plugins is a new jsonb column on ccf_agent_instances (AutoMigrate), part of reportColumns (a report without plugins clears it) and summaryColumns (returned in list summaries and details as `plugins`, [] when absent). Limits: <=500 plugins (truncated, sets truncated), name<=255/source<=2048/lib-version<=64 bytes UTF-8-truncated, empty name => 400; plugin-path >4096 bytes is dropped (not cut, since a cut path would yield a wrong policy_id) and sets truncated.
 - Merge of #466: evidence playback gains top-level `issues` (CheckContract over stored modules) and `replay.issues` (ValidateResult), always [] when nothing / when the replay cannot run; contractIssues now takes EvaluateModulesRequest.Modules.
+
+lisa-selfreview:
+Round 3 pass 1 (strict) findings:
+- r3p1-libversion-name (low) internal/api/handler/agent_config_sync.go: maxReportPluginLibVersion breaks the *Len naming of the sibling caps.
+- r3p1-seedpath-invalid-id (medium) pkg/policyeval/policy_id.go SeedPath: a non-empty but invalid policy_id (e.g. >512 chars, read from raw output by a caller) is used as a seed, while ValidateResult says plugins ignore it. SeedPath should treat an ID ValidPolicyID rejects as absent.
+- r3p1-doc-policy-path-wording (low) docs/policy-identity.md: "`_policy_path` is the policy_id without..." reads as if the label changes, contradicting "Evidence keeps the real `_policy_path` label"; say "the `_policy_path` seed value".
+- r3p1-evaluateresult-alignment (low) pkg/policyeval/playback.go EvaluateResult: the leading comment on PolicyID splits gofmt's alignment block; use a trailing comment.
