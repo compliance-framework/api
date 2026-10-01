@@ -1,0 +1,8 @@
+lisa-design:
+R79 (API side): PluginReport.InlinePolicies (json inline-policies, omitempty) with
+InlinePoliciesSupported/Unsupported/Unknown and the InlinePoliciesValues list. The agent decides
+the value from the plugin's lib version; the API only validates the vocabulary (empty allowed for
+older agents, anything else -> 400 like mode/status/reason) and stores/returns it inside the
+existing plugins jsonb (no migration). PolicyCodePluginLibInlineUnsupported
+("plugin-lib-inline-unsupported") is agent-produced only: error for overlay-introduced inline
+policies on unsupported plugins, warning for unknown lib versions and file-defined bundles.
