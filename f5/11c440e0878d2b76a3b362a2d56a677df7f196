@@ -1,2 +1,6 @@
 lisa-addressed:
 Round 3 pass 3 fixed: r3p3-service-plugins-coverage (service test asserts plugins stored then nil, plugin-path round-trips in policy_bundles).
+
+lisa-selfreview:
+Round 3 pass 4 (lenient) verdict: approve. Deferred (medium/low):
+- r3p4-same-package-modules-share-id (medium, deferred) pkg/policyeval/contract.go: when a package is split across several non-test modules (already a duplicate-package-module warning) and declares one policy_id, every module's result carries the same ID and so the same evidence UUID. Not reported as duplicate-policy-id because the ID is declared once; the duplicate-package-module warning covers the duplicate evidence. Revisit if the agent's duplicate-policy-identity check should treat it as an error.
