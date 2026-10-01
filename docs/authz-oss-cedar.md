@@ -48,6 +48,12 @@ literal secret typed into an overlay's `plugins.*.config` is readable by every `
 holder. Put secrets on the host and reference them with `${env:NAME}` placeholders instead
 (R57).
 
+Every bundled role, including `ssp-subscriber` (which has no `agent:read`), holds
+`artifact:read`. Agents upload the policy trees they load, inline Rego included, as
+artifacts and name them in their config reports, so `artifact:read` also exposes inline
+Rego to anyone who knows a digest. This is documented rather than narrowed (R72); see
+[artifacts](./artifacts.md#who-can-read-artifacts).
+
 Cedar is **deny-by-default**: a subject with no assigned role is denied every request.
 
 ## Assigning roles (`authz-roles.yaml`)

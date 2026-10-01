@@ -37,7 +37,10 @@ func Digest(c Config, opts ...RedactOption) string {
 // Golden vector: BundleTreeDigest(map[string][]byte{"a.rego": []byte("package a\n"),
 // "data.json": []byte("{}")}) ==
 // "tree:sha256:7e0808049205b3cce8b6f1bbedbef302d261072214504dd6add0d5674d2e5c2c" (see
-// TestBundleTreeDigestGolden). evidence-v3 G1.1 must call this function.
+// TestBundleTreeDigestGolden). It is the "digest" of a PolicyBundleReport, and
+// GET /api/artifacts/{digest}/files reports it as treeDigest for a stored bundle, so a
+// reported tree and its artifact can be matched. It is not the artifact digest, which
+// addresses the canonical tar (internal/artifact).
 func BundleTreeDigest(files map[string][]byte) string {
 	paths := make([]string, 0, len(files))
 	for p := range files {
