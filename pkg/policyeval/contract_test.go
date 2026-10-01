@@ -299,6 +299,9 @@ violation contains {"id": "a"} if { input.a }
 risk_templates := [{"name": "n", "title": "t", "statement": "s", "violation_ids": ["a", "b"]}]`, []string{"warning unknown-violation-id"}},
 		"violation_ids with no violation rule": {`title := "t"
 risk_templates := [{"name": "n", "title": "t", "statement": "s", "violation_ids": ["a"]}]`, []string{"warning missing-violation", "warning unknown-violation-id"}},
+		"violation_ids match like the API: trimmed, any case": {`title := "t"
+violation contains {"id": "SSH.Password_Auth"} if { input.a }
+risk_templates := [{"name": "n", "title": "t", "statement": "s", "violation_ids": [" ssh.password_auth "]}]`, nil},
 		"violation_ids against computed ids": {`title := "t"
 violation contains {"id": sprintf("port-%d", [p])} if { some p in input.ports }
 risk_templates := [{"name": "n", "title": "t", "statement": "s", "violation_ids": ["port-22"]}]`, nil},

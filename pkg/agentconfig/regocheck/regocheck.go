@@ -141,7 +141,7 @@ func checkContract(bundle string, modules map[string]*ast.Module, incomplete boo
 		}
 		if incomplete && e.Severity == agentconfig.SeverityError && slices.Contains(completable, issue.Code) {
 			e.Severity = agentconfig.SeverityWarning
-			e.Message += " (a warning only: modules outside this overlay, such as the extended source, may define it)"
+			e.Message += " (a warning only: the extended source or the rest of the bundle may define it)"
 		}
 		out = append(out, e)
 	}

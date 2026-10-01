@@ -96,8 +96,6 @@ const (
 	keyViolation     = "violation"
 )
 
-var textKeys = []string{keyTitle, keyDescription, keyRemarks, keySkipReason}
-
 // violationTextKeys are the violation fields the agent decodes as strings.
 var violationTextKeys = []string{"id", "title", "description", "remarks"}
 
@@ -222,8 +220,8 @@ type packageChecker struct {
 	firstTitle                 *ast.Location
 	firstTitleFile             string
 
-	// producedIDs are the literal violation ids; idsComplete is false once a violation's
-	// id cannot be read statically.
+	// producedIDs are the literal violation ids, normalized with violationIDKey;
+	// idsComplete is false once a violation's id cannot be read statically.
 	producedIDs map[string]bool
 	idsComplete bool
 
@@ -271,7 +269,7 @@ func (c *packageChecker) check() []Issue {
 	}
 	if c.idsComplete {
 		for _, ref := range c.templateIDs {
-			if !c.producedIDs[ref.id] {
+			if !c.producedIDs[violationIDKey(ref.id)] {
 				c.add(ref.file, ref.loc, warnf(IssueUnknownViolationID,
 					"risk template violation_ids names %q, which no violation of package %s produces", ref.id, c.pkg))
 			}
@@ -551,10 +549,16 @@ func (c *packageChecker) checkViolationElement(file string, loc *ast.Location, e
 		return
 	}
 	if id, ok := obj["id"].(string); ok {
-		c.producedIDs[id] = true
+		c.producedIDs[violationIDKey(id)] = true
 	} else if _, present := obj["id"]; present {
 		c.idsComplete = false
 	}
+}
+
+// violationIDKey normalizes a violation id the way the API matches a risk template's
+// violation_ids against a violation: trimmed and case-insensitive.
+func violationIDKey(id string) string {
+	return strings.ToLower(strings.TrimSpace(id))
 }
 
 // resolve follows a variable to the literal it stands for: a `v := <term>` or
@@ -957,7 +961,7 @@ func isTrue(term *ast.Term) bool {
 // bodyBinding returns X for a top-level `v := X`, `v = X` or `X = v` in body.
 func bodyBinding(v ast.Var, body ast.Body) *ast.Term {
 	for _, expr := range body {
-		if expr.Negated || !(expr.IsAssignment() || expr.IsEquality()) {
+		if expr.Negated || (!expr.IsAssignment() && !expr.IsEquality()) {
 			continue
 		}
 		terms, ok := expr.Terms.([]*ast.Term)
