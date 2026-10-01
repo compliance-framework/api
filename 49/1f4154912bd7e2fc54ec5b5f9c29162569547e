@@ -1,0 +1,5 @@
+lisa-addressed:
+round 2 self-review pass 1:
+- lint-contract: removed unused textKeys, De Morgan in bodyBinding; golangci-lint 0 issues.
+- unknown-violation-id-normalization: producedIDs keyed by violationIDKey (TrimSpace+ToLower), as RiskTemplateService.ValidateViolationMatch matches; test added.
+- regocheck-warning-wording: suffix now "(a warning only: the extended source or the rest of the bundle may define it)".
