@@ -1,0 +1,8 @@
+lisa-design:
+Final review round (design §13.7, owner decisions):
+- R88: report drops plugins[].inline-policies, policy-bundles[].plugin-path and extends.plugin-path; plugin-lib-inline-unsupported is gone. Kept: SeedPath, ValidPolicyID, R74 policy_id, R75 checks, plugin-lib-violation-set-unsupported, plugin-lib-policy-id-unsupported, lib-version.
+- R90: no BundlesFirstSeen (bundle age deferred).
+- Vocabulary: pkg/agentconfig (OPA-free) is the only home of severities (SeverityError/Warning) and policy codes (PolicyCode*, incl. the former policyeval.Issue* codes, same string values). policyeval imports agentconfig; policyeval.Issue keeps its fields. regocheck.Code* parse codes stay in regocheck.
+- Agent-facing helpers: regocheck.ToPolicyError(bundle, issue) (Path = issue.File, caller rebases), policyeval.RuleName, policyeval.StaticPolicyIDs(modules) map[pkg]id (same acceptance as CheckContract: policy packages, non-test modules, exactly one valid rule).
+- agentcfg.SettingsFromConfig takes *config.Config (nil or nil Agents => defaults).
+- New godoc on pre-existing /admin/agents and key routes reverted (separate docs PR later).
