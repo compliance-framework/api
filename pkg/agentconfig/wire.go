@@ -85,7 +85,23 @@ type PluginReport struct {
 	// was built with, from its Go build info. Empty when unknown: no build info, or a
 	// replace or devel build.
 	LibVersion string `json:"lib-version,omitempty"`
+	// InlinePolicies says whether the plugin honours policy_id, so it may be given inline
+	// policies (R79): supported, unsupported, or unknown (no build info, or a replace or
+	// devel build). The agent decides it from LibVersion. Empty for older agents.
+	InlinePolicies string `json:"inline-policies,omitempty" enums:"supported,unsupported,unknown"`
 }
+
+// PluginReport.InlinePolicies values (R79). The agent rejects an overlay that gives inline
+// policies to an unsupported plugin (PolicyCodePluginLibInlineUnsupported) and warns for an
+// unknown one.
+const (
+	InlinePoliciesSupported   = "supported"   // built against an agent library with R74
+	InlinePoliciesUnsupported = "unsupported" // built against an older agent library
+	InlinePoliciesUnknown     = "unknown"     // no build info, or a replace or devel build
+)
+
+// InlinePoliciesValues is the PluginReport.InlinePolicies vocabulary.
+var InlinePoliciesValues = []string{InlinePoliciesSupported, InlinePoliciesUnsupported, InlinePoliciesUnknown}
 
 // PolicyBundleReport describes one policy path the agent loaded.
 type PolicyBundleReport struct {

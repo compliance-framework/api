@@ -96,7 +96,7 @@ type PolicyError struct {
 	Code string `json:"code,omitempty"`
 }
 
-// PolicyError codes for policy identity (R74, R75) and plugin compatibility (R76), besides
+// PolicyError codes for policy identity (R74, R75) and plugin compatibility (R76, R79), besides
 // the policyeval.Issue* and regocheck codes. The first two are also policyeval contract
 // codes (repeated here because agentconfig does not import OPA); the agent alone produces
 // the others, and the UI labels them. See docs/policy-identity.md.
@@ -124,6 +124,13 @@ const (
 	// plugin built against an agent library without R74, which ignores it, so the module
 	// starts a new path-based evidence stream. Warning.
 	PolicyCodePluginLibPolicyIDUnsupported = "plugin-lib-policy-id-unsupported"
+	// PolicyCodePluginLibInlineUnsupported: the overlay gives inline policies to, or changes
+	// the inline bundles of, a plugin whose agent library cannot honour policy_id (its
+	// PluginReport.InlinePolicies is unsupported), so the agent rejects the revision (R79).
+	// Error; a warning when the library version is unknown or the inline bundle comes from
+	// the agent's config file. Supersedes PolicyCodePluginLibPolicyIDUnsupported for
+	// overlay-introduced inline policies.
+	PolicyCodePluginLibInlineUnsupported = "plugin-lib-inline-unsupported"
 )
 
 // HasPolicyErrors reports whether any entry has Severity "error".

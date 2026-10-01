@@ -869,7 +869,7 @@ func (s *AgentConfigAdminIntegrationSuite) TestInstances() {
 			Files:      []agentconfig.PolicyFileReport{{Path: "ssh.rego", SHA256: strings.Repeat("a", 64), Package: "compliance_framework.ssh"}},
 			PluginPath: ".compliance-framework/policies/vendor/ssh/v1/policies",
 		}}
-		r.Plugins = []agentconfig.PluginReport{{Name: "ssh", Source: acaVendorPlugin, LibVersion: "v0.7.1"}, {Name: "local"}}
+		r.Plugins = []agentconfig.PluginReport{{Name: "ssh", Source: acaVendorPlugin, LibVersion: "v0.7.1", InlinePolicies: agentconfig.InlinePoliciesSupported}, {Name: "local", InlinePolicies: agentconfig.InlinePoliciesUnknown}}
 	})
 	pending := s.report(agentID, agentconfig.ModeApplySafe, nil) // applied nil, attempted nil
 	rejected := s.report(agentID, agentconfig.ModeApplyAll, func(r *agentconfig.Report) {
@@ -912,7 +912,7 @@ func (s *AgentConfigAdminIntegrationSuite) TestInstances() {
 	s.Equal(agentconfig.StatusApplied, st.Status)
 	s.Equal(agentcfg.SyncInSync, st.SyncStatus)
 	s.True(st.ReportStale)
-	s.Equal([]agentconfig.PluginReport{{Name: "ssh", Source: acaVendorPlugin, LibVersion: "v0.7.1"}, {Name: "local"}}, st.Plugins, "R76: listed with the summary")
+	s.Equal([]agentconfig.PluginReport{{Name: "ssh", Source: acaVendorPlugin, LibVersion: "v0.7.1", InlinePolicies: agentconfig.InlinePoliciesSupported}, {Name: "local", InlinePolicies: agentconfig.InlinePoliciesUnknown}}, st.Plugins, "R76, R79: listed with the summary")
 	s.Require().NotNil(st.HeartbeatConfigRevision)
 	s.Equal(int64(1), *st.HeartbeatConfigRevision)
 	s.NotEmpty(st.RemoteConfig)
@@ -963,7 +963,7 @@ func (s *AgentConfigAdminIntegrationSuite) TestInstances() {
 	s.Equal(acaVendorPolicy, detail.PolicyBundles[0].Source)
 	s.Len(detail.PolicyBundles[0].Files, 1)
 	s.Equal(".compliance-framework/policies/vendor/ssh/v1/policies", detail.PolicyBundles[0].PluginPath, "R77")
-	s.Len(detail.Plugins, 2)
+	s.Equal([]agentconfig.PluginReport{{Name: "ssh", Source: acaVendorPlugin, LibVersion: "v0.7.1", InlinePolicies: agentconfig.InlinePoliciesSupported}, {Name: "local", InlinePolicies: agentconfig.InlinePoliciesUnknown}}, detail.Plugins, "R76, R79")
 
 	// A heartbeat-only instance has null configs and [] bundles.
 	rec = s.call(http.MethodGet, s.path("/instances/"+heartbeatOnly.String()), nil)

@@ -371,7 +371,7 @@ func (s *AgentCfgServiceIntegrationSuite) TestUpsertReportInsertsThenUpdates() {
 
 	warnings := []agentconfig.FieldError{{Path: "/plugins/p1/foo", Code: "unknown-field", Message: "unknown"}}
 	bundles := []agentconfig.PolicyBundleReport{{Source: "inline:b1", Digest: "sha256:1", Files: []agentconfig.PolicyFileReport{{Path: "a.rego", SHA256: "x"}}, PluginPath: "/state/inline/b1/current/bundle"}}
-	plugins := []agentconfig.PluginReport{{Name: "p1", Source: "ghcr.io/x/p1:v1", LibVersion: "v0.7.1"}}
+	plugins := []agentconfig.PluginReport{{Name: "p1", Source: "ghcr.io/x/p1:v1", LibVersion: "v0.7.1", InlinePolicies: agentconfig.InlinePoliciesSupported}}
 	policyErrs := []agentconfig.PolicyError{{Bundle: "b1", Path: "a.rego", Row: 3, Message: "boom", Severity: "error"}}
 	unsafe := []agentconfig.Change{{Path: "/plugins/p1/source", Safety: agentconfig.Unsafe, Reason: "source-changed"}}
 	remote := &agentconfig.RemoteConfig{Mode: agentconfig.ModeApplyAll, PollInterval: "30s", TrustedSources: []string{"ghcr.io/x/*"}}

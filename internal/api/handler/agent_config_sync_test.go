@@ -91,6 +91,12 @@ func TestNormalizeReport_Rejects(t *testing.T) {
 		"plugin without a name": func(r *agentconfig.Report) {
 			r.Plugins = []agentconfig.PluginReport{{Name: "ssh"}, {Name: "  ", LibVersion: "v0.7.1"}}
 		},
+		"plugin inline-policies unknown value": func(r *agentconfig.Report) {
+			r.Plugins = []agentconfig.PluginReport{{Name: "ssh", InlinePolicies: "maybe"}}
+		},
+		"plugin inline-policies wrong case": func(r *agentconfig.Report) {
+			r.Plugins = []agentconfig.PluginReport{{Name: "ssh", InlinePolicies: "Supported"}}
+		},
 		"extends artifact-digest malformed": func(r *agentconfig.Report) {
 			r.PolicyBundles = []agentconfig.PolicyBundleReport{{Source: "inline:a", Extends: &agentconfig.PolicyExtendsReport{ArtifactDigest: strings.ToUpper(testDigest)}}}
 		},
@@ -143,8 +149,10 @@ func TestNormalizeReport_Truncates(t *testing.T) {
 func TestNormalizeReport_PluginsAndPluginPath(t *testing.T) {
 	r := validReport()
 	r.Plugins = []agentconfig.PluginReport{
-		{Name: "ssh", Source: "ghcr.io/compliance-framework/plugin-local-ssh:v0.2.0", LibVersion: " v0.1.9 "},
+		{Name: "ssh", Source: "ghcr.io/compliance-framework/plugin-local-ssh:v0.2.0", LibVersion: " v0.1.9 ", InlinePolicies: agentconfig.InlinePoliciesUnsupported},
 		{Name: "local"},
+		{Name: "dev", InlinePolicies: agentconfig.InlinePoliciesUnknown},
+		{Name: "new", LibVersion: "v0.8.0", InlinePolicies: agentconfig.InlinePoliciesSupported},
 	}
 	r.PolicyBundles = []agentconfig.PolicyBundleReport{
 		{Source: "inline:ssh", PluginPath: "/app/.compliance-framework/state/local-dev/inline/ssh/current/bundle"},
@@ -152,9 +160,11 @@ func TestNormalizeReport_PluginsAndPluginPath(t *testing.T) {
 	}
 	require.NoError(t, normalizeReport(&r))
 	assert.Equal(t, []agentconfig.PluginReport{
-		{Name: "ssh", Source: "ghcr.io/compliance-framework/plugin-local-ssh:v0.2.0", LibVersion: "v0.1.9"},
+		{Name: "ssh", Source: "ghcr.io/compliance-framework/plugin-local-ssh:v0.2.0", LibVersion: "v0.1.9", InlinePolicies: agentconfig.InlinePoliciesUnsupported},
 		{Name: "local"},
-	}, r.Plugins)
+		{Name: "dev", InlinePolicies: agentconfig.InlinePoliciesUnknown},
+		{Name: "new", LibVersion: "v0.8.0", InlinePolicies: agentconfig.InlinePoliciesSupported},
+	}, r.Plugins, "every inline-policies value, and none (older agents), is accepted as sent")
 	assert.Equal(t, "/app/.compliance-framework/state/local-dev/inline/ssh/current/bundle", r.PolicyBundles[0].PluginPath)
 	assert.Len(t, r.PolicyBundles[1].PluginPath, maxReportPluginPathLen, "a path at the cap is kept")
 	assert.False(t, r.Truncated)

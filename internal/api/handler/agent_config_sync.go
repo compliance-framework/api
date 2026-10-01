@@ -239,6 +239,9 @@ func normalizeReport(r *agentconfig.Report) error {
 		if strings.TrimSpace(p.Name) == "" {
 			return fmt.Errorf("plugins[%d].name is required", i)
 		}
+		if p.InlinePolicies != "" && !slices.Contains(agentconfig.InlinePoliciesValues, p.InlinePolicies) {
+			return fmt.Errorf("plugins[%d].inline-policies must be one of %s", i, strings.Join(agentconfig.InlinePoliciesValues, ", "))
+		}
 	}
 	if len(r.Plugins) > maxReportPlugins {
 		r.Plugins = r.Plugins[:maxReportPlugins]

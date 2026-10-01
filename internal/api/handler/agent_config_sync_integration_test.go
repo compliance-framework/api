@@ -387,8 +387,9 @@ func (s *AgentConfigSyncIntegrationSuite) TestPutReportPluginsAndPluginPath() {
 	vendorPath := ".compliance-framework/policies/compliance-framework/plugin-local-ssh-policies/v0.2.0/policies"
 	body := validReportBody()
 	body["plugins"] = []map[string]any{
-		{"name": "ssh", "source": "ghcr.io/compliance-framework/plugin-local-ssh:v0.2.0", "lib-version": "v0.1.9"},
+		{"name": "ssh", "source": "ghcr.io/compliance-framework/plugin-local-ssh:v0.2.0", "lib-version": "v0.1.9", "inline-policies": "unsupported"},
 		{"name": "local", "source": "/plugins/local"},
+		{"name": "dev", "source": "/plugins/dev", "inline-policies": "unknown"},
 	}
 	body["policy-bundles"] = []map[string]any{
 		{"source": "inline:ssh", "digest": "tree:" + syncTestDigest, "files": []any{}, "plugin-path": inlinePath},
@@ -404,10 +405,12 @@ func (s *AgentConfigSyncIntegrationSuite) TestPutReportPluginsAndPluginPath() {
 	var plugins []agentconfig.PluginReport
 	s.Require().NoError(json.Unmarshal(row.Plugins, &plugins))
 	s.Equal([]agentconfig.PluginReport{
-		{Name: "ssh", Source: "ghcr.io/compliance-framework/plugin-local-ssh:v0.2.0", LibVersion: "v0.1.9"},
+		{Name: "ssh", Source: "ghcr.io/compliance-framework/plugin-local-ssh:v0.2.0", LibVersion: "v0.1.9", InlinePolicies: agentconfig.InlinePoliciesUnsupported},
 		{Name: "local", Source: "/plugins/local"},
+		{Name: "dev", Source: "/plugins/dev", InlinePolicies: agentconfig.InlinePoliciesUnknown},
 	}, plugins)
 	s.NotContains(string(row.Plugins), `"lib-version":""`, "omitted when unknown")
+	s.NotContains(string(row.Plugins), `"inline-policies":""`, "R79: omitted when the agent does not say")
 	var bundles []agentconfig.PolicyBundleReport
 	s.Require().NoError(json.Unmarshal(row.PolicyBundles, &bundles))
 	s.Require().Len(bundles, 3)
@@ -493,6 +496,9 @@ func (s *AgentConfigSyncIntegrationSuite) TestPutReportValidation() {
 		},
 		"plugin without a name": func(b map[string]any) {
 			b["plugins"] = []map[string]any{{"source": "ghcr.io/x/p:1", "lib-version": "v0.7.1"}}
+		},
+		"bad plugin inline-policies": func(b map[string]any) {
+			b["plugins"] = []map[string]any{{"name": "ssh", "inline-policies": "yes"}}
 		},
 		"plugins not a list": func(b map[string]any) { b["plugins"] = map[string]any{"ssh": "v0.7.1"} },
 		"bad extends artifact-digest": func(b map[string]any) {

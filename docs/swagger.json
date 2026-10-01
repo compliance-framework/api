@@ -35769,6 +35769,15 @@
         "agentconfig.PluginReport": {
             "type": "object",
             "properties": {
+                "inline-policies": {
+                    "description": "InlinePolicies says whether the plugin honours policy_id, so it may be given inline\npolicies (R79): supported, unsupported, or unknown (no build info, or a replace or\ndevel build). The agent decides it from LibVersion. Empty for older agents.",
+                    "type": "string",
+                    "enum": [
+                        "supported",
+                        "unsupported",
+                        "unknown"
+                    ]
+                },
                 "lib-version": {
                     "description": "LibVersion is the version of github.com/compliance-framework/agent the plugin binary\nwas built with, from its Go build info. Empty when unknown: no build info, or a\nreplace or devel build.",
                     "type": "string"

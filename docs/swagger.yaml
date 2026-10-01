@@ -51,6 +51,16 @@ definitions:
     type: object
   agentconfig.PluginReport:
     properties:
+      inline-policies:
+        description: |-
+          InlinePolicies says whether the plugin honours policy_id, so it may be given inline
+          policies (R79): supported, unsupported, or unknown (no build info, or a replace or
+          devel build). The agent decides it from LibVersion. Empty for older agents.
+        enum:
+        - supported
+        - unsupported
+        - unknown
+        type: string
       lib-version:
         description: |-
           LibVersion is the version of github.com/compliance-framework/agent the plugin binary

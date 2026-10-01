@@ -95,6 +95,32 @@ auditable which rule version produced it.
 - Agents and APIs without this feature still interoperate: the new report fields are
   optional, and evidence without `_policy_id` is unchanged.
 
+### Inline policies need a supporting plugin (R79)
+
+Inline policies are only offered to plugins that honour `policy_id`, so an inline bundle never
+silently starts a path-based evidence stream.
+
+- The agent decides, per plugin and from its library version, and reports it as
+  `plugins[].inline-policies`:
+  - `supported`: built against an agent library with `policy_id` support (which also covers
+    set-form violations).
+  - `unsupported`: built against an older library.
+  - `unknown`: no build info, or a `replace` or devel build.
+  - Absent: an older agent that does not report it.
+- **The gate.** The agent rejects a revision whose overlay assigns an `inline:` bundle to,
+  or changes the inline bundles of, an `unsupported` plugin, with
+  `plugin-lib-inline-unsupported`. It keeps running its last-known-good config.
+- `unknown` plugins are allowed with a `plugin-lib-inline-unsupported` warning, so local
+  builds work.
+- Inline bundles defined in the agent's config file get the warning only (R34).
+- This gate replaces the `plugin-lib-policy-id-unsupported` warning for inline policies the
+  overlay introduces.
+- The API stores the value as sent and returns it on agent instances. A report with any other
+  value is rejected with 400.
+- The UI disables assigning inline policies to `unsupported` plugins, and warns for
+  `unknown` ones. Replicas on different plugin builds can differ, so it shows this per
+  instance.
+
 ## Codes
 
 `PolicyError.code` values (constants in `pkg/agentconfig`, the first two also in
@@ -108,6 +134,7 @@ auditable which rule version produced it.
 | `policy-package-changed` | agent | warning | An override changes the package of the module it replaces, which starts a new stream. |
 | `plugin-lib-violation-set-unsupported` | agent | error, or warning when the library version is unknown | A set-form `violation` for a plugin whose agent library is older than v0.7.1. |
 | `plugin-lib-policy-id-unsupported` | agent | warning | A `policy_id` for a plugin whose agent library ignores it. |
+| `plugin-lib-inline-unsupported` | agent | error, or warning when the library version is unknown or the bundle comes from the config file | The overlay gives inline policies to, or changes the inline bundles of, a plugin whose `inline-policies` is `unsupported` (R79). |
 
 ## Reference
 
@@ -115,4 +142,4 @@ auditable which rule version produced it.
 - `policyeval.SeedPath`, `policyeval.ValidPolicyID`, `policyeval.MaxPolicyIDLength`.
 - Playback results carry `policyId` ([playback.md](./playback.md)).
 - Config reports: `policy-bundles[].plugin-path` and `plugins[]` (`name`, `source`,
-  `lib-version`), returned on agent instances ([artifacts.md](./artifacts.md)).
+  `lib-version`, `inline-policies`), returned on agent instances ([artifacts.md](./artifacts.md)).
