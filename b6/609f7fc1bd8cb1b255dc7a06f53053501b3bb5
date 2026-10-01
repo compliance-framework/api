@@ -3,3 +3,7 @@ round 2 self-review pass 2:
 - contract-after-parse-error: ValidateModules marks a bundle incomplete when any module fails to parse (missing-title -> warning); test added.
 - dynamic-missing-id-order: ValidateResult emits one violation-missing-id warning "N of M violations ... have no id".
 - docs-agent-uploads: artifacts.md says "Agents that report artifact digests also upload ...".
+
+lisa-selfreview:
+round 2 pass 3 (strict) verdict=request_changes
+- [low] docs-artifact-read-digests (docs/artifacts.md "Who can read artifacts"): says only config reports hold the digests, but evidence props (_policy_bundle_digest) carry bundle digests too; one paragraph line is unwrapped. -> fix: mention evidence props, rewrap.
