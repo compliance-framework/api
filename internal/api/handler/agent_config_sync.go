@@ -32,11 +32,11 @@ const (
 	maxReportWarnings        = 500
 
 	// R76/R77: plugins and the plugin-facing policy path.
-	maxReportPlugins          = 500
-	maxReportPluginNameLen    = 255
-	maxReportPluginSourceLen  = 2048
-	maxReportPluginLibVersion = 64
-	maxReportPluginPathLen    = 4096
+	maxReportPlugins             = 500
+	maxReportPluginNameLen       = 255
+	maxReportPluginSourceLen     = 2048
+	maxReportPluginLibVersionLen = 64
+	maxReportPluginPathLen       = 4096
 )
 
 var effectiveDigestPattern = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
@@ -248,7 +248,7 @@ func normalizeReport(r *agentconfig.Report) error {
 		p := &r.Plugins[i]
 		p.Name = truncateUTF8(p.Name, maxReportPluginNameLen)
 		p.Source = truncateUTF8(p.Source, maxReportPluginSourceLen)
-		p.LibVersion = truncateUTF8(strings.TrimSpace(p.LibVersion), maxReportPluginLibVersion)
+		p.LibVersion = truncateUTF8(strings.TrimSpace(p.LibVersion), maxReportPluginLibVersionLen)
 	}
 	if len(r.Warnings) > maxReportWarnings {
 		r.Warnings = r.Warnings[:maxReportWarnings]

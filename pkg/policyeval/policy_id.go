@@ -35,7 +35,8 @@ func policyIDFrom(outputs map[string]any) string {
 // policyPath is the path string the agent passed to the plugin for the policy's bundle.
 //
 // Without a policy ID, they are policyFile and policyPath unchanged, so every existing
-// evidence stream keeps its UUIDs.
+// evidence stream keeps its UUIDs. An ID that ValidPolicyID rejects counts as none, as
+// Execute does when it sets Policy.ID.
 //
 // With a policy ID, the file seed is the ID. The path seed is the ID minus the policy's
 // bundle-relative path when the ID ends in "/" + that path, and the ID itself otherwise.
@@ -50,7 +51,7 @@ func policyIDFrom(outputs map[string]any) string {
 // The agent's policy-manager calls this when it seeds evidence, so the API, the agent and
 // the UI agree on the identity a policy_id produces.
 func SeedPath(policyID, policyFile, policyPath string) (seedFile, seedPolicyPath string) {
-	if policyID == "" {
+	if !ValidPolicyID(policyID) {
 		return policyFile, policyPath
 	}
 	rel, sep := bundleRelative(policyFile, policyPath)

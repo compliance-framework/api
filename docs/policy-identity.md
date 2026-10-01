@@ -48,9 +48,9 @@ agent's `policy-manager` calls it, so the API, the agent and the UI agree:
 
 - No `policy_id`: `policy_file` and `_policy_path` stay as they are, byte for byte. Every
   existing stream keeps its UUIDs.
-- With a `policy_id`: `policy_file` is the `policy_id`. `_policy_path` is the `policy_id`
-  without the module's bundle-relative path when the `policy_id` ends in `/<that path>`,
-  and the `policy_id` itself otherwise. The bundle-relative path is taken literally: the
+- With a `policy_id`: the `policy_file` seed is the `policy_id`. The `_policy_path` seed is
+  the `policy_id` without the module's bundle-relative path when the `policy_id` ends in
+  `/<that path>`, and the `policy_id` itself otherwise. The bundle-relative path is taken literally: the
   file path is `<policy path>/<relative path>`. Nothing is cleaned or made absolute.
 
 So there are two ways to use it:
@@ -63,7 +63,7 @@ So there are two ways to use it:
 - **A stable stream.** Any other `policy_id`, for example `ssh-deny-password-auth` or
   `<bundle>/<file>`, gives a stream that does not depend on where the bundle lives.
 
-Evidence keeps the real `_policy_path` label, and the agent adds a `_policy_id` label. With
+Only the seed changes: evidence keeps the real `_policy_path` label, and the agent adds a `_policy_id` label. With
 the bundle artifact digest and the config revision already on each record, it stays
 auditable which rule version produced it.
 

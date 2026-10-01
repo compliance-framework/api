@@ -86,6 +86,10 @@ func TestSeedPath(t *testing.T) {
 			"x/root.rego", "root.rego", "",
 			"x/root.rego", "x/root.rego",
 		},
+		"an invalid id counts as none": {
+			strings.Repeat("a", MaxPolicyIDLength+1), "bundle/root.rego", "bundle",
+			"bundle/root.rego", "bundle",
+		},
 		"an id that is only the separator and relative path": {
 			"/root.rego", "bundle/root.rego", "bundle",
 			"/root.rego", "",

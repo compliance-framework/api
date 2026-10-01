@@ -54,10 +54,9 @@ type EvaluateResponse struct {
 
 // EvaluateResult is one evaluated compliance_framework package.
 type EvaluateResult struct {
-	Package string `json:"package"`
-	File    string `json:"file"`
-	// PolicyID is the package's policy_id (R74), when it declares a valid one.
-	PolicyID            string            `json:"policyId,omitempty"`
+	Package             string            `json:"package"`
+	File                string            `json:"file"`
+	PolicyID            string            `json:"policyId,omitempty"` // the package's valid policy_id (R74), if any
 	Status              string            `json:"status"`
 	Title               *string           `json:"title"`
 	Description         *string           `json:"description"`

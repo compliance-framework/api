@@ -169,14 +169,14 @@ func TestNormalizeReport_PluginsAndPluginPath(t *testing.T) {
 	r.Plugins[0] = agentconfig.PluginReport{
 		Name:       strings.Repeat("n", maxReportPluginNameLen+1),
 		Source:     strings.Repeat("s", maxReportPluginSourceLen+1),
-		LibVersion: strings.Repeat("v", maxReportPluginLibVersion+1),
+		LibVersion: strings.Repeat("v", maxReportPluginLibVersionLen+1),
 	}
 	r.PolicyBundles = []agentconfig.PolicyBundleReport{{Source: "inline:a", PluginPath: strings.Repeat("p", maxReportPluginPathLen+1)}}
 	require.NoError(t, normalizeReport(&r))
 	assert.Len(t, r.Plugins, maxReportPlugins)
 	assert.Len(t, r.Plugins[0].Name, maxReportPluginNameLen)
 	assert.Len(t, r.Plugins[0].Source, maxReportPluginSourceLen)
-	assert.Len(t, r.Plugins[0].LibVersion, maxReportPluginLibVersion)
+	assert.Len(t, r.Plugins[0].LibVersion, maxReportPluginLibVersionLen)
 	assert.Empty(t, r.PolicyBundles[0].PluginPath)
 	assert.True(t, r.Truncated)
 }

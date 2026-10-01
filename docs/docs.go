@@ -48866,7 +48866,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "policyId": {
-                    "description": "PolicyID is the package's policy_id (R74), when it declares a valid one.",
+                    "description": "the package's valid policy_id (R74), if any",
                     "type": "string"
                 },
                 "raw": {
