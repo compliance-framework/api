@@ -284,9 +284,7 @@ func (h *PlaybackHandler) playEvidence(ctx context.Context, evidence *relational
 		return resp, nil
 	}
 	resp.Prints = replayed.Prints
-	if replayed.Issues != nil {
-		resp.Issues = replayed.Issues
-	}
+	resp.Issues = replayed.Issues // never nil: EvaluateModules returns [] when there are none
 
 	result := pickResult(replayed.Results, resp.Package)
 	if result == nil {
@@ -323,10 +321,7 @@ func (h *PlaybackHandler) playEvidence(ctx context.Context, evidence *relational
 		Violations: violations,
 		RawJSON:    string(raw),
 		Error:      result.Error,
-		Issues:     result.Issues,
-	}
-	if resp.Replay.Issues == nil {
-		resp.Replay.Issues = []policyeval.Issue{}
+		Issues:     result.Issues, // never nil, as for /api/playback/evaluate
 	}
 	resp.Comparison = compareResults(resp.Recorded, resp.Replay)
 	return resp, nil

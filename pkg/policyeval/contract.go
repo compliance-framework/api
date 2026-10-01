@@ -296,9 +296,9 @@ type packageChecker struct {
 	// templateIDs are the literal violation_ids of literal risk templates, by location.
 	templateIDs []templateIDRef
 
-	// policyIDDefs counts the package's policy_id rules; policyIDCandidate is the valid
-	// literal of the first one. policyID is set when the package declares exactly one valid
-	// policy_id.
+	// policyIDDefs are the package's policy_id rules; policyIDCandidate is the first valid
+	// literal among them. policyID is set when the package has exactly one policy_id rule
+	// and it is valid.
 	policyIDDefs      []policyIDRef
 	policyIDCandidate *policyIDRef
 	policyID          *policyIDRef
