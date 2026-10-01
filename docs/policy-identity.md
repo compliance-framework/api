@@ -3,15 +3,16 @@
 Plugins give each piece of evidence a UUID seeded from the policy's location:
 
 ```
-SeededUUID({type: evidence, policy: <package>, policy_file: <policy path>/<file>}
+SeededUUID({type: evidence, policy: <package>, policy_file: clean(<policy path>/<file>)}
            + plugin labels {type, hostname, _policy_path: <policy path>})
 ```
 
 `<policy path>` is the literal string the agent passes to the plugin for the policy's
-bundle. For example:
+bundle. `policy_file` is OPA's cleaned join of that path and the file, while `_policy_path`
+is the literal string. For example:
 
 - vendor OCI bundle: `.compliance-framework/policies/compliance-framework/plugin-local-ssh-policies/v0.2.0/policies`
-- inline bundle: `.compliance-framework/policies/_inline/<bundle>/policies`
+- inline bundle that is not shadowed: `.compliance-framework/policies/_inline/<bundle>/policies`
 
 Agent and config labels (`_agent`, `_plugin`, `plugins.<p>.labels`) are added after the UUID
 is computed, so they are not part of the seed.
@@ -19,15 +20,24 @@ is computed, so they are not part of the seed.
 ## Path shadowing keeps vendor streams
 
 When an inline bundle `extends` an OCI source, the agent gives it to plugins **at the
-source's own path string** and changes only what that path resolves to. Inherited and
-overridden modules therefore keep the vendor's evidence streams, on any plugin build. New
-modules start path-based streams under the vendor path. The agent documentation describes
-the mechanism and its limits.
+source's own path string** and changes only what that path resolves to. Inherited modules,
+and overrides that keep the vendor module's package and `policy_id`, therefore keep the
+vendor's evidence streams, on any plugin build. New modules start path-based streams under
+the vendor path. The agent documentation describes the mechanism and its limits.
 
-A bundle that can't be shadowed starts path-based streams under its inline path, and the
-agent warns with `policy-stream-forked`. This happens when its `extends` source is an
-absolute (local) path, or when a plugin also loads the source or a second bundle on the same
-path.
+The agent warns when streams fork:
+
+- **The bundle can't be shadowed for a plugin.** The plugin receives it at its inline path,
+  so its modules start new streams. The agent emits one `policy-stream-forked` warning per
+  bundle and plugin (`bundle` set, no `path`) that gives the reason and lists the modules
+  that fork. Modules with a location-independent `policy_id` don't fork. Reasons:
+  - the `extends` path is absolute, or not a relative `policies/` tree (a local source);
+  - the plugin also loads the source, or another bundle that extends the same source;
+  - there is no writable state directory, or the file system has no symlinks;
+  - another relative policy path of the plugin can't be placed in its view.
+- **An authored override forks even at the source's path.** The agent warns per module: a
+  changed package is `policy-package-changed`, and a changed `policy_id` is
+  `policy-stream-forked`.
 
 ## Authored `policy_id` (optional)
 
@@ -79,5 +89,6 @@ Plugins built against an agent library older than v0.7.1 crash on `violation con
 | `duplicate-policy-id` | API, agent | error | Two modules checked together declare the same `policy_id`. |
 | `duplicate-policy-identity` | agent | error, or warning from the config file | One plugin loads the same evidence identity from two policy paths. |
 | `policy-package-changed` | agent | warning | An override changes the package of the module it replaces, which starts a new stream. |
+| `policy-stream-forked` | agent | warning | A bundle can't be shadowed for a plugin, so its listed modules start new streams; or an override changes the `policy_id` of the module it replaces. Defined by the agent, not in `pkg/agentconfig`. |
 | `plugin-lib-violation-set-unsupported` | agent | error, or warning when the version is unknown | A set-form `violation` for a plugin whose agent library is older than v0.7.1. |
 | `plugin-lib-policy-id-unsupported` | agent | warning | A `policy_id` for a plugin whose agent library ignores it. |
