@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"slices"
@@ -242,4 +243,75 @@ func TestReadBundleTar(t *testing.T) {
 	assert.Equal(t, map[string]any{
 		"config": map[string]any{"approved_ports": []any{json.Number("22"), json.Number("443")}},
 	}, b.Data)
+}
+
+func TestReadBundleFiles(t *testing.T) {
+	canonical, err := CanonicalBundle(tarDir(t, "testdata/bundle", true, true), limit)
+	require.NoError(t, err)
+
+	files, err := ReadBundleFiles(canonical)
+	require.NoError(t, err)
+	paths := make([]string, 0, len(files))
+	for _, f := range files {
+		paths = append(paths, f.Path)
+		want, err := os.ReadFile(filepath.Join("testdata/bundle", filepath.FromSlash(f.Path)))
+		require.NoError(t, err)
+		assert.Equal(t, want, f.Content, f.Path)
+	}
+	assert.Equal(t, []string{"config/data.json", "lib/helpers.rego", "policy.rego"}, paths, "every file, sorted")
+}
+
+func TestWalkBundleTar(t *testing.T) {
+	canonical, err := CanonicalBundle(buildTar(t, []tarEntry{
+		{header: tar.Header{Typeflag: tar.TypeReg, Name: "a.rego"}, content: "package a\n"},
+		{header: tar.Header{Typeflag: tar.TypeReg, Name: "README.md"}, content: "not rego"},
+		{header: tar.Header{Typeflag: tar.TypeReg, Name: "b.rego"}, content: "package b\n"},
+	}, false), limit)
+	require.NoError(t, err)
+
+	t.Run("stops at the first error", func(t *testing.T) {
+		stop := errors.New("stop")
+		var seen []string
+		err := WalkBundleTar(canonical, func(f BundleFile) error {
+			seen = append(seen, f.Path)
+			if f.Path == "a.rego" {
+				return stop
+			}
+			return nil
+		})
+		assert.ErrorIs(t, err, stop)
+		assert.Equal(t, []string{"README.md", "a.rego"}, seen)
+	})
+
+	t.Run("rejects what is not a canonical tar", func(t *testing.T) {
+		_, err := ReadBundleFiles([]byte("not a tar at all, but long enough to need a header block"))
+		assert.ErrorIs(t, err, ErrInvalid)
+
+		withLink := buildTar(t, []tarEntry{{header: tar.Header{Typeflag: tar.TypeSymlink, Name: "l", Linkname: "a"}}}, false)
+		_, err = ReadBundleFiles(withLink)
+		assert.ErrorIs(t, err, ErrInvalid)
+	})
+
+	t.Run("an empty tar has no files", func(t *testing.T) {
+		files, err := ReadBundleFiles(buildTar(t, nil, false))
+		require.NoError(t, err)
+		assert.Empty(t, files)
+	})
+}
+
+func TestModulePackage(t *testing.T) {
+	for name, tc := range map[string]struct {
+		source, want string
+	}{
+		"rego v1":           {"package compliance_framework.ssh\n\nimport rego.v1\n\nviolation contains {\"id\": \"x\"} if { input.x }\n", "compliance_framework.ssh"},
+		"rego v1 no import": {"package compliance_framework.ssh\n\ntitle := \"t\"\n\nallow if { input.x }\n", "compliance_framework.ssh"},
+		"rego v0":           {"package compliance_framework.legacy\n\nviolation[{\"id\": \"x\"}] {\n\tinput.x\n}\n", "compliance_framework.legacy"},
+		"quoted segment":    {"package compliance_framework[\"a-b\"]\n", "compliance_framework[\"a-b\"]"},
+		"unparseable":       {"package compliance_framework.x\n\nviolation contains {\n", ""},
+		"not rego":          {"{}", ""},
+	} {
+		t.Run(name, func(t *testing.T) {
+			assert.Equal(t, tc.want, ModulePackage("x.rego", []byte(tc.source)))
+		})
+	}
 }

@@ -13,6 +13,7 @@ import (
 
 	"github.com/compliance-framework/api/internal/api"
 	"github.com/compliance-framework/api/internal/api/middleware"
+	"github.com/compliance-framework/api/internal/artifact"
 	"github.com/compliance-framework/api/internal/service/relational/agentcfg"
 	"github.com/compliance-framework/api/pkg/agentconfig"
 	"github.com/google/uuid"
@@ -212,6 +213,14 @@ func normalizeReport(r *agentconfig.Report) error {
 	}
 	if !effectiveDigestPattern.MatchString(r.EffectiveDigest) {
 		return errors.New("effective-digest must match sha256:<64 lowercase hex>")
+	}
+	for i, b := range r.PolicyBundles {
+		if b.ArtifactDigest != "" && !artifact.ValidDigest(b.ArtifactDigest) {
+			return fmt.Errorf("policy-bundles[%d].artifact-digest must match sha256:<64 lowercase hex>", i)
+		}
+		if b.Extends != nil && b.Extends.ArtifactDigest != "" && !artifact.ValidDigest(b.Extends.ArtifactDigest) {
+			return fmt.Errorf("policy-bundles[%d].extends.artifact-digest must match sha256:<64 lowercase hex>", i)
+		}
 	}
 	if len(r.Warnings) > maxReportWarnings {
 		r.Warnings = r.Warnings[:maxReportWarnings]

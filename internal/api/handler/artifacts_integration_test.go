@@ -7,6 +7,8 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -23,6 +25,7 @@ import (
 	"github.com/compliance-framework/api/internal/service/relational"
 	evidencesvc "github.com/compliance-framework/api/internal/service/relational/evidence"
 	"github.com/compliance-framework/api/internal/tests"
+	"github.com/compliance-framework/api/pkg/agentconfig"
 	"github.com/compliance-framework/api/pkg/policyeval"
 	"github.com/compliance-framework/api/sdk"
 	"github.com/compliance-framework/api/sdk/types"
@@ -457,4 +460,171 @@ func (suite *ArtifactApiIntegrationSuite) TestSDKRoundTrip() {
 	var statusErr *sdk.ArtifactStatusError
 	suite.Require().ErrorAs(err, &statusErr)
 	suite.Equal(http.StatusNotFound, statusErr.StatusCode)
+}
+
+// testBundleFiles reads the test bundle from disk, keyed by slash-separated path.
+func (suite *ArtifactApiIntegrationSuite) testBundleFiles() map[string][]byte {
+	files := map[string][]byte{}
+	suite.Require().NoError(filepath.Walk(artifactTestBundle, func(p string, info os.FileInfo, err error) error {
+		if err != nil || info.IsDir() {
+			return err
+		}
+		rel, err := filepath.Rel(artifactTestBundle, p)
+		if err != nil {
+			return err
+		}
+		content, err := os.ReadFile(p)
+		files[filepath.ToSlash(rel)] = content
+		return err
+	}))
+	return files
+}
+
+func (suite *ArtifactApiIntegrationSuite) getWithHeaders(path, token string, headers map[string]string) *httptest.ResponseRecorder {
+	req := httptest.NewRequest(http.MethodGet, path, nil)
+	req.Header.Set(echo.HeaderAuthorization, "Bearer "+token)
+	for k, v := range headers {
+		req.Header.Set(k, v)
+	}
+	rec := httptest.NewRecorder()
+	suite.server.E().ServeHTTP(rec, req)
+	return rec
+}
+
+func (suite *ArtifactApiIntegrationSuite) TestListBundleFiles() {
+	digest := suite.uploadDigest(artifact.MediaTypePolicyBundle, suite.tarBundle(artifactTestBundle, true))
+	path := "/api/artifacts/" + digest + "/files"
+	onDisk := suite.testBundleFiles()
+
+	for name, token := range map[string]string{"user": suite.userToken, "agent": suite.agentToken} {
+		rec := suite.do(http.MethodGet, path, token, "", nil)
+		suite.Require().Equal(http.StatusOK, rec.Code, "%s: %s", name, rec.Body.String())
+		suite.Equal(echo.MIMEApplicationJSON, rec.Header().Get(echo.HeaderContentType), name)
+
+		var list ArtifactFileList
+		suite.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &list))
+		suite.Equal(digest, list.Digest)
+		suite.Equal(agentconfig.BundleTreeDigest(onDisk), list.TreeDigest, "the tree digest agent config reports use")
+
+		want := []ArtifactFileInfo{
+			{Path: "config/data.json", Size: int64(len(onDisk["config/data.json"]))},
+			{Path: "lib/helpers.rego", Size: int64(len(onDisk["lib/helpers.rego"])), Package: "ccf_libs.helpers"},
+			{Path: "policy.rego", Size: int64(len(onDisk["policy.rego"])), Package: "compliance_framework.ports"},
+		}
+		for i := range want {
+			sum := sha256.Sum256(onDisk[want[i].Path])
+			want[i].SHA256 = hex.EncodeToString(sum[:])
+		}
+		suite.Equal(want, list.Files, name)
+		suite.NotContains(rec.Body.String(), `"package":""`, "package is omitted for non-Rego files")
+	}
+
+	suite.Equal(http.StatusUnauthorized, suite.do(http.MethodGet, path, "", "", nil).Code, "anonymous")
+}
+
+func (suite *ArtifactApiIntegrationSuite) TestBundleFileRoutesCaching() {
+	digest := suite.uploadDigest(artifact.MediaTypePolicyBundle, suite.tarBundle(artifactTestBundle, false))
+
+	for _, path := range []string{"/api/artifacts/" + digest + "/files", "/api/artifacts/" + digest + "/files/policy.rego"} {
+		first := suite.do(http.MethodGet, path, suite.userToken, "", nil)
+		suite.Require().Equal(http.StatusOK, first.Code, first.Body.String())
+		etag := first.Header().Get("ETag")
+		suite.Require().NotEmpty(etag, path)
+		suite.Equal(`"`+artifact.Digest(first.Body.Bytes())+`"`, etag, "the ETag is the digest of the body")
+		suite.Equal("private, max-age=31536000, immutable", first.Header().Get("Cache-Control"))
+
+		again := suite.do(http.MethodGet, path, suite.userToken, "", nil)
+		suite.Equal(etag, again.Header().Get("ETag"), "stable across requests")
+
+		notModified := suite.getWithHeaders(path, suite.userToken, map[string]string{"If-None-Match": `"other", ` + etag})
+		suite.Equal(http.StatusNotModified, notModified.Code, path)
+		suite.Empty(notModified.Body.String())
+		suite.Equal(etag, notModified.Header().Get("ETag"))
+
+		weak := suite.getWithHeaders(path, suite.userToken, map[string]string{"If-None-Match": "W/" + etag})
+		suite.Equal(http.StatusNotModified, weak.Code, "weak comparison")
+
+		changed := suite.getWithHeaders(path, suite.userToken, map[string]string{"If-None-Match": `"sha256:stale"`})
+		suite.Equal(http.StatusOK, changed.Code)
+	}
+
+	// The listing and a file of the same artifact are different representations.
+	list := suite.do(http.MethodGet, "/api/artifacts/"+digest+"/files", suite.userToken, "", nil)
+	file := suite.do(http.MethodGet, "/api/artifacts/"+digest+"/files/policy.rego", suite.userToken, "", nil)
+	suite.NotEqual(list.Header().Get("ETag"), file.Header().Get("ETag"))
+}
+
+func (suite *ArtifactApiIntegrationSuite) TestGetBundleFile() {
+	digest := suite.uploadDigest(artifact.MediaTypePolicyBundle, suite.tarBundle(artifactTestBundle, true))
+	onDisk := suite.testBundleFiles()
+
+	for _, tc := range []struct {
+		path, request, pkg string
+	}{
+		{"policy.rego", "policy.rego", "compliance_framework.ports"},
+		{"lib/helpers.rego", "lib/helpers.rego", "ccf_libs.helpers"},
+		{"lib/helpers.rego", "lib%2Fhelpers.rego", "ccf_libs.helpers"}, // escaped separator
+		{"config/data.json", "config/data.json", ""},
+	} {
+		rec := suite.do(http.MethodGet, "/api/artifacts/"+digest+"/files/"+tc.request, suite.agentToken, "", nil)
+		suite.Require().Equal(http.StatusOK, rec.Code, "%s: %s", tc.request, rec.Body.String())
+		var file ArtifactFileSource
+		suite.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &file))
+		sum := sha256.Sum256(onDisk[tc.path])
+		suite.Equal(ArtifactFileSource{
+			Path:    tc.path,
+			Package: tc.pkg,
+			SHA256:  hex.EncodeToString(sum[:]),
+			Source:  string(onDisk[tc.path]),
+		}, file, tc.request)
+	}
+
+	base := "/api/artifacts/" + digest + "/files/"
+	suite.Equal(http.StatusNotFound, suite.do(http.MethodGet, base+"missing.rego", suite.userToken, "", nil).Code, "unknown path")
+	suite.Equal(http.StatusNotFound, suite.do(http.MethodGet, base+"lib", suite.userToken, "", nil).Code, "a directory is not a file")
+	suite.Equal(http.StatusNotFound, suite.do(http.MethodGet, base+"./policy.rego", suite.userToken, "", nil).Code, "paths are matched exactly")
+	suite.Equal(http.StatusUnauthorized, suite.do(http.MethodGet, base+"policy.rego", "", "", nil).Code, "anonymous")
+}
+
+func (suite *ArtifactApiIntegrationSuite) TestBundleFileRoutesRejectOtherArtifacts() {
+	jsonDigest := suite.uploadDigest(artifact.MediaTypeJSON, []byte(`{"a":1}`))
+	missing := artifact.Digest([]byte("never uploaded"))
+
+	for _, suffix := range []string{"/files", "/files/policy.rego"} {
+		rec := suite.do(http.MethodGet, "/api/artifacts/"+jsonDigest+suffix, suite.userToken, "", nil)
+		suite.Equal(http.StatusUnsupportedMediaType, rec.Code, "%s: %s", suffix, rec.Body.String())
+		suite.Equal(http.StatusNotFound, suite.do(http.MethodGet, "/api/artifacts/"+missing+suffix, suite.userToken, "", nil).Code, suffix)
+		suite.Equal(http.StatusBadRequest, suite.do(http.MethodGet, "/api/artifacts/not-a-digest"+suffix, suite.userToken, "", nil).Code, suffix)
+	}
+}
+
+func (suite *ArtifactApiIntegrationSuite) TestGetBundleFileLimits() {
+	big := strings.Repeat("# padding\n", MaxArtifactFileSourceBytes/10+1)
+	var buf bytes.Buffer
+	tw := tar.NewWriter(&buf)
+	for name, content := range map[string]string{
+		"policy.rego": "package compliance_framework.big\n\nimport rego.v1\n\ntitle := \"t\"\n" + big,
+		"exact.rego":  "package compliance_framework.exact\n" + strings.Repeat("#", MaxArtifactFileSourceBytes-len("package compliance_framework.exact\n")),
+		"binary.bin":  "\xff\xfe\x00binary",
+	} {
+		suite.Require().NoError(tw.WriteHeader(&tar.Header{Typeflag: tar.TypeReg, Name: name, Mode: 0o644, Size: int64(len(content))}))
+		_, err := tw.Write([]byte(content))
+		suite.Require().NoError(err)
+	}
+	suite.Require().NoError(tw.Close())
+	digest := suite.uploadDigest(artifact.MediaTypePolicyBundle, buf.Bytes())
+	base := "/api/artifacts/" + digest + "/files/"
+
+	rec := suite.do(http.MethodGet, base+"policy.rego", suite.userToken, "", nil)
+	suite.Equal(http.StatusUnprocessableEntity, rec.Code, "over 1 MiB")
+	suite.Contains(rec.Body.String(), "over the 1048576 byte limit")
+	suite.Equal(http.StatusOK, suite.do(http.MethodGet, base+"exact.rego", suite.userToken, "", nil).Code, "exactly 1 MiB")
+	suite.Equal(http.StatusUnprocessableEntity, suite.do(http.MethodGet, base+"binary.bin", suite.userToken, "", nil).Code, "not UTF-8")
+
+	// The listing still covers every file.
+	rec = suite.do(http.MethodGet, "/api/artifacts/"+digest+"/files", suite.userToken, "", nil)
+	suite.Require().Equal(http.StatusOK, rec.Code)
+	var list ArtifactFileList
+	suite.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &list))
+	suite.Len(list.Files, 3)
 }

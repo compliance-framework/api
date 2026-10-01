@@ -80,6 +80,12 @@ type PolicyBundleReport struct {
 	Digest  string               `json:"digest"`            // tree digest on main (R10)
 	Extends *PolicyExtendsReport `json:"extends,omitempty"` // inline bundles with extends: the vendor tree (R10)
 	Files   []PolicyFileReport   `json:"files"`             // inline: the materialized tree; others: their tree
+	// ArtifactDigest names the policy bundle artifact (sha256:<hex> of the canonical tar,
+	// see docs/artifacts.md) the agent uploaded for this tree, so its sources can be read
+	// through GET /api/artifacts/{digest}/files (R62). Empty when the upload failed or the
+	// agent does not upload. Agents keep it when they drop Files to fit the report size.
+	// The API checks its format only, not that the artifact exists.
+	ArtifactDigest string `json:"artifact-digest,omitempty"`
 }
 
 // PolicyExtendsReport is the vendor tree an inline bundle extends.
@@ -87,6 +93,9 @@ type PolicyExtendsReport struct {
 	Source string             `json:"source"`
 	Digest string             `json:"digest"`
 	Files  []PolicyFileReport `json:"files"`
+	// ArtifactDigest names the artifact of the vendor tree alone; see
+	// PolicyBundleReport.ArtifactDigest.
+	ArtifactDigest string `json:"artifact-digest,omitempty"`
 }
 
 // PolicyBundleExtendsReport is an alias of PolicyExtendsReport (the name the agent LLD uses).

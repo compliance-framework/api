@@ -49,6 +49,16 @@ func TestNormalizeReport_Valid(t *testing.T) {
 	r.AttemptedRevision = int64Ptr(3)
 	r.Base = json.RawMessage("  \n{\"a\":1}")
 	assert.NoError(t, normalizeReport(&r))
+
+	// artifact-digest is optional and checked for format only (R62).
+	r = validReport()
+	r.PolicyBundles = []agentconfig.PolicyBundleReport{
+		{Source: "inline:a", ArtifactDigest: testDigest, Extends: &agentconfig.PolicyExtendsReport{Source: "ghcr.io/v/p:1", ArtifactDigest: testDigest}},
+		{Source: "ghcr.io/v/p:1"},
+		{Source: "inline:b", Extends: &agentconfig.PolicyExtendsReport{Source: "ghcr.io/v/p:1"}},
+	}
+	assert.NoError(t, normalizeReport(&r))
+	assert.Equal(t, testDigest, r.PolicyBundles[0].ArtifactDigest, "kept as sent")
 }
 
 func TestNormalizeReport_Rejects(t *testing.T) {
@@ -72,6 +82,15 @@ func TestNormalizeReport_Rejects(t *testing.T) {
 		"digest short":                func(r *agentconfig.Report) { r.EffectiveDigest = testDigest[:len(testDigest)-1] },
 		"digest long":                 func(r *agentconfig.Report) { r.EffectiveDigest = testDigest + "0" },
 		"digest non-hex":              func(r *agentconfig.Report) { r.EffectiveDigest = testDigest[:len(testDigest)-1] + "g" },
+		"artifact-digest malformed": func(r *agentconfig.Report) {
+			r.PolicyBundles = []agentconfig.PolicyBundleReport{{Source: "inline:a", ArtifactDigest: "sha256:nope"}}
+		},
+		"artifact-digest is a tree digest": func(r *agentconfig.Report) {
+			r.PolicyBundles = []agentconfig.PolicyBundleReport{{Source: "inline:a", ArtifactDigest: "tree:" + testDigest}}
+		},
+		"extends artifact-digest malformed": func(r *agentconfig.Report) {
+			r.PolicyBundles = []agentconfig.PolicyBundleReport{{Source: "inline:a", Extends: &agentconfig.PolicyExtendsReport{ArtifactDigest: strings.ToUpper(testDigest)}}}
+		},
 	}
 	for name, mutate := range cases {
 		t.Run(name, func(t *testing.T) {

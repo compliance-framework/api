@@ -22,6 +22,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/open-policy-agent/opa/v1/ast"
 	"github.com/open-policy-agent/opa/v1/bundle"
 )
 
@@ -254,6 +255,63 @@ func ReadBundleTar(b []byte) (*Bundle, error) {
 		out.Data = map[string]any{}
 	}
 	return out, nil
+}
+
+// BundleFile is one regular file of a canonical bundle tar.
+type BundleFile struct {
+	// Path is the slash-separated path relative to the bundle root.
+	Path    string
+	Content []byte
+}
+
+// WalkBundleTar calls fn for each regular file of a canonical bundle tar, in archive order,
+// which CanonicalBundle sorts by path. It stops at the first error fn returns and returns
+// it. Every file is visited, Rego and data documents or not, so a listing shows the tree
+// exactly as stored.
+func WalkBundleTar(canonical []byte, fn func(BundleFile) error) error {
+	tr := tar.NewReader(bytes.NewReader(canonical))
+	for {
+		header, err := tr.Next()
+		if errors.Is(err, io.EOF) {
+			return nil
+		}
+		if err != nil {
+			return fmt.Errorf("%w: bundle: %v", ErrInvalid, err)
+		}
+		if header.Typeflag != tar.TypeReg {
+			return fmt.Errorf("%w: bundle: %s is not a regular file", ErrInvalid, header.Name)
+		}
+		content, err := io.ReadAll(tr)
+		if err != nil {
+			return fmt.Errorf("%w: bundle: %v", ErrInvalid, err)
+		}
+		if err := fn(BundleFile{Path: header.Name, Content: content}); err != nil {
+			return err
+		}
+	}
+}
+
+// ReadBundleFiles returns every regular file of a canonical bundle tar, sorted by path.
+func ReadBundleFiles(canonical []byte) ([]BundleFile, error) {
+	var files []BundleFile
+	err := WalkBundleTar(canonical, func(f BundleFile) error {
+		files = append(files, f)
+		return nil
+	})
+	return files, err
+}
+
+// ModulePackage returns the package of a Rego module without the leading "data.", parsed
+// with OPA as Rego v1 and, failing that, as Rego v0 (vendor bundles may still be v0). It
+// returns "" for a module that parses as neither.
+func ModulePackage(path string, source []byte) string {
+	for _, version := range []ast.RegoVersion{ast.RegoV1, ast.RegoV0} {
+		module, err := ast.ParseModuleWithOpts(path, string(source), ast.ParserOptions{RegoVersion: version})
+		if err == nil && module != nil && module.Package != nil {
+			return strings.TrimPrefix(module.Package.Path.String(), "data.")
+		}
+	}
+	return ""
 }
 
 // Info describes a stored artifact without its content.

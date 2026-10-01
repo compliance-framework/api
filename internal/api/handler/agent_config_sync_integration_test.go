@@ -336,6 +336,48 @@ func (s *AgentConfigSyncIntegrationSuite) TestPutReportStored() {
 	s.Equal(int64(1), count)
 }
 
+// TestPutReportArtifactDigests: artifact-digest on a bundle and its extends tree is stored
+// as sent, even when files were dropped to fit the report, and need not name a stored
+// artifact (R62).
+func (s *AgentConfigSyncIntegrationSuite) TestPutReportArtifactDigests() {
+	a := s.newAgent("artifact-digests")
+	instanceID := uuid.New()
+	inlineArtifact := "sha256:" + strings.Repeat("1", 64)
+	vendorArtifact := "sha256:" + strings.Repeat("2", 64)
+	body := validReportBody()
+	body["truncated"] = true
+	body["policy-bundles"] = []map[string]any{{
+		"source":          "inline:custom",
+		"digest":          "tree:" + syncTestDigest,
+		"files":           []any{},
+		"artifact-digest": inlineArtifact,
+		"extends": map[string]any{
+			"source":          "ghcr.io/vendor/ssh-policies:v1",
+			"digest":          "tree:" + syncTestDigest,
+			"files":           []any{},
+			"artifact-digest": vendorArtifact,
+		},
+	}, {
+		"source": "ghcr.io/vendor/other:v1",
+		"digest": "tree:" + syncTestDigest,
+		"files":  []any{},
+	}}
+
+	rec := s.putReport(s.server, a.token, instanceID.String(), body, nil)
+	s.Require().Equal(http.StatusNoContent, rec.Code, rec.Body.String())
+
+	row, ok := s.instance(*a.agent.ID, instanceID)
+	s.Require().True(ok)
+	var stored []agentconfig.PolicyBundleReport
+	s.Require().NoError(json.Unmarshal(row.PolicyBundles, &stored))
+	s.Require().Len(stored, 2)
+	s.Equal(inlineArtifact, stored[0].ArtifactDigest)
+	s.Require().NotNil(stored[0].Extends)
+	s.Equal(vendorArtifact, stored[0].Extends.ArtifactDigest)
+	s.Empty(stored[1].ArtifactDigest)
+	s.NotContains(string(row.PolicyBundles), `"artifact-digest":""`, "omitted when empty")
+}
+
 func (s *AgentConfigSyncIntegrationSuite) TestPutReportReRedacts() {
 	a := s.newAgent("redact")
 	instanceID := uuid.New()
@@ -399,6 +441,13 @@ func (s *AgentConfigSyncIntegrationSuite) TestPutReportValidation() {
 		"negative applied-revision": func(b map[string]any) { b["applied-revision"] = -1 },
 		"negative attempted":        func(b map[string]any) { b["attempted-revision"] = -3 },
 		"wrong type":                func(b map[string]any) { b["daemon"] = "yes" },
+		"bad artifact-digest": func(b map[string]any) {
+			b["policy-bundles"] = []map[string]any{{"source": "inline:a", "digest": "tree:" + syncTestDigest, "files": []any{}, "artifact-digest": "sha256:XYZ"}}
+		},
+		"bad extends artifact-digest": func(b map[string]any) {
+			b["policy-bundles"] = []map[string]any{{"source": "inline:a", "digest": "tree:" + syncTestDigest, "files": []any{},
+				"extends": map[string]any{"source": "ghcr.io/v/p:1", "digest": "tree:" + syncTestDigest, "files": []any{}, "artifact-digest": "nope"}}}
+		},
 	}
 	for name, mutate := range cases {
 		body := validReportBody()
