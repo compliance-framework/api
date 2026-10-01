@@ -1,0 +1,5 @@
+lisa-addressed:
+round 2 self-review pass 2:
+- contract-after-parse-error: ValidateModules marks a bundle incomplete when any module fails to parse (missing-title -> warning); test added.
+- dynamic-missing-id-order: ValidateResult emits one violation-missing-id warning "N of M violations ... have no id".
+- docs-agent-uploads: artifacts.md says "Agents that report artifact digests also upload ...".
