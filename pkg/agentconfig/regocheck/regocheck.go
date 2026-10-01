@@ -9,6 +9,13 @@
 // authored rules in the compiled graph. No compile runs here because the API lacks the
 // extends trees.
 //
+// It also runs the static policy contract check (policyeval.CheckContract, R63) on the
+// authored modules: a package must have a title, and literal values of the contract keys
+// must have the right types and shapes. Type and shape problems are errors. Package-level
+// gaps (no title) are errors only when the bundle is self-contained; when it extends a
+// source, or patches a bundle the agent's file defines (WithPartialBundles), modules the
+// check cannot see may complete the package, so they are warnings.
+//
 // Cross-bundle imports are unsupported (R21): each policy path is compiled and loaded as its
 // own bundle, exactly like policy-manager, so `import data.ccf_libs...` resolves only within
 // the same bundle (including its extends tree).
@@ -27,11 +34,42 @@ import (
 // allowedPackageRoots are the package namespaces a bundle module is expected to use.
 var allowedPackageRoots = []string{"compliance_framework", "ccf_libs"}
 
+// Codes of the parse-level checks, in PolicyError.Code. Contract problems carry the
+// policyeval.Issue* codes.
+const (
+	CodeParse            = "rego-parse-error"
+	CodeMissingRegoV1    = "missing-rego-v1-import"
+	CodePackageNamespace = "package-namespace"
+	CodeForbiddenBuiltin = "forbidden-builtin"
+)
+
+// completable are the contract codes for what a package lacks as a whole. Modules this
+// check cannot see (an extends tree, the file part of a patched bundle) may supply it.
+var completable = []string{policyeval.IssueMissingTitle}
+
+// Option tunes ValidateModules and ValidatePolicyBundles.
+type Option func(*options)
+
+type options struct {
+	partial map[string]bool
+}
+
+// WithPartialBundles names bundles whose modules are only part of the bundle: an overlay
+// patching a bundle the agent's config file defines. Their package-level contract gaps are
+// warnings, as for bundles that extend a source.
+func WithPartialBundles(names ...string) Option {
+	return func(o *options) {
+		for _, name := range names {
+			o.partial[name] = true
+		}
+	}
+}
+
 // ValidatePolicyBundles = agentconfig.ValidateBundles(b) + ValidateModules(b). The result is
 // in deterministic order: bundle, path, row, col.
-func ValidatePolicyBundles(b map[string]*agentconfig.PolicyBundle) []agentconfig.PolicyError {
+func ValidatePolicyBundles(b map[string]*agentconfig.PolicyBundle, opts ...Option) []agentconfig.PolicyError {
 	out := agentconfig.ValidateBundles(b)
-	out = append(out, ValidateModules(b)...)
+	out = append(out, ValidateModules(b, opts...)...)
 	agentconfig.SortPolicyErrors(out)
 	return out
 }
@@ -45,8 +83,15 @@ func ValidatePolicyBundles(b map[string]*agentconfig.PolicyBundle) []agentconfig
 //     compliance_framework or ccf_libs;
 //   - an error for every direct call to a builtin in policyeval.DeniedBuiltins (R19), and
 //     for every `with <target> as <denied>` replacement. `with <denied> as mock` (mocking
-//     the denied builtin away) is allowed.
-func ValidateModules(b map[string]*agentconfig.PolicyBundle) []agentconfig.PolicyError {
+//     the denied builtin away) is allowed;
+//   - the static policy contract check (policyeval.CheckContract, R63) on the modules that
+//     parse, with the severities described on the package.
+func ValidateModules(b map[string]*agentconfig.PolicyBundle, opts ...Option) []agentconfig.PolicyError {
+	o := options{partial: map[string]bool{}}
+	for _, opt := range opts {
+		opt(&o)
+	}
+
 	var out []agentconfig.PolicyError
 	names := make([]string, 0, len(b))
 	for name := range b {
@@ -65,18 +110,50 @@ func ValidateModules(b map[string]*agentconfig.PolicyBundle) []agentconfig.Polic
 			}
 		}
 		slices.Sort(paths)
+		parsed := make(map[string]*ast.Module, len(paths))
 		for _, p := range paths {
-			out = append(out, checkModule(name, p, bundle.Modules[p])...)
+			errs, module := checkModule(name, p, bundle.Modules[p])
+			out = append(out, errs...)
+			if module != nil {
+				parsed[p] = module
+			}
 		}
+		out = append(out, checkContract(name, parsed, bundle.Extends != nil || o.partial[name])...)
 	}
 	agentconfig.SortPolicyErrors(out)
 	return out
 }
 
-func checkModule(bundle, path, src string) []agentconfig.PolicyError {
+// checkContract runs the static contract check on one bundle's parsed modules. incomplete
+// means modules outside this set may complete its packages.
+func checkContract(bundle string, modules map[string]*ast.Module, incomplete bool) []agentconfig.PolicyError {
+	issues := policyeval.CheckContract(modules)
+	out := make([]agentconfig.PolicyError, 0, len(issues))
+	for _, issue := range issues {
+		e := agentconfig.PolicyError{
+			Bundle:   bundle,
+			Path:     issue.File,
+			Row:      issue.Row,
+			Col:      issue.Col,
+			Message:  issue.Message,
+			Severity: issue.Severity,
+			Code:     issue.Code,
+		}
+		if incomplete && e.Severity == agentconfig.SeverityError && slices.Contains(completable, issue.Code) {
+			e.Severity = agentconfig.SeverityWarning
+			e.Message += " (a warning only: modules outside this overlay, such as the extended source, may define it)"
+		}
+		out = append(out, e)
+	}
+	return out
+}
+
+// checkModule runs the parse-level checks on one module and returns the parsed module, or
+// nil when it does not parse.
+func checkModule(bundle, path, src string) ([]agentconfig.PolicyError, *ast.Module) {
 	var out []agentconfig.PolicyError
-	errAt := func(loc *ast.Location, severity, format string, args ...any) {
-		e := agentconfig.PolicyError{Bundle: bundle, Path: path, Message: fmt.Sprintf(format, args...), Severity: severity}
+	errAt := func(loc *ast.Location, severity, code, format string, args ...any) {
+		e := agentconfig.PolicyError{Bundle: bundle, Path: path, Message: fmt.Sprintf(format, args...), Severity: severity, Code: code}
 		if loc != nil {
 			e.Row, e.Col = loc.Row, loc.Col
 		}
@@ -93,24 +170,24 @@ func checkModule(bundle, path, src string) []agentconfig.PolicyError {
 			astErrs = ast.Errors{e}
 		}
 		if len(astErrs) == 0 {
-			errAt(nil, agentconfig.SeverityError, "%s", err.Error())
-			return out
+			errAt(nil, agentconfig.SeverityError, CodeParse, "%s", err.Error())
+			return out, nil
 		}
 		for _, e := range astErrs {
-			errAt(e.Location, agentconfig.SeverityError, "%s", e.Message)
+			errAt(e.Location, agentconfig.SeverityError, CodeParse, "%s", e.Message)
 		}
-		return out
+		return out, nil
 	}
 	if module == nil {
-		errAt(nil, agentconfig.SeverityError, "module is empty")
-		return out
+		errAt(nil, agentconfig.SeverityError, CodeParse, "module is empty")
+		return out, nil
 	}
 
 	if !importsRegoV1(module) {
-		errAt(module.Package.Location, agentconfig.SeverityWarning, "module does not `import rego.v1`; plugins built against OPA v0 would parse it as Rego v0")
+		errAt(module.Package.Location, agentconfig.SeverityWarning, CodeMissingRegoV1, "module does not `import rego.v1`; plugins built against OPA v0 would parse it as Rego v0")
 	}
 	if pkg := packagePath(module); !underAllowedRoot(pkg) {
-		errAt(module.Package.Location, agentconfig.SeverityWarning, "package %s is not under %s", pkg, strings.Join(allowedPackageRoots, " or "))
+		errAt(module.Package.Location, agentconfig.SeverityWarning, CodePackageNamespace, "package %s is not under %s", pkg, strings.Join(allowedPackageRoots, " or "))
 	}
 
 	type hit struct {
@@ -127,7 +204,7 @@ func checkModule(bundle, path, src string) []agentconfig.PolicyError {
 			return
 		}
 		seen[h] = true
-		errAt(loc, agentconfig.SeverityError, format, name)
+		errAt(loc, agentconfig.SeverityError, CodeForbiddenBuiltin, format, name)
 	}
 
 	ast.WalkTerms(module, func(t *ast.Term) bool {
@@ -169,7 +246,7 @@ func checkModule(bundle, path, src string) []agentconfig.PolicyError {
 		}
 		return false
 	})
-	return out
+	return out, module
 }
 
 func isDenied(name string) bool {

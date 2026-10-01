@@ -53,9 +53,11 @@ JSON
       "labels": {},
       "violations": [{ "id": "root-login-enabled" }],
       "additionalVariables": { "title": "Root login is disabled" },
-      "raw": { "title": "Root login is disabled", "violation": [{ "id": "root-login-enabled" }] }
+      "raw": { "title": "Root login is disabled", "violation": [{ "id": "root-login-enabled" }] },
+      "issues": []
     }
   ],
+  "issues": [],
   "prints": ["policy.rego:6: PermitRootLogin = yes"],
   "durationMs": 4
 }
@@ -81,7 +83,35 @@ Each package under `compliance_framework` gives one result:
 - `error` is set when the agent would not record the result as evidence, for example
   `evidence title is required`.
 
+- `issues` lists the policy contract problems in this result (see below).
+
 `prints` holds `print()` output as `file:row: message`, capped at 1000 lines.
+
+### Contract issues
+
+The policy contract is what a `compliance_framework` package must produce for the agent to
+record evidence and submit risk templates: a string `title` (unless `skip_reason` is set),
+string `description`, `remarks` and `skip_reason`, `labels` as an object of strings,
+`violation` as a set of objects with string `id`, `title`, `description` and `remarks`, and
+`risk_templates` as an array of objects the API accepts. `pkg/policyeval` checks it in two
+layers, and the response carries both. Issues never fail the request:
+
+- `issues` at the top level comes from `CheckContract`, a static check of the request's
+  modules. It finds literal type and shape mistakes, a package without a `title`, a
+  `violation` written as an object rule (`violation[k] := v`), risk templates the API
+  would reject, `violation_ids` no literal violation produces, and packages defined by
+  more than one module (each module produces its own evidence).
+- `results[].issues` comes from `ValidateResult`, a check of the evaluated values: a
+  missing or empty title, violations without an `id`, and computed risk templates the API
+  would reject.
+
+Each issue is `{"file", "row", "col", "package", "severity", "code", "message"}`, with
+`severity` `error` or `warning` and `code` one of `missing-title`, `empty-title`,
+`conditional-title`, `missing-violation`, `contract-key-function`,
+`contract-key-multi-value`, `invalid-type`, `invalid-violation-rule`, `invalid-violation`,
+`violation-missing-id`, `invalid-risk-template`, `unknown-violation-id`,
+`duplicate-package-module` or `no-output`. The same check runs on inline policy bundles
+when an agent configuration is saved, where error-severity issues block the save.
 
 ## Errors
 

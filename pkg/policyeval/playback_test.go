@@ -52,6 +52,8 @@ func TestEvaluate(t *testing.T) {
 		}
 		assert.Contains(t, result.Raw, "violation")
 		assert.Contains(t, result.Raw, "title")
+		assert.Equal(t, []Issue{}, result.Issues)
+		assert.Equal(t, []Issue{}, resp.Issues)
 
 		if assert.Len(t, resp.Prints, 1) {
 			assert.True(t, strings.HasPrefix(resp.Prints[0], "policy.rego:7: "), resp.Prints[0])
@@ -173,6 +175,32 @@ violation contains {"id": "expired"} if time.now_ns() > time.parse_rfc3339_ns(in
 		require.NoError(t, err)
 		assert.Equal(t, StatusNotSatisfied, resp.Results[0].Status)
 	})
+}
+
+func TestEvaluateReportsContractIssues(t *testing.T) {
+	resp, err := Evaluate(context.Background(), EvaluateRequest{
+		Policy: `package compliance_framework.no_title
+
+violation contains {"title": "no id"} if { input.bad }
+`,
+		Input: map[string]any{"bad": true},
+	})
+	require.NoError(t, err, "contract issues never fail the request")
+	require.Len(t, resp.Results, 1)
+
+	result := resp.Results[0]
+	assert.Equal(t, "evidence title is required", result.Error)
+	assert.Equal(t, []string{"error missing-title", "warning violation-missing-id"}, codes(result.Issues))
+	assert.Equal(t, []string{"error missing-title", "warning violation-missing-id"}, codes(resp.Issues))
+	for _, issue := range resp.Issues {
+		assert.Equal(t, PolicyModuleName, issue.File)
+		assert.Equal(t, "compliance_framework.no_title", issue.Package)
+		assert.Positive(t, issue.Row)
+	}
+
+	body, err := json.Marshal(resp)
+	require.NoError(t, err)
+	assert.Contains(t, string(body), `"issues":[{"file":"policy.rego","row":1,"col":1,"package":"compliance_framework.no_title","severity":"error","code":"missing-title"`)
 }
 
 func TestEvaluateSandbox(t *testing.T) {

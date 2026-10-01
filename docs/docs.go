@@ -377,7 +377,7 @@ const docTemplate = `{
                 ]
             },
             "put": {
-                "description": "Creates the next configuration revision. Requires If-Match with the current revision (\"0\" for the first save): missing is 428, stale is 409 with current-revision. A semantically unchanged overlay returns 200 with the current revision and creates nothing. The overlay is validated on its own, its inline Rego is checked at parse level (advisory: the agent is the security boundary; direct calls to http.send, net.lookup_ip_addr and opa.runtime are rejected; cross-bundle imports are unsupported), and the merged config is validated against every fresh apply-mode instance's reported base (or the latest reported one); only errors the overlay introduces block (errors already present in the instance's own file are ignored, R59). Errors are a 422 with overlay, instances (errors plus non-blocking warnings) and policy-errors lists. Needs agent:configure, or agent:configure-policy for changes limited to policy bundles and plugin policy lists (a new policy_bundles extends must name a source the instances already use, or the source it swaps out, R58).",
+                "description": "Creates the next configuration revision. Requires If-Match with the current revision (\"0\" for the first save): missing is 428, stale is 409 with current-revision. A semantically unchanged overlay returns 200 with the current revision and creates nothing. The overlay is validated on its own, its inline Rego is checked at parse level (advisory: the agent is the security boundary; direct calls to http.send, net.lookup_ip_addr and opa.runtime are rejected; cross-bundle imports are unsupported) and against the policy contract (R63: literal type and shape errors in title, description, remarks, skip_reason, labels, violation and risk_templates are rejected; a package without a title is rejected unless the bundle extends a source or patches a bundle an instance's file defines, where it is a warning), and the merged config is validated against every fresh apply-mode instance's reported base (or the latest reported one); only errors the overlay introduces block (errors already present in the instance's own file are ignored, R59). Errors are a 422 with overlay, instances (errors plus non-blocking warnings) and policy-errors lists. Needs agent:configure, or agent:configure-policy for changes limited to policy bundles and plugin policy lists (a new policy_bundles extends must name a source the instances already use, or the source it swaps out, R58).",
                 "consumes": [
                     "application/json"
                 ],
@@ -35594,6 +35594,10 @@ const docTemplate = `{
                 "bundle": {
                     "type": "string"
                 },
+                "code": {
+                    "description": "Code classifies the problem when known: a policyeval.Issue* code for policy contract\nproblems (R63), or one of the regocheck codes. Empty for older producers.",
+                    "type": "string"
+                },
                 "col": {
                     "type": "integer"
                 },
@@ -48281,6 +48285,13 @@ const docTemplate = `{
                 "durationMs": {
                     "type": "integer"
                 },
+                "issues": {
+                    "description": "Issues are the static policy contract problems CheckContract finds in the request's\nmodules. They never fail the request.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/policyeval.Issue"
+                    }
+                },
                 "prints": {
                     "type": "array",
                     "items": {
@@ -48312,6 +48323,13 @@ const docTemplate = `{
                 "file": {
                     "type": "string"
                 },
+                "issues": {
+                    "description": "Issues are the policy contract problems ValidateResult finds in this result.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/policyeval.Issue"
+                    }
+                },
                 "labels": {
                     "type": "object",
                     "additionalProperties": {
@@ -48342,6 +48360,35 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/policyeval.Violation"
                     }
+                }
+            }
+        },
+        "policyeval.Issue": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "description": "Issue* constants",
+                    "type": "string"
+                },
+                "col": {
+                    "type": "integer"
+                },
+                "file": {
+                    "type": "string"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "package": {
+                    "description": "without the leading \"data.\"",
+                    "type": "string"
+                },
+                "row": {
+                    "type": "integer"
+                },
+                "severity": {
+                    "description": "SeverityError | SeverityWarning",
+                    "type": "string"
                 }
             }
         },

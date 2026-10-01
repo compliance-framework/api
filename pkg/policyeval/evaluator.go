@@ -296,7 +296,6 @@ func (e *Evaluator) Execute(ctx context.Context, input interface{}) ([]Result, e
 					)
 				}
 
-				// TODO here we could run evalOutput.Validate()
 				for key, value := range moduleOutputs {
 					if !slices.Contains([]string{"violation", "labels"}, key) {
 						evalOutput.AdditionalVariables[key] = value
@@ -307,6 +306,7 @@ func (e *Evaluator) Execute(ctx context.Context, input interface{}) ([]Result, e
 				result.Raw = moduleOutputs
 			}
 		}
+		result.Issues = ValidateResult(result)
 		output = append(output, result)
 	}
 

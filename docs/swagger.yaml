@@ -70,6 +70,11 @@ definitions:
     properties:
       bundle:
         type: string
+      code:
+        description: |-
+          Code classifies the problem when known: a policyeval.Issue* code for policy contract
+          problems (R63), or one of the regocheck codes. Empty for older producers.
+        type: string
       col:
         type: integer
       message:
@@ -8430,6 +8435,13 @@ definitions:
     properties:
       durationMs:
         type: integer
+      issues:
+        description: |-
+          Issues are the static policy contract problems CheckContract finds in the request's
+          modules. They never fail the request.
+        items:
+          $ref: '#/definitions/policyeval.Issue'
+        type: array
       prints:
         items:
           type: string
@@ -8452,6 +8464,12 @@ definitions:
         type: string
       file:
         type: string
+      issues:
+        description: Issues are the policy contract problems ValidateResult finds
+          in this result.
+        items:
+          $ref: '#/definitions/policyeval.Issue'
+        type: array
       labels:
         additionalProperties:
           type: string
@@ -8473,6 +8491,26 @@ definitions:
         items:
           $ref: '#/definitions/policyeval.Violation'
         type: array
+    type: object
+  policyeval.Issue:
+    properties:
+      code:
+        description: Issue* constants
+        type: string
+      col:
+        type: integer
+      file:
+        type: string
+      message:
+        type: string
+      package:
+        description: without the leading "data."
+        type: string
+      row:
+        type: integer
+      severity:
+        description: SeverityError | SeverityWarning
+        type: string
     type: object
   policyeval.Violation:
     properties:
@@ -12988,14 +13026,18 @@ paths:
         current revision and creates nothing. The overlay is validated on its own,
         its inline Rego is checked at parse level (advisory: the agent is the security
         boundary; direct calls to http.send, net.lookup_ip_addr and opa.runtime are
-        rejected; cross-bundle imports are unsupported), and the merged config is
-        validated against every fresh apply-mode instance''s reported base (or the
-        latest reported one); only errors the overlay introduces block (errors already
-        present in the instance''s own file are ignored, R59). Errors are a 422 with
-        overlay, instances (errors plus non-blocking warnings) and policy-errors lists.
-        Needs agent:configure, or agent:configure-policy for changes limited to policy
-        bundles and plugin policy lists (a new policy_bundles extends must name a
-        source the instances already use, or the source it swaps out, R58).'
+        rejected; cross-bundle imports are unsupported) and against the policy contract
+        (R63: literal type and shape errors in title, description, remarks, skip_reason,
+        labels, violation and risk_templates are rejected; a package without a title
+        is rejected unless the bundle extends a source or patches a bundle an instance''s
+        file defines, where it is a warning), and the merged config is validated against
+        every fresh apply-mode instance''s reported base (or the latest reported one);
+        only errors the overlay introduces block (errors already present in the instance''s
+        own file are ignored, R59). Errors are a 422 with overlay, instances (errors
+        plus non-blocking warnings) and policy-errors lists. Needs agent:configure,
+        or agent:configure-policy for changes limited to policy bundles and plugin
+        policy lists (a new policy_bundles extends must name a source the instances
+        already use, or the source it swaps out, R58).'
       parameters:
       - description: Agent ID
         in: path

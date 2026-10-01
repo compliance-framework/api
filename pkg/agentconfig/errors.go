@@ -90,6 +90,9 @@ type PolicyError struct {
 	Col      int    `json:"col,omitempty"`
 	Message  string `json:"message"`
 	Severity string `json:"severity"` // "error" | "warning"
+	// Code classifies the problem when known: a policyeval.Issue* code for policy contract
+	// problems (R63), or one of the regocheck codes. Empty for older producers.
+	Code string `json:"code,omitempty"`
 }
 
 // HasPolicyErrors reports whether any entry has Severity "error".

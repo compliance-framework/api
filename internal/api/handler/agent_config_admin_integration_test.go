@@ -23,6 +23,7 @@ import (
 	"github.com/compliance-framework/api/internal/service/sso"
 	"github.com/compliance-framework/api/internal/tests"
 	"github.com/compliance-framework/api/pkg/agentconfig"
+	"github.com/compliance-framework/api/pkg/policyeval"
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 	"github.com/stretchr/testify/suite"
@@ -37,10 +38,10 @@ const (
 	acaVendorPolicy = "ghcr.io/vendor/ssh-policies:v1"
 	acaDigest       = "sha256:0000000000000000000000000000000000000000000000000000000000000000"
 	acaOtherDigest  = "sha256:1111111111111111111111111111111111111111111111111111111111111111"
-	acaCleanRego    = "package compliance_framework.banner\n\nimport rego.v1\n\nviolation contains {\"id\": \"banner\"} if {\n\tinput.banner == \"\"\n}\n"
-	acaEditedRego   = "package compliance_framework.banner\n\nimport rego.v1\n\nviolation contains {\"id\": \"banner-missing\"} if {\n\tnot input.banner\n}\n"
-	acaTraceRego    = "package compliance_framework.banner\n\nimport rego.v1\n\nviolation contains {\"id\": \"banner\"} if {\n\ttrace(\"checking banner\")\n\tinput.banner == \"\"\n}\n"
-	acaHTTPRego     = "package compliance_framework.banner\n\nimport rego.v1\n\nviolation contains r if {\n\tr := http.send({\"method\": \"get\", \"url\": \"https://example.com\"})\n}\n"
+	acaCleanRego    = "package compliance_framework.banner\n\nimport rego.v1\n\ntitle := \"Banner\"\n\nviolation contains {\"id\": \"banner\"} if {\n\tinput.banner == \"\"\n}\n"
+	acaEditedRego   = "package compliance_framework.banner\n\nimport rego.v1\n\ntitle := \"Banner\"\n\nviolation contains {\"id\": \"banner-missing\"} if {\n\tnot input.banner\n}\n"
+	acaTraceRego    = "package compliance_framework.banner\n\nimport rego.v1\n\ntitle := \"Banner\"\n\nviolation contains {\"id\": \"banner\"} if {\n\ttrace(\"checking banner\")\n\tinput.banner == \"\"\n}\n"
+	acaHTTPRego     = "package compliance_framework.banner\n\nimport rego.v1\n\ntitle := \"Banner\"\n\nviolation contains r if {\n\tr := http.send({\"method\": \"get\", \"url\": \"https://example.com\"})\n}\n"
 )
 
 func TestAgentConfigAdminAPI(t *testing.T) {
@@ -418,6 +419,63 @@ func (s *AgentConfigAdminIntegrationSuite) TestPutRegoChecks() {
 	// trace is pure and allowed (R19) => 201.
 	overlay = fmt.Sprintf(`{"policy_bundles":{"banner":{"modules":{"banner.rego":%q}}}}`, acaTraceRego)
 	s.save(`"0"`, overlay, 1)
+}
+
+// TestPutContractChecks: the static policy contract check (R63) on overlay modules. The
+// e2e override (a violation but no title) blocks a standalone bundle, and is only a
+// warning when the bundle extends a source or patches a bundle an instance's file defines.
+func (s *AgentConfigAdminIntegrationSuite) TestPutContractChecks() {
+	noTitle := "package compliance_framework.banner\n\nimport rego.v1\n\nviolation contains {\"id\": \"banner\"} if {\n\tinput.banner == \"\"\n}\n"
+
+	overlay := fmt.Sprintf(`{"policy_bundles":{"banner":{"modules":{"banner.rego":%q}}}}`, noTitle)
+	errs := s.unprocessable(s.put(s.server, s.token, `"0"`, overlay))
+	s.Require().Len(errs.PolicyErrors, 1)
+	pe := errs.PolicyErrors[0]
+	s.Equal(agentconfig.PolicyError{
+		Bundle:   "banner",
+		Path:     "banner.rego",
+		Row:      1,
+		Col:      1,
+		Message:  "package compliance_framework.banner has no title, so the agent records no evidence for it",
+		Severity: agentconfig.SeverityError,
+		Code:     policyeval.IssueMissingTitle,
+	}, pe)
+
+	// A literal shape error blocks even when the bundle extends a source.
+	badShape := "package compliance_framework.banner\n\nimport rego.v1\n\ntitle := 1\n"
+	overlay = fmt.Sprintf(`{"policy_bundles":{"banner":{"extends":%q,"modules":{"banner.rego":%q}}}}`, acaVendorPolicy, badShape)
+	errs = s.unprocessable(s.put(s.server, s.token, `"0"`, overlay))
+	byCode := map[string]string{}
+	for _, e := range errs.PolicyErrors {
+		byCode[e.Code] = e.Severity
+	}
+	s.Equal(map[string]string{
+		policyeval.IssueInvalidType:      agentconfig.SeverityError,
+		policyeval.IssueMissingViolation: agentconfig.SeverityWarning,
+	}, byCode)
+	s.Equal(int64(0), s.revisionCount(*s.agent.ID))
+
+	// Extending a source: the vendor modules may define the title. Preview shows the warning.
+	overlay = fmt.Sprintf(`{"policy_bundles":{"banner":{"extends":%q,"modules":{"banner.rego":%q}}}}`, acaVendorPolicy, noTitle)
+	rec := s.call(http.MethodPost, s.path("/config/preview"), acaPutBody(overlay))
+	s.Require().Equal(http.StatusOK, rec.Code, rec.Body.String())
+	preview := acaData[configPreviewResponse](s, rec)
+	s.Require().Len(preview.PolicyErrors, 1)
+	s.Equal(agentconfig.SeverityWarning, preview.PolicyErrors[0].Severity)
+	s.Equal(policyeval.IssueMissingTitle, preview.PolicyErrors[0].Code)
+	s.save(`"0"`, overlay, 1)
+
+	// Patching a bundle an instance's file defines: the file's modules may define it.
+	s.report(*s.agent.ID, agentconfig.ModeApplySafe, func(r *agentconfig.Report) {
+		var base agentconfig.Config
+		s.Require().NoError(json.Unmarshal(r.Base, &base))
+		base.PolicyBundles = map[string]*agentconfig.PolicyBundle{"local": {Modules: map[string]string{"local.rego": acaCleanRego}}}
+		raw, err := json.Marshal(base)
+		s.Require().NoError(err)
+		r.Base, r.Effective = raw, raw
+	})
+	overlay = fmt.Sprintf(`{"policy_bundles":{"local":{"modules":{"extra.rego":%q}}}}`, noTitle)
+	s.save(`"1"`, overlay, 2)
 }
 
 // ---- PUT /config: validation against instance bases (R14, R48) ----
