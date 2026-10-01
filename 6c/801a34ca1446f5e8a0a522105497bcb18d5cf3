@@ -1,0 +1,3 @@
+lisa-addressed:
+round 2 self-review pass 3:
+- docs-artifact-read-digests: artifacts.md names both places digests live (config reports: agent:read; evidence props: evidence:read); rewrapped the agent-config-reports paragraph.
