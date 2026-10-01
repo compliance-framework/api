@@ -207,6 +207,16 @@ func TestContractChecks(t *testing.T) {
 			}},
 			want: []want{{CodeParse, agentconfig.SeverityError}},
 		},
+		"a module that does not parse may hold the title": {
+			bundle: &agentconfig.PolicyBundle{Modules: map[string]string{
+				"a.rego": pkg + "title := \"t\"\nbroken if {\n",
+				"b.rego": pkg + "violation contains {\"id\": \"pw\"} if { input.pw }\n",
+			}},
+			want: []want{
+				{CodeParse, agentconfig.SeverityError},
+				{policyeval.IssueMissingTitle, agentconfig.SeverityWarning},
+			},
+		},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {

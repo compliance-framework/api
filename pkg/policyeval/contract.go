@@ -160,10 +160,14 @@ func ValidateResult(result Result) []Issue {
 	case result.Title != nil && strings.TrimSpace(*result.Title) == "":
 		out = append(out, issue(SeverityWarning, IssueEmptyTitle, "package %s has an empty title", pkg))
 	}
-	for i, v := range result.Violations {
+	missingIDs := 0
+	for _, v := range result.Violations {
 		if v.ID == nil {
-			out = append(out, issue(SeverityWarning, IssueViolationMissingID, "violation %d of package %s has no id; risk templates match violations by id", i, pkg))
+			missingIDs++
 		}
+	}
+	if missingIDs > 0 {
+		out = append(out, issue(SeverityWarning, IssueViolationMissingID, "%d of %d violations of package %s have no id; risk templates match violations by id", missingIDs, len(result.Violations), pkg))
 	}
 	if raw, ok := result.Raw[keyRiskTemplates]; ok {
 		entries, isArray := raw.([]any)

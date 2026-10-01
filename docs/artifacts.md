@@ -121,8 +121,8 @@ max-age=31536000, immutable` and an `ETag` (the digest of the response body), an
 
 ### Agent config reports
 
-Agents also upload the policy trees they load when they apply a configuration, not only
-when they evaluate. A config report (`PUT /api/agent/instances/{id}/config-report`) names
+Agents that report artifact digests also upload the policy trees they load when they
+apply a configuration, not only when they evaluate. A config report (`PUT /api/agent/instances/{id}/config-report`) names
 each tree's artifact in `policy-bundles[].artifact-digest` and, for an inline bundle that
 extends a source, the vendor tree's artifact in `policy-bundles[].extends.artifact-digest`.
 The UI reads vendor sources through the file routes, for example to pre-fill an override.

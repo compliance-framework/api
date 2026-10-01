@@ -408,7 +408,7 @@ violation contains {"id": "a"} if { input.a }`, map[string]any{}, []string{"erro
 violation contains {"id": "a"} if { input.a }`, map[string]any{}, nil},
 		"empty title": {`title := ""`, map[string]any{}, []string{"warning empty-title"}},
 		"violation without id": {`title := "t"
-violation contains {"title": sprintf("%v", [x])} if { some x in input.xs }`, map[string]any{"xs": []any{1, 2}}, []string{"warning violation-missing-id", "warning violation-missing-id"}},
+violation contains {"title": sprintf("%v", [x])} if { some x in input.xs }`, map[string]any{"xs": []any{1, 2}}, []string{"warning violation-missing-id"}},
 		"risk_templates not an array": {`title := "t"
 risk_templates := {"name": concat("", ["n"])}`, map[string]any{}, []string{"error invalid-type"}},
 		"computed risk template missing fields": {`title := "t"

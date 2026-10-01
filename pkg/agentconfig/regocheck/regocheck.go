@@ -13,8 +13,9 @@
 // authored modules: a package must have a title, and literal values of the contract keys
 // must have the right types and shapes. Type and shape problems are errors. Package-level
 // gaps (no title) are errors only when the bundle is self-contained; when it extends a
-// source, or patches a bundle the agent's file defines (WithPartialBundles), modules the
-// check cannot see may complete the package, so they are warnings.
+// source, patches a bundle the agent's file defines (WithPartialBundles), or has a module
+// that does not parse, modules the check cannot see may complete the package, so they are
+// warnings.
 //
 // Cross-bundle imports are unsupported (R21): each policy path is compiled and loaded as its
 // own bundle, exactly like policy-manager, so `import data.ccf_libs...` resolves only within
@@ -111,14 +112,19 @@ func ValidateModules(b map[string]*agentconfig.PolicyBundle, opts ...Option) []a
 		}
 		slices.Sort(paths)
 		parsed := make(map[string]*ast.Module, len(paths))
+		incomplete := bundle.Extends != nil || o.partial[name]
 		for _, p := range paths {
 			errs, module := checkModule(name, p, bundle.Modules[p])
 			out = append(out, errs...)
 			if module != nil {
 				parsed[p] = module
+			} else {
+				// A module that does not parse may hold what the package lacks; its parse
+				// error is already reported.
+				incomplete = true
 			}
 		}
-		out = append(out, checkContract(name, parsed, bundle.Extends != nil || o.partial[name])...)
+		out = append(out, checkContract(name, parsed, incomplete)...)
 	}
 	agentconfig.SortPolicyErrors(out)
 	return out
