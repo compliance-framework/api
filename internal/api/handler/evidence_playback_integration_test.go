@@ -13,6 +13,7 @@ import (
 	"github.com/compliance-framework/api/internal/artifact"
 	"github.com/compliance-framework/api/internal/config"
 	"github.com/compliance-framework/api/internal/service/relational"
+	"github.com/compliance-framework/api/pkg/policyeval"
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 )
@@ -94,6 +95,8 @@ func (suite *ArtifactApiIntegrationSuite) TestPlaybackMatchesRecordedEvidence() 
 	suite.Equal("not-satisfied", resp.Replay.Status)
 	suite.Require().Len(resp.Replay.Violations, 1)
 	suite.Equal("unapproved-port", *resp.Replay.Violations[0].ID)
+	suite.Equal([]policyeval.RuleLocation{{File: "policy.rego", StartLine: 7, EndLine: 10}}, resp.Replay.Violations[0].Rules,
+		"each violation points at the rule that produced it")
 	suite.Contains(resp.Replay.RawJSON, "violation")
 
 	suite.Equal(EvidencePlaybackRecorded{Status: "not-satisfied", ViolationIDs: []string{"unapproved-port"}}, resp.Recorded)

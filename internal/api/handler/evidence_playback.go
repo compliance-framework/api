@@ -80,12 +80,20 @@ type EvidencePlaybackRecorded struct {
 }
 
 type EvidencePlaybackReplay struct {
-	Status     string                 `json:"status"`
-	Title      *string                `json:"title"`
-	Violations []policyeval.Violation `json:"violations"`
-	RawJSON    string                 `json:"rawJson"`
+	Status     string                      `json:"status"`
+	Title      *string                     `json:"title"`
+	Violations []EvidencePlaybackViolation `json:"violations"`
+	RawJSON    string                      `json:"rawJson"`
 	// Error explains why the agent would not have turned the result into evidence.
 	Error string `json:"error,omitempty"`
+}
+
+// EvidencePlaybackViolation is a replayed violation and where in the policy it came from.
+type EvidencePlaybackViolation struct {
+	policyeval.Violation
+	// Rules are the `violation` rules that produced it, by file and line. Empty when they
+	// could not be located.
+	Rules []policyeval.RuleLocation `json:"rules"`
 }
 
 type EvidencePlaybackComparison struct {
@@ -252,12 +260,13 @@ func (h *PlaybackHandler) playEvidence(ctx context.Context, evidence *relational
 	evaluatedAt := evidence.End
 	resp.EvaluatedAt = &evaluatedAt
 
-	replayed, err := policyeval.EvaluateModules(ctx, policyeval.EvaluateModulesRequest{
+	request := policyeval.EvaluateModulesRequest{
 		Modules:     unpacked.Modules,
 		Input:       inputValue,
 		Data:        data,
 		EvaluatedAt: &evaluatedAt,
-	})
+	}
+	replayed, err := policyeval.EvaluateModules(ctx, request)
 	if err != nil {
 		var evalErrs *policyeval.EvalErrors
 		if !errors.As(err, &evalErrs) {
@@ -287,10 +296,20 @@ func (h *PlaybackHandler) playEvidence(ctx context.Context, evidence *relational
 	if err != nil {
 		return nil, err
 	}
+	// Locating is best effort: the violations are shown without locations if it fails.
+	rules, err := policyeval.LocateViolations(ctx, request, resp.Package)
+	if err != nil {
+		h.sugar.Warnw("Failed to locate the rules behind replayed violations", "package", resp.Package, "error", err)
+	}
+	violations := make([]EvidencePlaybackViolation, 0, len(result.Violations))
+	for _, violation := range result.Violations {
+		violations = append(violations, EvidencePlaybackViolation{Violation: violation, Rules: policyeval.RulesFor(rules, violation)})
+	}
+
 	resp.Replay = &EvidencePlaybackReplay{
 		Status:     result.Status,
 		Title:      result.Title,
-		Violations: result.Violations,
+		Violations: violations,
 		RawJSON:    string(raw),
 		Error:      result.Error,
 	}

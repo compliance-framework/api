@@ -34904,7 +34904,7 @@ const docTemplate = `{
                 "violations": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/policyeval.Violation"
+                        "$ref": "#/definitions/handler.EvidencePlaybackViolation"
                     }
                 }
             }
@@ -34970,6 +34970,30 @@ const docTemplate = `{
                 },
                 "replay": {
                     "$ref": "#/definitions/handler.EvidencePlaybackReplay"
+                }
+            }
+        },
+        "handler.EvidencePlaybackViolation": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "rules": {
+                    "description": "Rules are the ` + "`" + `violation` + "`" + ` rules that produced it, by file and line. Empty when they\ncould not be located.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/policyeval.RuleLocation"
+                    }
+                },
+                "title": {
+                    "type": "string"
                 }
             }
         },
@@ -46302,6 +46326,20 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/policyeval.Violation"
                     }
+                }
+            }
+        },
+        "policyeval.RuleLocation": {
+            "type": "object",
+            "properties": {
+                "endLine": {
+                    "type": "integer"
+                },
+                "file": {
+                    "type": "string"
+                },
+                "startLine": {
+                    "type": "integer"
                 }
             }
         },

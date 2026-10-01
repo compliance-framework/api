@@ -495,7 +495,7 @@ definitions:
         type: string
       violations:
         items:
-          $ref: '#/definitions/policyeval.Violation'
+          $ref: '#/definitions/handler.EvidencePlaybackViolation'
         type: array
     type: object
   handler.EvidencePlaybackResponse:
@@ -545,6 +545,24 @@ definitions:
         $ref: '#/definitions/handler.EvidencePlaybackRecorded'
       replay:
         $ref: '#/definitions/handler.EvidencePlaybackReplay'
+    type: object
+  handler.EvidencePlaybackViolation:
+    properties:
+      description:
+        type: string
+      id:
+        type: string
+      remarks:
+        type: string
+      rules:
+        description: |-
+          Rules are the `violation` rules that produced it, by file and line. Empty when they
+          could not be located.
+        items:
+          $ref: '#/definitions/policyeval.RuleLocation'
+        type: array
+      title:
+        type: string
     type: object
   handler.EvidencePolicyArtifacts:
     properties:
@@ -7968,6 +7986,15 @@ definitions:
         items:
           $ref: '#/definitions/policyeval.Violation'
         type: array
+    type: object
+  policyeval.RuleLocation:
+    properties:
+      endLine:
+        type: integer
+      file:
+        type: string
+      startLine:
+        type: integer
     type: object
   policyeval.Violation:
     properties:

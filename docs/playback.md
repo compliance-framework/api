@@ -114,7 +114,8 @@ The policy runs inside the API process, so it is restricted:
 
 `GET /api/evidence/{id}/playback` replays the evaluation that produced a piece of evidence,
 from the artifacts the agent stored for it (see [artifacts.md](./artifacts.md)), and
-compares the result with what the evidence recorded. The UI's evidence Playback tab uses it.
+compares the result with what the evidence recorded. The UI shows it in the Overview tab of
+evidence detail.
 
 The API:
 
@@ -125,7 +126,13 @@ The API:
 3. replays every file of the bundle in the same sandbox as `/api/playback/evaluate`, with
    `time.now_ns()` pinned to the evidence's end time;
 4. compares the replayed package's status and violation IDs with the evidence's recorded
-   status and `_violation_id` props.
+   status and `_violation_id` props;
+5. locates the `violation` rule behind each replayed violation (`policyeval.LocateViolations`).
+   OPA merges all of a package's `violation` rules into one set, so each rule is copied under
+   its own name, appended after the original source, and evaluated with the same input, data
+   and time. Each copy's output is what its rule produced. Each replayed violation carries
+   `rules`: `[{file, startLine, endLine}]`, 1-based lines in the stored file. Locating is
+   best effort: if it fails, `rules` is empty and the violations are still returned.
 
 The response carries the bundle files, the input, policy data and bundle data as
 pretty-printed JSON strings (the input is cut at 1 MiB, with `inputTruncated`; the full
