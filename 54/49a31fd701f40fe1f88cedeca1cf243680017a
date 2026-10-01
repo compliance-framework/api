@@ -1,0 +1,6 @@
+lisa-addressed:
+PRRT_kwDOKJpq1c6n_nIi (owner, blocking): SeedPath now returns the legacy (policyFile, policyPath)
+pair when policy_id == policyFile or path.Clean(policy_id) == policyFile, and derives the
+bundle-relative path against path.Clean(policyPath) (with "." and "/" handled). Fixes the stream
+fork for policy paths like "./x", "./x/", "x/". Clients build policy_id as path.Join(plugin-path,
+file). A trailing slash on the path is no longer kept in a derived (other-location) path seed.
