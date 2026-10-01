@@ -1,0 +1,2 @@
+lisa-design:
+R78: PolicyExtendsReport.PluginPath (json extends.plugin-path) is the literal path the agent would pass to plugins for the extends source if a plugin loaded it directly; clients build continuity ids as plugin-path + "/" + file. Needed because after the first swap no policy-bundles[] entry names the source. Stored inside the policy_bundles jsonb (no migration). Same size rule as the bundle-level plugin-path: >4096 bytes is dropped (never cut) and the report marked truncated.
