@@ -1,0 +1,2 @@
+lisa-addressed:
+Round 3 pass 3 fixed: r3p3-service-plugins-coverage (service test asserts plugins stored then nil, plugin-path round-trips in policy_bundles).
