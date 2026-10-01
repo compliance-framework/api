@@ -1,3 +1,8 @@
 lisa-addressed:
 round 2 self-review pass 3:
 - docs-artifact-read-digests: artifacts.md names both places digests live (config reports: agent:read; evidence props: evidence:read); rewrapped the agent-config-reports paragraph.
+
+lisa-selfreview:
+round 2 pass 4 (lenient) verdict=approve
+- [low] file-listing-cost (internal/api/handler/artifacts.go ListFiles/GetFile): each request loads the artifact row and re-parses every .rego; 304 is decided after the body is built. Bounded by CCF_ARTIFACT_MAX_BYTES and client-side immutable caching. -> deferred.
+- [low] agent-stricter-after-pin (pkg/agentconfig/regocheck ValidatePolicyBundles): agents that bump the pin get the contract layer in prepareInline on merged bundles, so a file-defined inline bundle without a title in a self-contained package now rejects revisions. Intended by R63 (authored packages are errors); called out for agent#95. -> deferred (agent PR).
