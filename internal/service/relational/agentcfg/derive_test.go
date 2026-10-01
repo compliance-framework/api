@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compliance-framework/api/internal/config"
 	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/compliance-framework/api/internal/service/relational/agentcfg"
 	"github.com/compliance-framework/api/pkg/agentconfig"
@@ -146,4 +147,26 @@ func TestSettingsWithDefaults(t *testing.T) {
 
 	custom := agentcfg.Settings{InstanceStaleAfter: time.Minute, InstanceRetention: time.Hour, OneShotInstanceRetention: 2 * time.Minute, MaxInstancesPerAgent: 3}
 	assert.Equal(t, custom, custom.WithDefaults())
+}
+
+func TestSettingsFromConfig(t *testing.T) {
+	assert.Equal(t, agentcfg.Settings{}.WithDefaults(), agentcfg.SettingsFromConfig(nil))
+	assert.Equal(t, agentcfg.Settings{}.WithDefaults(), agentcfg.SettingsFromConfig(&config.Config{}))
+
+	got := agentcfg.SettingsFromConfig(&config.Config{Agents: &config.AgentsConfig{
+		InstanceStaleAfter:       time.Minute,
+		InstanceRetention:        2 * time.Hour,
+		OneShotInstanceRetention: 3 * time.Minute,
+		MaxInstancesPerAgent:     7,
+	}})
+	assert.Equal(t, agentcfg.Settings{
+		InstanceStaleAfter:       time.Minute,
+		InstanceRetention:        2 * time.Hour,
+		OneShotInstanceRetention: 3 * time.Minute,
+		MaxInstancesPerAgent:     7,
+	}, got)
+
+	partial := agentcfg.SettingsFromConfig(&config.Config{Agents: &config.AgentsConfig{MaxInstancesPerAgent: 9}})
+	assert.Equal(t, 9, partial.MaxInstancesPerAgent)
+	assert.Equal(t, agentcfg.DefaultInstanceRetention, partial.InstanceRetention)
 }

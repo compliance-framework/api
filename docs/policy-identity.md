@@ -1,9 +1,4 @@
-# Policy identity (`policy_id`)
-
-A policy module can declare which evidence stream it writes to with an optional
-`policy_id`. Without one, nothing changes.
-
-## Why
+# Policy identity
 
 Plugins give each piece of evidence a UUID seeded from the policy's location:
 
@@ -13,149 +8,76 @@ SeededUUID({type: evidence, policy: <package>, policy_file: <policy path>/<file>
 ```
 
 `<policy path>` is the literal string the agent passes to the plugin for the policy's
-bundle. Relative paths stay relative and absolute paths stay absolute. For example:
+bundle. For example:
 
 - vendor OCI bundle: `.compliance-framework/policies/compliance-framework/plugin-local-ssh-policies/v0.2.0/policies`
-- inline bundle: `/app/.compliance-framework/state/local-dev/inline/<bundle>/current/bundle`
+- inline bundle: `.compliance-framework/policies/_inline/<bundle>/policies`
 
-So overriding a vendor policy in an inline bundle, bumping an OCI tag, renaming a bundle
-or moving the agent's state directory each start a new evidence stream, and the history of
-the old one stops. Agent and config labels (`_agent`, `_plugin`, `plugins.<p>.labels`) are
-added after the UUID is computed, so they are not part of the seed.
+Agent and config labels (`_agent`, `_plugin`, `plugins.<p>.labels`) are added after the UUID
+is computed, so they are not part of the seed.
 
-## Declaring it
+## Path shadowing keeps vendor streams
+
+When an inline bundle `extends` an OCI source, the agent gives it to plugins **at the
+source's own path string** and changes only what that path resolves to. Inherited and
+overridden modules therefore keep the vendor's evidence streams, on any plugin build. New
+modules start path-based streams under the vendor path. The agent documentation describes
+the mechanism and its limits.
+
+A bundle that can't be shadowed starts path-based streams under its inline path, and the
+agent warns with `policy-stream-forked`. This happens when its `extends` source is an
+absolute (local) path, or when a plugin also loads the source or a second bundle on the same
+path.
+
+## Authored `policy_id` (optional)
+
+A module can choose its stream explicitly:
 
 ```rego
 package compliance_framework.ssh_deny_password_auth
 
 import rego.v1
 
-policy_id := "ssh/ssh_deny_password_auth.rego"
+policy_id := "ssh-deny-password-auth"
 title := "SSH denies password authentication"
 ```
 
-`policy_id` must be a single, unconditional rule whose value is a non-empty string literal
-of at most 512 characters, and no two policies a plugin loads may share one. The API
-checks this statically (`policyeval.CheckContract`, run by playback and on inline bundles
-when an agent configuration is saved) and on evaluated results (`policyeval.ValidateResult`).
-The agent checks it again, across all of a plugin's policy paths, before it applies a
-configuration.
+- `policy_id` must be a single, unconditional rule whose value is a non-empty string
+  literal of at most 512 characters. No two policies a plugin loads may share one.
+- The API checks it statically when an agent configuration is saved and on playback
+  (`policyeval.CheckContract`), and checks evaluated results too
+  (`policyeval.ValidateResult`). The agent checks it again across all of a plugin's policy
+  paths before it applies a configuration.
+- `policyeval.SeedPath(policyID, policyFile, policyPath)` returns the seed values the
+  plugin uses. Without a `policy_id`, or with one equal to the module's own `policy_file`,
+  the seed is unchanged, byte for byte. Any other ID gives a stream that does not depend on
+  where the bundle lives.
+- Only the seed changes. Evidence keeps the real `_policy_path` label and gains a
+  `_policy_id` label.
+- **Plugin support.** Only plugins built against agent ≥ v0.9.0 honour it. Older plugins
+  ignore it and keep path-based seeds, and the agent warns with
+  `plugin-lib-policy-id-unsupported`.
 
-## How plugins seed with it
+## Plugin compatibility
 
-`policyeval.SeedPath(policyID, policyFile, policyPath)` returns the two seed values. The
-agent's `policy-manager` calls it, so the API, the agent and the UI agree:
+The agent reads each plugin's agent-library version from its Go build info and reports it
+as `plugins[].lib-version` in config reports. The value is empty when the version is
+unknown: no build info, or a `replace` or devel build.
 
-- No `policy_id`: `policy_file` and `_policy_path` stay as they are, byte for byte. Every
-  existing stream keeps its UUIDs.
-- A `policy_id` equal to the module's `policy_file`, or one that cleans to it: the same
-  pair, byte for byte. The `policy_file` comes from OPA's loader and is clean, while
-  `_policy_path` is the literal policy path (which may be `./x` or `x/`), so this keeps a
-  module's own stream whatever the shape of its policy path.
-- Any other `policy_id`: the `policy_file` seed is the cleaned `policy_id`, as OPA cleans
-  `policy_file`. The `_policy_path` seed is the **raw** `policy_id` without the module's
-  bundle-relative path when the raw `policy_id` ends in `/<that path>`, and the raw
-  `policy_id` itself otherwise. The bundle-relative path is the file path relative to the
-  cleaned policy path. Nothing is made absolute.
-
-So there are two ways to use it:
-
-- **Continue a stream.** A `policy_id` equal to the policy's old `policy_file` reproduces
-  the old seed. An override of a vendor policy can therefore keep writing to the vendor
-  policy's stream. Config reports carry each policy path as
-  `policy-bundles[].plugin-path`, and an inline bundle's `extends` source as
-  `policy-bundles[].extends.plugin-path` (the path a plugin would get if it loaded the
-  source directly), so the vendor stream can be continued after the inline bundle has
-  replaced the source in every plugin and no entry names it any more. Clients build the
-  `policy_id` as the **literal** `plugin-path + "/" + file` (string concatenation, **not**
-  `path.Join`). The old seed was
-  OPA's cleaned file plus the literal plugin path, for example `("policies/a.rego",
-  "./policies")` for plugin path `./policies`. `path.Join` would clean the plugin path away
-  (`policies/a.rego` gives `_policy_path` `policies`); the literal `./policies/a.rego`
-  keeps it, and `SeedPath` cleans it only for the `policy_file` seed. The same holds for a
-  trailing slash: `x/` + `/` + `a.rego` is `x//a.rego`, which seeds `("x/a.rego", "x/")`.
-  The UI pre-fills it when it overrides a vendor module that has none.
-- **A stable stream.** Any other `policy_id`, for example `ssh-deny-password-auth` or
-  `<bundle>/<file>`, gives a stream that does not depend on where the bundle lives.
-
-Only the seed changes: evidence keeps the real `_policy_path` label, and the agent adds a `_policy_id` label. With
-the bundle artifact digest and the config revision already on each record, it stays
-auditable which rule version produced it.
-
-## Lifecycle
-
-| Change | Stream |
-| --- | --- |
-| Override a policy and keep its `policy_id` | Same stream; the results may change. |
-| `delete` the policy | The stream stops receiving evidence. |
-| Revert the override | Same stream. |
-| Add a new policy | A new stream, from its own `policy_id`. |
-| Publish it into a real bundle with the same `policy_id` | Same stream. |
-| Change the `package` line of an overridden module | A new stream (the package is in the seed); the agent warns with `policy-package-changed`. |
-
-## Compatibility
-
-- **Plugins must be rebuilt.** Plugins seed evidence with the `policy-manager` they embed
-  from `github.com/compliance-framework/agent`. Only plugins built against an agent library
-  that includes `policy_id` support use it. Older plugins ignore it and keep path-based
-  seeds, and the agent warns with `plugin-lib-policy-id-unsupported`.
-- **Set-form violations.** Plugins built against an agent library older than v0.7.1 crash
-  on `violation contains {...}`. The agent rejects such a module for those plugins with
-  `plugin-lib-violation-set-unsupported`; `violation[{...}] if { ... }` works with every
-  library.
-- The agent reads each plugin's library version from its Go build info and reports it as
-  `plugins[].lib-version` in config reports, so the UI can show compatibility before a save.
-  It is empty when unknown (no build info, or a `replace` or devel build); then both checks
-  are warnings.
-- Agents and APIs without this feature still interoperate: the new report fields are
-  optional, and evidence without `_policy_id` is unchanged.
-
-### Inline policies need a supporting plugin (R79)
-
-Inline policies are only offered to plugins that honour `policy_id`, so an inline bundle never
-silently starts a path-based evidence stream.
-
-- The agent decides, per plugin and from its library version, and reports it as
-  `plugins[].inline-policies`:
-  - `supported`: built against an agent library with `policy_id` support (which also covers
-    set-form violations).
-  - `unsupported`: built against an older library.
-  - `unknown`: no build info, or a `replace` or devel build.
-  - Absent: an older agent that does not report it.
-- **The gate.** The agent rejects a revision whose overlay assigns an `inline:` bundle to,
-  or changes the inline bundles of, an `unsupported` plugin, with
-  `plugin-lib-inline-unsupported`. It keeps running its last-known-good config.
-- `unknown` plugins are allowed with a `plugin-lib-inline-unsupported` warning, so local
-  builds work.
-- Inline bundles defined in the agent's config file get the warning only (R34).
-- This gate replaces the `plugin-lib-policy-id-unsupported` warning for inline policies the
-  overlay introduces.
-- The API stores the value as sent and returns it on agent instances. A report with any other
-  value is rejected with 400.
-- The UI disables assigning inline policies to `unsupported` plugins, and warns for
-  `unknown` ones. Replicas on different plugin builds can differ, so it shows this per
-  instance.
+Plugins built against an agent library older than v0.7.1 crash on `violation contains
+{...}`. The agent rejects such a module for those plugins with
+`plugin-lib-violation-set-unsupported`, or only warns when the version is unknown.
+`violation[{...}] if { ... }` works with every library.
 
 ## Codes
 
-`PolicyError.code` values (constants in `pkg/agentconfig`, the first two also in
-`pkg/policyeval`):
+`PolicyError.code` values (constants in `pkg/agentconfig`):
 
 | Code | Produced by | Severity | Meaning |
 | --- | --- | --- | --- |
-| `invalid-policy-id` | API, agent | error | `policy_id` is not a constant, non-empty string literal of at most 512 characters. A `policy_id` written as a function or with `contains` is reported as `contract-key-function` or `contract-key-multi-value`. |
-| `duplicate-policy-id` | API, agent | error | Two modules checked together (one inline bundle in the API; all of a plugin's policy paths in the agent) declare the same `policy_id`. |
-| `duplicate-policy-identity` | agent | error, or warning when it comes from the config file | One plugin loads the same evidence identity (a `policy_id`, or a package and bundle-relative file) from two policy paths, so it would report it twice. |
+| `invalid-policy-id` | API, agent | error | `policy_id` is not a constant, non-empty string literal of at most 512 characters. |
+| `duplicate-policy-id` | API, agent | error | Two modules checked together declare the same `policy_id`. |
+| `duplicate-policy-identity` | agent | error, or warning from the config file | One plugin loads the same evidence identity from two policy paths. |
 | `policy-package-changed` | agent | warning | An override changes the package of the module it replaces, which starts a new stream. |
-| `plugin-lib-violation-set-unsupported` | agent | error, or warning when the library version is unknown | A set-form `violation` for a plugin whose agent library is older than v0.7.1. |
+| `plugin-lib-violation-set-unsupported` | agent | error, or warning when the version is unknown | A set-form `violation` for a plugin whose agent library is older than v0.7.1. |
 | `plugin-lib-policy-id-unsupported` | agent | warning | A `policy_id` for a plugin whose agent library ignores it. |
-| `plugin-lib-inline-unsupported` | agent | error, or warning when the library version is unknown or the bundle comes from the config file | The overlay gives inline policies to, or changes the inline bundles of, a plugin whose `inline-policies` is `unsupported` (R79). |
-
-## Reference
-
-- `policyeval.Policy.ID` (JSON `id`): the evaluated `policy_id`, set only when valid.
-- `policyeval.SeedPath`, `policyeval.ValidPolicyID`, `policyeval.MaxPolicyIDLength`.
-- Playback results carry `policyId` ([playback.md](./playback.md)).
-- Config reports: `policy-bundles[].plugin-path`, `policy-bundles[].extends.plugin-path`
-  and `plugins[]` (`name`, `source`, `lib-version`, `inline-policies`), returned on agent
-  instances ([artifacts.md](./artifacts.md)).

@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/compliance-framework/api/pkg/agentconfig"
 	"github.com/open-policy-agent/opa/v1/ast"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -180,7 +181,7 @@ func TestSeedPathLegacyRoundTrip(t *testing.T) {
 
 // TestSeedPathLiteralPluginPathRoundTrip: a vendor plugin given an un-cleaned policy path
 // seeds (OPA's cleaned file, the literal path). A policy_id built as the literal
-// plugin-path + "/" + file (not path.Join) reproduces that pair exactly from an override
+// policy path + "/" + file (not path.Join) reproduces that pair exactly from an override
 // in a bundle at another (clean, absolute) path.
 func TestSeedPathLiteralPluginPathRoundTrip(t *testing.T) {
 	const overridePath = "/app/.compliance-framework/state/local-dev/inline/ssh/current/bundle"
@@ -276,7 +277,7 @@ func TestCheckContractPolicyID(t *testing.T) {
 	t.Run("message and location", func(t *testing.T) {
 		issues := checkV1(t, base+"policy_id := 7\n")
 		require.Len(t, issues, 1)
-		assert.Equal(t, Issue{File: "policy.rego", Row: 7, Col: 14, Package: "compliance_framework.x", Severity: SeverityError, Code: IssueInvalidPolicyID,
+		assert.Equal(t, Issue{File: "policy.rego", Row: 7, Col: 14, Package: "compliance_framework.x", Severity: agentconfig.SeverityError, Code: agentconfig.PolicyCodeInvalidPolicyID,
 			Message: "policy_id must be a string literal, got number; declare it as `policy_id := \"...\"`"}, issues[0])
 	})
 
@@ -310,4 +311,41 @@ func TestCheckContractPolicyID(t *testing.T) {
 		}))
 		assert.Equal(t, []string{}, codes(issues), "%v", issues)
 	})
+}
+
+func TestStaticPolicyIDs(t *testing.T) {
+	const base = "import rego.v1\n\ntitle := \"t\"\nviolation contains {\"id\": \"a\"} if { input.a }\n"
+	got := StaticPolicyIDs(parseModules(t, ast.RegoV1, map[string]string{
+		"a.rego":      "package compliance_framework.a\n\n" + base + "policy_id := \"ssh/a\"\n",
+		"b.rego":      "package compliance_framework.b\n\n" + base,
+		"c.rego":      "package compliance_framework.c\n\n" + base + "policy_id := \"c\" if { input.c }\n",
+		"d1.rego":     "package compliance_framework.d\n\n" + base + "policy_id := \"d\"\n",
+		"d2.rego":     "package compliance_framework.d\n\nimport rego.v1\n\npolicy_id := \"d2\"\n",
+		"e.rego":      "package compliance_framework.e\n\n" + base + "policy_id := \"\"\n",
+		"f.rego":      "package compliance_framework.f\n\n" + base + "policy_id := \"same\"\n",
+		"g.rego":      "package compliance_framework.g\n\n" + base + "policy_id := \"same\"\n",
+		"h_test.rego": "package compliance_framework.h\n\nimport rego.v1\n\npolicy_id := \"h\"\n",
+		"lib.rego":    "package ccf_libs.lib\n\nimport rego.v1\n\npolicy_id := \"lib\"\n",
+	}))
+	assert.Equal(t, map[string]string{
+		"compliance_framework.a": "ssh/a",
+		"compliance_framework.f": "same",
+		"compliance_framework.g": "same",
+	}, got, "conditional, defined twice, empty, test-only and non-policy packages have none")
+
+	assert.Equal(t, map[string]string{"compliance_framework.v0": "v0/p.rego"}, StaticPolicyIDs(parseModules(t, ast.RegoV0, map[string]string{
+		"p.rego": "package compliance_framework.v0\n\ntitle := \"t\"\npolicy_id := \"v0/p.rego\"\nviolation[{\"id\": \"a\"}] { input.a }\n",
+	})))
+	assert.Empty(t, StaticPolicyIDs(nil))
+}
+
+func TestRuleName(t *testing.T) {
+	mod := parseModules(t, ast.RegoV1, map[string]string{
+		"a.rego": "package compliance_framework.a\n\nimport rego.v1\n\npolicy_id := \"x\"\nlabels.team := \"t\"\nf(x) := x\n",
+	})["a.rego"]
+	var names []string
+	for _, rule := range mod.Rules {
+		names = append(names, RuleName(rule))
+	}
+	assert.Equal(t, []string{"policy_id", "labels", "f"}, names)
 }

@@ -20,41 +20,6 @@ func TestETagForRevision(t *testing.T) {
 	assert.Equal(t, `"r1-11111111-2222-3333-4444-555555555555"`, ETagForRevision(1, etagRowID, etagAgentID))
 }
 
-func TestParseETagRevision(t *testing.T) {
-	tests := []struct {
-		tag     string
-		wantRev int64
-		wantID  uuid.UUID
-		wantOK  bool
-	}{
-		{tag: `"r7-11111111-2222-3333-4444-555555555555"`, wantRev: 7, wantID: etagRowID, wantOK: true},
-		{tag: `W/"r7-11111111-2222-3333-4444-555555555555"`, wantRev: 7, wantID: etagRowID, wantOK: true},
-		{tag: `r7-11111111-2222-3333-4444-555555555555`, wantRev: 7, wantID: etagRowID, wantOK: true},
-		{tag: ` "r0-aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee" `, wantRev: 0, wantID: etagAgentID, wantOK: true},
-		{tag: ETagForRevision(42, etagRowID, etagAgentID), wantRev: 42, wantID: etagRowID, wantOK: true},
-		{tag: ``},
-		{tag: `"7"`},
-		{tag: `"x7-11111111-2222-3333-4444-555555555555"`},
-		{tag: `"r-11111111-2222-3333-4444-555555555555"`},
-		{tag: `"r-1-11111111-2222-3333-4444-555555555555"`},
-		{tag: `"r7"`},
-		{tag: `"r7-not-a-uuid"`},
-		{tag: `"rX-11111111-2222-3333-4444-555555555555"`},
-	}
-	for _, tt := range tests {
-		t.Run(tt.tag, func(t *testing.T) {
-			rev, id, ok := ParseETagRevision(tt.tag)
-			assert.Equal(t, tt.wantOK, ok)
-			assert.Equal(t, tt.wantRev, rev)
-			if tt.wantOK {
-				assert.Equal(t, tt.wantID, id)
-			} else {
-				assert.Equal(t, uuid.Nil, id)
-			}
-		})
-	}
-}
-
 func TestMatchIfNoneMatch(t *testing.T) {
 	current := ETagForRevision(7, etagRowID, etagAgentID)
 	other := ETagForRevision(7, etagOtherID, etagAgentID)

@@ -75,7 +75,7 @@ func asError(errs []FieldError) error {
 	return ValidationErrors(sortFieldErrors(errs))
 }
 
-// Policy error severities.
+// Policy problem severities, shared by PolicyError and policyeval.Issue.
 const (
 	SeverityError   = "error"
 	SeverityWarning = "warning"
@@ -90,23 +90,68 @@ type PolicyError struct {
 	Col      int    `json:"col,omitempty"`
 	Message  string `json:"message"`
 	Severity string `json:"severity"` // "error" | "warning"
-	// Code classifies the problem when known: a policyeval.Issue* code for policy contract
-	// problems (R63), one of the regocheck codes, or one of the PolicyCode* codes. Empty for
-	// older producers.
+	// Code classifies the problem when known: one of the PolicyCode* codes, or one of the
+	// regocheck codes. Empty for older producers.
 	Code string `json:"code,omitempty"`
 }
 
-// PolicyError codes for policy identity (R74, R75) and plugin compatibility (R76, R79), besides
-// the policyeval.Issue* and regocheck codes. The first two are also policyeval contract
-// codes (repeated here because agentconfig does not import OPA); the agent alone produces
-// the others, and the UI labels them. See docs/policy-identity.md.
+// Policy problem codes, in PolicyError.Code and policyeval.Issue.Code. They live here, not in
+// policyeval, so that code which must not compile OPA can use them. Severities are the
+// defaults; callers re-weigh them (the agent, for example, only warns about vendor packages).
+// See docs/policy-identity.md for the identity and plugin codes.
 const (
-	// PolicyCodeInvalidPolicyID: policy_id is not a constant, non-empty string literal of
-	// at most 512 characters (= policyeval.IssueInvalidPolicyID). Error.
+	// Policy contract (R63), from policyeval.CheckContract (static) and
+	// policyeval.ValidateResult (evaluated).
+
+	// PolicyCodeMissingTitle: the package has no title (static), or evaluated without one
+	// (dynamic, unless skipped). Error.
+	PolicyCodeMissingTitle = "missing-title"
+	// PolicyCodeEmptyTitle: the title is the empty string. Warning.
+	PolicyCodeEmptyTitle = "empty-title"
+	// PolicyCodeConditionalTitle: every title rule has a condition and there is no default,
+	// so the package may have no title. Warning.
+	PolicyCodeConditionalTitle = "conditional-title"
+	// PolicyCodeMissingViolation: the package has no violation rule, so it is always
+	// satisfied. Warning.
+	PolicyCodeMissingViolation = "missing-violation"
+	// PolicyCodeContractFunction: a contract key or violation is defined as a function.
+	// Error.
+	PolicyCodeContractFunction = "contract-key-function"
+	// PolicyCodeContractMultiValue: a contract key is defined with `contains`. Error.
+	PolicyCodeContractMultiValue = "contract-key-multi-value"
+	// PolicyCodeInvalidType: a contract key has a literal value of the wrong type. Error.
+	PolicyCodeInvalidType = "invalid-type"
+	// PolicyCodeInvalidViolationRule: violation is an object rule (`violation[k] := v`) or a
+	// complete rule that is not a collection. Error.
+	PolicyCodeInvalidViolationRule = "invalid-violation-rule"
+	// PolicyCodeInvalidViolation: a literal violation is not an object, or has a non-string
+	// id, title, description or remarks. Error.
+	PolicyCodeInvalidViolation = "invalid-violation"
+	// PolicyCodeViolationMissingID: a violation has no id. Warning.
+	PolicyCodeViolationMissingID = "violation-missing-id"
+	// PolicyCodeInvalidRiskTemplate: a risk template breaks a rule the API enforces when the
+	// agent submits it. Error.
+	PolicyCodeInvalidRiskTemplate = "invalid-risk-template"
+	// PolicyCodeUnknownViolationID: a risk template's violation_ids names an id no literal
+	// violation of the package produces. Warning.
+	PolicyCodeUnknownViolationID = "unknown-violation-id"
+	// PolicyCodeDuplicatePackageModule: more than one non-test module defines the package;
+	// each produces its own evidence for the whole package. Warning.
+	PolicyCodeDuplicatePackageModule = "duplicate-package-module"
+	// PolicyCodeNoOutput: the package evaluated to nothing. Error.
+	PolicyCodeNoOutput = "no-output"
+	// PolicyCodeInvalidPolicyID: policy_id is not a single unconditional rule whose value is
+	// a non-empty string literal of at most policyeval.MaxPolicyIDLength characters (static),
+	// or did not evaluate to a valid one (dynamic). Error. (A policy_id defined as a
+	// function or with `contains` is reported as PolicyCodeContractFunction or
+	// PolicyCodeContractMultiValue.)
 	PolicyCodeInvalidPolicyID = "invalid-policy-id"
 	// PolicyCodeDuplicatePolicyID: two modules checked together, or loaded by one plugin,
-	// declare the same policy_id (= policyeval.IssueDuplicatePolicyID). Error.
+	// declare the same policy_id, so their evidence would share one stream. Error.
 	PolicyCodeDuplicatePolicyID = "duplicate-policy-id"
+
+	// Policy identity and plugin compatibility (R75, R76); the agent alone produces these.
+
 	// PolicyCodeDuplicatePolicyIdentity: one plugin loads the same evidence identity (a
 	// policy_id, or a package and bundle-relative file) from two policy paths, so it would
 	// report it twice. Error when the overlay introduces it, warning when it comes from the
@@ -124,13 +169,6 @@ const (
 	// plugin built against an agent library without R74, which ignores it, so the module
 	// starts a new path-based evidence stream. Warning.
 	PolicyCodePluginLibPolicyIDUnsupported = "plugin-lib-policy-id-unsupported"
-	// PolicyCodePluginLibInlineUnsupported: the overlay gives inline policies to, or changes
-	// the inline bundles of, a plugin whose agent library cannot honour policy_id (its
-	// PluginReport.InlinePolicies is unsupported), so the agent rejects the revision (R79).
-	// Error; a warning when the library version is unknown or the inline bundle comes from
-	// the agent's config file. Supersedes PolicyCodePluginLibPolicyIDUnsupported for
-	// overlay-introduced inline policies.
-	PolicyCodePluginLibInlineUnsupported = "plugin-lib-inline-unsupported"
 )
 
 // HasPolicyErrors reports whether any entry has Severity "error".

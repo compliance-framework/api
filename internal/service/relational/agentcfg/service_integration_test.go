@@ -312,55 +312,6 @@ func (s *AgentCfgServiceIntegrationSuite) TestListRevisionsPagesNewestFirst() {
 	s.Empty(page)
 }
 
-func (s *AgentCfgServiceIntegrationSuite) TestBundlesFirstSeen() {
-	agentID := s.newAgent("bundles")
-
-	got, err := s.svc.BundlesFirstSeen(s.ctx, agentID)
-	s.Require().NoError(err)
-	s.Empty(got, "no revisions")
-
-	t1 := s.now
-	s.createRevision(agentID, 0, `{"policy_bundles":{"a":{"modules":{"a.rego":"package a"}},"b":{},"c":{}}}`)
-	s.now = t1.Add(time.Hour)
-	s.createRevision(agentID, 1, `{"policy_bundles":{"a":{"modules":{"a.rego":"package a2"}}}}`)
-	t3 := t1.Add(2 * time.Hour)
-	s.now = t3
-	s.createRevision(agentID, 2, `{"verbosity":1,"policy_bundles":{"a":{},"b":{}}}`)
-
-	got, err = s.svc.BundlesFirstSeen(s.ctx, agentID)
-	s.Require().NoError(err)
-	s.Require().Len(got, 2, "c only exists in an older revision")
-	s.True(got["a"].Equal(t1), "a defined in revisions 1..3: %v", got["a"])
-	s.True(got["b"].Equal(t3), "b removed in 2 and re-added in 3: %v", got["b"])
-
-	noBundles := s.newAgent("bundles-none")
-	s.createRevision(noBundles, 0, `{"verbosity":1}`)
-	got, err = s.svc.BundlesFirstSeen(s.ctx, noBundles)
-	s.Require().NoError(err)
-	s.Empty(got)
-
-	nullBundles := s.newAgent("bundles-null")
-	s.createRevision(nullBundles, 0, `{"policy_bundles":null}`)
-	got, err = s.svc.BundlesFirstSeen(s.ctx, nullBundles)
-	s.Require().NoError(err)
-	s.Empty(got, "policy_bundles: null in the current revision")
-	tx := s.now.Add(time.Hour)
-	s.now = tx
-	s.createRevision(nullBundles, 1, `{"policy_bundles":{"x":{}}}`)
-	got, err = s.svc.BundlesFirstSeen(s.ctx, nullBundles)
-	s.Require().NoError(err)
-	s.Require().Len(got, 1)
-	s.True(got["x"].Equal(tx))
-
-	// A null bundle value is a tombstone (it deletes a file-defined bundle), not a definition.
-	tombstone := s.newAgent("bundles-tombstone")
-	s.createRevision(tombstone, 0, `{"policy_bundles":{"gone":null,"kept":{"modules":{"a.rego":"package x"}}}}`)
-	got, err = s.svc.BundlesFirstSeen(s.ctx, tombstone)
-	s.Require().NoError(err)
-	s.Require().Len(got, 1)
-	s.Contains(got, "kept")
-}
-
 // ---- Instances ----
 
 func (s *AgentCfgServiceIntegrationSuite) TestUpsertReportInsertsThenUpdates() {
@@ -370,8 +321,8 @@ func (s *AgentCfgServiceIntegrationSuite) TestUpsertReportInsertsThenUpdates() {
 	t0 := s.now
 
 	warnings := []agentconfig.FieldError{{Path: "/plugins/p1/foo", Code: "unknown-field", Message: "unknown"}}
-	bundles := []agentconfig.PolicyBundleReport{{Source: "inline:b1", Digest: "sha256:1", Files: []agentconfig.PolicyFileReport{{Path: "a.rego", SHA256: "x"}}, PluginPath: "/state/inline/b1/current/bundle"}}
-	plugins := []agentconfig.PluginReport{{Name: "p1", Source: "ghcr.io/x/p1:v1", LibVersion: "v0.7.1", InlinePolicies: agentconfig.InlinePoliciesSupported}}
+	bundles := []agentconfig.PolicyBundleReport{{Source: "inline:b1", Digest: "sha256:1", Files: []agentconfig.PolicyFileReport{{Path: "a.rego", SHA256: "x"}}}}
+	plugins := []agentconfig.PluginReport{{Name: "p1", Source: "ghcr.io/x/p1:v1", LibVersion: "v0.7.1"}}
 	policyErrs := []agentconfig.PolicyError{{Bundle: "b1", Path: "a.rego", Row: 3, Message: "boom", Severity: "error"}}
 	unsafe := []agentconfig.Change{{Path: "/plugins/p1/source", Safety: agentconfig.Unsafe, Reason: "source-changed"}}
 	remote := &agentconfig.RemoteConfig{Mode: agentconfig.ModeApplyAll, PollInterval: "30s", TrustedSources: []string{"ghcr.io/x/*"}}

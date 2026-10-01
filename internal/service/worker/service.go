@@ -16,6 +16,7 @@ import (
 	"github.com/compliance-framework/api/internal/service/notification"
 	emailprovider "github.com/compliance-framework/api/internal/service/notification/providers/email"
 	slackprovider "github.com/compliance-framework/api/internal/service/notification/providers/slack"
+	"github.com/compliance-framework/api/internal/service/relational/agentcfg"
 	riskrel "github.com/compliance-framework/api/internal/service/relational/risks"
 	"github.com/compliance-framework/api/internal/service/relational/workflows"
 	slacksvc "github.com/compliance-framework/api/internal/service/slack"
@@ -320,7 +321,7 @@ func NewServiceWithDigest(
 	river.AddWorker(workers, river.WorkFunc(poamOpenDigestSchedulerWorker.Work))
 
 	// Agent instance pruning (R37)
-	agentInstancePruneWorker := NewAgentInstancePruneWorker(db, agentSettingsFromConfig(digestCfg), logger)
+	agentInstancePruneWorker := NewAgentInstancePruneWorker(db, agentcfg.SettingsFromConfig(digestCfg), logger)
 	river.AddWorker(workers, river.WorkFunc(agentInstancePruneWorker.Work))
 
 	aiEnabled := digestCfg != nil && digestCfg.AI != nil && digestCfg.AI.Enabled

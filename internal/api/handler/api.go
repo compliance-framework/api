@@ -96,7 +96,7 @@ func RegisterHandlers(server *api.Server, logger *zap.SugaredLogger, db *gorm.DB
 	lineageHandler.Register(lineageGroup, pep.For(authz.ResourceLineage))
 
 	// Agent remote configuration (overlay revisions + reporting instances).
-	agentCfgSvc := agentcfg.NewService(db, agentConfigSettingsFor(config), logger)
+	agentCfgSvc := agentcfg.NewService(db, agentcfg.SettingsFromConfig(config), logger)
 	agentGuard := pep.For(authz.ResourceAgent)
 
 	heartbeatHandler := NewHeartbeatHandler(logger, db).WithAgentInstances(agentCfgSvc)
@@ -295,13 +295,6 @@ func RegisterHandlers(server *api.Server, logger *zap.SugaredLogger, db *gorm.DB
 
 	// Register workflow handlers
 	registerWorkflowHandlers(server, logger, db, config, pep, services, services.WorkflowManager, services.NotificationEnqueuer, services.DAGExecutor)
-}
-
-func agentConfigSettingsFor(cfg *config.Config) agentcfg.Settings {
-	if cfg == nil {
-		return agentcfg.SettingsFromConfig(nil)
-	}
-	return agentcfg.SettingsFromConfig(cfg.Agents)
 }
 
 // registerWorkflowHandlers registers all workflow-related HTTP handlers with authentication

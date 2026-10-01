@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/compliance-framework/api/pkg/agentconfig"
 	"github.com/open-policy-agent/opa/v1/ast"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -160,8 +161,8 @@ violation contains {"id": "ssh-password-auth", "title": "Password authentication
 		Row:      1,
 		Col:      1,
 		Package:  "compliance_framework.ssh_deny_password_auth",
-		Severity: SeverityError,
-		Code:     IssueMissingTitle,
+		Severity: agentconfig.SeverityError,
+		Code:     agentconfig.PolicyCodeMissingTitle,
 		Message:  "package compliance_framework.ssh_deny_password_auth has no title, so the agent records no evidence for it",
 	}, issues[0])
 
@@ -435,7 +436,7 @@ risk_templates := [{"name": n, "title": "t", "statement": "s"} | some n in input
 
 	t.Run("no output", func(t *testing.T) {
 		issues := ValidateResult(Result{Policy: Policy{File: "p.rego", Package: "data.compliance_framework.p"}})
-		assert.Equal(t, []Issue{{File: "p.rego", Package: "compliance_framework.p", Severity: SeverityError, Code: IssueNoOutput, Message: "package compliance_framework.p produced no output"}}, issues)
+		assert.Equal(t, []Issue{{File: "p.rego", Package: "compliance_framework.p", Severity: agentconfig.SeverityError, Code: agentconfig.PolicyCodeNoOutput, Message: "package compliance_framework.p produced no output"}}, issues)
 	})
 
 	t.Run("duplicate names in a literal array", func(t *testing.T) {
@@ -466,7 +467,7 @@ func TestContractLayersAgree(t *testing.T) {
 			messages := func(issues []Issue) []string {
 				var out []string
 				for _, issue := range issues {
-					if issue.Code == IssueInvalidRiskTemplate {
+					if issue.Code == agentconfig.PolicyCodeInvalidRiskTemplate {
 						out = append(out, issue.Message)
 					}
 				}

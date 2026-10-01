@@ -56,11 +56,13 @@ func (s Settings) WithDefaults() Settings {
 	return s
 }
 
-// SettingsFromConfig maps the CCF_AGENT_* config onto Settings (nil => defaults).
-func SettingsFromConfig(cfg *config.AgentsConfig) Settings {
-	if cfg == nil {
+// SettingsFromConfig maps the CCF_AGENT_* config onto Settings (nil config or nil Agents =>
+// defaults).
+func SettingsFromConfig(c *config.Config) Settings {
+	if c == nil || c.Agents == nil {
 		return Settings{}.WithDefaults()
 	}
+	cfg := c.Agents
 	return Settings{
 		InstanceStaleAfter:       cfg.InstanceStaleAfter,
 		InstanceRetention:        cfg.InstanceRetention,
@@ -190,65 +192,6 @@ func (s *Service) ListRevisions(ctx context.Context, agentID uuid.UUID, p servic
 		return nil, 0, err
 	}
 	return rows, total, nil
-}
-
-// BundlesFirstSeen returns, for every policy bundle defined by the CURRENT revision's
-// overlay, the created_at of the oldest revision in the contiguous run of revisions (walking
-// down from the current one) that define it (12.6). A bundle removed and re-added gets the
-// later time. Only overlay-defined bundles appear. Postgres only.
-func (s *Service) BundlesFirstSeen(ctx context.Context, agentID uuid.UUID) (map[string]time.Time, error) {
-	type row struct {
-		Revision  int64
-		CreatedAt time.Time
-		Key       *string
-	}
-	var rows []row
-	err := s.db.WithContext(ctx).Raw(`
-		SELECT r.revision, r.created_at, k.key
-		FROM ccf_agent_config_revisions r
-		LEFT JOIN LATERAL (
-			SELECT e.key
-			FROM jsonb_each(
-				CASE WHEN jsonb_typeof(r.overlay->'policy_bundles') = 'object' THEN r.overlay->'policy_bundles' ELSE '{}'::jsonb END
-			) AS e(key, value)
-			WHERE jsonb_typeof(e.value) = 'object' -- a null value deletes a bundle; it does not define one
-		) AS k ON true
-		WHERE r.agent_id = ?
-		ORDER BY r.revision DESC`, agentID).Scan(&rows).Error
-	if err != nil {
-		return nil, err
-	}
-	if len(rows) == 0 {
-		return map[string]time.Time{}, nil
-	}
-
-	type revision struct {
-		number    int64
-		createdAt time.Time
-		keys      map[string]bool
-	}
-	var revs []revision // newest first; rows are ordered by revision DESC
-	for _, r := range rows {
-		if len(revs) == 0 || revs[len(revs)-1].number != r.Revision {
-			revs = append(revs, revision{number: r.Revision, createdAt: r.CreatedAt, keys: map[string]bool{}})
-		}
-		if r.Key != nil {
-			revs[len(revs)-1].keys[*r.Key] = true
-		}
-	}
-
-	out := map[string]time.Time{}
-	for key := range revs[0].keys {
-		first := revs[0].createdAt
-		for _, rv := range revs[1:] {
-			if !rv.keys[key] {
-				break
-			}
-			first = rv.createdAt
-		}
-		out[key] = first
-	}
-	return out, nil
 }
 
 // CreateRevisionParams are the inputs of CreateRevision.

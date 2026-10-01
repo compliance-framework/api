@@ -36,7 +36,7 @@ import (
 var allowedPackageRoots = []string{"compliance_framework", "ccf_libs"}
 
 // Codes of the parse-level checks, in PolicyError.Code. Contract problems carry the
-// policyeval.Issue* codes.
+// agentconfig.PolicyCode* codes.
 const (
 	CodeParse            = "rego-parse-error"
 	CodeMissingRegoV1    = "missing-rego-v1-import"
@@ -46,7 +46,7 @@ const (
 
 // completable are the contract codes for what a package lacks as a whole. Modules this
 // check cannot see (an extends tree, the file part of a patched bundle) may supply it.
-var completable = []string{policyeval.IssueMissingTitle}
+var completable = []string{agentconfig.PolicyCodeMissingTitle}
 
 // Option tunes ValidateModules and ValidatePolicyBundles.
 type Option func(*options)
@@ -136,15 +136,7 @@ func checkContract(bundle string, modules map[string]*ast.Module, incomplete boo
 	issues := policyeval.CheckContract(modules)
 	out := make([]agentconfig.PolicyError, 0, len(issues))
 	for _, issue := range issues {
-		e := agentconfig.PolicyError{
-			Bundle:   bundle,
-			Path:     issue.File,
-			Row:      issue.Row,
-			Col:      issue.Col,
-			Message:  issue.Message,
-			Severity: issue.Severity,
-			Code:     issue.Code,
-		}
+		e := ToPolicyError(bundle, issue)
 		if incomplete && e.Severity == agentconfig.SeverityError && slices.Contains(completable, issue.Code) {
 			e.Severity = agentconfig.SeverityWarning
 			e.Message += " (a warning only: the extended source or the rest of the bundle may define it)"
@@ -152,6 +144,20 @@ func checkContract(bundle string, modules map[string]*ast.Module, incomplete boo
 		out = append(out, e)
 	}
 	return out
+}
+
+// ToPolicyError converts a policy contract issue of a module of bundle into a PolicyError.
+// Path is the issue's File as is; callers that checked files under a root rebase it.
+func ToPolicyError(bundle string, issue policyeval.Issue) agentconfig.PolicyError {
+	return agentconfig.PolicyError{
+		Bundle:   bundle,
+		Path:     issue.File,
+		Row:      issue.Row,
+		Col:      issue.Col,
+		Message:  issue.Message,
+		Severity: issue.Severity,
+		Code:     issue.Code,
+	}
 }
 
 // checkModule runs the parse-level checks on one module and returns the parsed module, or

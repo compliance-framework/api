@@ -157,26 +157,26 @@ func TestContractChecks(t *testing.T) {
 			bundle: &agentconfig.PolicyBundle{Modules: map[string]string{
 				"ssh.rego": pkg + "violation contains {\"id\": \"pw\"} if { input.pw }\n",
 			}},
-			want: []want{{policyeval.IssueMissingTitle, agentconfig.SeverityError}},
+			want: []want{{agentconfig.PolicyCodeMissingTitle, agentconfig.SeverityError}},
 		},
 		"extends: the vendor modules may define the title": {
 			bundle: &agentconfig.PolicyBundle{Extends: &vendor, Modules: map[string]string{
 				"ssh.rego": pkg + "violation contains {\"id\": \"pw\"} if { input.pw }\n",
 			}},
-			want: []want{{policyeval.IssueMissingTitle, agentconfig.SeverityWarning}},
+			want: []want{{agentconfig.PolicyCodeMissingTitle, agentconfig.SeverityWarning}},
 		},
 		"patch of a file-defined bundle: the file may define the title": {
 			bundle: &agentconfig.PolicyBundle{Modules: map[string]string{
 				"ssh.rego": pkg + "violation contains {\"id\": \"pw\"} if { input.pw }\n",
 			}},
 			partial: true,
-			want:    []want{{policyeval.IssueMissingTitle, agentconfig.SeverityWarning}},
+			want:    []want{{agentconfig.PolicyCodeMissingTitle, agentconfig.SeverityWarning}},
 		},
 		"body-less override skeleton": {
 			bundle: &agentconfig.PolicyBundle{Extends: &vendor, Modules: map[string]string{"ssh.rego": pkg}},
 			want: []want{
-				{policyeval.IssueMissingTitle, agentconfig.SeverityWarning},
-				{policyeval.IssueMissingViolation, agentconfig.SeverityWarning},
+				{agentconfig.PolicyCodeMissingTitle, agentconfig.SeverityWarning},
+				{agentconfig.PolicyCodeMissingViolation, agentconfig.SeverityWarning},
 			},
 		},
 		"shape errors block even when extending": {
@@ -184,16 +184,16 @@ func TestContractChecks(t *testing.T) {
 				"ssh.rego": pkg + "title := 1\nviolation[k] := {\"id\": k} if { k := \"pw\" }\nlabels := {\"a\": 1}\n",
 			}},
 			want: []want{
-				{policyeval.IssueInvalidType, agentconfig.SeverityError},
-				{policyeval.IssueInvalidViolationRule, agentconfig.SeverityError},
-				{policyeval.IssueInvalidType, agentconfig.SeverityError},
+				{agentconfig.PolicyCodeInvalidType, agentconfig.SeverityError},
+				{agentconfig.PolicyCodeInvalidViolationRule, agentconfig.SeverityError},
+				{agentconfig.PolicyCodeInvalidType, agentconfig.SeverityError},
 			},
 		},
 		"risk template errors block": {
 			bundle: &agentconfig.PolicyBundle{Modules: map[string]string{
 				"ssh.rego": pkg + "title := \"t\"\nviolation contains {\"id\": \"pw\"} if { input.pw }\nrisk_templates := [{\"name\": \"n\", \"title\": \"t\"}]\n",
 			}},
-			want: []want{{policyeval.IssueInvalidRiskTemplate, agentconfig.SeverityError}},
+			want: []want{{agentconfig.PolicyCodeInvalidRiskTemplate, agentconfig.SeverityError}},
 		},
 		"test modules and libraries are not contract-checked": {
 			bundle: &agentconfig.PolicyBundle{Modules: map[string]string{
@@ -205,7 +205,7 @@ func TestContractChecks(t *testing.T) {
 			bundle: &agentconfig.PolicyBundle{Extends: &vendor, Modules: map[string]string{
 				"ssh.rego": pkg + "title := \"t\"\npolicy_id := concat(\"/\", [\"a\", \"b\"])\nviolation contains {\"id\": \"pw\"} if { input.pw }\n",
 			}},
-			want: []want{{policyeval.IssueInvalidPolicyID, agentconfig.SeverityError}},
+			want: []want{{agentconfig.PolicyCodeInvalidPolicyID, agentconfig.SeverityError}},
 		},
 		"a literal policy_id is valid": {
 			bundle: &agentconfig.PolicyBundle{Extends: &vendor, Modules: map[string]string{
@@ -217,7 +217,7 @@ func TestContractChecks(t *testing.T) {
 				"a.rego": "package compliance_framework.a\n\nimport rego.v1\n\ntitle := \"t\"\npolicy_id := \"same\"\nviolation contains {\"id\": \"pw\"} if { input.pw }\n",
 				"b.rego": "package compliance_framework.b\n\nimport rego.v1\n\ntitle := \"t\"\npolicy_id := \"same\"\nviolation contains {\"id\": \"pw\"} if { input.pw }\n",
 			}},
-			want: []want{{policyeval.IssueDuplicatePolicyID, agentconfig.SeverityError}},
+			want: []want{{agentconfig.PolicyCodeDuplicatePolicyID, agentconfig.SeverityError}},
 		},
 		"modules that do not parse are left to the parse error": {
 			bundle: &agentconfig.PolicyBundle{Modules: map[string]string{
@@ -232,7 +232,7 @@ func TestContractChecks(t *testing.T) {
 			}},
 			want: []want{
 				{CodeParse, agentconfig.SeverityError},
-				{policyeval.IssueMissingTitle, agentconfig.SeverityWarning},
+				{agentconfig.PolicyCodeMissingTitle, agentconfig.SeverityWarning},
 			},
 		},
 	}
@@ -269,7 +269,7 @@ func TestContractErrorMapping(t *testing.T) {
 		Col:      1,
 		Message:  "package compliance_framework.x has no title, so the agent records no evidence for it",
 		Severity: agentconfig.SeverityError,
-		Code:     policyeval.IssueMissingTitle,
+		Code:     agentconfig.PolicyCodeMissingTitle,
 	}, errs[0])
 	assert.True(t, agentconfig.HasPolicyErrors(errs))
 
@@ -306,9 +306,9 @@ func TestPolicyIDAcrossBundles(t *testing.T) {
 	assert.Empty(t, errs)
 }
 
-// TestPolicyCodesMatchPolicyeval: agentconfig cannot import policyeval (it would compile
-// OPA), so the shared codes are repeated there.
-func TestPolicyCodesMatchPolicyeval(t *testing.T) {
-	assert.Equal(t, policyeval.IssueInvalidPolicyID, agentconfig.PolicyCodeInvalidPolicyID)
-	assert.Equal(t, policyeval.IssueDuplicatePolicyID, agentconfig.PolicyCodeDuplicatePolicyID)
+func TestToPolicyError(t *testing.T) {
+	got := ToPolicyError("b", policyeval.Issue{File: "x/a.rego", Row: 3, Col: 5, Package: "compliance_framework.a",
+		Severity: agentconfig.SeverityWarning, Code: agentconfig.PolicyCodeEmptyTitle, Message: "m"})
+	assert.Equal(t, agentconfig.PolicyError{Bundle: "b", Path: "x/a.rego", Row: 3, Col: 5, Message: "m",
+		Severity: agentconfig.SeverityWarning, Code: agentconfig.PolicyCodeEmptyTitle}, got)
 }

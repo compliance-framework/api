@@ -85,23 +85,7 @@ type PluginReport struct {
 	// was built with, from its Go build info. Empty when unknown: no build info, or a
 	// replace or devel build.
 	LibVersion string `json:"lib-version,omitempty"`
-	// InlinePolicies says whether the plugin honours policy_id, so it may be given inline
-	// policies (R79): supported, unsupported, or unknown (no build info, or a replace or
-	// devel build). The agent decides it from LibVersion. Empty for older agents.
-	InlinePolicies string `json:"inline-policies,omitempty" enums:"supported,unsupported,unknown"`
 }
-
-// PluginReport.InlinePolicies values (R79). The agent rejects an overlay that gives inline
-// policies to an unsupported plugin (PolicyCodePluginLibInlineUnsupported) and warns for an
-// unknown one.
-const (
-	InlinePoliciesSupported   = "supported"   // built against an agent library with R74
-	InlinePoliciesUnsupported = "unsupported" // built against an older agent library
-	InlinePoliciesUnknown     = "unknown"     // no build info, or a replace or devel build
-)
-
-// InlinePoliciesValues is the PluginReport.InlinePolicies vocabulary.
-var InlinePoliciesValues = []string{InlinePoliciesSupported, InlinePoliciesUnsupported, InlinePoliciesUnknown}
 
 // PolicyBundleReport describes one policy path the agent loaded.
 type PolicyBundleReport struct {
@@ -115,14 +99,6 @@ type PolicyBundleReport struct {
 	// agent does not upload. Agents keep it when they drop Files to fit the report size.
 	// The API checks its format only, not that the artifact exists.
 	ArtifactDigest string `json:"artifact-digest,omitempty"`
-	// PluginPath is the exact path string the agent passes to plugins for this source, which
-	// plugins seed evidence UUIDs with (R77). It may be un-cleaned (for example "./x" or
-	// "x/"). Build a policy_id that continues a file's evidence stream as the literal
-	// PluginPath + "/" + file, not path.Join: plugins seeded OPA's cleaned file with the
-	// literal PluginPath, and policyeval.SeedPath cleans the ID for the file seed but trims
-	// the raw ID for the path seed, so only the literal form keeps "./x" or "x/" in
-	// _policy_path. Empty from older agents.
-	PluginPath string `json:"plugin-path,omitempty"`
 }
 
 // PolicyExtendsReport is the vendor tree an inline bundle extends.
@@ -133,13 +109,6 @@ type PolicyExtendsReport struct {
 	// ArtifactDigest names the artifact of the vendor tree alone; see
 	// PolicyBundleReport.ArtifactDigest.
 	ArtifactDigest string `json:"artifact-digest,omitempty"`
-	// PluginPath is the exact (literal) path the agent would pass to plugins for the extends
-	// source if a plugin loaded it directly (R78). Clients build continuity ids as
-	// PluginPath + "/" + file (literal concatenation, see PolicyBundleReport.PluginPath). It
-	// lets a client keep a vendor file's evidence stream after an inline bundle has replaced
-	// the source in every plugin, when no policy-bundles[] entry names the source any more.
-	// Empty from older agents.
-	PluginPath string `json:"plugin-path,omitempty"`
 }
 
 // PolicyBundleExtendsReport is an alias of PolicyExtendsReport (the name the agent LLD uses).

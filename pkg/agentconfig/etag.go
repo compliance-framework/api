@@ -30,28 +30,6 @@ func normalizeETag(tag string) string {
 	return t
 }
 
-// ParseETagRevision parses an opaque agent ETag (strong, W/ or bare) back into its revision
-// and uuid (the revision row id, or the agent id for rev 0). For diagnostics and logging only.
-func ParseETagRevision(tag string) (rev int64, id uuid.UUID, ok bool) {
-	t := normalizeETag(tag)
-	if !strings.HasPrefix(t, "r") {
-		return 0, uuid.Nil, false
-	}
-	revPart, idPart, found := strings.Cut(t[1:], "-")
-	if !found {
-		return 0, uuid.Nil, false
-	}
-	r, err := strconv.ParseInt(revPart, 10, 64)
-	if err != nil || r < 0 {
-		return 0, uuid.Nil, false
-	}
-	u, err := uuid.Parse(idPart)
-	if err != nil {
-		return 0, uuid.Nil, false
-	}
-	return r, u, true
-}
-
 // MatchIfNoneMatch reports whether any entry of an If-None-Match header (strong, W/, bare,
 // a comma-separated list, or "*") equals the CURRENT opaque tag. Entries are compared as text
 // after stripping W/ and quotes. An empty header never matches.

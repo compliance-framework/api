@@ -23,7 +23,6 @@ import (
 	"github.com/compliance-framework/api/internal/service/sso"
 	"github.com/compliance-framework/api/internal/tests"
 	"github.com/compliance-framework/api/pkg/agentconfig"
-	"github.com/compliance-framework/api/pkg/policyeval"
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 	"github.com/stretchr/testify/suite"
@@ -302,10 +301,9 @@ func (s *AgentConfigAdminIntegrationSuite) TestGetConfigRevisionZero() {
 	s.JSONEq(`null`, string(body.Data["comment"]))
 	s.JSONEq(`null`, string(body.Data["created-at"]))
 	s.JSONEq(`null`, string(body.Data["revert-of"]))
-	s.NotContains(body.Data, "bundles-first-seen")
 }
 
-func (s *AgentConfigAdminIntegrationSuite) TestGetConfigAfterSaveHasBundlesFirstSeen() {
+func (s *AgentConfigAdminIntegrationSuite) TestGetConfigAfterSave() {
 	overlay := fmt.Sprintf(`{"policy_bundles":{"banner":{"modules":{"banner.rego":%q}}}}`, acaCleanRego)
 	s.save(`"0"`, overlay, 1)
 
@@ -317,9 +315,6 @@ func (s *AgentConfigAdminIntegrationSuite) TestGetConfigAfterSaveHasBundlesFirst
 	s.JSONEq(overlay, string(got.Overlay))
 	s.Require().NotNil(got.CreatedBy)
 	s.Equal("dummy@example.com", *got.CreatedBy)
-	s.Require().Contains(got.BundlesFirstSeen, "banner")
-	s.Require().NotNil(got.CreatedAt)
-	s.WithinDuration(*got.CreatedAt, got.BundlesFirstSeen["banner"], time.Second)
 }
 
 func (s *AgentConfigAdminIntegrationSuite) TestGetConfigBadAndUnknownAgent() {
@@ -438,7 +433,7 @@ func (s *AgentConfigAdminIntegrationSuite) TestPutContractChecks() {
 		Col:      1,
 		Message:  "package compliance_framework.banner has no title, so the agent records no evidence for it",
 		Severity: agentconfig.SeverityError,
-		Code:     policyeval.IssueMissingTitle,
+		Code:     agentconfig.PolicyCodeMissingTitle,
 	}, pe)
 
 	// A literal shape error blocks even when the bundle extends a source.
@@ -450,8 +445,8 @@ func (s *AgentConfigAdminIntegrationSuite) TestPutContractChecks() {
 		byCode[e.Code] = e.Severity
 	}
 	s.Equal(map[string]string{
-		policyeval.IssueInvalidType:      agentconfig.SeverityError,
-		policyeval.IssueMissingViolation: agentconfig.SeverityWarning,
+		agentconfig.PolicyCodeInvalidType:      agentconfig.SeverityError,
+		agentconfig.PolicyCodeMissingViolation: agentconfig.SeverityWarning,
 	}, byCode)
 	s.Equal(int64(0), s.revisionCount(*s.agent.ID))
 
@@ -462,7 +457,7 @@ func (s *AgentConfigAdminIntegrationSuite) TestPutContractChecks() {
 	preview := acaData[configPreviewResponse](s, rec)
 	s.Require().Len(preview.PolicyErrors, 1)
 	s.Equal(agentconfig.SeverityWarning, preview.PolicyErrors[0].Severity)
-	s.Equal(policyeval.IssueMissingTitle, preview.PolicyErrors[0].Code)
+	s.Equal(agentconfig.PolicyCodeMissingTitle, preview.PolicyErrors[0].Code)
 	s.save(`"0"`, overlay, 1)
 
 	// Patching a bundle an instance's file defines: the file's modules may define it.
@@ -864,24 +859,11 @@ func (s *AgentConfigAdminIntegrationSuite) TestInstances() {
 	inSync := s.report(agentID, agentconfig.ModeApplySafe, func(r *agentconfig.Report) {
 		r.AppliedRevision = acaI64(1)
 		r.PolicyBundles = []agentconfig.PolicyBundleReport{{
-			Source:     acaVendorPolicy,
-			Digest:     acaDigest,
-			Files:      []agentconfig.PolicyFileReport{{Path: "ssh.rego", SHA256: strings.Repeat("a", 64), Package: "compliance_framework.ssh"}},
-			PluginPath: ".compliance-framework/policies/vendor/ssh/v1/policies",
-		}, {
-			// R78: the extends source after the swap, named by no other entry.
-			Source: "inline:custom",
+			Source: acaVendorPolicy,
 			Digest: acaDigest,
-			Files:  []agentconfig.PolicyFileReport{},
-			Extends: &agentconfig.PolicyExtendsReport{
-				Source:     "ghcr.io/vendor/swapped:v1",
-				Digest:     acaDigest,
-				Files:      []agentconfig.PolicyFileReport{},
-				PluginPath: ".compliance-framework/policies/vendor/swapped/v1/policies",
-			},
-			PluginPath: "/state/inline/custom/current/bundle",
+			Files:  []agentconfig.PolicyFileReport{{Path: "ssh.rego", SHA256: strings.Repeat("a", 64), Package: "compliance_framework.ssh"}},
 		}}
-		r.Plugins = []agentconfig.PluginReport{{Name: "ssh", Source: acaVendorPlugin, LibVersion: "v0.7.1", InlinePolicies: agentconfig.InlinePoliciesSupported}, {Name: "local", InlinePolicies: agentconfig.InlinePoliciesUnknown}}
+		r.Plugins = []agentconfig.PluginReport{{Name: "ssh", Source: acaVendorPlugin, LibVersion: "v0.7.1"}, {Name: "local"}}
 	})
 	pending := s.report(agentID, agentconfig.ModeApplySafe, nil) // applied nil, attempted nil
 	rejected := s.report(agentID, agentconfig.ModeApplyAll, func(r *agentconfig.Report) {
@@ -924,7 +906,7 @@ func (s *AgentConfigAdminIntegrationSuite) TestInstances() {
 	s.Equal(agentconfig.StatusApplied, st.Status)
 	s.Equal(agentcfg.SyncInSync, st.SyncStatus)
 	s.True(st.ReportStale)
-	s.Equal([]agentconfig.PluginReport{{Name: "ssh", Source: acaVendorPlugin, LibVersion: "v0.7.1", InlinePolicies: agentconfig.InlinePoliciesSupported}, {Name: "local", InlinePolicies: agentconfig.InlinePoliciesUnknown}}, st.Plugins, "R76, R79: listed with the summary")
+	s.Equal([]agentconfig.PluginReport{{Name: "ssh", Source: acaVendorPlugin, LibVersion: "v0.7.1"}, {Name: "local"}}, st.Plugins, "R76: listed with the summary")
 	s.Require().NotNil(st.HeartbeatConfigRevision)
 	s.Equal(int64(1), *st.HeartbeatConfigRevision)
 	s.NotEmpty(st.RemoteConfig)
@@ -971,13 +953,10 @@ func (s *AgentConfigAdminIntegrationSuite) TestInstances() {
 	s.Equal(inSync.String(), detail.InstanceID)
 	s.Contains(string(detail.Base), acaVendorPlugin)
 	s.Contains(string(detail.Effective), acaVendorPolicy)
-	s.Require().Len(detail.PolicyBundles, 2)
+	s.Require().Len(detail.PolicyBundles, 1)
 	s.Equal(acaVendorPolicy, detail.PolicyBundles[0].Source)
 	s.Len(detail.PolicyBundles[0].Files, 1)
-	s.Equal(".compliance-framework/policies/vendor/ssh/v1/policies", detail.PolicyBundles[0].PluginPath, "R77")
-	s.Require().NotNil(detail.PolicyBundles[1].Extends)
-	s.Equal(".compliance-framework/policies/vendor/swapped/v1/policies", detail.PolicyBundles[1].Extends.PluginPath, "R78")
-	s.Equal([]agentconfig.PluginReport{{Name: "ssh", Source: acaVendorPlugin, LibVersion: "v0.7.1", InlinePolicies: agentconfig.InlinePoliciesSupported}, {Name: "local", InlinePolicies: agentconfig.InlinePoliciesUnknown}}, detail.Plugins, "R76, R79")
+	s.Equal([]agentconfig.PluginReport{{Name: "ssh", Source: acaVendorPlugin, LibVersion: "v0.7.1"}, {Name: "local"}}, detail.Plugins, "R76")
 
 	// A heartbeat-only instance has null configs and [] bundles.
 	rec = s.call(http.MethodGet, s.path("/instances/"+heartbeatOnly.String()), nil)

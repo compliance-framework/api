@@ -63,15 +63,14 @@ func (h *AgentConfigHandler) Register(g *echo.Group, guard middleware.ResourceGu
 // ---- DTOs (A4.4) ----
 
 type agentConfigRevisionResponse struct {
-	AgentID          string               `json:"agent-id"`
-	Revision         int64                `json:"revision"`
-	Overlay          json.RawMessage      `json:"overlay,omitempty" swaggertype:"object"` // omitted in lists
-	OverlaySize      int                  `json:"overlay-size"`
-	Comment          *string              `json:"comment"`
-	CreatedBy        *string              `json:"created-by"`
-	CreatedAt        *time.Time           `json:"created-at"`
-	RevertOf         *int64               `json:"revert-of"`
-	BundlesFirstSeen map[string]time.Time `json:"bundles-first-seen,omitempty"` // GET .../config only (12.6)
+	AgentID     string          `json:"agent-id"`
+	Revision    int64           `json:"revision"`
+	Overlay     json.RawMessage `json:"overlay,omitempty" swaggertype:"object"` // omitted in lists
+	OverlaySize int             `json:"overlay-size"`
+	Comment     *string         `json:"comment"`
+	CreatedBy   *string         `json:"created-by"`
+	CreatedAt   *time.Time      `json:"created-at"`
+	RevertOf    *int64          `json:"revert-of"`
 }
 
 type agentInstanceSummary struct {
@@ -186,7 +185,7 @@ type agentConfigPreviewRequest struct {
 // Get godoc
 //
 //	@Summary		Get an agent's configuration overlay
-//	@Description	Returns the current configuration revision (overlay as an RFC 7396 merge patch, snake_case) and, when the overlay defines policy bundles, when each was first seen. Revision 0 means no overlay. The ETag is the plain revision number; send it as If-Match when saving. The overlay is returned unredacted to every agent:read holder, so do not put literal secrets in it; use ${env:NAME} placeholders (R57).
+//	@Description	Returns the current configuration revision (overlay as an RFC 7396 merge patch, snake_case). Revision 0 means no overlay. The ETag is the plain revision number; send it as If-Match when saving. The overlay is returned unredacted to every agent:read holder, so do not put literal secrets in it; use ${env:NAME} placeholders (R57).
 //	@Tags			Agent Configuration
 //	@Produce		json
 //	@Param			id	path		string	true	"Agent ID"
@@ -202,21 +201,11 @@ func (h *AgentConfigHandler) Get(ctx echo.Context) error {
 	if agent == nil {
 		return errResp
 	}
-	reqCtx := ctx.Request().Context()
-	cur, err := h.svc.Current(reqCtx, *agent.ID)
+	cur, err := h.svc.Current(ctx.Request().Context(), *agent.ID)
 	if err != nil {
 		return h.internalError(ctx, "load agent configuration", err)
 	}
 	resp := revisionResponse(*agent.ID, cur, true)
-	if cur != nil {
-		firstSeen, err := h.svc.BundlesFirstSeen(reqCtx, *agent.ID)
-		if err != nil {
-			return h.internalError(ctx, "load bundle ages", err)
-		}
-		if len(firstSeen) > 0 {
-			resp.BundlesFirstSeen = firstSeen
-		}
-	}
 	ctx.Response().Header().Set(headerETag, agentconfig.AdminETag(resp.Revision))
 	return ctx.JSON(http.StatusOK, GenericDataResponse[agentConfigRevisionResponse]{Data: resp})
 }

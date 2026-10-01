@@ -51,16 +51,6 @@ definitions:
     type: object
   agentconfig.PluginReport:
     properties:
-      inline-policies:
-        description: |-
-          InlinePolicies says whether the plugin honours policy_id, so it may be given inline
-          policies (R79): supported, unsupported, or unknown (no build info, or a replace or
-          devel build). The agent decides it from LibVersion. Empty for older agents.
-        enum:
-        - supported
-        - unsupported
-        - unknown
-        type: string
       lib-version:
         description: |-
           LibVersion is the version of github.com/compliance-framework/agent the plugin binary
@@ -96,16 +86,6 @@ definitions:
         items:
           $ref: '#/definitions/agentconfig.PolicyFileReport'
         type: array
-      plugin-path:
-        description: |-
-          PluginPath is the exact path string the agent passes to plugins for this source, which
-          plugins seed evidence UUIDs with (R77). It may be un-cleaned (for example "./x" or
-          "x/"). Build a policy_id that continues a file's evidence stream as the literal
-          PluginPath + "/" + file, not path.Join: plugins seeded OPA's cleaned file with the
-          literal PluginPath, and policyeval.SeedPath cleans the ID for the file seed but trims
-          the raw ID for the path seed, so only the literal form keeps "./x" or "x/" in
-          _policy_path. Empty from older agents.
-        type: string
       source:
         type: string
     type: object
@@ -115,9 +95,8 @@ definitions:
         type: string
       code:
         description: |-
-          Code classifies the problem when known: a policyeval.Issue* code for policy contract
-          problems (R63), one of the regocheck codes, or one of the PolicyCode* codes. Empty for
-          older producers.
+          Code classifies the problem when known: one of the PolicyCode* codes, or one of the
+          regocheck codes. Empty for older producers.
         type: string
       col:
         type: integer
@@ -144,15 +123,6 @@ definitions:
         items:
           $ref: '#/definitions/agentconfig.PolicyFileReport'
         type: array
-      plugin-path:
-        description: |-
-          PluginPath is the exact (literal) path the agent would pass to plugins for the extends
-          source if a plugin loaded it directly (R78). Clients build continuity ids as
-          PluginPath + "/" + file (literal concatenation, see PolicyBundleReport.PluginPath). It
-          lets a client keep a vendor file's evidence stream after an inline bundle has replaced
-          the source in every plugin, when no policy-bundles[] entry names the source any more.
-          Empty from older agents.
-        type: string
       source:
         type: string
     type: object
@@ -1062,24 +1032,6 @@ definitions:
         type: array
       meta: {}
     type: object
-  handler.GenericDataListResponse-handler_agentKeyResponse:
-    properties:
-      data:
-        description: Items from the list response
-        items:
-          $ref: '#/definitions/handler.agentKeyResponse'
-        type: array
-      meta: {}
-    type: object
-  handler.GenericDataListResponse-handler_agentResponse:
-    properties:
-      data:
-        description: Items from the list response
-        items:
-          $ref: '#/definitions/handler.agentResponse'
-        type: array
-      meta: {}
-    type: object
   handler.GenericDataListResponse-handler_availableNotificationProviderResponse:
     properties:
       data:
@@ -1844,27 +1796,6 @@ definitions:
       data:
         allOf:
         - $ref: '#/definitions/handler.agentInstanceDetail'
-        description: Wrapped response data
-    type: object
-  handler.GenericDataResponse-handler_agentKeyCreateResponse:
-    properties:
-      data:
-        allOf:
-        - $ref: '#/definitions/handler.agentKeyCreateResponse'
-        description: Wrapped response data
-    type: object
-  handler.GenericDataResponse-handler_agentKeyResponse:
-    properties:
-      data:
-        allOf:
-        - $ref: '#/definitions/handler.agentKeyResponse'
-        description: Wrapped response data
-    type: object
-  handler.GenericDataResponse-handler_agentResponse:
-    properties:
-      data:
-        allOf:
-        - $ref: '#/definitions/handler.agentResponse'
         description: Wrapped response data
     type: object
   handler.GenericDataResponse-handler_bulkControlLinkResponse:
@@ -3056,11 +2987,6 @@ definitions:
     properties:
       agent-id:
         type: string
-      bundles-first-seen:
-        additionalProperties:
-          type: string
-        description: GET .../config only (12.6)
-        type: object
       comment:
         type: string
       created-at:
@@ -3254,69 +3180,6 @@ definitions:
       desired-revision:
         type: integer
     type: object
-  handler.agentKeyCreateResponse:
-    properties:
-      client-id:
-        type: string
-      client-secret:
-        type: string
-      created-at:
-        type: string
-      expires-at:
-        type: string
-      id:
-        type: string
-      last-used-at:
-        type: string
-      name:
-        type: string
-      never-expires:
-        type: boolean
-      revoked-at:
-        type: string
-      updated-at:
-        type: string
-    type: object
-  handler.agentKeyResponse:
-    properties:
-      client-id:
-        type: string
-      created-at:
-        type: string
-      expires-at:
-        type: string
-      id:
-        type: string
-      last-used-at:
-        type: string
-      name:
-        type: string
-      never-expires:
-        type: boolean
-      revoked-at:
-        type: string
-      updated-at:
-        type: string
-    type: object
-  handler.agentResponse:
-    properties:
-      created-at:
-        type: string
-      description:
-        type: string
-      id:
-        type: string
-      is-active:
-        type: boolean
-      last-authenticated-at:
-        type: string
-      name:
-        type: string
-      service-account-key-count:
-        type: integer
-      updated-at:
-        type: string
-    type: object
   handler.attachFilterResponsibilityRequest:
     properties:
       controlId:
@@ -3446,26 +3309,6 @@ definitions:
         type: string
       controlId:
         type: string
-    type: object
-  handler.createAgentKeyRequest:
-    properties:
-      expires-at:
-        type: string
-      name:
-        type: string
-      never-expires:
-        type: boolean
-    type: object
-  handler.createAgentRequest:
-    properties:
-      description:
-        type: string
-      is-active:
-        type: boolean
-      name:
-        type: string
-    required:
-    - name
     type: object
   handler.createControlLinkRequest:
     properties:
@@ -4146,15 +3989,6 @@ definitions:
       title:
         type: string
       url:
-        type: string
-    type: object
-  handler.updateAgentRequest:
-    properties:
-      description:
-        type: string
-      is-active:
-        type: boolean
-      name:
         type: string
     type: object
   handler.updateMilestoneRequest:
@@ -8771,7 +8605,7 @@ definitions:
   policyeval.Issue:
     properties:
       code:
-        description: Issue* constants
+        description: agentconfig.PolicyCode* constants
         type: string
       col:
         type: integer
@@ -8785,7 +8619,7 @@ definitions:
       row:
         type: integer
       severity:
-        description: SeverityError | SeverityWarning
+        description: agentconfig.SeverityError | agentconfig.SeverityWarning
         type: string
     type: object
   policyeval.RuleLocation:
@@ -13067,207 +12901,13 @@ info:
   title: Continuous Compliance Framework API
   version: "1"
 paths:
-  /admin/agents:
-    get:
-      description: Lists agent service accounts with their active key counts (never
-        the keys). Requires agent:read.
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/handler.GenericDataListResponse-handler_agentResponse'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/api.Error'
-        "403":
-          description: Forbidden
-          schema:
-            $ref: '#/definitions/api.Error'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/api.Error'
-      security:
-      - OAuth2Password: []
-      summary: List agents
-      tags:
-      - Agents
-    post:
-      consumes:
-      - application/json
-      description: Creates an agent service account. Requires admin:manage.
-      parameters:
-      - description: Agent
-        in: body
-        name: agent
-        required: true
-        schema:
-          $ref: '#/definitions/handler.createAgentRequest'
-      produces:
-      - application/json
-      responses:
-        "201":
-          description: Created
-          schema:
-            $ref: '#/definitions/handler.GenericDataResponse-handler_agentResponse'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/api.Error'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/api.Error'
-        "403":
-          description: Forbidden
-          schema:
-            $ref: '#/definitions/api.Error'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/api.Error'
-      security:
-      - OAuth2Password: []
-      summary: Create an agent
-      tags:
-      - Agents
-  /admin/agents/{id}:
-    delete:
-      description: Deactivates and deletes the agent, revokes its keys and removes
-        its reported instances. Configuration revisions are kept. Requires admin:manage.
-      parameters:
-      - description: Agent ID
-        in: path
-        name: id
-        required: true
-        type: string
-      responses:
-        "204":
-          description: No Content
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/api.Error'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/api.Error'
-        "403":
-          description: Forbidden
-          schema:
-            $ref: '#/definitions/api.Error'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/api.Error'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/api.Error'
-      security:
-      - OAuth2Password: []
-      summary: Delete an agent
-      tags:
-      - Agents
-    get:
-      description: Requires agent:read.
-      parameters:
-      - description: Agent ID
-        in: path
-        name: id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/handler.GenericDataResponse-handler_agentResponse'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/api.Error'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/api.Error'
-        "403":
-          description: Forbidden
-          schema:
-            $ref: '#/definitions/api.Error'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/api.Error'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/api.Error'
-      security:
-      - OAuth2Password: []
-      summary: Get an agent
-      tags:
-      - Agents
-    put:
-      consumes:
-      - application/json
-      description: Requires admin:manage.
-      parameters:
-      - description: Agent ID
-        in: path
-        name: id
-        required: true
-        type: string
-      - description: Fields to update
-        in: body
-        name: agent
-        required: true
-        schema:
-          $ref: '#/definitions/handler.updateAgentRequest'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/handler.GenericDataResponse-handler_agentResponse'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/api.Error'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/api.Error'
-        "403":
-          description: Forbidden
-          schema:
-            $ref: '#/definitions/api.Error'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/api.Error'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/api.Error'
-      security:
-      - OAuth2Password: []
-      summary: Update an agent
-      tags:
-      - Agents
   /admin/agents/{id}/config:
     get:
       description: Returns the current configuration revision (overlay as an RFC 7396
-        merge patch, snake_case) and, when the overlay defines policy bundles, when
-        each was first seen. Revision 0 means no overlay. The ETag is the plain revision
-        number; send it as If-Match when saving. The overlay is returned unredacted
-        to every agent:read holder, so do not put literal secrets in it; use ${env:NAME}
-        placeholders (R57).
+        merge patch, snake_case). Revision 0 means no overlay. The ETag is the plain
+        revision number; send it as If-Match when saving. The overlay is returned
+        unredacted to every agent:read holder, so do not put literal secrets in it;
+        use ${env:NAME} placeholders (R57).
       parameters:
       - description: Agent ID
         in: path
@@ -13703,183 +13343,6 @@ paths:
       summary: Get one agent instance
       tags:
       - Agent Configuration
-  /admin/agents/{id}/keys:
-    get:
-      description: Requires admin:manage.
-      parameters:
-      - description: Agent ID
-        in: path
-        name: id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/handler.GenericDataListResponse-handler_agentKeyResponse'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/api.Error'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/api.Error'
-        "403":
-          description: Forbidden
-          schema:
-            $ref: '#/definitions/api.Error'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/api.Error'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/api.Error'
-      security:
-      - OAuth2Password: []
-      summary: List an agent's keys
-      tags:
-      - Agents
-    post:
-      consumes:
-      - application/json
-      description: Creates a service-account key; the client secret is returned only
-        once. Requires admin:manage.
-      parameters:
-      - description: Agent ID
-        in: path
-        name: id
-        required: true
-        type: string
-      - description: Key
-        in: body
-        name: key
-        required: true
-        schema:
-          $ref: '#/definitions/handler.createAgentKeyRequest'
-      produces:
-      - application/json
-      responses:
-        "201":
-          description: Created
-          schema:
-            $ref: '#/definitions/handler.GenericDataResponse-handler_agentKeyCreateResponse'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/api.Error'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/api.Error'
-        "403":
-          description: Forbidden
-          schema:
-            $ref: '#/definitions/api.Error'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/api.Error'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/api.Error'
-      security:
-      - OAuth2Password: []
-      summary: Create an agent key
-      tags:
-      - Agents
-  /admin/agents/{id}/keys/{keyId}:
-    delete:
-      description: Requires admin:manage.
-      parameters:
-      - description: Agent ID
-        in: path
-        name: id
-        required: true
-        type: string
-      - description: Key ID
-        in: path
-        name: keyId
-        required: true
-        type: string
-      responses:
-        "204":
-          description: No Content
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/api.Error'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/api.Error'
-        "403":
-          description: Forbidden
-          schema:
-            $ref: '#/definitions/api.Error'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/api.Error'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/api.Error'
-      security:
-      - OAuth2Password: []
-      summary: Revoke an agent key
-      tags:
-      - Agents
-    get:
-      description: Requires admin:manage.
-      parameters:
-      - description: Agent ID
-        in: path
-        name: id
-        required: true
-        type: string
-      - description: Key ID
-        in: path
-        name: keyId
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/handler.GenericDataResponse-handler_agentKeyResponse'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/api.Error'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/api.Error'
-        "403":
-          description: Forbidden
-          schema:
-            $ref: '#/definitions/api.Error'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/api.Error'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/api.Error'
-      security:
-      - OAuth2Password: []
-      summary: Get an agent key
-      tags:
-      - Agents
   /admin/ai-diagnostics/runs:
     get:
       description: Lists dashboard suggestion runs across all SSPs, newest first,

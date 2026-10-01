@@ -52,7 +52,7 @@ func policyIDFrom(outputs map[string]any) string {
 // path seed is the raw (un-cleaned) ID minus "/" + the policy's bundle-relative path when
 // the raw ID ends in that, and the raw ID itself otherwise. The bundle-relative path is
 // policyFile relative to the cleaned policyPath. So an ID built as the literal
-// plugin-path + "/" + file of another location (for example a vendor module that an inline
+// policy path + "/" + file of another location (for example a vendor module that an inline
 // bundle overrides) continues that file's stream even when that plugin path is un-cleaned:
 // "./policies" + "/" + "a.rego" seeds ("policies/a.rego", "./policies"), as the vendor
 // plugin did. An opaque ID (for example "ssh-deny-password-auth") gives a stream that does

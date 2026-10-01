@@ -21,307 +21,9 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
-        "/admin/agents": {
-            "get": {
-                "description": "Lists agent service accounts with their active key counts (never the keys). Requires agent:read.",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Agents"
-                ],
-                "summary": "List agents",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/handler.GenericDataListResponse-handler_agentResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "OAuth2Password": []
-                    }
-                ]
-            },
-            "post": {
-                "description": "Creates an agent service account. Requires admin:manage.",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Agents"
-                ],
-                "summary": "Create an agent",
-                "parameters": [
-                    {
-                        "description": "Agent",
-                        "name": "agent",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/handler.createAgentRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "201": {
-                        "description": "Created",
-                        "schema": {
-                            "$ref": "#/definitions/handler.GenericDataResponse-handler_agentResponse"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "OAuth2Password": []
-                    }
-                ]
-            }
-        },
-        "/admin/agents/{id}": {
-            "get": {
-                "description": "Requires agent:read.",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Agents"
-                ],
-                "summary": "Get an agent",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Agent ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/handler.GenericDataResponse-handler_agentResponse"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "OAuth2Password": []
-                    }
-                ]
-            },
-            "put": {
-                "description": "Requires admin:manage.",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Agents"
-                ],
-                "summary": "Update an agent",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Agent ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Fields to update",
-                        "name": "agent",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/handler.updateAgentRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/handler.GenericDataResponse-handler_agentResponse"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "OAuth2Password": []
-                    }
-                ]
-            },
-            "delete": {
-                "description": "Deactivates and deletes the agent, revokes its keys and removes its reported instances. Configuration revisions are kept. Requires admin:manage.",
-                "tags": [
-                    "Agents"
-                ],
-                "summary": "Delete an agent",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Agent ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "204": {
-                        "description": "No Content"
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "OAuth2Password": []
-                    }
-                ]
-            }
-        },
         "/admin/agents/{id}/config": {
             "get": {
-                "description": "Returns the current configuration revision (overlay as an RFC 7396 merge patch, snake_case) and, when the overlay defines policy bundles, when each was first seen. Revision 0 means no overlay. The ETag is the plain revision number; send it as If-Match when saving. The overlay is returned unredacted to every agent:read holder, so do not put literal secrets in it; use ${env:NAME} placeholders (R57).",
+                "description": "Returns the current configuration revision (overlay as an RFC 7396 merge patch, snake_case). Revision 0 means no overlay. The ETag is the plain revision number; send it as If-Match when saving. The overlay is returned unredacted to every agent:read holder, so do not put literal secrets in it; use ${env:NAME} placeholders (R57).",
                 "produces": [
                     "application/json"
                 ],
@@ -916,278 +618,6 @@ const docTemplate = `{
                     },
                     "400": {
                         "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "OAuth2Password": []
-                    }
-                ]
-            }
-        },
-        "/admin/agents/{id}/keys": {
-            "get": {
-                "description": "Requires admin:manage.",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Agents"
-                ],
-                "summary": "List an agent's keys",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Agent ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/handler.GenericDataListResponse-handler_agentKeyResponse"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "OAuth2Password": []
-                    }
-                ]
-            },
-            "post": {
-                "description": "Creates a service-account key; the client secret is returned only once. Requires admin:manage.",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Agents"
-                ],
-                "summary": "Create an agent key",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Agent ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Key",
-                        "name": "key",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/handler.createAgentKeyRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "201": {
-                        "description": "Created",
-                        "schema": {
-                            "$ref": "#/definitions/handler.GenericDataResponse-handler_agentKeyCreateResponse"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "OAuth2Password": []
-                    }
-                ]
-            }
-        },
-        "/admin/agents/{id}/keys/{keyId}": {
-            "get": {
-                "description": "Requires admin:manage.",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Agents"
-                ],
-                "summary": "Get an agent key",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Agent ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Key ID",
-                        "name": "keyId",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/handler.GenericDataResponse-handler_agentKeyResponse"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "OAuth2Password": []
-                    }
-                ]
-            },
-            "delete": {
-                "description": "Requires admin:manage.",
-                "tags": [
-                    "Agents"
-                ],
-                "summary": "Revoke an agent key",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Agent ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Key ID",
-                        "name": "keyId",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "204": {
-                        "description": "No Content"
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
                         "schema": {
                             "$ref": "#/definitions/api.Error"
                         }
@@ -35775,15 +35205,6 @@ const docTemplate = `{
         "agentconfig.PluginReport": {
             "type": "object",
             "properties": {
-                "inline-policies": {
-                    "description": "InlinePolicies says whether the plugin honours policy_id, so it may be given inline\npolicies (R79): supported, unsupported, or unknown (no build info, or a replace or\ndevel build). The agent decides it from LibVersion. Empty for older agents.",
-                    "type": "string",
-                    "enum": [
-                        "supported",
-                        "unsupported",
-                        "unknown"
-                    ]
-                },
                 "lib-version": {
                     "description": "LibVersion is the version of github.com/compliance-framework/agent the plugin binary\nwas built with, from its Go build info. Empty when unknown: no build info, or a\nreplace or devel build.",
                     "type": "string"
@@ -35824,10 +35245,6 @@ const docTemplate = `{
                         "$ref": "#/definitions/agentconfig.PolicyFileReport"
                     }
                 },
-                "plugin-path": {
-                    "description": "PluginPath is the exact path string the agent passes to plugins for this source, which\nplugins seed evidence UUIDs with (R77). It may be un-cleaned (for example \"./x\" or\n\"x/\"). Build a policy_id that continues a file's evidence stream as the literal\nPluginPath + \"/\" + file, not path.Join: plugins seeded OPA's cleaned file with the\nliteral PluginPath, and policyeval.SeedPath cleans the ID for the file seed but trims\nthe raw ID for the path seed, so only the literal form keeps \"./x\" or \"x/\" in\n_policy_path. Empty from older agents.",
-                    "type": "string"
-                },
                 "source": {
                     "type": "string"
                 }
@@ -35840,7 +35257,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "code": {
-                    "description": "Code classifies the problem when known: a policyeval.Issue* code for policy contract\nproblems (R63), one of the regocheck codes, or one of the PolicyCode* codes. Empty for\nolder producers.",
+                    "description": "Code classifies the problem when known: one of the PolicyCode* codes, or one of the\nregocheck codes. Empty for older producers.",
                     "type": "string"
                 },
                 "col": {
@@ -35876,10 +35293,6 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/agentconfig.PolicyFileReport"
                     }
-                },
-                "plugin-path": {
-                    "description": "PluginPath is the exact (literal) path the agent would pass to plugins for the extends\nsource if a plugin loaded it directly (R78). Clients build continuity ids as\nPluginPath + \"/\" + file (literal concatenation, see PolicyBundleReport.PluginPath). It\nlets a client keep a vendor file's evidence stream after an inline bundle has replaced\nthe source in every plugin, when no policy-bundles[] entry names the source any more.\nEmpty from older agents.",
-                    "type": "string"
                 },
                 "source": {
                     "type": "string"
@@ -37156,32 +36569,6 @@ const docTemplate = `{
                 "meta": {}
             }
         },
-        "handler.GenericDataListResponse-handler_agentKeyResponse": {
-            "type": "object",
-            "properties": {
-                "data": {
-                    "description": "Items from the list response",
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/handler.agentKeyResponse"
-                    }
-                },
-                "meta": {}
-            }
-        },
-        "handler.GenericDataListResponse-handler_agentResponse": {
-            "type": "object",
-            "properties": {
-                "data": {
-                    "description": "Items from the list response",
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/handler.agentResponse"
-                    }
-                },
-                "meta": {}
-            }
-        },
         "handler.GenericDataListResponse-handler_availableNotificationProviderResponse": {
             "type": "object",
             "properties": {
@@ -38317,45 +37704,6 @@ const docTemplate = `{
                     "allOf": [
                         {
                             "$ref": "#/definitions/handler.agentInstanceDetail"
-                        }
-                    ]
-                }
-            }
-        },
-        "handler.GenericDataResponse-handler_agentKeyCreateResponse": {
-            "type": "object",
-            "properties": {
-                "data": {
-                    "description": "Wrapped response data",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/handler.agentKeyCreateResponse"
-                        }
-                    ]
-                }
-            }
-        },
-        "handler.GenericDataResponse-handler_agentKeyResponse": {
-            "type": "object",
-            "properties": {
-                "data": {
-                    "description": "Wrapped response data",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/handler.agentKeyResponse"
-                        }
-                    ]
-                }
-            }
-        },
-        "handler.GenericDataResponse-handler_agentResponse": {
-            "type": "object",
-            "properties": {
-                "data": {
-                    "description": "Wrapped response data",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/handler.agentResponse"
                         }
                     ]
                 }
@@ -40381,13 +39729,6 @@ const docTemplate = `{
                 "agent-id": {
                     "type": "string"
                 },
-                "bundles-first-seen": {
-                    "description": "GET .../config only (12.6)",
-                    "type": "object",
-                    "additionalProperties": {
-                        "type": "string"
-                    }
-                },
                 "comment": {
                     "type": "string"
                 },
@@ -40669,102 +40010,6 @@ const docTemplate = `{
                 }
             }
         },
-        "handler.agentKeyCreateResponse": {
-            "type": "object",
-            "properties": {
-                "client-id": {
-                    "type": "string"
-                },
-                "client-secret": {
-                    "type": "string"
-                },
-                "created-at": {
-                    "type": "string"
-                },
-                "expires-at": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "last-used-at": {
-                    "type": "string"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "never-expires": {
-                    "type": "boolean"
-                },
-                "revoked-at": {
-                    "type": "string"
-                },
-                "updated-at": {
-                    "type": "string"
-                }
-            }
-        },
-        "handler.agentKeyResponse": {
-            "type": "object",
-            "properties": {
-                "client-id": {
-                    "type": "string"
-                },
-                "created-at": {
-                    "type": "string"
-                },
-                "expires-at": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "last-used-at": {
-                    "type": "string"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "never-expires": {
-                    "type": "boolean"
-                },
-                "revoked-at": {
-                    "type": "string"
-                },
-                "updated-at": {
-                    "type": "string"
-                }
-            }
-        },
-        "handler.agentResponse": {
-            "type": "object",
-            "properties": {
-                "created-at": {
-                    "type": "string"
-                },
-                "description": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "is-active": {
-                    "type": "boolean"
-                },
-                "last-authenticated-at": {
-                    "type": "string"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "service-account-key-count": {
-                    "type": "integer"
-                },
-                "updated-at": {
-                    "type": "string"
-                }
-            }
-        },
         "handler.attachFilterResponsibilityRequest": {
             "type": "object",
             "required": [
@@ -40949,37 +40194,6 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "controlId": {
-                    "type": "string"
-                }
-            }
-        },
-        "handler.createAgentKeyRequest": {
-            "type": "object",
-            "properties": {
-                "expires-at": {
-                    "type": "string"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "never-expires": {
-                    "type": "boolean"
-                }
-            }
-        },
-        "handler.createAgentRequest": {
-            "type": "object",
-            "required": [
-                "name"
-            ],
-            "properties": {
-                "description": {
-                    "type": "string"
-                },
-                "is-active": {
-                    "type": "boolean"
-                },
-                "name": {
                     "type": "string"
                 }
             }
@@ -41972,20 +41186,6 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "url": {
-                    "type": "string"
-                }
-            }
-        },
-        "handler.updateAgentRequest": {
-            "type": "object",
-            "properties": {
-                "description": {
-                    "type": "string"
-                },
-                "is-active": {
-                    "type": "boolean"
-                },
-                "name": {
                     "type": "string"
                 }
             }
@@ -48910,7 +48110,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "code": {
-                    "description": "Issue* constants",
+                    "description": "agentconfig.PolicyCode* constants",
                     "type": "string"
                 },
                 "col": {
@@ -48930,7 +48130,7 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "severity": {
-                    "description": "SeverityError | SeverityWarning",
+                    "description": "agentconfig.SeverityError | agentconfig.SeverityWarning",
                     "type": "string"
                 }
             }

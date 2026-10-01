@@ -31,12 +31,11 @@ const (
 	maxReportErrorBytes      = 8 << 10
 	maxReportWarnings        = 500
 
-	// R76/R77: plugins and the plugin-facing policy path.
+	// R76: plugins.
 	maxReportPlugins             = 500
 	maxReportPluginNameLen       = 255
 	maxReportPluginSourceLen     = 2048
 	maxReportPluginLibVersionLen = 64
-	maxReportPluginPathLen       = 4096
 )
 
 var effectiveDigestPattern = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
@@ -228,23 +227,10 @@ func normalizeReport(r *agentconfig.Report) error {
 		if b.Extends != nil && b.Extends.ArtifactDigest != "" && !artifact.ValidDigest(b.Extends.ArtifactDigest) {
 			return fmt.Errorf("policy-bundles[%d].extends.artifact-digest must match sha256:<64 lowercase hex>", i)
 		}
-		// A cut path would be a wrong one, and the UI writes policy_ids from it (R77), so an
-		// oversized path is dropped rather than truncated.
-		if len(b.PluginPath) > maxReportPluginPathLen {
-			r.PolicyBundles[i].PluginPath = ""
-			r.Truncated = true
-		}
-		if b.Extends != nil && len(b.Extends.PluginPath) > maxReportPluginPathLen {
-			b.Extends.PluginPath = ""
-			r.Truncated = true
-		}
 	}
 	for i, p := range r.Plugins {
 		if strings.TrimSpace(p.Name) == "" {
 			return fmt.Errorf("plugins[%d].name is required", i)
-		}
-		if p.InlinePolicies != "" && !slices.Contains(agentconfig.InlinePoliciesValues, p.InlinePolicies) {
-			return fmt.Errorf("plugins[%d].inline-policies must be one of %s", i, strings.Join(agentconfig.InlinePoliciesValues, ", "))
 		}
 	}
 	if len(r.Plugins) > maxReportPlugins {
