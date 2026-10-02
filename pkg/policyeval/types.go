@@ -42,9 +42,6 @@ type Result struct {
 	*EvalOutput
 	// Raw is the package's full value as returned by OPA, before decoding.
 	Raw map[string]interface{}
-	// Issues are the policy contract problems ValidateResult found in this result. They do
-	// not stop evaluation; callers decide whether they matter.
-	Issues []Issue
 }
 
 func (res Result) String() string {

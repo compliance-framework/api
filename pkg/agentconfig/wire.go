@@ -26,7 +26,6 @@ const (
 	ReasonInvalidConfig      = "invalid-config" // overlay-merged config invalid, OR the local file is invalid on reload (agent keeps last-known-good, R42)
 	ReasonInvalidType        = "invalid-type"   // R27 (agent strict decode)
 	ReasonUnknownField       = "unknown-field"  // R27
-	ReasonPolicyErrors       = "policy-errors"  // parse/compile/authored-test/builtin failures
 	ReasonDownloadFailed     = "download-failed"
 	ReasonEnvMissing         = "env-missing"          // R24
 	ReasonUnsupportedByAgent = "unsupported-by-agent" // overlay uses a feature this agent version lacks
@@ -37,7 +36,7 @@ const (
 // Reasons is the full report reason vocabulary.
 var Reasons = []string{
 	ReasonUnsafeChanges, ReasonForbiddenChanges, ReasonInvalidConfig, ReasonInvalidType,
-	ReasonUnknownField, ReasonPolicyErrors, ReasonDownloadFailed, ReasonEnvMissing,
+	ReasonUnknownField, ReasonDownloadFailed, ReasonEnvMissing,
 	ReasonUnsupportedByAgent, ReasonCacheCorrupt, ReasonInternal,
 }
 
@@ -69,7 +68,6 @@ type Report struct {
 	Effective         json.RawMessage      `json:"effective" swaggertype:"object"`
 	EffectiveDigest   string               `json:"effective-digest"`
 	PolicyBundles     []PolicyBundleReport `json:"policy-bundles,omitempty"`
-	PolicyErrors      []PolicyError        `json:"policy-errors,omitempty"`
 	Unsafe            []Change             `json:"unsafe,omitempty"`
 	RemoteConfig      *RemoteConfig        `json:"remote-config,omitempty"` // normalized; snake_case inside
 	// Plugins are the instance's plugins and the agent library each was built with (R76),

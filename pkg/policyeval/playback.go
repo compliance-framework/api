@@ -44,12 +44,9 @@ type EvaluateRequest struct {
 
 // EvaluateResponse is the 200 body of POST /api/playback/evaluate.
 type EvaluateResponse struct {
-	Results []EvaluateResult `json:"results"`
-	// Issues are the static policy contract problems CheckContract finds in the request's
-	// modules. They never fail the request.
-	Issues     []Issue  `json:"issues"`
-	Prints     []string `json:"prints"`
-	DurationMs int64    `json:"durationMs"`
+	Results    []EvaluateResult `json:"results"`
+	Prints     []string         `json:"prints"`
+	DurationMs int64            `json:"durationMs"`
 }
 
 // EvaluateResult is one evaluated compliance_framework package.
@@ -67,8 +64,6 @@ type EvaluateResult struct {
 	Raw                 map[string]any    `json:"raw"`
 	// Error explains why the agent would not turn this result into evidence.
 	Error string `json:"error,omitempty"`
-	// Issues are the policy contract problems ValidateResult finds in this result.
-	Issues []Issue `json:"issues"`
 }
 
 // ErrorResponse is the 422 body of POST /api/playback/evaluate.
@@ -168,7 +163,6 @@ func EvaluateModules(ctx context.Context, req EvaluateModulesRequest) (*Evaluate
 
 	response := &EvaluateResponse{
 		Results: make([]EvaluateResult, 0, len(results)),
-		Issues:  contractIssues(req.Modules),
 		Prints:  prints.lines(),
 	}
 	for _, result := range results {
@@ -176,22 +170,6 @@ func EvaluateModules(ctx context.Context, req EvaluateModulesRequest) (*Evaluate
 	}
 	response.DurationMs = time.Since(started).Milliseconds()
 	return response, nil
-}
-
-// contractIssues runs the static contract check on the request's modules. Evaluation has
-// already compiled them, so a module that fails to parse here is only skipped.
-func contractIssues(sources map[string]string) []Issue {
-	modules := make(map[string]*ast.Module, len(sources))
-	for name, source := range sources {
-		if module, err := ast.ParseModuleWithOpts(name, source, ast.ParserOptions{RegoVersion: ast.RegoV1}); err == nil {
-			modules[name] = module
-		}
-	}
-	issues := CheckContract(modules)
-	if issues == nil {
-		issues = []Issue{}
-	}
-	return issues
 }
 
 // MergeData deep-merges overlay into a copy of base: nested objects are merged key by key,
@@ -223,10 +201,6 @@ func toEvaluateResult(result Result) EvaluateResult {
 		Violations:          []Violation{},
 		AdditionalVariables: map[string]any{},
 		Raw:                 result.Raw,
-		Issues:              result.Issues,
-	}
-	if out.Issues == nil {
-		out.Issues = []Issue{}
 	}
 	if result.EvalOutput == nil {
 		out.Error = "policy produced no output"

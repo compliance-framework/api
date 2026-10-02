@@ -4,8 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"text/template"
-
-	"github.com/compliance-framework/api/pkg/risktemplate"
+	"text/template/parse"
 )
 
 // RenderTemplate executes a Go template string with the provided label data.
@@ -41,7 +40,7 @@ func validateTemplateAgainstSchema(tmplStr *string, labelSchema []SubjectTemplat
 	}
 
 	// Parse the template to extract variable references
-	referencedKeys, err := risktemplate.TemplateLabelKeys(*tmplStr)
+	tmpl, err := template.New("validation").Option("missingkey=zero").Parse(*tmplStr)
 	if err != nil {
 		return fmt.Errorf("invalid template syntax: %w", err)
 	}
@@ -52,6 +51,9 @@ func validateTemplateAgainstSchema(tmplStr *string, labelSchema []SubjectTemplat
 		validKeys[field.Key] = struct{}{}
 	}
 
+	// Extract field references from the template tree
+	referencedKeys := extractTemplateFields(tmpl.Root)
+
 	// Check if all referenced keys are in the schema
 	for key := range referencedKeys {
 		if _, valid := validKeys[key]; !valid {
@@ -60,4 +62,89 @@ func validateTemplateAgainstSchema(tmplStr *string, labelSchema []SubjectTemplat
 	}
 
 	return nil
+}
+
+// extractTemplateFields recursively extracts field references from a template parse tree
+func extractTemplateFields(node parse.Node) map[string]struct{} {
+	fields := make(map[string]struct{})
+
+	if node == nil {
+		return fields
+	}
+
+	switch n := node.(type) {
+	case *parse.ListNode:
+		if n != nil {
+			for _, child := range n.Nodes {
+				for k := range extractTemplateFields(child) {
+					fields[k] = struct{}{}
+				}
+			}
+		}
+	case *parse.ActionNode:
+		if n != nil && n.Pipe != nil {
+			for k := range extractTemplateFields(n.Pipe) {
+				fields[k] = struct{}{}
+			}
+		}
+	case *parse.IfNode:
+		if n != nil {
+			for k := range extractTemplateFields(n.Pipe) {
+				fields[k] = struct{}{}
+			}
+			for k := range extractTemplateFields(n.List) {
+				fields[k] = struct{}{}
+			}
+			for k := range extractTemplateFields(n.ElseList) {
+				fields[k] = struct{}{}
+			}
+		}
+	case *parse.RangeNode:
+		if n != nil {
+			for k := range extractTemplateFields(n.Pipe) {
+				fields[k] = struct{}{}
+			}
+			for k := range extractTemplateFields(n.List) {
+				fields[k] = struct{}{}
+			}
+			for k := range extractTemplateFields(n.ElseList) {
+				fields[k] = struct{}{}
+			}
+		}
+	case *parse.WithNode:
+		if n != nil {
+			for k := range extractTemplateFields(n.Pipe) {
+				fields[k] = struct{}{}
+			}
+			for k := range extractTemplateFields(n.List) {
+				fields[k] = struct{}{}
+			}
+			for k := range extractTemplateFields(n.ElseList) {
+				fields[k] = struct{}{}
+			}
+		}
+	case *parse.PipeNode:
+		if n != nil {
+			for _, cmd := range n.Cmds {
+				for k := range extractTemplateFields(cmd) {
+					fields[k] = struct{}{}
+				}
+			}
+		}
+	case *parse.CommandNode:
+		if n != nil {
+			for _, arg := range n.Args {
+				for k := range extractTemplateFields(arg) {
+					fields[k] = struct{}{}
+				}
+			}
+		}
+	case *parse.FieldNode:
+		if n != nil && len(n.Ident) > 0 {
+			// Field access like {{.fieldName}}
+			fields[n.Ident[0]] = struct{}{}
+		}
+	}
+
+	return fields
 }

@@ -102,31 +102,6 @@ func (suite *ArtifactApiIntegrationSuite) TestPlaybackMatchesRecordedEvidence() 
 	suite.Equal(EvidencePlaybackRecorded{Status: "not-satisfied", ViolationIDs: []string{"unapproved-port"}}, resp.Recorded)
 	suite.Equal(&EvidencePlaybackComparison{StatusMatches: true, MissingViolationIDs: []string{}, NewViolationIDs: []string{}}, resp.Comparison)
 	suite.Empty(resp.Errors)
-	suite.Equal([]policyeval.Issue{}, resp.Issues, "issues are always present, never null")
-	suite.Equal([]policyeval.Issue{}, resp.Replay.Issues)
-}
-
-func (suite *ArtifactApiIntegrationSuite) TestPlaybackReportsContractIssues() {
-	dir := suite.T().TempDir()
-	suite.Require().NoError(os.WriteFile(filepath.Join(dir, "policy.rego"), []byte(`package compliance_framework.ports
-
-title := "Only approved ports are open"
-
-violation contains {"title": "no id"} if { true }
-`), 0o644))
-	bundle := suite.uploadDigest(artifact.MediaTypePolicyBundle, suite.tarBundle(dir, false))
-	input := suite.uploadDigest(artifact.MediaTypeJSON, []byte(`{}`))
-
-	id := suite.createPlaybackEvidence("not-satisfied", nil, &EvidencePolicyArtifacts{BundleDigest: bundle, InputDigest: input})
-	code, resp := suite.playback(id, suite.userToken)
-	suite.Require().Equal(http.StatusOK, code)
-	suite.Require().True(resp.Available, resp.Reason)
-	suite.Require().NotNil(resp.Replay, "contract issues never fail the playback")
-	suite.Equal("not-satisfied", resp.Replay.Status)
-	suite.Require().NotEmpty(resp.Issues, "the static check runs on the stored modules")
-	suite.Equal("violation-missing-id", resp.Issues[0].Code)
-	suite.Require().NotEmpty(resp.Replay.Issues, "the result check runs on the replayed result")
-	suite.Equal("violation-missing-id", resp.Replay.Issues[0].Code)
 }
 
 func (suite *ArtifactApiIntegrationSuite) TestPlaybackReportsAMismatch() {
@@ -208,7 +183,6 @@ leak := http.send({"method": "GET", "url": "http://example.com"})
 	suite.Nil(resp.Replay)
 	suite.Require().NotEmpty(resp.Errors)
 	suite.Equal("rego_type_error", resp.Errors[0].Code)
-	suite.Equal([]policyeval.Issue{}, resp.Issues, "issues stay [] when the replay cannot run")
 }
 
 func (suite *ArtifactApiIntegrationSuite) TestPlaybackNeedsAnyToken() {

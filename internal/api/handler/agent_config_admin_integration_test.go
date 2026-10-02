@@ -179,10 +179,9 @@ func (s *AgentConfigAdminIntegrationSuite) errorBody(rec *httptest.ResponseRecor
 
 // validationErrors decodes a 422 body.
 type acaValidationErrors struct {
-	Body         string                     `json:"body"`
-	Overlay      []agentconfig.FieldError   `json:"overlay"`
-	Instances    []instanceValidationErrors `json:"instances"`
-	PolicyErrors []agentconfig.PolicyError  `json:"policy-errors"`
+	Body      string                     `json:"body"`
+	Overlay   []agentconfig.FieldError   `json:"overlay"`
+	Instances []instanceValidationErrors `json:"instances"`
 }
 
 func (s *AgentConfigAdminIntegrationSuite) unprocessable(rec *httptest.ResponseRecorder) acaValidationErrors {
@@ -194,7 +193,7 @@ func (s *AgentConfigAdminIntegrationSuite) unprocessable(rec *httptest.ResponseR
 	s.Equal("configuration overlay is invalid", body.Errors.Body)
 	// Slices are always present ([]), never null.
 	raw := s.errorsOf(rec)
-	for _, k := range []string{"overlay", "instances", "policy-errors"} {
+	for _, k := range []string{"overlay", "instances"} {
 		s.True(strings.HasPrefix(string(raw[k]), "["), "%s must be a JSON array: %s", k, raw[k])
 	}
 	return body.Errors
@@ -660,7 +659,7 @@ func (s *AgentConfigAdminIntegrationSuite) TestPreviewWillApply() {
 func (s *AgentConfigAdminIntegrationSuite) TestPreviewStandaloneAndSlices() {
 	rec := s.call(http.MethodPost, s.path("/config/preview"), acaPutBody(`{"verbosity":1}`))
 	s.Require().Equal(http.StatusOK, rec.Code, rec.Body.String())
-	s.JSONEq(`{"data":{"desired-revision":0,"standalone":true,"overlay-errors":[],"policy-errors":[],"instances":[]}}`, rec.Body.String())
+	s.JSONEq(`{"data":{"desired-revision":0,"standalone":true,"overlay-errors":[],"instances":[]}}`, rec.Body.String())
 
 	// An unchanged overlay on a fresh instance: every slice is [] rather than null.
 	s.report(*s.agent.ID, agentconfig.ModeApplySafe, nil)
@@ -796,7 +795,7 @@ func (s *AgentConfigAdminIntegrationSuite) TestInstances() {
 	rejected := s.report(agentID, agentconfig.ModeApplyAll, func(r *agentconfig.Report) {
 		r.AttemptedRevision = acaI64(1)
 		r.Status = agentconfig.StatusRejected
-		r.Reason = agentconfig.ReasonPolicyErrors
+		r.Reason = agentconfig.ReasonDownloadFailed
 	})
 	s.makeStale(rejected, time.Hour)
 	reportOnly := s.report(agentID, agentconfig.ModeReport, nil)
@@ -848,7 +847,7 @@ func (s *AgentConfigAdminIntegrationSuite) TestInstances() {
 	s.Equal(agentconfig.StatusRejected, st.Status)
 	s.True(st.Stale)
 	s.Require().NotNil(st.Reason)
-	s.Equal(agentconfig.ReasonPolicyErrors, *st.Reason)
+	s.Equal(agentconfig.ReasonDownloadFailed, *st.Reason)
 
 	st = byID[reportOnly.String()]
 	s.Equal(agentconfig.StatusNotApplicable, st.Status)
@@ -867,9 +866,10 @@ func (s *AgentConfigAdminIntegrationSuite) TestInstances() {
 	for _, item := range rawList.Data {
 		s.NotContains(item, "base")
 		s.NotContains(item, "effective")
-		for _, k := range []string{"unsafe", "policy-errors", "warnings"} {
+		for _, k := range []string{"unsafe", "warnings"} {
 			s.JSONEq(`[]`, string(item[k]), k)
 		}
+		s.NotContains(item, "policy-errors")
 		s.Contains(item, "plugins")
 	}
 

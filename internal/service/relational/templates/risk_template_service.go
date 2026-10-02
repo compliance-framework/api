@@ -9,21 +9,18 @@ import (
 	"unicode/utf8"
 
 	riskrel "github.com/compliance-framework/api/internal/service/relational/risks"
-	"github.com/compliance-framework/api/pkg/risktemplate"
 	"github.com/google/uuid"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
 
-// The limits are shared with the policy contract checker (pkg/policyeval), which applies
-// them to the risk_templates a Rego package declares.
 const (
-	maxRiskTemplateFieldLength      = risktemplate.MaxFieldLength
-	maxThreatRefsPerTemplate        = risktemplate.MaxThreatRefs
-	maxViolationIDsPerTemplate      = risktemplate.MaxViolationIDs
-	maxRemediationTasks             = risktemplate.MaxRemediationTasks
-	maxRiskTemplateLabelSchemaItems = risktemplate.MaxLabelSchemaItems
-	maxRiskTemplateDedupeLabelKeys  = risktemplate.MaxDedupeLabelKeys
+	maxRiskTemplateFieldLength      = 1000
+	maxThreatRefsPerTemplate        = 50
+	maxViolationIDsPerTemplate      = 100
+	maxRemediationTasks             = 100
+	maxRiskTemplateLabelSchemaItems = 100
+	maxRiskTemplateDedupeLabelKeys  = 20
 )
 
 type ValidationError struct {
@@ -800,10 +797,14 @@ func validateOptionalTemplateRiskLevel(field string, level *string) error {
 	if err := validateOptionalText(field, level); err != nil {
 		return err
 	}
-	if level == nil || risktemplate.IsTemplated(*level) {
+	if level == nil || containsTemplateAction(*level) {
 		return nil
 	}
 	return validateOptionalRiskLevel(field, level)
+}
+
+func containsTemplateAction(value string) bool {
+	return strings.Contains(value, "{{")
 }
 
 func validateMaxItems(field string, size, max int) error {

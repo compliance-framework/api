@@ -59,10 +59,6 @@ type EvidencePlaybackResponse struct {
 	Prints     []string                    `json:"prints"`
 	// Errors are why the replay could not run, for example a policy the sandbox forbids.
 	Errors []policyeval.EvalError `json:"errors"`
-	// Issues are the static policy contract problems policyeval.CheckContract finds in the
-	// stored bundle's modules, as POST /api/playback/evaluate reports them. They never fail
-	// the playback.
-	Issues []policyeval.Issue `json:"issues"`
 }
 
 type EvidencePlaybackArtifacts struct {
@@ -90,9 +86,6 @@ type EvidencePlaybackReplay struct {
 	RawJSON    string                      `json:"rawJson"`
 	// Error explains why the agent would not have turned the result into evidence.
 	Error string `json:"error,omitempty"`
-	// Issues are the policy contract problems policyeval.ValidateResult finds in the
-	// replayed result.
-	Issues []policyeval.Issue `json:"issues"`
 }
 
 // EvidencePlaybackViolation is a replayed violation and where in the policy it came from.
@@ -178,7 +171,6 @@ func (h *PlaybackHandler) playEvidence(ctx context.Context, evidence *relational
 		PolicyFiles: []EvidencePlaybackFile{},
 		Prints:      []string{},
 		Errors:      []policyeval.EvalError{},
-		Issues:      []policyeval.Issue{},
 		Recorded:    recordedResult(evidence),
 		Package:     evidenceLabel(evidence, evidencePolicyLabel),
 	}
@@ -284,7 +276,6 @@ func (h *PlaybackHandler) playEvidence(ctx context.Context, evidence *relational
 		return resp, nil
 	}
 	resp.Prints = replayed.Prints
-	resp.Issues = replayed.Issues // never nil: EvaluateModules returns [] when there are none
 
 	result := pickResult(replayed.Results, resp.Package)
 	if result == nil {
@@ -321,7 +312,6 @@ func (h *PlaybackHandler) playEvidence(ctx context.Context, evidence *relational
 		Violations: violations,
 		RawJSON:    string(raw),
 		Error:      result.Error,
-		Issues:     result.Issues, // never nil, as for /api/playback/evaluate
 	}
 	resp.Comparison = compareResults(resp.Recorded, resp.Replay)
 	return resp, nil

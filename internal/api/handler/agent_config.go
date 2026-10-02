@@ -78,29 +78,28 @@ type agentConfigRevisionResponse struct {
 }
 
 type agentInstanceSummary struct {
-	InstanceID              string                    `json:"instance-id"`
-	Hostname                *string                   `json:"hostname"`
-	AgentVersion            *string                   `json:"agent-version"`
-	Mode                    string                    `json:"mode"`
-	Daemon                  *bool                     `json:"daemon"`
-	FirstSeenAt             time.Time                 `json:"first-seen-at"`
-	LastSeenAt              time.Time                 `json:"last-seen-at"`
-	ReportedAt              *time.Time                `json:"reported-at"`
-	Stale                   bool                      `json:"stale"`
-	AppliedRevision         *int64                    `json:"applied-revision"`
-	AttemptedRevision       *int64                    `json:"attempted-revision"`
-	Status                  string                    `json:"status"` // applied|rejected|failed|not-applicable|pending|unknown
-	Reason                  *string                   `json:"reason"`
-	Error                   *string                   `json:"error"`
-	Truncated               bool                      `json:"truncated"`
-	SyncStatus              string                    `json:"sync-status"` // in-sync|out-of-sync|not-applicable|unknown
-	EffectiveDigest         *string                   `json:"effective-digest"`
-	HeartbeatConfigRevision *int64                    `json:"heartbeat-config-revision"`
-	ReportStale             bool                      `json:"report-stale"` // heartbeat digest != reported digest
-	RemoteConfig            json.RawMessage           `json:"remote-config,omitempty" swaggertype:"object"`
-	Unsafe                  []agentconfig.Change      `json:"unsafe"`
-	PolicyErrors            []agentconfig.PolicyError `json:"policy-errors"`
-	Warnings                []agentconfig.FieldError  `json:"warnings"` // R41
+	InstanceID              string                   `json:"instance-id"`
+	Hostname                *string                  `json:"hostname"`
+	AgentVersion            *string                  `json:"agent-version"`
+	Mode                    string                   `json:"mode"`
+	Daemon                  *bool                    `json:"daemon"`
+	FirstSeenAt             time.Time                `json:"first-seen-at"`
+	LastSeenAt              time.Time                `json:"last-seen-at"`
+	ReportedAt              *time.Time               `json:"reported-at"`
+	Stale                   bool                     `json:"stale"`
+	AppliedRevision         *int64                   `json:"applied-revision"`
+	AttemptedRevision       *int64                   `json:"attempted-revision"`
+	Status                  string                   `json:"status"` // applied|rejected|failed|not-applicable|pending|unknown
+	Reason                  *string                  `json:"reason"`
+	Error                   *string                  `json:"error"`
+	Truncated               bool                     `json:"truncated"`
+	SyncStatus              string                   `json:"sync-status"` // in-sync|out-of-sync|not-applicable|unknown
+	EffectiveDigest         *string                  `json:"effective-digest"`
+	HeartbeatConfigRevision *int64                   `json:"heartbeat-config-revision"`
+	ReportStale             bool                     `json:"report-stale"` // heartbeat digest != reported digest
+	RemoteConfig            json.RawMessage          `json:"remote-config,omitempty" swaggertype:"object"`
+	Unsafe                  []agentconfig.Change     `json:"unsafe"`
+	Warnings                []agentconfig.FieldError `json:"warnings"` // R41
 	// Plugins are the reported plugins and the agent library each was built with (R76).
 	// Empty until an agent that reports them does.
 	Plugins []agentconfig.PluginReport `json:"plugins"`
@@ -136,11 +135,10 @@ type agentInstanceListResponse struct {
 }
 
 type configPreviewResponse struct {
-	DesiredRevision int64                     `json:"desired-revision"`
-	Standalone      bool                      `json:"standalone"`
-	OverlayErrors   []agentconfig.FieldError  `json:"overlay-errors"`
-	PolicyErrors    []agentconfig.PolicyError `json:"policy-errors"` // incl. warnings
-	Instances       []instancePreview         `json:"instances"`
+	DesiredRevision int64                    `json:"desired-revision"`
+	Standalone      bool                     `json:"standalone"`
+	OverlayErrors   []agentconfig.FieldError `json:"overlay-errors"`
+	Instances       []instancePreview        `json:"instances"`
 }
 
 type instancePreview struct {
@@ -217,7 +215,7 @@ func (h *AgentConfigHandler) Get(ctx echo.Context) error {
 // Put godoc
 //
 //	@Summary		Save an agent's configuration overlay
-//	@Description	Creates the next configuration revision. Requires If-Match with the current revision ("0" for the first save): missing is 428, stale is 409 with current-revision. A semantically unchanged overlay returns 200 with the current revision and creates nothing. The overlay is validated on its own, and the merged config is validated against every fresh apply-mode instance's reported base (or the latest reported one); only errors the overlay introduces block (errors already present in the instance's own file are ignored, R59). Errors are a 422 with overlay, instances (errors plus non-blocking warnings) and policy-errors lists. Needs agent:configure.
+//	@Description	Creates the next configuration revision. Requires If-Match with the current revision ("0" for the first save): missing is 428, stale is 409 with current-revision. A semantically unchanged overlay returns 200 with the current revision and creates nothing. The overlay is validated on its own, and the merged config is validated against every fresh apply-mode instance's reported base (or the latest reported one); only errors the overlay introduces block (errors already present in the instance's own file are ignored, R59). Errors are a 422 with overlay and instances (errors plus non-blocking warnings) lists. Needs agent:configure.
 //	@Tags			Agent Configuration
 //	@Accept			json
 //	@Produce		json
@@ -444,12 +442,11 @@ func (h *AgentConfigHandler) Preview(ctx echo.Context) error {
 	standalone := len(validation) == 0
 
 	result := validateCandidate(req.Overlay, validation)
-	overlayInvalid := len(result.overlay) > 0 || agentconfig.HasPolicyErrors(result.policy)
+	overlayInvalid := len(result.overlay) > 0
 	resp := configPreviewResponse{
 		DesiredRevision: desired,
 		Standalone:      standalone,
 		OverlayErrors:   nonNil(result.overlay),
-		PolicyErrors:    nonNil(result.policy),
 		Instances:       make([]instancePreview, 0, len(previewBases)),
 	}
 	for _, b := range previewBases {
@@ -501,23 +498,20 @@ func previewInstance(b agentcfg.InstanceBase, overlay json.RawMessage, overlayIn
 // candidateResult is the outcome of the candidate validation pipeline (A4.2).
 type candidateResult struct {
 	overlay   []agentconfig.FieldError
-	policy    []agentconfig.PolicyError
 	instances []instanceValidationErrors
 }
 
-// blocking reports whether a save must be refused (422): overlay errors, error-severity
-// policy errors, or errors the overlay introduces on a validated instance (R6, R48, R54,
-// R59). File-origin errors never block.
+// blocking reports whether a save must be refused (422): overlay errors, or errors the
+// overlay introduces on a validated instance (R6, R48, R59). File-origin errors never block.
 func (r candidateResult) blocking() bool {
-	return len(r.overlay) > 0 || agentconfig.HasPolicyErrors(r.policy) || len(r.instances) > 0
+	return len(r.overlay) > 0 || len(r.instances) > 0
 }
 
 func (r candidateResult) errorBody() api.Error {
 	return api.Error{Errors: map[string]any{
-		"body":          "configuration overlay is invalid",
-		"overlay":       nonNil(r.overlay),
-		"instances":     nonNil(r.instances),
-		"policy-errors": nonNil(r.policy),
+		"body":      "configuration overlay is invalid",
+		"overlay":   nonNil(r.overlay),
+		"instances": nonNil(r.instances),
 	}}
 }
 
@@ -806,16 +800,14 @@ func (h *AgentConfigHandler) instanceSummary(inst relational.AgentInstance, desi
 		HeartbeatConfigRevision: inst.HeartbeatConfigRevision,
 		ReportStale: inst.HeartbeatConfigDigest != nil && inst.EffectiveDigest != nil &&
 			*inst.HeartbeatConfigDigest != *inst.EffectiveDigest,
-		Unsafe:       []agentconfig.Change{},
-		PolicyErrors: []agentconfig.PolicyError{},
-		Warnings:     []agentconfig.FieldError{},
-		Plugins:      []agentconfig.PluginReport{},
+		Unsafe:   []agentconfig.Change{},
+		Warnings: []agentconfig.FieldError{},
+		Plugins:  []agentconfig.PluginReport{},
 	}
 	if len(inst.RemoteConfig) > 0 && string(inst.RemoteConfig) != "null" {
 		s.RemoteConfig = json.RawMessage(inst.RemoteConfig)
 	}
 	h.decodeColumn(&inst, "unsafe_changes", inst.UnsafeChanges, &s.Unsafe)
-	h.decodeColumn(&inst, "policy_errors", inst.PolicyErrors, &s.PolicyErrors)
 	h.decodeColumn(&inst, "warnings", inst.Warnings, &s.Warnings)
 	h.decodeColumn(&inst, "plugins", inst.Plugins, &s.Plugins)
 	return s
