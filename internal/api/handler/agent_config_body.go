@@ -47,16 +47,13 @@ func readJSONBody(ctx echo.Context, limit int64) ([]byte, *bodyError) {
 	if body == nil {
 		return nil, nil
 	}
-	data, err := io.ReadAll(io.LimitReader(body, limit+1))
+	data, err := io.ReadAll(http.MaxBytesReader(ctx.Response(), body, limit))
 	if err != nil {
 		var tooLarge *http.MaxBytesError
 		if errors.As(err, &tooLarge) {
 			return nil, &bodyError{status: http.StatusRequestEntityTooLarge, msg: fmt.Sprintf("request body exceeds %d bytes", limit)}
 		}
 		return nil, &bodyError{status: http.StatusBadRequest, msg: "failed to read request body"}
-	}
-	if int64(len(data)) > limit {
-		return nil, &bodyError{status: http.StatusRequestEntityTooLarge, msg: fmt.Sprintf("request body exceeds %d bytes", limit)}
 	}
 	return data, nil
 }

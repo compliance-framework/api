@@ -2,10 +2,12 @@ package handler
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"testing/iotest"
 	"unicode/utf8"
 
 	"github.com/compliance-framework/api/pkg/agentconfig"
@@ -256,6 +258,7 @@ func TestReadJSONBody(t *testing.T) {
 		_, err := readJSONBody(ctx, 16)
 		require.NotNil(t, err)
 		assert.Equal(t, http.StatusRequestEntityTooLarge, err.status)
+		assert.Equal(t, "request body exceeds 16 bytes", err.msg)
 		require.NoError(t, err.respond(ctx))
 		assert.Equal(t, http.StatusRequestEntityTooLarge, ctx.Response().Status)
 	})
@@ -266,5 +269,12 @@ func TestReadJSONBody(t *testing.T) {
 		_, err := readJSONBody(echo.New().NewContext(req, rec), 32)
 		require.NotNil(t, err)
 		assert.Equal(t, http.StatusRequestEntityTooLarge, err.status)
+	})
+	t.Run("400 on a read error", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPut, "/", iotest.ErrReader(errors.New("boom")))
+		_, err := readJSONBody(echo.New().NewContext(req, httptest.NewRecorder()), 32)
+		require.NotNil(t, err)
+		assert.Equal(t, http.StatusBadRequest, err.status)
+		assert.Equal(t, "failed to read request body", err.msg)
 	})
 }
