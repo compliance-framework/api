@@ -1059,7 +1059,7 @@ func (s *AgentConfigAdminIntegrationSuite) TestBuiltinSSOUserNeedsAdminGroup() {
 	s.Equal(int64(1), s.revisionCount(*s.agent.ID))
 }
 
-// ---- Cedar authz (R22, R40, D18) ----
+// ---- Cedar authz (R40) ----
 
 func (s *AgentConfigAdminIntegrationSuite) TestCedarViewer() {
 	_, viewer := s.userToken("viewer@example.com", "", "viewer")
@@ -1099,92 +1099,8 @@ func (s *AgentConfigAdminIntegrationSuite) TestCedarViewer() {
 	s.Equal(int64(0), s.revisionCount(*s.agent.ID))
 }
 
-// policyAuthorSetup reports a fresh apply-mode instance (vendor ssh plugin) and returns the
-// Cedar server and a policy-author token.
-func (s *AgentConfigAdminIntegrationSuite) policyAuthorSetup() (*api.Server, string) {
-	s.report(*s.agent.ID, agentconfig.ModeApplySafe, nil)
-	_, token := s.userToken("author@example.com", "", "policy-author")
-	return s.cedarServer(), token
-}
-
 func acaBundleOverlay(name, module string) string {
 	return fmt.Sprintf(`{"policy_bundles":{%q:{"modules":{"banner.rego":%q}}}}`, name, module)
-}
-
-func (s *AgentConfigAdminIntegrationSuite) TestCedarPolicyAuthorModuleEdit() {
-	srv, author := s.policyAuthorSetup()
-	s.save(`"0"`, acaBundleOverlay("banner", acaCleanRego), 1)
-
-	rec := s.put(srv, author, `"1"`, acaBundleOverlay("banner", acaEditedRego))
-	s.Require().Equal(http.StatusCreated, rec.Code, rec.Body.String())
-	got := acaData[agentConfigRevisionResponse](s, rec)
-	s.Equal(int64(2), got.Revision)
-	s.Require().NotNil(got.CreatedBy)
-	s.Equal("author@example.com", *got.CreatedBy)
-}
-
-func (s *AgentConfigAdminIntegrationSuite) TestCedarPolicyAuthorAddsInlinePolicy() {
-	srv, author := s.policyAuthorSetup()
-	overlay := fmt.Sprintf(`{"policy_bundles":{"x":{"modules":{"banner.rego":%q}}},"plugins":{"ssh":{"policies":[%q,"inline:x"]}}}`, acaCleanRego, acaVendorPolicy)
-	rec := s.put(srv, author, `"0"`, overlay)
-	s.Require().Equal(http.StatusCreated, rec.Code, rec.Body.String())
-}
-
-func (s *AgentConfigAdminIntegrationSuite) TestCedarPolicyAuthorSwapsSourceForExtendingBundle() {
-	srv, author := s.policyAuthorSetup()
-	overlay := fmt.Sprintf(`{"policy_bundles":{"custom":{"extends":%q,"modules":{"banner.rego":%q}}},"plugins":{"ssh":{"policies":["inline:custom"]}}}`, acaVendorPolicy, acaCleanRego)
-	rec := s.put(srv, author, `"0"`, overlay)
-	s.Require().Equal(http.StatusCreated, rec.Code, rec.Body.String())
-}
-
-func (s *AgentConfigAdminIntegrationSuite) TestCedarPolicyAuthorCannotChangeNonPolicyFields() {
-	srv, author := s.policyAuthorSetup()
-
-	// A schedule edit is not a policy change.
-	rec := s.put(srv, author, `"0"`, `{"plugins":{"ssh":{"schedule":"*/5 * * * *"}}}`)
-	s.Require().Equal(http.StatusForbidden, rec.Code, rec.Body.String())
-	s.Equal("only policy changes are permitted with agent:configure-policy", s.errorBody(rec))
-
-	// Replacing the vendor list with an unrelated inline bundle is not allowed either.
-	overlay := fmt.Sprintf(`{"policy_bundles":{"x":{"modules":{"banner.rego":%q}}},"plugins":{"ssh":{"policies":["inline:x"]}}}`, acaCleanRego)
-	rec = s.put(srv, author, `"0"`, overlay)
-	s.Require().Equal(http.StatusForbidden, rec.Code, rec.Body.String())
-	s.Equal("only policy changes are permitted with agent:configure-policy", s.errorBody(rec))
-
-	// Nor are agent management routes.
-	rec = s.send(srv, author, http.MethodPost, "/api/admin/agents", []byte(`{"name":"a"}`))
-	s.Equal(http.StatusForbidden, rec.Code, rec.Body.String())
-	s.Equal(int64(0), s.revisionCount(*s.agent.ID))
-}
-
-// R58: configure-policy may not introduce a new vendor source through extends.
-func (s *AgentConfigAdminIntegrationSuite) TestCedarPolicyAuthorCannotIntroduceExtendsSource() {
-	srv, author := s.policyAuthorSetup()
-	overlay := fmt.Sprintf(`{"policy_bundles":{"b":{"extends":"ghcr.io/evil/pol:v9","modules":{"banner.rego":%q}}},"plugins":{"ssh":{"policies":[%q,"inline:b"]}}}`, acaCleanRego, acaVendorPolicy)
-	rec := s.put(srv, author, `"0"`, overlay)
-	s.Require().Equal(http.StatusForbidden, rec.Code, rec.Body.String())
-	s.Equal("only policy changes are permitted with agent:configure-policy", s.errorBody(rec))
-	s.Equal(int64(0), s.revisionCount(*s.agent.ID))
-}
-
-// R58: an extends naming a source the instance's base already uses is fine.
-func (s *AgentConfigAdminIntegrationSuite) TestCedarPolicyAuthorExtendsAlreadyUsedSource() {
-	srv, author := s.policyAuthorSetup()
-	overlay := fmt.Sprintf(`{"policy_bundles":{"b":{"extends":%q,"modules":{"banner.rego":%q}}},"plugins":{"ssh":{"policies":[%q,"inline:b"]}}}`, acaVendorPolicy, acaCleanRego, acaVendorPolicy)
-	rec := s.put(srv, author, `"0"`, overlay)
-	s.Require().Equal(http.StatusCreated, rec.Code, rec.Body.String())
-}
-
-// D18 also guards revert: it runs through the same save path.
-func (s *AgentConfigAdminIntegrationSuite) TestCedarPolicyAuthorCannotRevertNonPolicyFields() {
-	srv, author := s.policyAuthorSetup()
-	s.save(`"0"`, `{"verbosity":1}`, 1)
-	s.save(`"1"`, `{"verbosity":2}`, 2)
-
-	rec := s.send(srv, author, http.MethodPost, s.path("/config/revisions/1/revert"), nil, "If-Match", `"2"`)
-	s.Require().Equal(http.StatusForbidden, rec.Code, rec.Body.String())
-	s.Equal("only policy changes are permitted with agent:configure-policy", s.errorBody(rec))
-	s.Equal(int64(2), s.revisionCount(*s.agent.ID))
 }
 
 func (s *AgentConfigAdminIntegrationSuite) TestCedarAdminCanEditSchedule() {

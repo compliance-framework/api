@@ -137,11 +137,9 @@ const (
 	ActionExport    = "export"
 	ActionSubscribe = "subscribe"
 
-	// Agent remote configuration (resource agent). ActionConfigure writes any part of an
-	// agent's configuration overlay; ActionConfigurePolicy only inline policy bundles and
-	// plugin policy lists (D18); ActionSync is the agent fetching its overlay and reporting.
-	ActionRegister        = "register"
-	ActionConfigure       = "configure"
-	ActionConfigurePolicy = "configure-policy"
-	ActionSync            = "sync"
+	// Agent remote configuration (resource agent). ActionConfigure writes an agent's
+	// configuration overlay; ActionSync is the agent fetching its overlay and reporting.
+	ActionRegister  = "register"
+	ActionConfigure = "configure"
+	ActionSync      = "sync"
 )

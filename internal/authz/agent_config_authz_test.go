@@ -6,8 +6,8 @@ import (
 	"testing"
 )
 
-// Agent remote configuration vocabulary (A2.4): the agent resource declares configure,
-// configure-policy and sync, and the bundled policy-author role exists.
+// Agent remote configuration vocabulary (A2.4): the agent resource declares configure and
+// sync.
 func TestManifestAgentConfigVocabulary(t *testing.T) {
 	m, err := DefaultManifest()
 	if err != nil {
@@ -17,34 +17,23 @@ func TestManifestAgentConfigVocabulary(t *testing.T) {
 	if !ok {
 		t.Fatal("agent resource missing from manifest")
 	}
-	for _, action := range []string{ActionRead, ActionRegister, ActionIngest, ActionConfigure, ActionConfigurePolicy, ActionSync} {
+	for _, action := range []string{ActionRead, ActionRegister, ActionIngest, ActionConfigure, ActionSync} {
 		if !slices.Contains(res.Actions, action) {
 			t.Errorf("agent resource missing action %q (have %v)", action, res.Actions)
 		}
-	}
-	author, ok := m.Roles["policy-author"]
-	if !ok {
-		t.Fatal("policy-author role missing")
-	}
-	if got := author[ResourceAgent]; !slices.Contains(got, ActionConfigurePolicy) || !slices.Contains(got, ActionRead) || slices.Contains(got, ActionConfigure) {
-		t.Errorf("policy-author agent grants = %v, want read + configure-policy only", got)
-	}
-	if got := author["*"]; !slices.Equal(got, []string{ActionRead}) {
-		t.Errorf(`policy-author "*" grants = %v, want [read] (R53)`, got)
 	}
 	if got := m.Roles["agent"][ResourceAgent]; !slices.Contains(got, ActionSync) {
 		t.Errorf("agent role agent grants = %v, want sync", got)
 	}
 }
 
-// The Cedar matrix for the new actions and the policy-author role (A2 tests).
+// The Cedar matrix for the new actions (A2 tests).
 func TestCedarAgentConfigMatrix(t *testing.T) {
 	c := mustCedar(t, &RoleAssignments{
 		Users: map[string]string{
 			"admin@x":       "admin",
 			"viewer@x":      "viewer",
 			"contributor@x": "contributor",
-			"author@x":      "policy-author",
 		},
 	})
 	user := func(id string) Subject { return Subject{Type: "user", ID: id} }
@@ -58,28 +47,17 @@ func TestCedarAgentConfigMatrix(t *testing.T) {
 	}{
 		{agent, ActionSync, ResourceAgent, true},
 		{agent, ActionConfigure, ResourceAgent, false},
-		{agent, ActionConfigurePolicy, ResourceAgent, false},
 		{agent, ActionRead, ResourceAgent, false},
-
-		{user("author@x"), ActionConfigurePolicy, ResourceAgent, true},
-		{user("author@x"), ActionRead, ResourceAgent, true},
-		{user("author@x"), ActionConfigure, ResourceAgent, false},
-		{user("author@x"), ActionSync, ResourceAgent, false},
-		{user("author@x"), ActionRead, ResourceCatalog, true}, // "*": [read] (R53)
-		{user("author@x"), ActionCreate, ResourceCatalog, false},
-		{user("author@x"), ActionManage, ResourceAdmin, false},
-		{user("author@x"), ActionExecute, ResourcePlayback, true},
-		{user("author@x"), ActionRead, ResourceArtifact, true}, // "*": [read] covers #464 artifacts
-		{user("author@x"), ActionIngest, ResourceArtifact, false},
 
 		{user("viewer@x"), ActionRead, ResourceAgent, true},
 		{user("viewer@x"), ActionConfigure, ResourceAgent, false},
-		{user("viewer@x"), ActionConfigurePolicy, ResourceAgent, false},
+		{user("viewer@x"), ActionSync, ResourceAgent, false},
+		{user("viewer@x"), ActionRead, ResourceArtifact, true}, // "*": [read] covers #464 artifacts
+		{user("viewer@x"), ActionIngest, ResourceArtifact, false},
 		{user("contributor@x"), ActionRead, ResourceAgent, true},
 		{user("contributor@x"), ActionConfigure, ResourceAgent, false},
 
 		{user("admin@x"), ActionConfigure, ResourceAgent, true},
-		{user("admin@x"), ActionConfigurePolicy, ResourceAgent, true},
 
 		{Subject{Type: "anonymous"}, ActionRead, ResourceAgent, false},
 	}
@@ -87,28 +65,6 @@ func TestCedarAgentConfigMatrix(t *testing.T) {
 		if got := allows(t, c, tc.subj, tc.action, tc.resource); got != tc.want {
 			t.Errorf("%s %s on %s: allow = %v, want %v", tc.subj.ID, tc.action, tc.resource, got, tc.want)
 		}
-	}
-}
-
-// R53 (file-seed variant): a user's own viewer grant and a group's policy-author grant combine.
-func TestCedarMultiRoleUnionPolicyAuthor(t *testing.T) {
-	c := mustCedar(t, &RoleAssignments{
-		Users:  map[string]string{"u@x": "viewer"},
-		Groups: map[string]string{"ccf-policy-authors": "policy-author"},
-	})
-	withGroup := Subject{Type: "user", ID: "u@x", Props: map[string]any{"groups": []any{"ccf-policy-authors"}}}
-	if !allows(t, c, withGroup, ActionConfigurePolicy, ResourceAgent) {
-		t.Error("configure-policy via the group grant should be allowed")
-	}
-	if !allows(t, c, withGroup, ActionRead, ResourceCatalog) {
-		t.Error("read catalog via the direct viewer grant should be allowed")
-	}
-	if allows(t, c, withGroup, ActionConfigure, ResourceAgent) {
-		t.Error("configure should be denied: neither grant includes it")
-	}
-	withoutGroup := Subject{Type: "user", ID: "u@x"}
-	if allows(t, c, withoutGroup, ActionConfigurePolicy, ResourceAgent) {
-		t.Error("configure-policy without the group membership should be denied")
 	}
 }
 

@@ -28,7 +28,7 @@ CCF_AUTHZ_CEDAR_POLICY_DIR=/etc/ccf/policies  # optional operator .cedar files
 
 ## Bundled roles
 
-Four fixed global roles, `policy-author` and the agent service role (the manifest lists every role, e.g. `ssp-subscriber`), defined in the manifest's `roles:` block
+Four fixed global roles plus the agent service role (the manifest lists every role, e.g. `ssp-subscriber`), defined in the manifest's `roles:` block
 (`internal/authz/manifest.yaml`) and compiled to Cedar policies at startup:
 
 | Role          | Grants                                                                       |
@@ -37,22 +37,19 @@ Four fixed global roles, `policy-author` and the agent service role (the manifes
 | `contributor` | Author content (OSCAL docs, risk/poam register, workflows, dashboards, evidence); read everything; no admin. |
 | `auditor`     | Read everything; record evidence; maintain the risk/poam register.           |
 | `viewer`      | Read everything; no writes.                                                  |
-| `policy-author` | Viewer plus `agent:configure-policy`: edit inline policy bundles and plugin policy lists in agent configuration overlays, nothing else. |
 | `agent`       | Service accounts: ingest evidence/heartbeats, register, sync their remote configuration. |
 
-viewer, auditor, contributor and policy-author read agent configurations (including inline
-Rego) through `"*": [read]`. This is intended; narrow it with an operator `forbid` policy if
-needed. The instance reports (`base`/`effective`) are redacted, but the **overlay** is not:
+viewer, auditor and contributor read agent configurations through `"*": [read]`. This is
+intended; narrow it with an operator `forbid` policy if needed. The instance reports (`base`/`effective`) are redacted, but the **overlay** is not:
 `GET …/config` and `GET …/config/revisions/{rev}` return it verbatim so it can be edited, so a
 literal secret typed into an overlay's `plugins.*.config` is readable by every `agent:read`
 holder. Put secrets on the host and reference them with `${env:NAME}` placeholders instead
 (R57).
 
 Every bundled role, including `ssp-subscriber` (which has no `agent:read`), holds
-`artifact:read`. Agents upload the policy trees they load, inline Rego included, as
-artifacts and name them in their config reports, so `artifact:read` also exposes inline
-Rego to anyone who knows a digest. This is documented rather than narrowed (R72); see
-[artifacts](./artifacts.md#who-can-read-artifacts).
+`artifact:read`. Agents upload the policy trees they load as artifacts and name them in
+their config reports, so `artifact:read` also exposes that Rego to anyone who knows a
+digest. This is documented rather than narrowed (R72); see [artifacts](./artifacts.md#who-can-read-artifacts).
 
 Cedar is **deny-by-default**: a subject with no assigned role is denied every request.
 

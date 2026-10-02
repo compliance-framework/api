@@ -46,10 +46,9 @@ func NewAgentConfigHandler(sugar *zap.SugaredLogger, db *gorm.DB, svc *agentcfg.
 }
 
 // Register mounts the routes on an /admin/agents group of their own (so they inherit no
-// group guard). Writes accept agent:configure OR agent:configure-policy; with only the latter
-// the handler also requires a policy-only change (D18).
+// group guard). Writes need agent:configure.
 func (h *AgentConfigHandler) Register(g *echo.Group, guard middleware.ResourceGuard) {
-	write := guard.Any(authz.ActionConfigure, authz.ActionConfigurePolicy)
+	write := guard.Do(authz.ActionConfigure)
 	g.GET("/:id/config", h.Get, guard.Read())
 	g.PUT("/:id/config", h.Put, write, echomiddleware.BodyLimit(agentConfigBodyLimitStr))
 	g.POST("/:id/config/preview", h.Preview, guard.Read(), echomiddleware.BodyLimit(agentConfigBodyLimitStr))
@@ -213,7 +212,7 @@ func (h *AgentConfigHandler) Get(ctx echo.Context) error {
 // Put godoc
 //
 //	@Summary		Save an agent's configuration overlay
-//	@Description	Creates the next configuration revision. Requires If-Match with the current revision ("0" for the first save): missing is 428, stale is 409 with current-revision. A semantically unchanged overlay returns 200 with the current revision and creates nothing. The overlay is validated on its own, its inline Rego is checked at parse level (advisory: the agent is the security boundary; direct calls to http.send, net.lookup_ip_addr and opa.runtime are rejected; cross-bundle imports are unsupported) and against the policy contract (R63: literal type and shape errors in title, description, remarks, skip_reason, labels, violation and risk_templates are rejected; a package without a title is rejected unless the bundle extends a source or patches a bundle an instance's file defines, where it is a warning), and the merged config is validated against every fresh apply-mode instance's reported base (or the latest reported one); only errors the overlay introduces block (errors already present in the instance's own file are ignored, R59). Errors are a 422 with overlay, instances (errors plus non-blocking warnings) and policy-errors lists. Needs agent:configure, or agent:configure-policy for changes limited to policy bundles and plugin policy lists (a new policy_bundles extends must name a source the instances already use, or the source it swaps out, R58).
+//	@Description	Creates the next configuration revision. Requires If-Match with the current revision ("0" for the first save): missing is 428, stale is 409 with current-revision. A semantically unchanged overlay returns 200 with the current revision and creates nothing. The overlay is validated on its own, its inline Rego is checked at parse level (advisory: the agent is the security boundary; direct calls to http.send, net.lookup_ip_addr and opa.runtime are rejected; cross-bundle imports are unsupported) and against the policy contract (R63: literal type and shape errors in title, description, remarks, skip_reason, labels, violation and risk_templates are rejected; a package without a title is rejected unless the bundle extends a source or patches a bundle an instance's file defines, where it is a warning), and the merged config is validated against every fresh apply-mode instance's reported base (or the latest reported one); only errors the overlay introduces block (errors already present in the instance's own file are ignored, R59). Errors are a 422 with overlay, instances (errors plus non-blocking warnings) and policy-errors lists. Needs agent:configure.
 //	@Tags			Agent Configuration
 //	@Accept			json
 //	@Produce		json
@@ -350,18 +349,6 @@ func (h *AgentConfigHandler) save(ctx echo.Context, agent *relational.Agent, exp
 		return h.internalError(ctx, "load validation bases", err)
 	}
 
-	// D18: with configure-policy only, the change must touch policies only.
-	if !middleware.AllowedActions(ctx)[authz.ActionConfigure] {
-		configs := make([]agentconfig.Config, 0, len(bases))
-		for _, b := range bases {
-			configs = append(configs, b.Base)
-		}
-		if !agentconfig.PolicyOnlyChange(curOverlay, overlay, configs) {
-			h.auditPolicyOnlyDenial(ctx, agentID, curOverlay, overlay)
-			return ctx.JSON(http.StatusForbidden, api.NewError(errors.New("only policy changes are permitted with agent:configure-policy")))
-		}
-	}
-
 	result := validateCandidate(overlay, bases)
 	if result.blocking() {
 		return ctx.JSON(http.StatusUnprocessableEntity, result.errorBody())
@@ -394,28 +381,6 @@ func (h *AgentConfigHandler) save(ctx echo.Context, agent *relational.Agent, exp
 	}
 	ctx.Response().Header().Set(headerETag, agentconfig.AdminETag(rev.Revision))
 	return ctx.JSON(http.StatusCreated, GenericDataResponse[agentConfigRevisionResponse]{Data: revisionResponse(agentID, rev, true)})
-}
-
-// auditPolicyOnlyDenial records a D18 refusal. AuthorizeAny has already audited
-// configure-policy as allow for this request, so without this record the PEP trail would
-// show an allowed write that was actually refused. It uses the PEP's "authz decision"
-// shape so the same audit query picks it up.
-func (h *AgentConfigHandler) auditPolicyOnlyDenial(ctx echo.Context, agentID uuid.UUID, current, next json.RawMessage) {
-	subject := middleware.SubjectFromContext(ctx)
-	reason := "D18/R22/R58: policy change not permitted with configure-policy"
-	if p := agentconfig.FirstNonPolicyPath(current, next); p != "" {
-		reason = "D18: non-policy path " + p
-	}
-	h.sugar.Infow("authz decision",
-		"audit", true,
-		"decision", "deny",
-		"subjectType", subject.Type,
-		"subjectID", subject.ID,
-		"resource", authz.ResourceAgent,
-		"resourceID", agentID.String(),
-		"action", authz.ActionConfigure,
-		"reason", reason,
-	)
 }
 
 // Preview godoc

@@ -259,10 +259,9 @@ resources:
       is_active: bool
       is_locked: bool
   agent:
-    # configure / configure-policy gate writes of the agent's remote-configuration overlay
-    # (configure-policy: only inline policy bundles and plugin policy lists, D18); sync is
-    # the agent service account fetching its overlay and reporting its effective config.
-    actions: [read, create, update, delete, register, ingest, configure, configure-policy, sync]
+    # configure gates writes of the agent's remote-configuration overlay; sync is the agent
+    # service account fetching its overlay and reporting its effective config.
+    actions: [read, create, update, delete, register, ingest, configure, sync]
     attributes:
       is_active: bool
   notification:
@@ -293,16 +292,14 @@ resources:
 # does not consume these roles; the cedar driver does. Operators may override or extend them
 # in their PAP. "*" means all resources / all actions.
 roles:
-  # viewer/auditor/contributor/policy-author read agent configurations (including inline
-  # Rego) through "*": [read]. This is intended (R40/RA-21). Operators can narrow it with a
-  # Cedar `forbid`. Instance base/effective reports are redacted, but overlays are returned
+  # viewer/auditor/contributor read agent configurations through "*": [read]. This is
+  # intended (R40/RA-21). Operators can narrow it with a Cedar `forbid`. Instance base/effective reports are redacted, but overlays are returned
   # unredacted to agent:read holders, so secrets belong in ${env:NAME} placeholders, not
   # literal overlay values (R57).
   #
   # artifact:read is held by every role, including ssp-subscriber, which has no agent:read.
-  # Agents upload the policy trees they load as artifacts (inline Rego included) and name
-  # them in config reports (artifact-digest, R62), so artifact:read also exposes inline Rego
-  # to anyone who knows a digest. This predates R62 (#464 uploads at evaluation time) and is
+  # Agents upload the policy trees they load as artifacts and name them in config reports
+  # (artifact-digest, R62), so artifact:read also exposes their Rego to anyone who knows a digest. This predates R62 (#464 uploads at evaluation time) and is
   # documented, not narrowed (R72, docs/artifacts.md); a Cedar `forbid` can narrow it.
   #
   # Full access.
@@ -365,13 +362,6 @@ roles:
     ssp-export-offering: [read, subscribe]
     playback: [execute]
     artifact: [read]
-
-  # Policy authors: viewer + configure-policy. Iterate on inline Rego without changing
-  # binaries/sources (D18, R40, R53).
-  policy-author:
-    "*": [read]
-    agent: [read, configure-policy]
-    playback: [execute]
 
   # Service accounts: ingest telemetry and register, and reconcile their own plugin templates
   # (the /agent/{risk,subject}-templates batch upsert — plugin v2). The batch routes enforce the
