@@ -269,7 +269,7 @@ var reportColumns = []string{
 	"last_seen_at", "reported_at", "applied_revision", "attempted_revision",
 	"reported_status", "apply_reason", "apply_error", "truncated", "warnings",
 	"base_config", "effective_config", "effective_digest", "remote_config",
-	"policy_bundles", "unsafe_changes", "plugins", "updated_at",
+	"unsafe_changes", "plugins", "updated_at",
 }
 
 // UpsertReport stores a (validated, re-redacted) config report. A new instance over the
@@ -316,9 +316,6 @@ func reportRow(agentID uuid.UUID, credentialID *uuid.UUID, instanceID uuid.UUID,
 		if row.RemoteConfig, err = jsonOrNil(r.RemoteConfig); err != nil {
 			return nil, err
 		}
-	}
-	if row.PolicyBundles, err = jsonOrNil(r.PolicyBundles); err != nil {
-		return nil, err
 	}
 	if row.UnsafeChanges, err = jsonOrNil(r.Unsafe); err != nil {
 		return nil, err
@@ -453,8 +450,6 @@ func columnValue(row *relational.AgentInstance, column string) any {
 		return row.EffectiveDigest
 	case "remote_config":
 		return row.RemoteConfig
-	case "policy_bundles":
-		return row.PolicyBundles
 	case "unsafe_changes":
 		return row.UnsafeChanges
 	case "plugins":
@@ -470,7 +465,7 @@ func columnValue(row *relational.AgentInstance, column string) any {
 	}
 }
 
-// summaryColumns are the instance columns loaded for list views (no base/effective/bundles).
+// summaryColumns are the instance columns loaded for list views (no base/effective).
 var summaryColumns = []string{
 	"id", "created_at", "updated_at", "agent_id", "instance_id", "credential_id",
 	"hostname", "agent_version", "mode", "daemon", "first_seen_at", "last_seen_at",
@@ -481,7 +476,7 @@ var summaryColumns = []string{
 }
 
 // ListInstances returns an agent's instances (most recently seen first) without the heavy
-// base/effective/policy-bundle columns.
+// base/effective columns.
 func (s *Service) ListInstances(ctx context.Context, agentID uuid.UUID) ([]relational.AgentInstance, error) {
 	var out []relational.AgentInstance
 	err := s.db.WithContext(ctx).

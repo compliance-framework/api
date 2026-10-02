@@ -63,8 +63,6 @@ Stored digests must stay reproducible, so these forms are permanent. Golden test
 | --- | --- | --- |
 | `POST /api/agent/artifacts` | Agent token, or none while public agent endpoints are allowed | Canonicalises and stores the body. Returns `201` when stored, `200` when already present, with `{digest, mediaType, sizeBytes}`. |
 | `GET /api/artifacts/{digest}` | Any user or agent token | Returns the canonical bytes with their media type. |
-| `GET /api/artifacts/{digest}/files` | Any user or agent token | Lists the files of a policy bundle artifact (see below). |
-| `GET /api/artifacts/{digest}/files/{path}` | Any user or agent token | Returns one file of a policy bundle artifact as source text (see below). |
 
 Uploads take the same auth as the other agent ingest routes: an agent token, or none while
 public agent endpoints are allowed (`CCF_STRICT_DISABLE_PUBLIC_AGENT_ENDPOINTS=false`), so
@@ -79,67 +77,6 @@ at the start of each scheduled run, and then gets `429`; the agent retries `429`
 
 The SDK wraps these as `client.Artifact.Upload` and `Get`; `Get` checks the content against
 the digest. `types.Evidence.PolicyArtifacts` carries the digests on evidence create.
-
-### Policy bundle files
-
-The file routes read a stored policy bundle without downloading and unpacking the tar.
-Both answer `400` for a malformed digest, `404` for an unknown digest (or, for a single
-file, an unknown path), and `415` when the artifact is not a policy bundle.
-
-`GET /api/artifacts/{digest}/files` lists every file, sorted by path:
-
-```json
-{
-  "digest": "sha256:…",
-  "treeDigest": "tree:sha256:…",
-  "files": [
-    { "path": "config/data.json", "sha256": "…", "size": 52 },
-    { "path": "policy.rego", "sha256": "…", "size": 214, "package": "compliance_framework.ports" }
-  ]
-}
-```
-
-- `sha256` is the lowercase hex SHA-256 of the file, as in agent config reports.
-- `package` is set for `.rego` files that parse (as Rego v1, or else v0), without the
-  leading `data.`.
-- `treeDigest` is `agentconfig.BundleTreeDigest` over the files: the digest an agent config
-  report gives the same tree. The two digests stay separate. `digest` addresses the
-  canonical tar; `treeDigest` the file map.
-
-`GET /api/artifacts/{digest}/files/{path}` returns one file. `path` is the file's path as
-listed; a `/` inside it may be sent as is or escaped as `%2F`:
-
-```json
-{ "path": "policy.rego", "package": "compliance_framework.ports", "sha256": "…", "source": "package compliance_framework.ports\n…" }
-```
-
-Files over 1 MiB, or that are not UTF-8 text, get `422`; download the artifact instead.
-
-An artifact never changes, so both routes answer with `Cache-Control: private,
-max-age=31536000, immutable` and an `ETag` (the digest of the response body), and answer
-`If-None-Match` with `304`.
-
-### Agent config reports
-
-Agents that report artifact digests also upload the policy trees they load when they
-apply a configuration, not only when they evaluate. A config report
-(`PUT /api/agent/instances/{id}/config-report`) names each tree's artifact in
-`policy-bundles[].artifact-digest`, so the UI can show the policy sources an instance
-loaded through the file routes.
-
-The field is best effort: it is empty when the agent could not upload, and it is kept when
-the agent drops `files` to fit the report size. The API checks its format only, not that
-the artifact is stored, so a reader must handle `404`.
-
-## Who can read artifacts
-
-Every bundled authz role holds `artifact:read`, including `ssp-subscriber`, which has no
-`agent:read`. Artifacts include the policy bundles agents upload (at evaluation since #464,
-and with config reports). So a role without `agent:read` can read the policies an agent
-loads through the artifact routes if it knows their digests. The digests are in config reports, which need `agent:read`, and
-in evidence props (`_policy_bundle_digest`), which need `evidence:read`. This is
-documented rather than changed (R72); operators who need to narrow it can add a Cedar
-`forbid` on `artifact:read`.
 
 ## Configuration
 

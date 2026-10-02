@@ -69,7 +69,6 @@ type AgentInstance struct {
 	EffectiveConfig datatypes.JSON `gorm:"type:jsonb"`
 	EffectiveDigest *string        `gorm:"type:text"`
 	RemoteConfig    datatypes.JSON `gorm:"type:jsonb"`
-	PolicyBundles   datatypes.JSON `gorm:"type:jsonb"`
 	UnsafeChanges   datatypes.JSON `gorm:"type:jsonb"`
 	Plugins         datatypes.JSON `gorm:"type:jsonb"` // R76: []agentconfig.PluginReport
 

@@ -53,23 +53,22 @@ type OverlayDocument struct {
 // Report is the body of PUT /api/agent/instances/:instanceId/config-report. Envelope keys are
 // kebab-case; Base, Effective and RemoteConfig contents are snake_case config documents.
 type Report struct {
-	Hostname          string               `json:"hostname,omitempty"`      // <= 255
-	AgentVersion      string               `json:"agent-version,omitempty"` // <= 64
-	Mode              string               `json:"mode"`
-	Daemon            bool                 `json:"daemon"` // false = one-shot run; pruned after 24h (R10, R37)
-	AppliedRevision   *int64               `json:"applied-revision"`
-	AttemptedRevision *int64               `json:"attempted-revision,omitempty"`
-	Status            string               `json:"status"`
-	Reason            string               `json:"reason,omitempty"`
-	Error             *string              `json:"error"`               // <= 8 KiB, truncated server-side
-	Truncated         bool                 `json:"truncated,omitempty"` // agent dropped/trimmed parts to fit MaxReportBytes (R10)
-	Warnings          []FieldError         `json:"warnings,omitempty"`  // R41: tolerated file-origin problems
-	Base              json.RawMessage      `json:"base" swaggertype:"object"`
-	Effective         json.RawMessage      `json:"effective" swaggertype:"object"`
-	EffectiveDigest   string               `json:"effective-digest"`
-	PolicyBundles     []PolicyBundleReport `json:"policy-bundles,omitempty"`
-	Unsafe            []Change             `json:"unsafe,omitempty"`
-	RemoteConfig      *RemoteConfig        `json:"remote-config,omitempty"` // normalized; snake_case inside
+	Hostname          string          `json:"hostname,omitempty"`      // <= 255
+	AgentVersion      string          `json:"agent-version,omitempty"` // <= 64
+	Mode              string          `json:"mode"`
+	Daemon            bool            `json:"daemon"` // false = one-shot run; pruned after 24h (R10, R37)
+	AppliedRevision   *int64          `json:"applied-revision"`
+	AttemptedRevision *int64          `json:"attempted-revision,omitempty"`
+	Status            string          `json:"status"`
+	Reason            string          `json:"reason,omitempty"`
+	Error             *string         `json:"error"`               // <= 8 KiB, truncated server-side
+	Truncated         bool            `json:"truncated,omitempty"` // agent dropped/trimmed parts to fit MaxReportBytes (R10)
+	Warnings          []FieldError    `json:"warnings,omitempty"`  // R41: tolerated file-origin problems
+	Base              json.RawMessage `json:"base" swaggertype:"object"`
+	Effective         json.RawMessage `json:"effective" swaggertype:"object"`
+	EffectiveDigest   string          `json:"effective-digest"`
+	Unsafe            []Change        `json:"unsafe,omitempty"`
+	RemoteConfig      *RemoteConfig   `json:"remote-config,omitempty"` // normalized; snake_case inside
 	// Plugins are the instance's plugins and the agent library each was built with (R76),
 	// so the UI can show policy compatibility before a save. Older agents omit it.
 	Plugins []PluginReport `json:"plugins,omitempty"`
@@ -83,24 +82,4 @@ type PluginReport struct {
 	// was built with, from its Go build info. Empty when unknown: no build info, or a
 	// replace or devel build.
 	LibVersion string `json:"lib-version,omitempty"`
-}
-
-// PolicyBundleReport describes one policy path the agent loaded.
-type PolicyBundleReport struct {
-	Source string             `json:"source"`
-	Digest string             `json:"digest"` // tree digest on main (R10)
-	Files  []PolicyFileReport `json:"files"`  // the loaded tree
-	// ArtifactDigest names the policy bundle artifact (sha256:<hex> of the canonical tar,
-	// see docs/artifacts.md) the agent uploaded for this tree, so its sources can be read
-	// through GET /api/artifacts/{digest}/files (R62). Empty when the upload failed or the
-	// agent does not upload. Agents keep it when they drop Files to fit the report size.
-	// The API checks its format only, not that the artifact exists.
-	ArtifactDigest string `json:"artifact-digest,omitempty"`
-}
-
-// PolicyFileReport is one file of a policy tree.
-type PolicyFileReport struct {
-	Path    string `json:"path"` // relative to the policy root
-	SHA256  string `json:"sha256"`
-	Package string `json:"package,omitempty"`
 }

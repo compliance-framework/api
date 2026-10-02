@@ -107,9 +107,8 @@ type agentInstanceSummary struct {
 
 type agentInstanceDetail struct {
 	agentInstanceSummary
-	Base          json.RawMessage                  `json:"base" swaggertype:"object"`
-	Effective     json.RawMessage                  `json:"effective" swaggertype:"object"`
-	PolicyBundles []agentconfig.PolicyBundleReport `json:"policy-bundles"`
+	Base      json.RawMessage `json:"base" swaggertype:"object"`
+	Effective json.RawMessage `json:"effective" swaggertype:"object"`
 }
 
 type agentInstanceCounts struct {
@@ -733,7 +732,7 @@ func (h *AgentConfigHandler) ListInstances(ctx echo.Context) error {
 // GetInstance godoc
 //
 //	@Summary		Get one agent instance
-//	@Description	The instance's summary plus its redacted base and effective configs (snake_case) and loaded policy bundles. instanceId is the agent-side instance UUID.
+//	@Description	The instance's summary plus its redacted base and effective configs (snake_case). instanceId is the agent-side instance UUID.
 //	@Tags			Agent Configuration
 //	@Produce		json
 //	@Param			id			path		string	true	"Agent ID"
@@ -770,9 +769,7 @@ func (h *AgentConfigHandler) GetInstance(ctx echo.Context) error {
 		agentInstanceSummary: h.instanceSummary(*inst, desired, h.svc.Now()),
 		Base:                 rawOrNull(inst.BaseConfig),
 		Effective:            rawOrNull(inst.EffectiveConfig),
-		PolicyBundles:        []agentconfig.PolicyBundleReport{},
 	}
-	h.decodeColumn(inst, "policy_bundles", inst.PolicyBundles, &detail.PolicyBundles)
 	return ctx.JSON(http.StatusOK, GenericDataResponse[agentInstanceDetail]{Data: detail})
 }
 

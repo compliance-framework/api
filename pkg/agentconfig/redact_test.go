@@ -179,31 +179,3 @@ func TestCanonicalJSON(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, `{"a":12345678901234567890,"b":"<&>","c":[]}`, string(raw))
 }
-
-func TestBundleTreeDigestGolden(t *testing.T) {
-	got := BundleTreeDigest(map[string][]byte{
-		"a.rego":    []byte("package a\n"),
-		"data.json": []byte("{}"),
-	})
-	// Also documented in the BundleTreeDigest godoc for the agent.
-	assert.Equal(t, "tree:sha256:7e0808049205b3cce8b6f1bbedbef302d261072214504dd6add0d5674d2e5c2c", got)
-}
-
-func TestBundleTreeDigest(t *testing.T) {
-	a := map[string][]byte{"z.rego": []byte("package z"), "a.rego": []byte("package a"), "sub/data.json": []byte(`{"x":1}`)}
-	b := map[string][]byte{"sub/data.json": []byte(`{"x":1}`), "a.rego": []byte("package a"), "z.rego": []byte("package z")}
-	assert.Equal(t, BundleTreeDigest(a), BundleTreeDigest(b), "independent of map order")
-	for range 20 {
-		assert.Equal(t, BundleTreeDigest(a), BundleTreeDigest(b))
-	}
-
-	changed := map[string][]byte{"z.rego": []byte("package z"), "a.rego": []byte("package a2"), "sub/data.json": []byte(`{"x":1}`)}
-	assert.NotEqual(t, BundleTreeDigest(a), BundleTreeDigest(changed), "content matters")
-
-	renamed := map[string][]byte{"z.rego": []byte("package z"), "b.rego": []byte("package a"), "sub/data.json": []byte(`{"x":1}`)}
-	assert.NotEqual(t, BundleTreeDigest(a), BundleTreeDigest(renamed), "paths matter")
-
-	empty := BundleTreeDigest(nil)
-	// sha256 of the empty string.
-	assert.Equal(t, "tree:sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", empty)
-}

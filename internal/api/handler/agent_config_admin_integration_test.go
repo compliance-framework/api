@@ -784,11 +784,6 @@ func (s *AgentConfigAdminIntegrationSuite) TestInstances() {
 
 	inSync := s.report(agentID, agentconfig.ModeApplySafe, func(r *agentconfig.Report) {
 		r.AppliedRevision = acaI64(1)
-		r.PolicyBundles = []agentconfig.PolicyBundleReport{{
-			Source: acaVendorPolicy,
-			Digest: acaDigest,
-			Files:  []agentconfig.PolicyFileReport{{Path: "ssh.rego", SHA256: strings.Repeat("a", 64), Package: "compliance_framework.ssh"}},
-		}}
 		r.Plugins = []agentconfig.PluginReport{{Name: "ssh", Source: acaVendorPlugin, LibVersion: "v0.7.1"}, {Name: "local"}}
 	})
 	pending := s.report(agentID, agentconfig.ModeApplySafe, nil) // applied nil, attempted nil
@@ -873,19 +868,16 @@ func (s *AgentConfigAdminIntegrationSuite) TestInstances() {
 		s.Contains(item, "plugins")
 	}
 
-	// Detail: base, effective and policy bundles.
+	// Detail: base and effective.
 	rec = s.call(http.MethodGet, s.path("/instances/"+inSync.String()), nil)
 	s.Require().Equal(http.StatusOK, rec.Code, rec.Body.String())
 	detail := acaData[agentInstanceDetail](s, rec)
 	s.Equal(inSync.String(), detail.InstanceID)
 	s.Contains(string(detail.Base), acaVendorPlugin)
 	s.Contains(string(detail.Effective), acaVendorPolicy)
-	s.Require().Len(detail.PolicyBundles, 1)
-	s.Equal(acaVendorPolicy, detail.PolicyBundles[0].Source)
-	s.Len(detail.PolicyBundles[0].Files, 1)
 	s.Equal([]agentconfig.PluginReport{{Name: "ssh", Source: acaVendorPlugin, LibVersion: "v0.7.1"}, {Name: "local"}}, detail.Plugins, "R76")
 
-	// A heartbeat-only instance has null configs and [] bundles.
+	// A heartbeat-only instance has null configs and [] plugins.
 	rec = s.call(http.MethodGet, s.path("/instances/"+heartbeatOnly.String()), nil)
 	s.Require().Equal(http.StatusOK, rec.Code, rec.Body.String())
 	var rawDetail struct {
@@ -893,7 +885,7 @@ func (s *AgentConfigAdminIntegrationSuite) TestInstances() {
 	}
 	s.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &rawDetail))
 	s.JSONEq(`null`, string(rawDetail.Data["base"]))
-	s.JSONEq(`[]`, string(rawDetail.Data["policy-bundles"]))
+	s.NotContains(rawDetail.Data, "policy-bundles")
 	s.JSONEq(`[]`, string(rawDetail.Data["plugins"]))
 
 	// Another agent's instance => 404; a bad instance id => 400.

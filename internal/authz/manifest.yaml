@@ -297,11 +297,6 @@ roles:
   # unredacted to agent:read holders, so secrets belong in ${env:NAME} placeholders, not
   # literal overlay values (R57).
   #
-  # artifact:read is held by every role, including ssp-subscriber, which has no agent:read.
-  # Agents upload the policy trees they load as artifacts and name them in config reports
-  # (artifact-digest, R62), so artifact:read also exposes their Rego to anyone who knows a digest. This predates R62 (#464 uploads at evaluation time) and is
-  # documented, not narrowed (R72, docs/artifacts.md); a Cedar `forbid` can narrow it.
-  #
   # Full access.
   admin:
     "*": ["*"]
