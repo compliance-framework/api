@@ -64,43 +64,15 @@ definitions:
         description: the configured source
         type: string
     type: object
-  agentconfig.PolicyBundleReport:
-    properties:
-      artifact-digest:
-        description: |-
-          ArtifactDigest names the policy bundle artifact (sha256:<hex> of the canonical tar,
-          see docs/artifacts.md) the agent uploaded for this tree, so its sources can be read
-          through GET /api/artifacts/{digest}/files (R62). Empty when the upload failed or the
-          agent does not upload. Agents keep it when they drop Files to fit the report size.
-          The API checks its format only, not that the artifact exists.
-        type: string
-      digest:
-        description: tree digest on main (R10)
-        type: string
-      files:
-        description: the loaded tree
-        items:
-          $ref: '#/definitions/agentconfig.PolicyFileReport'
-        type: array
-      source:
-        type: string
-    type: object
-  agentconfig.PolicyFileReport:
-    properties:
-      package:
-        type: string
-      path:
-        description: relative to the policy root
-        type: string
-      sha256:
-        type: string
-    type: object
   agentconfig.RemoteConfig:
     properties:
       allow_local_sources:
         description: default false
         type: boolean
       mode:
+        description: |-
+          Mode is off, report, apply_safe or apply_all. Unset means report for an agent with
+          credentials (it reports but never applies), off without (see Normalize).
         type: string
       overridable_config_flags:
         description: default []
@@ -147,10 +119,6 @@ definitions:
           so the UI can show policy compatibility before a save. Older agents omit it.
         items:
           $ref: '#/definitions/agentconfig.PluginReport'
-        type: array
-      policy-bundles:
-        items:
-          $ref: '#/definitions/agentconfig.PolicyBundleReport'
         type: array
       reason:
         type: string
@@ -352,48 +320,6 @@ definitions:
       valid:
         description: Valid is true if Time is not NULL
         type: boolean
-    type: object
-  handler.ArtifactFileInfo:
-    properties:
-      package:
-        description: Package is the Rego package without "data.", for .rego files
-          that parse.
-        type: string
-      path:
-        description: relative to the bundle root
-        type: string
-      sha256:
-        description: lowercase hex, as in agent config reports
-        type: string
-      size:
-        description: bytes
-        type: integer
-    type: object
-  handler.ArtifactFileList:
-    properties:
-      digest:
-        description: Digest is the artifact digest (canonical tar, sha256:<hex>).
-        type: string
-      files:
-        items:
-          $ref: '#/definitions/handler.ArtifactFileInfo'
-        type: array
-      treeDigest:
-        description: |-
-          TreeDigest is agentconfig.BundleTreeDigest over the files (tree:sha256:<hex>), the
-          digest agent config reports use for the same tree.
-        type: string
-    type: object
-  handler.ArtifactFileSource:
-    properties:
-      package:
-        type: string
-      path:
-        type: string
-      sha256:
-        type: string
-      source:
-        type: string
     type: object
   handler.CreatedEvidenceResponse:
     properties:
@@ -2997,10 +2923,6 @@ definitions:
           Empty until an agent that reports them does.
         items:
           $ref: '#/definitions/agentconfig.PluginReport'
-        type: array
-      policy-bundles:
-        items:
-          $ref: '#/definitions/agentconfig.PolicyBundleReport'
         type: array
       reason:
         type: string
@@ -13180,8 +13102,7 @@ paths:
   /admin/agents/{id}/instances/{instanceId}:
     get:
       description: The instance's summary plus its redacted base and effective configs
-        (snake_case) and loaded policy bundles. instanceId is the agent-side instance
-        UUID.
+        (snake_case). instanceId is the agent-side instance UUID.
       parameters:
       - description: Agent ID
         in: path
@@ -14983,11 +14904,11 @@ paths:
       description: 'Stores the authenticated agent instance''s config report: mode,
         applied/attempted revision, status (applied, rejected, failed or not-applicable;
         the server derives pending and unknown), the redacted base and effective configs
-        (snake_case), the effective digest, loaded policy bundles, plugins (with their
-        agent-library version), unsafe changes, warnings and the normalized local
-        remote_config block. The server re-redacts base and effective as a best effort
-        and stores effective-digest as sent. Body limit 4 MiB. A 409 means the per-agent
-        instance cap is reached; back off.'
+        (snake_case), the effective digest, plugins (with their agent-library version),
+        unsafe changes, warnings and the normalized local remote_config block. The
+        server re-redacts base and effective as a best effort and stores effective-digest
+        as sent. Body limit 4 MiB. A 409 means the per-agent instance cap is reached;
+        back off.'
       parameters:
       - description: Agent instance ID (UUID)
         in: path
@@ -15137,110 +15058,6 @@ paths:
       security:
       - OAuth2Password: []
       summary: Download an artifact
-      tags:
-      - Artifacts
-  /artifacts/{digest}/files:
-    get:
-      description: Returns every file of a stored policy bundle with its SHA-256,
-        size and, for Rego modules, its package, plus the bundle's tree digest (the
-        digest agent config reports use for the same tree). Agent config reports name
-        bundle artifacts in policy-bundles[].artifact-digest. Any logged-in user or
-        agent may read artifacts; that includes the policy bundles agents upload.
-      parameters:
-      - description: Artifact digest, sha256:<64 hex>
-        in: path
-        name: digest
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/handler.ArtifactFileList'
-        "304":
-          description: Not Modified
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/api.Error'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/api.Error'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/api.Error'
-        "415":
-          description: The artifact is not a policy bundle
-          schema:
-            $ref: '#/definitions/api.Error'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/api.Error'
-      security:
-      - OAuth2Password: []
-      summary: List the files of a policy bundle artifact
-      tags:
-      - Artifacts
-  /artifacts/{digest}/files/{path}:
-    get:
-      description: Returns the source of one file of a stored policy bundle, with
-        its SHA-256 and, for Rego modules, its package. path is the file's path in
-        the bundle, as GET /artifacts/{digest}/files lists it. Files over 1 MiB, or
-        that are not UTF-8 text, are not returned as source (422); download the artifact
-        instead. Any logged-in user or agent may read artifacts; that includes the
-        policy bundles agents upload.
-      parameters:
-      - description: Artifact digest, sha256:<64 hex>
-        in: path
-        name: digest
-        required: true
-        type: string
-      - description: File path in the bundle, e.g. policies/ssh.rego
-        in: path
-        name: path
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/handler.ArtifactFileSource'
-        "304":
-          description: Not Modified
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/api.Error'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/api.Error'
-        "404":
-          description: No such artifact, or no such file in it
-          schema:
-            $ref: '#/definitions/api.Error'
-        "415":
-          description: The artifact is not a policy bundle
-          schema:
-            $ref: '#/definitions/api.Error'
-        "422":
-          description: The file is over 1 MiB or not UTF-8 text
-          schema:
-            $ref: '#/definitions/api.Error'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/api.Error'
-      security:
-      - OAuth2Password: []
-      summary: Get one file of a policy bundle artifact
       tags:
       - Artifacts
   /auth/forgot-password:

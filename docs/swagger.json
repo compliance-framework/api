@@ -579,7 +579,7 @@
         },
         "/admin/agents/{id}/instances/{instanceId}": {
             "get": {
-                "description": "The instance's summary plus its redacted base and effective configs (snake_case) and loaded policy bundles. instanceId is the agent-side instance UUID.",
+                "description": "The instance's summary plus its redacted base and effective configs (snake_case). instanceId is the agent-side instance UUID.",
                 "produces": [
                     "application/json"
                 ],
@@ -3324,7 +3324,7 @@
         },
         "/agent/instances/{instanceId}/config-report": {
             "put": {
-                "description": "Stores the authenticated agent instance's config report: mode, applied/attempted revision, status (applied, rejected, failed or not-applicable; the server derives pending and unknown), the redacted base and effective configs (snake_case), the effective digest, loaded policy bundles, plugins (with their agent-library version), unsafe changes, warnings and the normalized local remote_config block. The server re-redacts base and effective as a best effort and stores effective-digest as sent. Body limit 4 MiB. A 409 means the per-agent instance cap is reached; back off.",
+                "description": "Stores the authenticated agent instance's config report: mode, applied/attempted revision, status (applied, rejected, failed or not-applicable; the server derives pending and unknown), the redacted base and effective configs (snake_case), the effective digest, plugins (with their agent-library version), unsafe changes, warnings and the normalized local remote_config block. The server re-redacts base and effective as a best effort and stores effective-digest as sent. Body limit 4 MiB. A 409 means the per-agent instance cap is reached; back off.",
                 "consumes": [
                     "application/json"
                 ],
@@ -3537,153 +3537,6 @@
                     },
                     "404": {
                         "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "OAuth2Password": []
-                    }
-                ]
-            }
-        },
-        "/artifacts/{digest}/files": {
-            "get": {
-                "description": "Returns every file of a stored policy bundle with its SHA-256, size and, for Rego modules, its package, plus the bundle's tree digest (the digest agent config reports use for the same tree). Agent config reports name bundle artifacts in policy-bundles[].artifact-digest. Any logged-in user or agent may read artifacts; that includes the policy bundles agents upload.",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Artifacts"
-                ],
-                "summary": "List the files of a policy bundle artifact",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Artifact digest, sha256:\u003c64 hex\u003e",
-                        "name": "digest",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/handler.ArtifactFileList"
-                        }
-                    },
-                    "304": {
-                        "description": "Not Modified"
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "415": {
-                        "description": "The artifact is not a policy bundle",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "OAuth2Password": []
-                    }
-                ]
-            }
-        },
-        "/artifacts/{digest}/files/{path}": {
-            "get": {
-                "description": "Returns the source of one file of a stored policy bundle, with its SHA-256 and, for Rego modules, its package. path is the file's path in the bundle, as GET /artifacts/{digest}/files lists it. Files over 1 MiB, or that are not UTF-8 text, are not returned as source (422); download the artifact instead. Any logged-in user or agent may read artifacts; that includes the policy bundles agents upload.",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Artifacts"
-                ],
-                "summary": "Get one file of a policy bundle artifact",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Artifact digest, sha256:\u003c64 hex\u003e",
-                        "name": "digest",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "File path in the bundle, e.g. policies/ssh.rego",
-                        "name": "path",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/handler.ArtifactFileSource"
-                        }
-                    },
-                    "304": {
-                        "description": "Not Modified"
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "404": {
-                        "description": "No such artifact, or no such file in it",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "415": {
-                        "description": "The artifact is not a policy bundle",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "422": {
-                        "description": "The file is over 1 MiB or not UTF-8 text",
                         "schema": {
                             "$ref": "#/definitions/api.Error"
                         }
@@ -35213,44 +35066,6 @@
                 }
             }
         },
-        "agentconfig.PolicyBundleReport": {
-            "type": "object",
-            "properties": {
-                "artifact-digest": {
-                    "description": "ArtifactDigest names the policy bundle artifact (sha256:\u003chex\u003e of the canonical tar,\nsee docs/artifacts.md) the agent uploaded for this tree, so its sources can be read\nthrough GET /api/artifacts/{digest}/files (R62). Empty when the upload failed or the\nagent does not upload. Agents keep it when they drop Files to fit the report size.\nThe API checks its format only, not that the artifact exists.",
-                    "type": "string"
-                },
-                "digest": {
-                    "description": "tree digest on main (R10)",
-                    "type": "string"
-                },
-                "files": {
-                    "description": "the loaded tree",
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/agentconfig.PolicyFileReport"
-                    }
-                },
-                "source": {
-                    "type": "string"
-                }
-            }
-        },
-        "agentconfig.PolicyFileReport": {
-            "type": "object",
-            "properties": {
-                "package": {
-                    "type": "string"
-                },
-                "path": {
-                    "description": "relative to the policy root",
-                    "type": "string"
-                },
-                "sha256": {
-                    "type": "string"
-                }
-            }
-        },
         "agentconfig.RemoteConfig": {
             "type": "object",
             "properties": {
@@ -35259,6 +35074,7 @@
                     "type": "boolean"
                 },
                 "mode": {
+                    "description": "Mode is off, report, apply_safe or apply_all. Unset means report for an agent with\ncredentials (it reports but never applies), off without (see Normalize).",
                     "type": "string"
                 },
                 "overridable_config_flags": {
@@ -35322,12 +35138,6 @@
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/agentconfig.PluginReport"
-                    }
-                },
-                "policy-bundles": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/agentconfig.PolicyBundleReport"
                     }
                 },
                 "reason": {
@@ -35628,63 +35438,6 @@
                 "valid": {
                     "description": "Valid is true if Time is not NULL",
                     "type": "boolean"
-                }
-            }
-        },
-        "handler.ArtifactFileInfo": {
-            "type": "object",
-            "properties": {
-                "package": {
-                    "description": "Package is the Rego package without \"data.\", for .rego files that parse.",
-                    "type": "string"
-                },
-                "path": {
-                    "description": "relative to the bundle root",
-                    "type": "string"
-                },
-                "sha256": {
-                    "description": "lowercase hex, as in agent config reports",
-                    "type": "string"
-                },
-                "size": {
-                    "description": "bytes",
-                    "type": "integer"
-                }
-            }
-        },
-        "handler.ArtifactFileList": {
-            "type": "object",
-            "properties": {
-                "digest": {
-                    "description": "Digest is the artifact digest (canonical tar, sha256:\u003chex\u003e).",
-                    "type": "string"
-                },
-                "files": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/handler.ArtifactFileInfo"
-                    }
-                },
-                "treeDigest": {
-                    "description": "TreeDigest is agentconfig.BundleTreeDigest over the files (tree:sha256:\u003chex\u003e), the\ndigest agent config reports use for the same tree.",
-                    "type": "string"
-                }
-            }
-        },
-        "handler.ArtifactFileSource": {
-            "type": "object",
-            "properties": {
-                "package": {
-                    "type": "string"
-                },
-                "path": {
-                    "type": "string"
-                },
-                "sha256": {
-                    "type": "string"
-                },
-                "source": {
-                    "type": "string"
                 }
             }
         },
@@ -39748,12 +39501,6 @@
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/agentconfig.PluginReport"
-                    }
-                },
-                "policy-bundles": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/agentconfig.PolicyBundleReport"
                     }
                 },
                 "reason": {
