@@ -15,10 +15,12 @@ import (
 	"github.com/compliance-framework/api/internal"
 	"github.com/compliance-framework/api/internal/api"
 	"github.com/compliance-framework/api/internal/authn"
+	"github.com/compliance-framework/api/internal/config"
 	"github.com/compliance-framework/api/internal/converters/labelfilter"
 	svc "github.com/compliance-framework/api/internal/service"
 	"github.com/compliance-framework/api/internal/service/relational"
 	evidencesvc "github.com/compliance-framework/api/internal/service/relational/evidence"
+	templaterel "github.com/compliance-framework/api/internal/service/relational/templates"
 	sdktypes "github.com/compliance-framework/api/sdk/types"
 	oscalTypes_1_1_3 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
 	"github.com/google/uuid"
@@ -2016,4 +2018,319 @@ func (suite *EvidenceApiIntegrationSuite) TestComplianceByFilter() {
 		server.E().ServeHTTP(rec, req)
 		assert.Equal(suite.T(), http.StatusBadRequest, rec.Code)
 	})
+}
+
+func (suite *EvidenceApiIntegrationSuite) TestConfigReportsManualSubjectRequirement() {
+	suite.Require().NoError(suite.Migrator.Refresh())
+	defer func() { suite.Config.EvidenceSubjects = nil }()
+
+	getConfig := func() bool {
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, "/api/evidence/config", nil)
+		suite.setupServer().E().ServeHTTP(rec, req)
+		suite.Require().Equal(http.StatusOK, rec.Code, rec.Body.String())
+
+		var body GenericDataResponse[evidenceConfigResponse]
+		suite.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &body))
+		return body.Data.ManualSubjectRequired
+	}
+
+	suite.False(getConfig(), "not required when the flag is unset")
+
+	suite.Config.EvidenceSubjects = &config.EvidenceSubjectConfig{ManualRequireSubject: true}
+	suite.True(getConfig())
+
+	suite.Config.EvidenceSubjects = &config.EvidenceSubjectConfig{ManualRequireSubject: false}
+	suite.False(getConfig())
+}
+
+// setupServerWithSubjectTemplates wires the subject template resolver into evidence creation,
+// as cmd/run.go does.
+func (suite *EvidenceApiIntegrationSuite) setupServerWithSubjectTemplates() *api.Server {
+	logger, _ := zap.NewDevelopment()
+	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
+	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
+	evidenceSvc := evidencesvc.NewEvidenceService(suite.DB, logger.Sugar(), suite.Config, nil,
+		evidencesvc.WithComponentDefinitionResolver(templaterel.NewSubjectTemplateService(suite.DB)))
+	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, &APIServices{EvidenceService: evidenceSvc})
+	return server
+}
+
+func (suite *EvidenceApiIntegrationSuite) createOrganizationSubjectTemplate(plugin string) {
+	title := "GitHub Organization: {{ .organization }}"
+	_, err := templaterel.NewSubjectTemplateService(suite.DB).Create(templaterel.SubjectTemplatePayload{
+		Name:              "github-organization",
+		Type:              "component",
+		SourceMode:        "runtime-derived",
+		TitleTemplate:     &title,
+		DisplayPriority:   2,
+		IdentityLabelKeys: []string{"organization"},
+		SelectorLabels:    []templaterel.SubjectTemplateSelectorLabelInput{{Key: "_plugin", Value: plugin}},
+		LabelSchema:       []templaterel.SubjectTemplateLabelSchemaFieldInput{{Key: "organization"}},
+	})
+	suite.Require().NoError(err)
+}
+
+func (suite *EvidenceApiIntegrationSuite) postEvidence(server *api.Server, request EvidenceCreateRequest) *httptest.ResponseRecorder {
+	body, err := json.Marshal(request)
+	suite.Require().NoError(err)
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/evidence", bytes.NewReader(body))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	server.E().ServeHTTP(rec, req)
+	return rec
+}
+
+func subjectEvidenceRequest(labels map[string]string) EvidenceCreateRequest {
+	return EvidenceCreateRequest{
+		UUID:   uuid.New(),
+		Title:  "All teams use closed visibility",
+		Start:  time.Now().Add(-time.Hour),
+		End:    time.Now().Add(-time.Minute),
+		Labels: labels,
+		Status: oscalTypes_1_1_3.ObjectiveStatus{State: relational.EvidenceStatusSatisfied},
+	}
+}
+
+func (suite *EvidenceApiIntegrationSuite) TestCreateStoresTemplateDerivedAndLegacySubjects() {
+	suite.Require().NoError(suite.Migrator.Refresh())
+	suite.Config.StrictDisablePublicAgentEndpoints = false
+	suite.createOrganizationSubjectTemplate("github-settings")
+	server := suite.setupServerWithSubjectTemplates()
+
+	request := subjectEvidenceRequest(map[string]string{"_plugin": "github-settings", "organization": "acme"})
+	request.Subjects = []EvidenceSubject{{Identifier: "github/acme/api", Type: "Component"}}
+	rec := suite.postEvidence(server, request)
+	suite.Require().Equal(http.StatusCreated, rec.Code, rec.Body.String())
+
+	var evidence relational.Evidence
+	suite.Require().NoError(suite.DB.First(&evidence, "uuid = ?", request.UUID).Error)
+
+	var refs []relational.EvidenceSubjectReference
+	suite.Require().NoError(suite.DB.Where("evidence_id = ?", evidence.ID).Order("source desc").Find(&refs).Error)
+	suite.Require().Len(refs, 2)
+
+	template := refs[0]
+	suite.Equal(relational.EvidenceSubjectSourceTemplate, template.Source)
+	suite.Equal("component", template.Type)
+	suite.Equal("GitHub Organization: acme", template.Title)
+	suite.Equal(2, template.Priority)
+	suite.Nil(template.Group)
+	suite.NotNil(template.TemplateID)
+
+	legacy := refs[1]
+	suite.Equal(relational.EvidenceSubjectSourceLegacy, legacy.Source)
+	seeded, err := internal.SeededUUID(map[string]string{"identifier": "github/acme/api"})
+	suite.Require().NoError(err)
+	suite.Equal(seeded, legacy.SubjectUUID)
+
+	// The subject references can be found by subject, through the (subject_uuid, evidence_id) index.
+	var bySubject int64
+	suite.Require().NoError(suite.DB.Model(&relational.EvidenceSubjectReference{}).
+		Where("subject_uuid = ?", template.SubjectUUID).Count(&bySubject).Error)
+	suite.Equal(int64(1), bySubject)
+}
+
+func (suite *EvidenceApiIntegrationSuite) TestCreateRejectsUnattributedAgentEvidenceWhenEnforced() {
+	suite.Require().NoError(suite.Migrator.Refresh())
+	suite.Config.StrictDisablePublicAgentEndpoints = false
+	suite.Config.EvidenceSubjects = &config.EvidenceSubjectConfig{RequireSubject: config.EvidenceRequireSubjectEnforce}
+	defer func() { suite.Config.EvidenceSubjects = nil }()
+	suite.createOrganizationSubjectTemplate("github-settings")
+	server := suite.setupServerWithSubjectTemplates()
+
+	unattributed := suite.postEvidence(server, subjectEvidenceRequest(map[string]string{"_plugin": "some-other-plugin"}))
+	suite.Equal(http.StatusBadRequest, unattributed.Code, unattributed.Body.String())
+	suite.Contains(unattributed.Body.String(), "evidence has no subject")
+
+	attributed := suite.postEvidence(server, subjectEvidenceRequest(map[string]string{"_plugin": "github-settings", "organization": "acme"}))
+	suite.Equal(http.StatusCreated, attributed.Code, attributed.Body.String())
+}
+
+func (suite *EvidenceApiIntegrationSuite) TestSubjectReferencesOnDetailAndSearchResponses() {
+	suite.Require().NoError(suite.Migrator.Refresh())
+	suite.Config.StrictDisablePublicAgentEndpoints = false
+	suite.createOrganizationSubjectTemplate("github-settings")
+	server := suite.setupServerWithSubjectTemplates()
+
+	attributed := subjectEvidenceRequest(map[string]string{"_plugin": "github-settings", "organization": "acme"})
+	attributed.Subjects = []EvidenceSubject{{Identifier: "github/acme/api", Type: "Component"}}
+	suite.Require().Equal(http.StatusCreated, suite.postEvidence(server, attributed).Code)
+	legacyOnly := subjectEvidenceRequest(map[string]string{"_plugin": "legacy-plugin"})
+	legacyOnly.Subjects = []EvidenceSubject{{Identifier: "legacy/thing", Type: "Component"}}
+	suite.Require().Equal(http.StatusCreated, suite.postEvidence(server, legacyOnly).Code)
+
+	type subjectRef map[string]any
+	type evidenceRow struct {
+		ID                uuid.UUID     `json:"id"`
+		UUID              uuid.UUID     `json:"uuid"`
+		SubjectReferences *[]subjectRef `json:"subject-references"`
+	}
+
+	// Search rows carry compact references, without legacy subjects.
+	searchRec := httptest.NewRecorder()
+	searchReq := httptest.NewRequest(http.MethodPost, "/api/evidence/search", bytes.NewReader([]byte(`{"filter":{}}`)))
+	searchReq.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	server.E().ServeHTTP(searchRec, searchReq)
+	suite.Require().Equal(http.StatusOK, searchRec.Code, searchRec.Body.String())
+	var search svc.ListResponse[evidenceRow]
+	suite.Require().NoError(json.Unmarshal(searchRec.Body.Bytes(), &search))
+	suite.Require().Len(search.Data, 2)
+
+	var attributedRow evidenceRow
+	for _, row := range search.Data {
+		suite.Require().NotNil(row.SubjectReferences, "search rows always carry subject-references")
+		switch row.UUID {
+		case attributed.UUID:
+			attributedRow = row
+			suite.Require().Len(*row.SubjectReferences, 1)
+			ref := (*row.SubjectReferences)[0]
+			suite.Equal("component", ref["type"])
+			suite.Equal("GitHub Organization: acme", ref["title"])
+			suite.NotEmpty(ref["subject-uuid"])
+			suite.Len(ref, 3, "compact references have only subject-uuid, type and title")
+		case legacyOnly.UUID:
+			suite.Empty(*row.SubjectReferences, "evidence with only legacy subjects lists as unattributed")
+		}
+	}
+
+	// The detail response carries every subject reference, in display order.
+	detailRec := httptest.NewRecorder()
+	detailReq := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/evidence/%s", attributedRow.ID), nil)
+	server.E().ServeHTTP(detailRec, detailReq)
+	suite.Require().Equal(http.StatusOK, detailRec.Code, detailRec.Body.String())
+	var detail GenericDataResponse[evidenceRow]
+	suite.Require().NoError(json.Unmarshal(detailRec.Body.Bytes(), &detail))
+	suite.Require().NotNil(detail.Data.SubjectReferences)
+	suite.Require().Len(*detail.Data.SubjectReferences, 2)
+	suite.Equal("GitHub Organization: acme", (*detail.Data.SubjectReferences)[0]["title"], "the template subject (priority 2) comes first")
+	suite.NotEmpty((*detail.Data.SubjectReferences)[0]["props"])
+	suite.Equal("Component", (*detail.Data.SubjectReferences)[1]["type"])
+}
+
+func (suite *EvidenceApiIntegrationSuite) TestSearchFiltersBySubject() {
+	suite.Require().NoError(suite.Migrator.Refresh())
+	suite.Config.StrictDisablePublicAgentEndpoints = false
+	suite.createOrganizationSubjectTemplate("github-settings")
+	server := suite.setupServerWithSubjectTemplates()
+
+	acme := subjectEvidenceRequest(map[string]string{"_plugin": "github-settings", "organization": "acme"})
+	suite.Require().Equal(http.StatusCreated, suite.postEvidence(server, acme).Code)
+	globex := subjectEvidenceRequest(map[string]string{"_plugin": "github-settings", "organization": "globex"})
+	suite.Require().Equal(http.StatusCreated, suite.postEvidence(server, globex).Code)
+
+	var acmeRef relational.EvidenceSubjectReference
+	suite.Require().NoError(suite.DB.Where("title = ?", "GitHub Organization: acme").First(&acmeRef).Error)
+
+	search := func(query string) *httptest.ResponseRecorder {
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodPost, "/api/evidence/search"+query, bytes.NewReader([]byte(`{"filter":{}}`)))
+		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+		server.E().ServeHTTP(rec, req)
+		return rec
+	}
+
+	rec := search("?subjectUuid=" + acmeRef.SubjectUUID.String())
+	suite.Require().Equal(http.StatusOK, rec.Code, rec.Body.String())
+	var filtered svc.ListResponse[PublicEvidenceResponse]
+	suite.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &filtered))
+	suite.Require().Len(filtered.Data, 1)
+	suite.Equal(acme.UUID, filtered.Data[0].UUID)
+	suite.Equal(int64(1), filtered.Total)
+
+	unknown := search("?subjectUuid=" + uuid.NewString())
+	suite.Require().Equal(http.StatusOK, unknown.Code)
+	var none svc.ListResponse[PublicEvidenceResponse]
+	suite.Require().NoError(json.Unmarshal(unknown.Body.Bytes(), &none))
+	suite.Empty(none.Data)
+
+	suite.Equal(http.StatusBadRequest, search("?subjectUuid=not-a-uuid").Code)
+}
+
+func (suite *EvidenceApiIntegrationSuite) postEvidenceAsUser(server *api.Server, request EvidenceCreateRequest) *httptest.ResponseRecorder {
+	token, err := suite.GetAuthToken()
+	suite.Require().NoError(err)
+	body, err := json.Marshal(request)
+	suite.Require().NoError(err)
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/evidence", bytes.NewReader(body))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	req.Header.Set(echo.HeaderAuthorization, fmt.Sprintf("Bearer %s", *token))
+	server.E().ServeHTTP(rec, req)
+	return rec
+}
+
+func (suite *EvidenceApiIntegrationSuite) createParty(name string) uuid.UUID {
+	id := uuid.New()
+	suite.Require().NoError(suite.DB.Omit("Locations", "MemberOfOrganizations").Create(&relational.Party{
+		UUIDModel: relational.UUIDModel{ID: &id},
+		Type:      relational.PartyTypeOrganization,
+		Name:      &name,
+	}).Error)
+	return id
+}
+
+func (suite *EvidenceApiIntegrationSuite) TestCreateStoresDeclaredSubjects() {
+	suite.Require().NoError(suite.Migrator.Refresh())
+	suite.Config.StrictDisablePublicAgentEndpoints = false
+	server := suite.setupServerWithSubjectTemplates()
+	partyID := suite.createParty("Network Team")
+
+	request := subjectEvidenceRequest(map[string]string{"source": "manual"})
+	request.Title = "Quarterly firewall rule review"
+	request.Subjects = []EvidenceSubject{{SubjectUUID: &partyID}}
+	rec := suite.postEvidenceAsUser(server, request)
+	suite.Require().Equal(http.StatusCreated, rec.Code, rec.Body.String())
+
+	var refs []relational.EvidenceSubjectReference
+	suite.Require().NoError(suite.DB.Find(&refs).Error)
+	suite.Require().Len(refs, 1)
+	suite.Equal(partyID, refs[0].SubjectUUID)
+	suite.Equal("party", refs[0].Type, "the type comes from the subject")
+	suite.Equal("Network Team", refs[0].Title)
+	suite.Equal(relational.EvidenceSubjectSourceDeclared, refs[0].Source)
+	suite.Equal([]relational.Prop{{
+		Ns: relational.CCFOSCALNamespace, Name: relational.EvidenceSubjectPropSource, Value: relational.EvidenceSubjectSourceDeclared,
+	}}, []relational.Prop(refs[0].Props))
+
+	var assessmentSubjects int64
+	suite.Require().NoError(suite.DB.Model(&relational.AssessmentSubject{}).Count(&assessmentSubjects).Error)
+	suite.Zero(assessmentSubjects, "declared subjects don't create legacy assessment subjects")
+}
+
+func (suite *EvidenceApiIntegrationSuite) TestCreateRejectsUnknownDeclaredSubject() {
+	suite.Require().NoError(suite.Migrator.Refresh())
+	server := suite.setupServerWithSubjectTemplates()
+
+	unknown := uuid.New()
+	request := subjectEvidenceRequest(nil)
+	request.Subjects = []EvidenceSubject{{SubjectUUID: &unknown}}
+	rec := suite.postEvidenceAsUser(server, request)
+
+	suite.Equal(http.StatusBadRequest, rec.Code, rec.Body.String())
+	suite.Contains(rec.Body.String(), "unknown subject")
+	var count int64
+	suite.Require().NoError(suite.DB.Model(&relational.Evidence{}).Count(&count).Error)
+	suite.Zero(count)
+}
+
+func (suite *EvidenceApiIntegrationSuite) TestCreateAppliesManualSubjectRequirement() {
+	suite.Require().NoError(suite.Migrator.Refresh())
+	suite.Config.StrictDisablePublicAgentEndpoints = false
+	suite.Config.EvidenceSubjects = &config.EvidenceSubjectConfig{ManualRequireSubject: true}
+	defer func() { suite.Config.EvidenceSubjects = nil }()
+	server := suite.setupServerWithSubjectTemplates()
+	partyID := suite.createParty("Network Team")
+
+	withoutSubject := suite.postEvidenceAsUser(server, subjectEvidenceRequest(nil))
+	suite.Equal(http.StatusBadRequest, withoutSubject.Code, withoutSubject.Body.String())
+	suite.Contains(withoutSubject.Body.String(), "evidence has no subject")
+
+	withSubject := subjectEvidenceRequest(nil)
+	withSubject.Subjects = []EvidenceSubject{{SubjectUUID: &partyID}}
+	created := suite.postEvidenceAsUser(server, withSubject)
+	suite.Equal(http.StatusCreated, created.Code, created.Body.String())
+
+	agentEvidence := suite.postEvidence(server, subjectEvidenceRequest(nil))
+	suite.Equal(http.StatusCreated, agentEvidence.Code, "the manual requirement doesn't apply to agent evidence")
 }

@@ -47,6 +47,26 @@ var allowedSubjectTemplateTypes = map[string]struct{}{
 	subjectTemplateTypeResource:      {},
 }
 
+// defaultDefinedComponentType is written to DefinedComponents whose template sets no
+// component type.
+const defaultDefinedComponentType = "service"
+
+// allowedDefinedComponentTypes are the OSCAL component types valid on a component
+// definition's defined-component (this-system only applies to SSP system components).
+var allowedDefinedComponentTypes = map[string]struct{}{
+	"interconnection":   {},
+	"software":          {},
+	"hardware":          {},
+	"service":           {},
+	"policy":            {},
+	"physical":          {},
+	"process-procedure": {},
+	"plan":              {},
+	"guidance":          {},
+	"standard":          {},
+	"validation":        {},
+}
+
 var allowedSubjectTemplateSourceModes = map[string]struct{}{
 	subjectTemplateSourceModePolicyDerived:  {},
 	subjectTemplateSourceModeRuntimeDerived: {},
@@ -112,6 +132,8 @@ type SubjectTemplatePayload struct {
 	Props               []relational.Prop
 	Links               []relational.Link
 	SourceMode          string
+	DisplayPriority     int
+	ComponentType       *string
 	SelectorLabels      []SubjectTemplateSelectorLabelInput
 	LabelSchema         []SubjectTemplateLabelSchemaFieldInput
 }
@@ -138,6 +160,22 @@ type ResolveOrUpsertComponentDefinitionInput struct {
 
 type ResolveOrUpsertComponentDefinitionResult struct {
 	DefinedComponentIDs []uuid.UUID
+	// Subjects are the evidence's template-derived subjects, one per DefinedComponent.
+	Subjects []ResolvedSubject
+}
+
+// ResolvedSubject is a subject derived for a piece of evidence from a matching component
+// template: the DefinedComponent it resolved to, and the template that produced it.
+type ResolvedSubject struct {
+	DefinedComponentID uuid.UUID
+	TemplateID         uuid.UUID
+	TemplateName       string
+	DisplayPriority    int
+	// Type is the OSCAL subject type; template-derived subjects are always components.
+	Type  string
+	Title string
+	Props []relational.Prop
+	Links []relational.Link
 }
 
 type identityLabelPair struct {
@@ -236,6 +274,8 @@ func (s *SubjectTemplateService) Create(payload SubjectTemplatePayload) (*Subjec
 		Props:               datatypes.NewJSONSlice(payload.Props),
 		Links:               datatypes.NewJSONSlice(payload.Links),
 		SourceMode:          payload.SourceMode,
+		DisplayPriority:     payload.DisplayPriority,
+		ComponentType:       payload.ComponentType,
 	}
 
 	if err := tx.Select(
@@ -252,6 +292,8 @@ func (s *SubjectTemplateService) Create(payload SubjectTemplatePayload) (*Subjec
 		"Props",
 		"Links",
 		"SourceMode",
+		"DisplayPriority",
+		"ComponentType",
 	).Create(&row).Error; err != nil {
 		tx.Rollback()
 		return nil, err
@@ -306,6 +348,8 @@ func (s *SubjectTemplateService) Update(id uuid.UUID, payload SubjectTemplatePay
 	existing.Props = datatypes.NewJSONSlice(payload.Props)
 	existing.Links = datatypes.NewJSONSlice(payload.Links)
 	existing.SourceMode = payload.SourceMode
+	existing.DisplayPriority = payload.DisplayPriority
+	existing.ComponentType = payload.ComponentType
 
 	if err := tx.Omit("SelectorLabels", "LabelSchema").Save(&existing).Error; err != nil {
 		tx.Rollback()
@@ -732,6 +776,16 @@ func (row systemComponentRow) toSystemComponent() *relational.SystemComponent {
 // deterministic (v5-style) ComponentDefinition IDs seeded from identity hashes.
 var componentDefinitionNamespace = uuid.MustParse("a4e3c2d1-b0f9-4e8a-9c7d-6f5e4d3c2b1a")
 
+// Prop names (in relational.CCFOSCALNamespace) written to DefinedComponents materialised
+// from subject templates. The prop class carries the label key.
+const (
+	definedComponentIdentityPropName = "identity"
+	definedComponentLabelPropName    = "label"
+)
+
+// ResolveOrUpsertComponentDefinition materialises a DefinedComponent in the plugin's
+// ComponentDefinition for every runtime-derived component template that matches the
+// evidence labels, and returns them as the evidence's derived subjects.
 func (s *SubjectTemplateService) ResolveOrUpsertComponentDefinition(input ResolveOrUpsertComponentDefinitionInput) (*ResolveOrUpsertComponentDefinitionResult, error) {
 	if len(input.EvidenceLabels) == 0 {
 		return &ResolveOrUpsertComponentDefinitionResult{}, nil
@@ -766,6 +820,11 @@ func (s *SubjectTemplateService) ResolveOrUpsertComponentDefinition(input Resolv
 		)
 	}
 
+	// The ComponentDefinition groups every DefinedComponent a plugin produces, and scopes
+	// identity lookups so plugins never share DefinedComponents.
+	normalizedPlugin := strings.ToLower(strings.TrimSpace(pluginValue))
+	cdID := componentDefinitionIDForPlugin(normalizedPlugin)
+
 	result := &ResolveOrUpsertComponentDefinitionResult{}
 	seen := make(map[uuid.UUID]struct{})
 
@@ -796,83 +855,168 @@ func (s *SubjectTemplateService) ResolveOrUpsertComponentDefinition(input Resolv
 		}
 
 		identityHash := buildEntityIdentityHash(template.Type, identityPairs)
+		// An earlier template already resolved this identity and defines its
+		// DefinedComponent, so don't overwrite it with this template's rendering.
+		if _, exists := seen[uuid.NewSHA1(cdID, []byte(identityHash))]; exists {
+			continue
+		}
 
-		definedComponentID, err := s.resolveOrCreateComponentDefinition(template, pluginValue, identityPairs, schemaLabelPairs, identityHash)
+		rendered, err := renderDefinedComponent(template, identityPairs, schemaLabelPairs)
 		if err != nil {
 			return nil, err
 		}
-		if definedComponentID == nil {
+
+		definedComponentID, err := s.upsertDefinedComponent(template, normalizedPlugin, cdID, identityPairs, identityHash, rendered)
+		if err != nil {
+			return nil, err
+		}
+		if _, exists := seen[definedComponentID]; exists {
 			continue
 		}
-		if _, exists := seen[*definedComponentID]; exists {
-			continue
-		}
-		seen[*definedComponentID] = struct{}{}
-		result.DefinedComponentIDs = append(result.DefinedComponentIDs, *definedComponentID)
+		seen[definedComponentID] = struct{}{}
+		result.DefinedComponentIDs = append(result.DefinedComponentIDs, definedComponentID)
+		result.Subjects = append(result.Subjects, ResolvedSubject{
+			DefinedComponentID: definedComponentID,
+			TemplateID:         *template.ID,
+			TemplateName:       template.Name,
+			DisplayPriority:    template.DisplayPriority,
+			Type:               subjectTemplateTypeComponent,
+			Title:              rendered.Title,
+			Props:              rendered.Props,
+			Links:              rendered.Links,
+		})
 	}
 
 	return result, nil
 }
 
-func (s *SubjectTemplateService) resolveOrCreateComponentDefinition(template SubjectTemplate, pluginValue string, identityPairs []identityLabelPair, schemaLabels []identityLabelPair, identityHash string) (*uuid.UUID, error) {
-	// Check if identity already exists.
-	var existingIdentity ComponentDefinitionIdentity
-	if err := s.db.Where("entity_type = ? AND identity_hash = ?", subjectTemplateTypeComponent, identityHash).First(&existingIdentity).Error; err == nil {
-		return &existingIdentity.DefinedComponentID, nil
-	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, err
-	}
+// componentDefinitionIDForPlugin is the deterministic ID of the ComponentDefinition that
+// holds a plugin's template-derived DefinedComponents.
+func componentDefinitionIDForPlugin(normalizedPlugin string) uuid.UUID {
+	return uuid.NewSHA1(componentDefinitionNamespace, []byte("plugin:"+normalizedPlugin))
+}
 
-	// Build label map for template rendering
-	labelMap := make(map[string]string)
+// renderedDefinedComponent is a template rendered against one piece of evidence's labels:
+// the values its DefinedComponent should hold.
+type renderedDefinedComponent struct {
+	Type        string
+	Title       string
+	Description string
+	Purpose     string
+	Remarks     string
+	Props       []relational.Prop
+	Links       []relational.Link
+}
+
+func renderDefinedComponent(template SubjectTemplate, identityPairs []identityLabelPair, schemaLabels []identityLabelPair) (renderedDefinedComponent, error) {
+	// Text templates may only reference label-schema keys (validateSubjectTemplatePayload),
+	// and identity keys are always in the schema, so the schema labels are the render set.
+	labelMap := make(map[string]string, len(schemaLabels))
 	for _, pair := range schemaLabels {
 		labelMap[pair.Key] = pair.Value
 	}
 
-	// Render template fields
-	title := template.Name
+	out := renderedDefinedComponent{
+		Type:  definedComponentTypeOrDefault(template.ComponentType),
+		Title: template.Name,
+	}
+
 	if template.TitleTemplate != nil {
 		rendered, err := renderTemplate(*template.TitleTemplate, labelMap)
 		if err != nil {
-			return nil, fmt.Errorf("failed to render title template: %w", err)
+			return out, fmt.Errorf("failed to render title template: %w", err)
 		}
 		if rendered != "" {
-			title = rendered
+			out.Title = rendered
 		}
 	}
 
-	description := ""
-	if template.DescriptionTemplate != nil {
-		rendered, err := renderTemplate(*template.DescriptionTemplate, labelMap)
-		if err != nil {
-			return nil, fmt.Errorf("failed to render description template: %w", err)
-		}
-		description = rendered
+	var err error
+	if out.Description, err = renderOptionalTemplate(template.DescriptionTemplate, labelMap); err != nil {
+		return out, fmt.Errorf("failed to render description template: %w", err)
+	}
+	if out.Purpose, err = renderOptionalTemplate(template.PurposeTemplate, labelMap); err != nil {
+		return out, fmt.Errorf("failed to render purpose template: %w", err)
+	}
+	if out.Remarks, err = renderOptionalTemplate(template.RemarksTemplate, labelMap); err != nil {
+		return out, fmt.Errorf("failed to render remarks template: %w", err)
 	}
 
-	purpose := ""
-	if template.PurposeTemplate != nil {
-		rendered, err := renderTemplate(*template.PurposeTemplate, labelMap)
+	// Link hrefs are templates too; a static href renders to itself.
+	out.Links = make([]relational.Link, 0, len(template.Links))
+	for i, link := range template.Links {
+		href, err := renderTemplate(link.Href, labelMap)
 		if err != nil {
-			return nil, fmt.Errorf("failed to render purpose template: %w", err)
+			return out, fmt.Errorf("failed to render links[%d].href: %w", i, err)
 		}
-		purpose = rendered
+		link.Href = href
+		out.Links = append(out.Links, link)
 	}
 
-	remarks := ""
-	if template.RemarksTemplate != nil {
-		rendered, err := renderTemplate(*template.RemarksTemplate, labelMap)
-		if err != nil {
-			return nil, fmt.Errorf("failed to render remarks template: %w", err)
+	// Props: the template's props, one identity prop per identity label, and the schema
+	// labels the evidence carries.
+	out.Props = make([]relational.Prop, 0, len(template.Props)+len(identityPairs)+len(schemaLabels))
+	out.Props = append(out.Props, template.Props...)
+	for _, pair := range identityPairs {
+		out.Props = append(out.Props, relational.Prop{
+			Ns:    relational.CCFOSCALNamespace,
+			Name:  definedComponentIdentityPropName,
+			Class: pair.Key,
+			Value: pair.Value,
+		})
+	}
+	for _, pair := range schemaLabels {
+		out.Props = append(out.Props, relational.Prop{
+			Ns:    relational.CCFOSCALNamespace,
+			Name:  definedComponentLabelPropName,
+			Class: pair.Key,
+			Value: pair.Value,
+		})
+	}
+
+	return out, nil
+}
+
+func renderOptionalTemplate(tmpl *string, labels map[string]string) (string, error) {
+	if tmpl == nil {
+		return "", nil
+	}
+	return renderTemplate(*tmpl, labels)
+}
+
+func definedComponentTypeOrDefault(componentType *string) string {
+	if componentType == nil || *componentType == "" {
+		return defaultDefinedComponentType
+	}
+	return *componentType
+}
+
+// upsertDefinedComponent makes the plugin's DefinedComponent for an identity hold the
+// rendered values, creating it (and its identity record) on first sight, and returns its ID.
+func (s *SubjectTemplateService) upsertDefinedComponent(template SubjectTemplate, normalizedPlugin string, cdID uuid.UUID, identityPairs []identityLabelPair, identityHash string, rendered renderedDefinedComponent) (uuid.UUID, error) {
+	// The identity is already materialised for this plugin: update its DefinedComponent so
+	// it tracks template and label changes.
+	var existingIdentity ComponentDefinitionIdentity
+	if err := s.db.Where("entity_type = ? AND component_definition_id = ? AND identity_hash = ?", subjectTemplateTypeComponent, cdID, identityHash).First(&existingIdentity).Error; err == nil {
+		if err := s.db.Model(&relational.DefinedComponent{}).Where("id = ?", existingIdentity.DefinedComponentID).Updates(map[string]interface{}{
+			"type":        rendered.Type,
+			"title":       rendered.Title,
+			"description": rendered.Description,
+			"purpose":     rendered.Purpose,
+			"remarks":     rendered.Remarks,
+			"props":       datatypes.NewJSONSlice(rendered.Props),
+			"links":       datatypes.NewJSONSlice(rendered.Links),
+		}).Error; err != nil {
+			return uuid.Nil, err
 		}
-		remarks = rendered
+		return existingIdentity.DefinedComponentID, nil
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return uuid.Nil, err
 	}
 
 	// Generate deterministic IDs:
 	// - ComponentDefinition groups by plugin
 	// - DefinedComponent is still identity-specific
-	normalizedPlugin := strings.ToLower(strings.TrimSpace(pluginValue))
-	cdID := uuid.NewSHA1(componentDefinitionNamespace, []byte("plugin:"+normalizedPlugin))
 	dcID := uuid.NewSHA1(cdID, []byte(identityHash))
 	now := time.Now().UTC()
 	componentDefinitionTitle := template.Name
@@ -882,7 +1026,7 @@ func (s *SubjectTemplateService) resolveOrCreateComponentDefinition(template Sub
 
 	tx := s.db.Begin()
 	if tx.Error != nil {
-		return nil, tx.Error
+		return uuid.Nil, tx.Error
 	}
 	defer rollbackTxOnPanic(tx)
 
@@ -892,7 +1036,7 @@ func (s *SubjectTemplateService) resolveOrCreateComponentDefinition(template Sub
 	}
 	if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Omit(clause.Associations).Create(&cd).Error; err != nil {
 		tx.Rollback()
-		return nil, err
+		return uuid.Nil, err
 	}
 
 	// Upsert metadata separately so repeated calls do not create duplicate polymorphic metadata rows.
@@ -904,7 +1048,7 @@ func (s *SubjectTemplateService) resolveOrCreateComponentDefinition(template Sub
 	var lockedCD relational.ComponentDefinition
 	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Select("id").First(&lockedCD, "id = ?", cdID).Error; err != nil {
 		tx.Rollback()
-		return nil, err
+		return uuid.Nil, err
 	}
 
 	var existingMetadata relational.Metadata
@@ -921,11 +1065,11 @@ func (s *SubjectTemplateService) resolveOrCreateComponentDefinition(template Sub
 			}
 			if err := tx.Omit(clause.Associations).Create(&md).Error; err != nil {
 				tx.Rollback()
-				return nil, err
+				return uuid.Nil, err
 			}
 		} else {
 			tx.Rollback()
-			return nil, err
+			return uuid.Nil, err
 		}
 	} else {
 		if err := tx.Model(&relational.Metadata{}).Where("parent_id = ? AND parent_type = ?", parentID, parentType).Updates(map[string]interface{}{
@@ -935,23 +1079,29 @@ func (s *SubjectTemplateService) resolveOrCreateComponentDefinition(template Sub
 			"last_modified": &now,
 		}).Error; err != nil {
 			tx.Rollback()
-			return nil, err
+			return uuid.Nil, err
 		}
 	}
 
-	// Upsert DefinedComponent with rendered template values.
+	// Upsert DefinedComponent with rendered template values. A row can already exist
+	// without an identity record (e.g. the identity was removed), so update it in place.
 	dc := relational.DefinedComponent{
 		UUIDModel:             relational.UUIDModel{ID: &dcID},
-		Type:                  template.Type,
-		Title:                 title,
-		Description:           description,
-		Purpose:               purpose,
-		Remarks:               remarks,
+		Type:                  rendered.Type,
+		Title:                 rendered.Title,
+		Description:           rendered.Description,
+		Purpose:               rendered.Purpose,
+		Remarks:               rendered.Remarks,
+		Props:                 datatypes.NewJSONSlice(rendered.Props),
+		Links:                 datatypes.NewJSONSlice(rendered.Links),
 		ComponentDefinitionID: &cdID,
 	}
-	if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Omit(clause.Associations).Create(&dc).Error; err != nil {
+	if err := tx.Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "id"}},
+		DoUpdates: clause.AssignmentColumns([]string{"type", "title", "description", "purpose", "remarks", "props", "links"}),
+	}).Omit(clause.Associations).Create(&dc).Error; err != nil {
 		tx.Rollback()
-		return nil, err
+		return uuid.Nil, err
 	}
 
 	// Upsert labels.
@@ -967,27 +1117,27 @@ func (s *SubjectTemplateService) resolveOrCreateComponentDefinition(template Sub
 	if len(labels) > 0 {
 		if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&labels).Error; err != nil {
 			tx.Rollback()
-			return nil, err
+			return uuid.Nil, err
 		}
 	}
 
 	// Upsert identity record.
 	identity := ComponentDefinitionIdentity{
 		EntityType:            subjectTemplateTypeComponent,
-		IdentityHash:          identityHash,
 		ComponentDefinitionID: cdID,
+		IdentityHash:          identityHash,
 		DefinedComponentID:    dcID,
 	}
 	if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&identity).Error; err != nil {
 		tx.Rollback()
-		return nil, err
+		return uuid.Nil, err
 	}
 
 	if err := tx.Commit().Error; err != nil {
-		return nil, err
+		return uuid.Nil, err
 	}
 
-	return &dcID, nil
+	return dcID, nil
 }
 
 func (s *SubjectTemplateService) FindSystemComponentsByDefinedComponentIDs(definedComponentIDs []uuid.UUID) ([]relational.SystemComponent, error) {
@@ -1310,6 +1460,11 @@ func validateSubjectTemplatePayload(payload *SubjectTemplatePayload) error {
 	if !IsValidSubjectTemplateSourceMode(payload.SourceMode) {
 		return newValidationError("invalid sourceMode")
 	}
+	if payload.ComponentType != nil {
+		if _, ok := allowedDefinedComponentTypes[*payload.ComponentType]; !ok {
+			return newValidationError(fmt.Sprintf("invalid componentType %q", *payload.ComponentType))
+		}
+	}
 
 	if err := validateSubjectTemplateIdentityLabelKeys(payload.IdentityLabelKeys); err != nil {
 		return err
@@ -1462,6 +1617,14 @@ func normalizeSubjectTemplatePayload(payload *SubjectTemplatePayload) {
 	payload.Name = strings.TrimSpace(payload.Name)
 	payload.Type = NormalizeSubjectTemplateType(payload.Type)
 	payload.SourceMode = NormalizeSubjectTemplateSourceMode(payload.SourceMode)
+	if payload.ComponentType != nil {
+		normalized := strings.ToLower(strings.TrimSpace(*payload.ComponentType))
+		if normalized == "" {
+			payload.ComponentType = nil
+		} else {
+			payload.ComponentType = &normalized
+		}
+	}
 
 	for i := range payload.IdentityLabelKeys {
 		payload.IdentityLabelKeys[i] = strings.ToLower(strings.TrimSpace(payload.IdentityLabelKeys[i]))
@@ -1548,6 +1711,8 @@ type BatchSubjectTemplateItem struct {
 	Props               []relational.Prop
 	Links               []relational.Link
 	SourceMode          string
+	DisplayPriority     int
+	ComponentType       *string
 	SelectorLabels      []SubjectTemplateSelectorLabelInput
 	LabelSchema         []SubjectTemplateLabelSchemaFieldInput
 }
@@ -1558,6 +1723,9 @@ type BatchUpsertSubjectTemplatesResult struct {
 	Updated   []SubjectTemplate
 	Deleted   []uuid.UUID
 	Unchanged []uuid.UUID
+	// Warnings lists non-component templates, which are accepted but produce no evidence
+	// subjects, so the agent can log them.
+	Warnings []string
 }
 
 // BatchUpsert reconciles the full set of subject templates scoped to a given pluginID.
@@ -1641,6 +1809,12 @@ func (s *SubjectTemplateService) BatchUpsert(pluginID string, items []BatchSubje
 		Updated:   make([]SubjectTemplate, 0),
 		Deleted:   make([]uuid.UUID, 0),
 		Unchanged: make([]uuid.UUID, 0),
+		Warnings:  make([]string, 0),
+	}
+	for _, r := range resolved {
+		if warning := subjectTemplateNoSubjectsWarning(r.item); warning != "" {
+			result.Warnings = append(result.Warnings, warning)
+		}
 	}
 
 	// Collect IDs that need to be created (not already in this scope), then check
@@ -1715,6 +1889,15 @@ func (s *SubjectTemplateService) BatchUpsert(pluginID string, items []BatchSubje
 	return result, nil
 }
 
+// subjectTemplateNoSubjectsWarning returns a warning for a non-component template, which is
+// accepted but produces no evidence subjects, or "" otherwise.
+func subjectTemplateNoSubjectsWarning(item BatchSubjectTemplateItem) string {
+	if item.Type != subjectTemplateTypeComponent {
+		return fmt.Sprintf("subject template %q (id %s) has type %q and produces no evidence subjects; only %q templates do", item.Name, item.ID, item.Type, subjectTemplateTypeComponent)
+	}
+	return ""
+}
+
 // listSubjectTemplatesByPluginSelectorLabel returns all SubjectTemplates that carry a selector-label
 // with key=pluginSelectorLabelKey and value=pluginID.
 func listSubjectTemplatesByPluginSelectorLabel(db *gorm.DB, pluginID string) ([]SubjectTemplate, error) {
@@ -1743,6 +1926,8 @@ func batchSubjectItemToPayload(item BatchSubjectTemplateItem) SubjectTemplatePay
 		Props:               append([]relational.Prop{}, item.Props...),
 		Links:               append([]relational.Link{}, item.Links...),
 		SourceMode:          item.SourceMode,
+		DisplayPriority:     item.DisplayPriority,
+		ComponentType:       item.ComponentType,
 		SelectorLabels:      append([]SubjectTemplateSelectorLabelInput{}, item.SelectorLabels...),
 		LabelSchema:         append([]SubjectTemplateLabelSchemaFieldInput{}, item.LabelSchema...),
 	}
@@ -1760,6 +1945,8 @@ func batchSubjectItemFromPayload(item BatchSubjectTemplateItem, payload SubjectT
 	item.Props = payload.Props
 	item.Links = payload.Links
 	item.SourceMode = payload.SourceMode
+	item.DisplayPriority = payload.DisplayPriority
+	item.ComponentType = payload.ComponentType
 	item.SelectorLabels = payload.SelectorLabels
 	item.LabelSchema = payload.LabelSchema
 	return item
@@ -1778,6 +1965,8 @@ func createSubjectTemplateInTx(tx *gorm.DB, id uuid.UUID, payload SubjectTemplat
 		Props:               datatypes.NewJSONSlice(payload.Props),
 		Links:               datatypes.NewJSONSlice(payload.Links),
 		SourceMode:          payload.SourceMode,
+		DisplayPriority:     payload.DisplayPriority,
+		ComponentType:       payload.ComponentType,
 	}
 	row.ID = &id
 
@@ -1795,6 +1984,8 @@ func createSubjectTemplateInTx(tx *gorm.DB, id uuid.UUID, payload SubjectTemplat
 		"Props",
 		"Links",
 		"SourceMode",
+		"DisplayPriority",
+		"ComponentType",
 	).Create(&row).Error; err != nil {
 		return nil, err
 	}
@@ -1826,6 +2017,8 @@ func updateSubjectTemplateInTx(tx *gorm.DB, id uuid.UUID, payload SubjectTemplat
 	existing.Props = datatypes.NewJSONSlice(payload.Props)
 	existing.Links = datatypes.NewJSONSlice(payload.Links)
 	existing.SourceMode = payload.SourceMode
+	existing.DisplayPriority = payload.DisplayPriority
+	existing.ComponentType = payload.ComponentType
 
 	if err := tx.Omit("SelectorLabels", "LabelSchema").Save(&existing).Error; err != nil {
 		return nil, err
@@ -1847,6 +2040,8 @@ type subjectTemplateFP struct {
 	Name                string            `json:"n"`
 	Type                string            `json:"ty"`
 	SourceMode          string            `json:"sm"`
+	DisplayPriority     int               `json:"dp"`
+	ComponentType       *string           `json:"ct,omitempty"`
 	TitleTemplate       *string           `json:"tt,omitempty"`
 	DescriptionTemplate *string           `json:"dt,omitempty"`
 	PurposeTemplate     *string           `json:"pt,omitempty"`
@@ -1902,6 +2097,8 @@ func subjectTemplateFPFromExisting(t SubjectTemplate) subjectTemplateFP {
 		Name:                t.Name,
 		Type:                t.Type,
 		SourceMode:          t.SourceMode,
+		DisplayPriority:     t.DisplayPriority,
+		ComponentType:       t.ComponentType,
 		TitleTemplate:       t.TitleTemplate,
 		DescriptionTemplate: t.DescriptionTemplate,
 		PurposeTemplate:     t.PurposeTemplate,
@@ -1944,6 +2141,8 @@ func subjectTemplateFPFromPayload(payload SubjectTemplatePayload) subjectTemplat
 		Name:                payload.Name,
 		Type:                payload.Type,
 		SourceMode:          payload.SourceMode,
+		DisplayPriority:     payload.DisplayPriority,
+		ComponentType:       payload.ComponentType,
 		TitleTemplate:       payload.TitleTemplate,
 		DescriptionTemplate: payload.DescriptionTemplate,
 		PurposeTemplate:     payload.PurposeTemplate,

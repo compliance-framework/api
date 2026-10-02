@@ -49,6 +49,12 @@ func (suite *IntegrationBaseTestSuite) GetSDKTestClient() *sdk.Client {
 }
 
 func (suite *IntegrationBaseTestSuite) GetAuthenticatedSDKTestClient() (*sdk.Client, error) {
+	return suite.GetAuthenticatedSDKTestClientWithLogger(nil)
+}
+
+// GetAuthenticatedSDKTestClientWithLogger is GetAuthenticatedSDKTestClient with the SDK's
+// logger set, for tests that check what the SDK logs.
+func (suite *IntegrationBaseTestSuite) GetAuthenticatedSDKTestClientWithLogger(logger *zap.SugaredLogger) (*sdk.Client, error) {
 	agent := &relational.Agent{
 		Name:     fmt.Sprintf("sdk-agent-%d", time.Now().UnixNano()),
 		IsActive: true,
@@ -71,6 +77,7 @@ func (suite *IntegrationBaseTestSuite) GetAuthenticatedSDKTestClient() (*sdk.Cli
 
 	return sdk.NewClient(http.DefaultClient, &sdk.Config{
 		BaseURL: "http://" + suite.Server.E().ListenerAddr().String(),
+		Logger:  logger,
 		AgentAuth: &sdk.AgentAuthConfig{
 			ClientID:     key.ClientID,
 			ClientSecret: clientSecret,

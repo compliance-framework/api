@@ -32,6 +32,7 @@ func newRiskEvidenceWorkerTestDB(t *testing.T) *gorm.DB {
 	// Migrate all required models
 	require.NoError(t, db.AutoMigrate(
 		&relational.Evidence{},
+		&relational.EvidenceSubjectReference{},
 		&relational.Labels{},
 		&relational.AssessmentSubject{},
 		&relational.SelectSubjectById{},
