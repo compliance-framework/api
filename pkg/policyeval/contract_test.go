@@ -387,6 +387,17 @@ func TestIsPolicyPackage(t *testing.T) {
 	assert.False(t, IsPolicyPackage("ccf_libs.x"))
 }
 
+func TestRuleName(t *testing.T) {
+	mod := parseModules(t, ast.RegoV1, map[string]string{
+		"a.rego": "package compliance_framework.a\n\nimport rego.v1\n\ntitle := \"x\"\nlabels.team := \"t\"\nf(x) := x\n",
+	})["a.rego"]
+	var names []string
+	for _, rule := range mod.Rules {
+		names = append(names, RuleName(rule))
+	}
+	assert.Equal(t, []string{"title", "labels", "f"}, names)
+}
+
 func executeModules(t *testing.T, modules map[string]string, input any) []Result {
 	t.Helper()
 	results, err := NewFromModules(modules, nil, Options{}).Execute(context.Background(), input)

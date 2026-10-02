@@ -8583,9 +8583,6 @@ definitions:
         type: object
       package:
         type: string
-      policyId:
-        description: the package's valid policy_id (R74), if any
-        type: string
       raw:
         additionalProperties: {}
         type: object

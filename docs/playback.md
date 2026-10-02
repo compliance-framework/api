@@ -82,8 +82,6 @@ Each package under `compliance_framework` gives one result:
 - `raw` is the package's full value from OPA, before interpretation.
 - `error` is set when the agent would not record the result as evidence, for example
   `evidence title is required`.
-- `policyId` is the package's `policy_id`, when it declares a valid one: the evidence
-  identity plugins seed the evidence UUID with (see [policy-identity.md](./policy-identity.md)).
 
 - `issues` lists the policy contract problems in this result (see below).
 
@@ -112,9 +110,7 @@ Each issue is `{"file", "row", "col", "package", "severity", "code", "message"}`
 `conditional-title`, `missing-violation`, `contract-key-function`,
 `contract-key-multi-value`, `invalid-type`, `invalid-violation-rule`, `invalid-violation`,
 `violation-missing-id`, `invalid-risk-template`, `unknown-violation-id`,
-`duplicate-package-module`, `no-output`, `invalid-policy-id` (a `policy_id` that is not
-a constant, non-empty string literal of at most 512 characters) or `duplicate-policy-id`
-(two modules declaring the same `policy_id`). The same check runs on inline policy bundles
+`duplicate-package-module` or `no-output`. The same check runs on inline policy bundles
 when an agent configuration is saved, where error-severity issues block the save.
 
 ## Errors

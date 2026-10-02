@@ -48078,10 +48078,6 @@ const docTemplate = `{
                 "package": {
                     "type": "string"
                 },
-                "policyId": {
-                    "description": "the package's valid policy_id (R74), if any",
-                    "type": "string"
-                },
                 "raw": {
                     "type": "object",
                     "additionalProperties": {}

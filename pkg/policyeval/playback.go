@@ -56,7 +56,6 @@ type EvaluateResponse struct {
 type EvaluateResult struct {
 	Package             string            `json:"package"`
 	File                string            `json:"file"`
-	PolicyID            string            `json:"policyId,omitempty"` // the package's valid policy_id (R74), if any
 	Status              string            `json:"status"`
 	Title               *string           `json:"title"`
 	Description         *string           `json:"description"`
@@ -219,7 +218,6 @@ func toEvaluateResult(result Result) EvaluateResult {
 	out := EvaluateResult{
 		Package:             result.Policy.Package.PurePackage(),
 		File:                result.Policy.File,
-		PolicyID:            result.Policy.ID,
 		Status:              Status(result),
 		Labels:              map[string]string{},
 		Violations:          []Violation{},

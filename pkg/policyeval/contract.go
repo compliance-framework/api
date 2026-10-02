@@ -23,9 +23,6 @@ import (
 //	labels         object of strings
 //	violation      set of objects; id, title, description, remarks are strings
 //	risk_templates array of objects (see pkg/risktemplate for the rules on each)
-//	policy_id      optional; a constant, non-empty string literal of at most
-//	               MaxPolicyIDLength characters, unique among the modules checked
-//	               together (R74, R75)
 //
 // CheckContract checks it statically on parsed modules, so problems show up before a
 // bundle is deployed. ValidateResult checks it on an evaluated result. Both report Issues
@@ -54,9 +51,6 @@ const (
 	keyViolation     = "violation"
 )
 
-// contractKeys are the rule names the contract gives a meaning to.
-var contractKeys = []string{keyTitle, keyDescription, keyRemarks, keySkipReason, keyLabels, keyRiskTemplates, keyViolation, keyPolicyID}
-
 // violationTextKeys are the violation fields the agent decodes as strings.
 var violationTextKeys = []string{"id", "title", "description", "remarks"}
 
@@ -76,41 +70,9 @@ func IsTestFile(file string) bool {
 // Only non-test modules of policy packages are checked; modules are grouped by package, so
 // a title in one module satisfies the package. Values are checked where they are literals
 // (directly, through a local `x := <literal>` in the rule body, or through a constant rule
-// of the package); anything computed is left to ValidateResult. A policy_id must be a
-// literal, and no two of the modules may declare the same one. Issues are sorted by file,
+// of the package); anything computed is left to ValidateResult. Issues are sorted by file,
 // row, col and code.
 func CheckContract(modules map[string]*ast.Module) []Issue {
-	var out []Issue
-	var ids []policyIDRef
-	for _, c := range packageCheckers(modules) {
-		out = append(out, c.check()...)
-		if c.policyID != nil {
-			ids = append(ids, *c.policyID)
-		}
-	}
-	out = append(out, duplicatePolicyIDs(ids)...)
-	sortIssues(out)
-	return out
-}
-
-// StaticPolicyIDs returns each policy package's policy_id, keyed by package path without
-// "data.", from modules keyed by file. A package has one only when CheckContract accepts
-// its policy_id: a single `policy_id := "<literal>"` rule, with no condition, else or default,
-// whose value ValidPolicyID accepts, in a non-test module. Duplicates across packages are not
-// filtered; CheckContract reports them.
-func StaticPolicyIDs(modules map[string]*ast.Module) map[string]string {
-	out := map[string]string{}
-	for _, c := range packageCheckers(modules) {
-		c.check()
-		if c.policyID != nil {
-			out[c.pkg] = c.policyID.id
-		}
-	}
-	return out
-}
-
-// packageCheckers groups the non-test modules of policy packages by package, files sorted.
-func packageCheckers(modules map[string]*ast.Module) []*packageChecker {
 	byPackage := map[string][]contractModule{}
 	for file, module := range modules {
 		if module == nil || module.Package == nil || IsTestFile(file) {
@@ -122,49 +84,15 @@ func packageCheckers(modules map[string]*ast.Module) []*packageChecker {
 		}
 		byPackage[pkg] = append(byPackage[pkg], contractModule{file: file, module: module})
 	}
-	out := make([]*packageChecker, 0, len(byPackage))
+
+	var out []Issue
 	for pkg, mods := range byPackage {
 		slices.SortFunc(mods, func(a, b contractModule) int { return strings.Compare(a.file, b.file) })
-		out = append(out, &packageChecker{pkg: pkg, modules: mods})
+		c := &packageChecker{pkg: pkg, modules: mods}
+		out = append(out, c.check()...)
 	}
+	sortIssues(out)
 	return out
-}
-
-// policyIDRef is a package's valid policy_id and where it is declared.
-type policyIDRef struct {
-	id, pkg, file string
-	loc           *ast.Location
-}
-
-// duplicatePolicyIDs reports every declaration of a policy_id after the first, in file
-// order.
-func duplicatePolicyIDs(ids []policyIDRef) []Issue {
-	slices.SortFunc(ids, func(a, b policyIDRef) int {
-		return cmp.Or(strings.Compare(a.file, b.file), cmp.Compare(locRow(a.loc), locRow(b.loc)), strings.Compare(a.pkg, b.pkg))
-	})
-	first := map[string]policyIDRef{}
-	var out []Issue
-	for _, ref := range ids {
-		prev, seen := first[ref.id]
-		if !seen {
-			first[ref.id] = ref
-			continue
-		}
-		issue := Issue{File: ref.file, Package: ref.pkg, Severity: agentconfig.SeverityError, Code: agentconfig.PolicyCodeDuplicatePolicyID,
-			Message: fmt.Sprintf("policy_id %q is also declared by package %s in %s; each policy needs its own policy_id, or their evidence shares one stream", ref.id, prev.pkg, prev.file)}
-		if ref.loc != nil {
-			issue.Row, issue.Col = ref.loc.Row, ref.loc.Col
-		}
-		out = append(out, issue)
-	}
-	return out
-}
-
-func locRow(loc *ast.Location) int {
-	if loc == nil {
-		return 0
-	}
-	return loc.Row
 }
 
 // ValidateResult checks the policy contract on an evaluated result: what the agent needs to
@@ -195,13 +123,6 @@ func ValidateResult(result Result) []Issue {
 	}
 	if missingIDs > 0 {
 		out = append(out, issue(agentconfig.SeverityWarning, agentconfig.PolicyCodeViolationMissingID, "%d of %d violations of package %s have no id; risk templates match violations by id", missingIDs, len(result.Violations), pkg))
-	}
-	if raw, ok := result.Raw[keyPolicyID]; ok {
-		if id, isString := raw.(string); !isString {
-			out = append(out, issue(agentconfig.SeverityError, agentconfig.PolicyCodeInvalidPolicyID, "policy_id must be a string, got %s; plugins ignore it", describe(raw)))
-		} else if problem := policyIDProblem(id); problem != "" {
-			out = append(out, issue(agentconfig.SeverityError, agentconfig.PolicyCodeInvalidPolicyID, "%s; plugins ignore it", problem))
-		}
 	}
 	if raw, ok := result.Raw[keyRiskTemplates]; ok {
 		entries, isArray := raw.([]any)
@@ -265,13 +186,6 @@ type packageChecker struct {
 
 	// templateIDs are the literal violation_ids of literal risk templates, by location.
 	templateIDs []templateIDRef
-
-	// policyIDDefs are the package's policy_id rules; policyIDCandidate is the first valid
-	// literal among them. policyID is set when the package has exactly one policy_id rule
-	// and it is valid.
-	policyIDDefs      []policyIDRef
-	policyIDCandidate *policyIDRef
-	policyID          *policyIDRef
 }
 
 type templateIDRef struct {
@@ -320,15 +234,6 @@ func (c *packageChecker) check() []Issue {
 			}
 		}
 	}
-	switch {
-	case len(c.policyIDDefs) > 1:
-		for _, def := range c.policyIDDefs[1:] {
-			c.add(def.file, def.loc, errorf(agentconfig.PolicyCodeInvalidPolicyID,
-				"policy_id of package %s is defined %d times; declare it once, as `policy_id := \"...\"`", c.pkg, len(c.policyIDDefs)))
-		}
-	case c.policyIDCandidate != nil:
-		c.policyID = c.policyIDCandidate
-	}
 	for _, m := range c.modules[1:] {
 		c.add(m.file, m.module.Package.Location, warnf(agentconfig.PolicyCodeDuplicatePackageModule,
 			"package %s is also defined by %s; every non-test module of a package produces its own evidence, so this package would be reported %d times", c.pkg, first.file, len(c.modules)))
@@ -360,7 +265,9 @@ func (c *packageChecker) collectConsts() {
 
 func (c *packageChecker) checkRule(file string, rule *ast.Rule) {
 	name := RuleName(rule)
-	if !slices.Contains(contractKeys, name) {
+	switch name {
+	case keyTitle, keyDescription, keyRemarks, keySkipReason, keyLabels, keyRiskTemplates, keyViolation:
+	default:
 		return
 	}
 	loc := rule.Head.Location
@@ -393,71 +300,13 @@ func (c *packageChecker) checkRule(file string, rule *ast.Rule) {
 		c.checkLabelsRule(file, loc, rule)
 	case keyRiskTemplates:
 		c.checkRiskTemplatesRule(file, loc, rule)
-	case keyPolicyID:
-		c.checkPolicyIDRule(file, loc, rule)
 	default:
 		c.checkTextRule(file, loc, name, rule)
 	}
 }
 
-// checkPolicyIDRule checks one policy_id rule: it must be `policy_id := "<id>"`, with no
-// condition, no else and no default, and a literal that ValidPolicyID accepts. Plugins seed
-// evidence with the evaluated value, so anything that could vary between evaluations would
-// split the stream.
-func (c *packageChecker) checkPolicyIDRule(file string, loc *ast.Location, rule *ast.Rule) {
-	c.policyIDDefs = append(c.policyIDDefs, policyIDRef{pkg: c.pkg, file: file, loc: loc})
-	invalid := func(format string, args ...any) {
-		c.add(file, loc, errorf(agentconfig.PolicyCodeInvalidPolicyID, format, args...))
-	}
-	const shape = "declare it as `policy_id := \"...\"`"
-	switch {
-	case len(rule.Head.Ref()) > 1:
-		invalid("%s makes policy_id an object; policy_id must be a string literal; %s", rule.Head.Ref(), shape)
-		return
-	case rule.Default:
-		invalid("policy_id must not be a default rule; %s", shape)
-		return
-	case rule.Else != nil || !unconditional(rule):
-		invalid("policy_id must be unconditional, since it decides which evidence stream the policy writes to; %s", shape)
-		return
-	}
-	value := rule.Head.Value
-	at := termLoc(value, loc)
-	s, ok := value.Value.(ast.String)
-	if !ok {
-		what := "a computed value"
-		if isLiteral(value.Value) {
-			what = ast.ValueName(value.Value)
-		}
-		c.add(file, at, errorf(agentconfig.PolicyCodeInvalidPolicyID, "policy_id must be a string literal, got %s; %s", what, shape))
-		return
-	}
-	if problem := policyIDProblem(string(s)); problem != "" {
-		c.add(file, at, errorf(agentconfig.PolicyCodeInvalidPolicyID, "%s", problem))
-		return
-	}
-	if c.policyIDCandidate == nil {
-		c.policyIDCandidate = &policyIDRef{id: string(s), pkg: c.pkg, file: file, loc: at}
-	}
-}
-
-// policyIDProblem says why id is not a valid policy_id, or "" when it is.
-func policyIDProblem(id string) string {
-	switch {
-	case id == "":
-		return "policy_id must not be empty"
-	case !utf8.ValidString(id):
-		return "policy_id must be valid UTF-8"
-	case utf8.RuneCountInString(id) > MaxPolicyIDLength:
-		return fmt.Sprintf("policy_id has %d characters; the limit is %d", utf8.RuneCountInString(id), MaxPolicyIDLength)
-	}
-	return ""
-}
-
 func contractShape(name string) string {
 	switch name {
-	case keyPolicyID:
-		return "policy_id must be a single string literal"
 	case keyLabels:
 		return "labels must be an object of strings"
 	case keyRiskTemplates:

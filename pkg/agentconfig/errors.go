@@ -140,22 +140,13 @@ const (
 	PolicyCodeDuplicatePackageModule = "duplicate-package-module"
 	// PolicyCodeNoOutput: the package evaluated to nothing. Error.
 	PolicyCodeNoOutput = "no-output"
-	// PolicyCodeInvalidPolicyID: policy_id is not a single unconditional rule whose value is
-	// a non-empty string literal of at most policyeval.MaxPolicyIDLength characters (static),
-	// or did not evaluate to a valid one (dynamic). Error. (A policy_id defined as a
-	// function or with `contains` is reported as PolicyCodeContractFunction or
-	// PolicyCodeContractMultiValue.)
-	PolicyCodeInvalidPolicyID = "invalid-policy-id"
-	// PolicyCodeDuplicatePolicyID: two modules checked together, or loaded by one plugin,
-	// declare the same policy_id, so their evidence would share one stream. Error.
-	PolicyCodeDuplicatePolicyID = "duplicate-policy-id"
 
 	// Policy identity and plugin compatibility (R75, R76); the agent alone produces these.
 
 	// PolicyCodeDuplicatePolicyIdentity: one plugin loads the same evidence identity (a
-	// policy_id, or a package and bundle-relative file) from two policy paths, so it would
-	// report it twice. Error when the overlay introduces it, warning when it comes from the
-	// agent's config file.
+	// package and bundle-relative file) from two policy paths, so it would report it twice.
+	// Error when the overlay introduces it, warning when it comes from the agent's config
+	// file.
 	PolicyCodeDuplicatePolicyIdentity = "duplicate-policy-identity"
 	// PolicyCodePolicyPackageChanged: an override changes the package line of the module it
 	// replaces, which starts a new evidence stream. Warning.
@@ -165,10 +156,6 @@ const (
 	// v0.7.1, which would crash the plugin. Error; a warning when the plugin's library
 	// version is unknown.
 	PolicyCodePluginLibViolationSetUnsupported = "plugin-lib-violation-set-unsupported"
-	// PolicyCodePluginLibPolicyIDUnsupported: an authored module declares policy_id for a
-	// plugin built against an agent library without R74, which ignores it, so the module
-	// starts a new path-based evidence stream. Warning.
-	PolicyCodePluginLibPolicyIDUnsupported = "plugin-lib-policy-id-unsupported"
 )
 
 // HasPolicyErrors reports whether any entry has Severity "error".

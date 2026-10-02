@@ -21,52 +21,22 @@ is computed, so they are not part of the seed.
 
 When an inline bundle `extends` an OCI source, the agent gives it to plugins **at the
 source's own path string** and changes only what that path resolves to. Inherited modules,
-and overrides that keep the vendor module's package and `policy_id`, therefore keep the
-vendor's evidence streams, on any plugin build. New modules start path-based streams under
-the vendor path. The agent documentation describes the mechanism and its limits.
+and overrides that keep the vendor module's package, therefore keep the vendor's evidence
+streams, on any plugin build. New modules start path-based streams under the vendor path.
+The agent documentation describes the mechanism and its limits.
 
 The agent warns when streams fork:
 
 - **The bundle can't be shadowed for a plugin.** The plugin receives it at its inline path,
   so its modules start new streams. The agent emits one `policy-stream-forked` warning per
   bundle and plugin (`bundle` set, no `path`) that gives the reason and lists the modules
-  that fork. Modules with a location-independent `policy_id` don't fork. Reasons:
+  that fork. Reasons:
   - the `extends` path is absolute, or not a relative `policies/` tree (a local source);
   - the plugin also loads the source, or another bundle that extends the same source;
   - there is no writable state directory, or the file system has no symlinks;
   - another relative policy path of the plugin can't be placed in its view.
-- **An authored override forks even at the source's path.** The agent warns per module: a
-  changed package is `policy-package-changed`, and a changed `policy_id` is
-  `policy-stream-forked`.
-
-## Authored `policy_id` (optional)
-
-A module can choose its stream explicitly:
-
-```rego
-package compliance_framework.ssh_deny_password_auth
-
-import rego.v1
-
-policy_id := "ssh-deny-password-auth"
-title := "SSH denies password authentication"
-```
-
-- `policy_id` must be a single, unconditional rule whose value is a non-empty string
-  literal of at most 512 characters. No two policies a plugin loads may share one.
-- The API checks it statically when an agent configuration is saved and on playback
-  (`policyeval.CheckContract`), and checks evaluated results too
-  (`policyeval.ValidateResult`). The agent checks it again across all of a plugin's policy
-  paths before it applies a configuration.
-- `policyeval.SeedPath(policyID, policyFile, policyPath)` returns the seed values the
-  plugin uses. Without a `policy_id`, or with one equal to the module's own `policy_file`,
-  the seed is unchanged, byte for byte. Any other ID gives a stream that does not depend on
-  where the bundle lives.
-- Only the seed changes. Evidence keeps the real `_policy_path` label and gains a
-  `_policy_id` label.
-- **Plugin support.** Only plugins built against agent ≥ v0.9.0 honour it. Older plugins
-  ignore it and keep path-based seeds, and the agent warns with
-  `plugin-lib-policy-id-unsupported`.
+- **An authored override that changes the package forks even at the source's path.** The
+  agent warns per module with `policy-package-changed`.
 
 ## Plugin compatibility
 
@@ -85,10 +55,7 @@ Plugins built against an agent library older than v0.7.1 crash on `violation con
 
 | Code | Produced by | Severity | Meaning |
 | --- | --- | --- | --- |
-| `invalid-policy-id` | API, agent | error | `policy_id` is not a constant, non-empty string literal of at most 512 characters. |
-| `duplicate-policy-id` | API, agent | error | Two modules checked together declare the same `policy_id`. |
 | `duplicate-policy-identity` | agent | error, or warning from the config file | One plugin loads the same evidence identity from two policy paths. |
 | `policy-package-changed` | agent | warning | An override changes the package of the module it replaces, which starts a new stream. |
-| `policy-stream-forked` | agent | warning | A bundle can't be shadowed for a plugin, so its listed modules start new streams; or an override changes the `policy_id` of the module it replaces. Defined by the agent, not in `pkg/agentconfig`. |
+| `policy-stream-forked` | agent | warning | A bundle can't be shadowed for a plugin, so its listed modules start new streams. Defined by the agent, not in `pkg/agentconfig`. |
 | `plugin-lib-violation-set-unsupported` | agent | error, or warning when the version is unknown | A set-form `violation` for a plugin whose agent library is older than v0.7.1. |
-| `plugin-lib-policy-id-unsupported` | agent | warning | A `policy_id` for a plugin whose agent library ignores it. |

@@ -304,7 +304,6 @@ func (e *Evaluator) Execute(ctx context.Context, input interface{}) ([]Result, e
 
 				result.EvalOutput = evalOutput
 				result.Raw = moduleOutputs
-				result.Policy.ID = policyIDFrom(moduleOutputs)
 			}
 		}
 		result.Issues = ValidateResult(result)
