@@ -1,12 +1,8 @@
 package agentconfig
 
 import (
-	"regexp"
 	"strconv"
 )
-
-// secretKeyPattern matches config/data keys whose values are treated as secrets.
-var secretKeyPattern = regexp.MustCompile(`(?i)(secret|token|password|passwd|key|credential|auth)`)
 
 // RedactOption configures Redact and Digest.
 type RedactOption func(*redactOpts)
@@ -31,24 +27,45 @@ func WithMaskedPointers(ptrs ...string) RedactOption {
 
 // Redact returns a deep copy of c with api.auth.client_secret cleared and secret-like values
 // replaced by MaskedValue. Apply it to the UNRESOLVED config (placeholders intact). It is
-// idempotent.
+// idempotent, and Digest hashes its output, so both always apply the same rules (R55).
 //
-// Mask rule, under plugins.*.config and plugins.*.policy_data (any depth), for each string
-// value:
-//  1. a value containing an ${env:...} reference is kept verbatim;
-//  2. else a value at a pointer given to WithMaskedPointers becomes MaskedValue;
-//  3. else a value whose key matches (?i)(secret|token|password|passwd|key|credential|auth)
-//     becomes MaskedValue.
+// A value is masked whole: the result is exactly MaskedValue, never a partially masked
+// string, so a redacted view can never be resubmitted (ValidateOverlay rejects MaskedValue,
+// O10). The rules, under plugins.*.config and plugins.*.policy_data (any depth):
 //
-// Non-string values under a matching key also become MaskedValue.
+// For a string value, let literal be the value with its ${env:NAME} placeholders removed.
+//  1. A value whose literal is empty or only whitespace and the separators ":;,|/@=&"
+//     (placeholder-only, e.g. "${env:PASS}" or "${env:USER}:${env:PASS}") is kept verbatim.
+//  2. Else it is masked when it is at a pointer given to WithMaskedPointers, or its key is
+//     secret-like (isSecretKey: e.g. password, passphrase, secret, token, credential,
+//     api_key, private_key, dsn, connection_string, auth, cookie, session_id; see
+//     secretKeyStems and secretKeyWords). Under such a key, literal text mixed with a
+//     placeholder ("lit${env:X}") is masked.
+//  3. Else it is masked when its literal contains a secret by content, whatever the key
+//     (containsSecretValue): a URL with a password in its userinfo (also inside a longer
+//     string such as a DSN), a PEM private key, a password=... assignment, or a
+//     high-confidence provider token (AWS access key ID, GitHub, GitLab, Slack, Google API
+//     key, Stripe, JWT, SendGrid, npm, PyPI, OpenAI, Anthropic, Hugging Face,
+//     DigitalOcean, Shopify, Terraform Cloud, Vault, Azure AD client secret, age).
+//
+// A non-string value (number, object, array) at a masked pointer or under a secret-like key
+// is masked whole; booleans and null are never secret and are kept unless at a masked
+// pointer. Strings nested in kept objects and arrays get the same rules, with the nearest
+// enclosing object key as their key. api.url is masked when it contains a secret by content
+// (rule 3). Map keys, labels, sources and policies are never masked.
 func Redact(c Config, opts ...RedactOption) Config {
 	var o redactOpts
 	for _, opt := range opts {
 		opt(&o)
 	}
 	out := c.clone()
-	if out.API != nil && out.API.Auth != nil {
-		out.API.Auth.ClientSecret = ""
+	if out.API != nil {
+		if out.API.Auth != nil {
+			out.API.Auth.ClientSecret = ""
+		}
+		if containsSecretValue(out.API.URL) {
+			out.API.URL = MaskedValue
+		}
 	}
 	for pluginName, p := range out.Plugins {
 		if p == nil {
@@ -67,15 +84,16 @@ func Redact(c Config, opts ...RedactOption) Config {
 	return out
 }
 
-// shouldMask applies the mask rule to one string value.
+// shouldMask applies the mask rule (see Redact) to one string value.
 func (o redactOpts) shouldMask(ptr, key, value string) bool {
-	if len(EnvRefs(value)) > 0 {
+	literal, hasRef := envLiteral(value)
+	if hasRef && isPlaceholderOnly(literal) {
 		return false
 	}
-	if o.masked[ptr] {
+	if o.masked[ptr] || isSecretKey(key) {
 		return true
 	}
-	return secretKeyPattern.MatchString(key)
+	return containsSecretValue(literal)
 }
 
 // redactMap redacts the entries of a free-form object.
@@ -98,9 +116,14 @@ func (o redactOpts) redactTree(ptr, key string, v any) any {
 			return MaskedValue
 		}
 		return t
+	case bool:
+		if o.masked[ptr] {
+			return MaskedValue
+		}
+		return t
 	}
-	// A non-string value under a matching key (or at a masked pointer) is masked whole.
-	if o.masked[ptr] || (key != "" && secretKeyPattern.MatchString(key)) {
+	// Any other value at a masked pointer or under a secret-like key is masked whole.
+	if o.masked[ptr] || (key != "" && isSecretKey(key)) {
 		return MaskedValue
 	}
 	switch t := v.(type) {

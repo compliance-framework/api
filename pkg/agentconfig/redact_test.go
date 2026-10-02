@@ -67,7 +67,7 @@ func TestRedact(t *testing.T) {
 	assert.Equal(t, MaskedValue, cfg["api_key"])
 	assert.Equal(t, MaskedValue, cfg["AuthHeader"], "case-insensitive key match")
 	assert.Equal(t, "${env:DB_PASSWORD}", cfg["db_password"], "env placeholders kept verbatim")
-	assert.Equal(t, "postgres://u:${env:PG_PASS}@h/db", cfg["dsn"], "embedded placeholders kept verbatim")
+	assert.Equal(t, MaskedValue, cfg["dsn"], "literal text mixed with a placeholder under a secret-like key is masked")
 
 	assert.Equal(t, "label-values-are-not-redacted", out.Plugins["local-ssh"].Labels["token"], "labels are not in the mask scope")
 	assert.Equal(t, srcSSH, out.Plugins["local-ssh"].Source)
