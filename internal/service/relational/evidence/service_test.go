@@ -27,6 +27,7 @@ func newEvidenceServiceTestDB(t *testing.T) *gorm.DB {
 	require.NoError(t, err)
 	require.NoError(t, db.AutoMigrate(
 		&relational.Evidence{},
+		&relational.EvidenceSubjectReference{},
 		&relational.Labels{},
 		&relational.BackMatter{},
 		&relational.BackMatterResource{},
@@ -603,12 +604,18 @@ func TestEvidenceService_GetHistoryPaginated(t *testing.T) {
 // mockCDResolver is a mock implementation of ComponentDefinitionResolver for testing.
 type mockCDResolver struct {
 	definedComponentIDs []uuid.UUID
+	subjects            []templates.ResolvedSubject
 	systemComponents    []relational.SystemComponent
+	err                 error
 }
 
 func (m *mockCDResolver) ResolveOrUpsertComponentDefinition(_ templates.ResolveOrUpsertComponentDefinitionInput) (*templates.ResolveOrUpsertComponentDefinitionResult, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
 	return &templates.ResolveOrUpsertComponentDefinitionResult{
 		DefinedComponentIDs: m.definedComponentIDs,
+		Subjects:            m.subjects,
 	}, nil
 }
 

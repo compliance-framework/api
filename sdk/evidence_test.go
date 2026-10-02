@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/compliance-framework/api/internal"
+	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/compliance-framework/api/sdk/types"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/suite"
@@ -143,4 +144,39 @@ func (suite *EvidenceSDKIntegrationSuite) TestCreate() {
 		err = client.Evidence.Create(context.TODO(), evidence)
 		suite.NoError(err)
 	})
+}
+
+func (suite *EvidenceSDKIntegrationSuite) TestCreateWithDeclaredSubject() {
+	suite.Require().NoError(suite.Migrator.Refresh())
+
+	partyID := uuid.New()
+	partyName := "Network Team"
+	suite.Require().NoError(suite.DB.Omit("Locations", "MemberOfOrganizations").Create(&relational.Party{
+		UUIDModel: relational.UUIDModel{ID: &partyID},
+		Type:      relational.PartyTypeOrganization,
+		Name:      &partyName,
+	}).Error)
+
+	client, err := suite.GetAuthenticatedSDKTestClient()
+	suite.Require().NoError(err)
+
+	streamUUID := uuid.New()
+	err = client.Evidence.Create(context.Background(), types.Evidence{
+		UUID:     streamUUID,
+		Title:    "Quarterly firewall rule review",
+		Start:    time.Now().Add(-time.Hour),
+		End:      time.Now().Add(-time.Minute),
+		Status:   types.ObjectiveStatus{State: "satisfied"},
+		Subjects: []types.Subject{{SubjectUUID: &partyID}},
+	})
+	suite.Require().NoError(err)
+
+	var evidence relational.Evidence
+	suite.Require().NoError(suite.DB.Preload("SubjectReferences").First(&evidence, "uuid = ?", streamUUID).Error)
+	suite.Require().Len(evidence.SubjectReferences, 1)
+	ref := evidence.SubjectReferences[0]
+	suite.Equal(partyID, ref.SubjectUUID)
+	suite.Equal("party", ref.Type)
+	suite.Equal("Network Team", ref.Title)
+	suite.Equal(relational.EvidenceSubjectSourceDeclared, ref.Source)
 }

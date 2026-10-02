@@ -1365,3 +1365,272 @@ func validSubjectTemplatePayload() SubjectTemplatePayload {
 		},
 	}
 }
+
+func runtimeComponentTemplate(plugin, name string, identityKeys []string, schemaKeys ...string) SubjectTemplatePayload {
+	schema := []SubjectTemplateLabelSchemaFieldInput{{Key: "_plugin"}}
+	for _, key := range append(append([]string{}, identityKeys...), schemaKeys...) {
+		schema = append(schema, SubjectTemplateLabelSchemaFieldInput{Key: key})
+	}
+	return SubjectTemplatePayload{
+		Name:              name,
+		Type:              "component",
+		IdentityLabelKeys: identityKeys,
+		SourceMode:        "runtime-derived",
+		SelectorLabels: []SubjectTemplateSelectorLabelInput{
+			{Key: "_plugin", Value: plugin},
+		},
+		LabelSchema: schema,
+	}
+}
+
+func TestSubjectTemplateService_DisplayPriorityAndComponentTypePersist(t *testing.T) {
+	db := newSubjectTemplateTestDB(t)
+	svc := NewSubjectTemplateService(db)
+
+	payload := runtimeComponentTemplate("github", "GitHub Organization", []string{"organization"})
+	payload.DisplayPriority = 5
+	payload.ComponentType = strPtr("  Software ")
+	created, err := svc.Create(payload)
+	require.NoError(t, err)
+	require.Equal(t, 5, created.DisplayPriority)
+	require.NotNil(t, created.ComponentType)
+	require.Equal(t, "software", *created.ComponentType)
+
+	update := runtimeComponentTemplate("github", "GitHub Organization", []string{"organization"})
+	update.DisplayPriority = -1
+	update.ComponentType = strPtr("")
+	updated, err := svc.Update(*created.ID, update)
+	require.NoError(t, err)
+	require.Equal(t, -1, updated.DisplayPriority)
+	require.Nil(t, updated.ComponentType, "an empty component type is stored as unset")
+}
+
+func TestSubjectTemplateService_ComponentTypeValidation(t *testing.T) {
+	db := newSubjectTemplateTestDB(t)
+	svc := NewSubjectTemplateService(db)
+
+	invalidType := runtimeComponentTemplate("github", "Invalid type", []string{"organization"})
+	invalidType.ComponentType = strPtr("this-system")
+	_, err := svc.Create(invalidType)
+	require.Error(t, err)
+	require.True(t, IsValidationError(err))
+	require.Contains(t, err.Error(), "invalid componentType")
+
+	valid := runtimeComponentTemplate("github", "Valid type", []string{"organization"})
+	valid.ComponentType = strPtr("software")
+	_, err = svc.Create(valid)
+	require.NoError(t, err)
+}
+
+func TestSubjectTemplateService_BatchUpsertDetectsPriorityAndComponentTypeChanges(t *testing.T) {
+	db := newSubjectTemplateTestDB(t)
+	svc := NewSubjectTemplateService(db)
+
+	pluginID := "priority-plugin"
+	id := uuid.New()
+	item := BatchSubjectTemplateItem{
+		ID:                id,
+		Name:              "Repository",
+		Type:              "component",
+		SourceMode:        "runtime-derived",
+		IdentityLabelKeys: []string{"repository"},
+		SelectorLabels:    []SubjectTemplateSelectorLabelInput{{Key: "_plugin", Value: pluginID}},
+		LabelSchema:       []SubjectTemplateLabelSchemaFieldInput{{Key: "repository"}},
+	}
+
+	_, err := svc.BatchUpsert(pluginID, []BatchSubjectTemplateItem{item})
+	require.NoError(t, err)
+
+	unchanged, err := svc.BatchUpsert(pluginID, []BatchSubjectTemplateItem{item})
+	require.NoError(t, err)
+	require.Equal(t, []uuid.UUID{id}, unchanged.Unchanged)
+
+	item.DisplayPriority = 10
+	priorityChanged, err := svc.BatchUpsert(pluginID, []BatchSubjectTemplateItem{item})
+	require.NoError(t, err)
+	require.Len(t, priorityChanged.Updated, 1)
+	require.Equal(t, 10, priorityChanged.Updated[0].DisplayPriority)
+
+	item.ComponentType = strPtr("software")
+	typeChanged, err := svc.BatchUpsert(pluginID, []BatchSubjectTemplateItem{item})
+	require.NoError(t, err)
+	require.Len(t, typeChanged.Updated, 1)
+	require.Equal(t, "software", *typeChanged.Updated[0].ComponentType)
+
+	unchangedAgain, err := svc.BatchUpsert(pluginID, []BatchSubjectTemplateItem{item})
+	require.NoError(t, err)
+	require.Equal(t, []uuid.UUID{id}, unchangedAgain.Unchanged)
+}
+
+func TestSubjectTemplateService_BatchUpsertWarnsForNonComponentTemplates(t *testing.T) {
+	db := newSubjectTemplateTestDB(t)
+	svc := NewSubjectTemplateService(db)
+
+	pluginID := "warning-plugin"
+	makeItem := func(name, templateType, sourceMode string) BatchSubjectTemplateItem {
+		return BatchSubjectTemplateItem{
+			ID:                uuid.New(),
+			Name:              name,
+			Type:              templateType,
+			SourceMode:        sourceMode,
+			IdentityLabelKeys: []string{"resource_id"},
+			SelectorLabels:    []SubjectTemplateSelectorLabelInput{{Key: "_plugin", Value: pluginID}},
+			LabelSchema:       []SubjectTemplateLabelSchemaFieldInput{{Key: "resource_id"}},
+		}
+	}
+
+	result, err := svc.BatchUpsert(pluginID, []BatchSubjectTemplateItem{
+		makeItem("Component", "component", "runtime-derived"),
+		makeItem("Resource", "resource", "runtime-derived"),
+	})
+	require.NoError(t, err)
+	require.Len(t, result.Created, 2, "non-component templates are still accepted")
+	require.Len(t, result.Warnings, 1)
+	require.Contains(t, result.Warnings[0], `"Resource"`)
+	require.Contains(t, result.Warnings[0], `type "resource"`)
+}
+
+func TestSubjectTemplateService_ResolveOrUpsertComponentDefinitionReturnsSubjects(t *testing.T) {
+	db := newSubjectTemplateTestDB(t)
+	svc := NewSubjectTemplateService(db)
+
+	payload := runtimeComponentTemplate("github", "GitHub Organization", []string{"organization"}, "env")
+	payload.TitleTemplate = strPtr("GitHub Organization: {{ .organization }}")
+	payload.DisplayPriority = 3
+	payload.ComponentType = strPtr("software")
+	payload.Props = []relational.Prop{{Name: "vendor", Value: "GitHub"}}
+	payload.Links = []relational.Link{
+		{Href: "https://github.com/{{ .organization }}", Rel: "canonical"},
+		{Href: "https://github.com/{{ .env }}", Rel: "alternate"},
+	}
+	template, err := svc.Create(payload)
+	require.NoError(t, err)
+
+	result, err := svc.ResolveOrUpsertComponentDefinition(ResolveOrUpsertComponentDefinitionInput{
+		EvidenceLabels: []relational.Labels{
+			{Name: "_plugin", Value: "github"},
+			{Name: "organization", Value: "acme"},
+		},
+	})
+	require.NoError(t, err)
+	require.Len(t, result.DefinedComponentIDs, 1)
+	require.Len(t, result.Subjects, 1)
+
+	subject := result.Subjects[0]
+	require.Equal(t, result.DefinedComponentIDs[0], subject.DefinedComponentID)
+	require.Equal(t, *template.ID, subject.TemplateID)
+	require.Equal(t, "GitHub Organization", subject.TemplateName)
+	require.Equal(t, 3, subject.DisplayPriority)
+	require.Equal(t, "component", subject.Type)
+	require.Equal(t, "GitHub Organization: acme", subject.Title)
+	require.Equal(t, []relational.Link{
+		{Href: "https://github.com/acme", Rel: "canonical"},
+		{Href: "https://github.com/", Rel: "alternate"},
+	}, subject.Links, "every template link is kept, with its href rendered from the evidence labels")
+
+	require.Equal(t, []relational.Prop{
+		{Name: "vendor", Value: "GitHub"},
+		{Ns: relational.CCFOSCALNamespace, Name: "identity", Class: "organization", Value: "acme"},
+		{Ns: relational.CCFOSCALNamespace, Name: "label", Class: "_plugin", Value: "github"},
+		{Ns: relational.CCFOSCALNamespace, Name: "label", Class: "organization", Value: "acme"},
+	}, subject.Props, "template props, identity props, then the schema labels on the evidence")
+
+	var dc relational.DefinedComponent
+	require.NoError(t, db.First(&dc, "id = ?", subject.DefinedComponentID).Error)
+	require.Equal(t, "software", dc.Type)
+	require.Equal(t, "GitHub Organization: acme", dc.Title)
+	require.Equal(t, subject.Props, []relational.Prop(dc.Props))
+	require.Equal(t, subject.Links, []relational.Link(dc.Links))
+}
+
+func TestSubjectTemplateService_ResolveOrUpsertComponentDefinitionDefaultsComponentType(t *testing.T) {
+	db := newSubjectTemplateTestDB(t)
+	svc := NewSubjectTemplateService(db)
+
+	_, err := svc.Create(runtimeComponentTemplate("github", "GitHub Organization", []string{"organization"}))
+	require.NoError(t, err)
+
+	result, err := svc.ResolveOrUpsertComponentDefinition(ResolveOrUpsertComponentDefinitionInput{
+		EvidenceLabels: []relational.Labels{
+			{Name: "_plugin", Value: "github"},
+			{Name: "organization", Value: "acme"},
+		},
+	})
+	require.NoError(t, err)
+	require.Len(t, result.DefinedComponentIDs, 1)
+
+	var dc relational.DefinedComponent
+	require.NoError(t, db.First(&dc, "id = ?", result.DefinedComponentIDs[0]).Error)
+	require.Equal(t, "service", dc.Type)
+}
+
+func TestSubjectTemplateService_ResolveOrUpsertComponentDefinitionUpdatesDefinedComponent(t *testing.T) {
+	db := newSubjectTemplateTestDB(t)
+	svc := NewSubjectTemplateService(db)
+
+	payload := runtimeComponentTemplate("github", "GitHub Organization", []string{"organization"})
+	payload.TitleTemplate = strPtr("Org {{ .organization }}")
+	template, err := svc.Create(payload)
+	require.NoError(t, err)
+
+	labels := []relational.Labels{
+		{Name: "_plugin", Value: "github"},
+		{Name: "organization", Value: "acme"},
+	}
+	first, err := svc.ResolveOrUpsertComponentDefinition(ResolveOrUpsertComponentDefinitionInput{EvidenceLabels: labels})
+	require.NoError(t, err)
+	require.Len(t, first.DefinedComponentIDs, 1)
+
+	// A DefinedComponent created before templates set a component type holds the template
+	// type ("component"), which isn't an OSCAL component type. The next match corrects it.
+	require.NoError(t, db.Model(&relational.DefinedComponent{}).Where("id = ?", first.DefinedComponentIDs[0]).Update("type", "component").Error)
+
+	payload.TitleTemplate = strPtr("GitHub Organization: {{ .organization }}")
+	payload.ComponentType = strPtr("software")
+	_, err = svc.Update(*template.ID, payload)
+	require.NoError(t, err)
+
+	second, err := svc.ResolveOrUpsertComponentDefinition(ResolveOrUpsertComponentDefinitionInput{EvidenceLabels: labels})
+	require.NoError(t, err)
+	require.Equal(t, first.DefinedComponentIDs, second.DefinedComponentIDs)
+	require.Equal(t, "GitHub Organization: acme", second.Subjects[0].Title)
+
+	var dcs []relational.DefinedComponent
+	require.NoError(t, db.Find(&dcs).Error)
+	require.Len(t, dcs, 1)
+	require.Equal(t, "GitHub Organization: acme", dcs[0].Title)
+	require.Equal(t, "software", dcs[0].Type)
+}
+
+func TestSubjectTemplateService_ResolveOrUpsertComponentDefinitionScopesIdentityByPlugin(t *testing.T) {
+	db := newSubjectTemplateTestDB(t)
+	svc := NewSubjectTemplateService(db)
+
+	_, err := svc.Create(runtimeComponentTemplate("github", "GitHub Asset", []string{"asset_id"}))
+	require.NoError(t, err)
+	_, err = svc.Create(runtimeComponentTemplate("gitlab", "GitLab Asset", []string{"asset_id"}))
+	require.NoError(t, err)
+
+	fromGitHub, err := svc.ResolveOrUpsertComponentDefinition(ResolveOrUpsertComponentDefinitionInput{
+		EvidenceLabels: []relational.Labels{{Name: "_plugin", Value: "github"}, {Name: "asset_id", Value: "shared"}},
+	})
+	require.NoError(t, err)
+	fromGitLab, err := svc.ResolveOrUpsertComponentDefinition(ResolveOrUpsertComponentDefinitionInput{
+		EvidenceLabels: []relational.Labels{{Name: "_plugin", Value: "gitlab"}, {Name: "asset_id", Value: "shared"}},
+	})
+	require.NoError(t, err)
+
+	require.Len(t, fromGitHub.DefinedComponentIDs, 1)
+	require.Len(t, fromGitLab.DefinedComponentIDs, 1)
+	require.NotEqual(t, fromGitHub.DefinedComponentIDs[0], fromGitLab.DefinedComponentIDs[0],
+		"the same identity from two plugins resolves to two DefinedComponents")
+	require.Equal(t, "GitLab Asset", fromGitLab.Subjects[0].Title)
+
+	var identityCount int64
+	require.NoError(t, db.Model(&ComponentDefinitionIdentity{}).Count(&identityCount).Error)
+	require.Equal(t, int64(2), identityCount)
+
+	var cdCount int64
+	require.NoError(t, db.Table("component_definitions").Count(&cdCount).Error)
+	require.Equal(t, int64(2), cdCount)
+}

@@ -9,6 +9,9 @@ import (
 	"testing"
 
 	"github.com/compliance-framework/api/sdk/types"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+	"go.uber.org/zap/zaptest/observer"
 )
 
 func newSubjectTemplateTestClient(handler roundTripFunc) *Client {
@@ -285,5 +288,55 @@ func TestSubjectTemplateUpsertReturnsErrorOnUnexpectedStatus(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "418") {
 		t.Fatalf("expected error to mention status code 418, got %q", err.Error())
+	}
+}
+
+func TestSubjectTemplateUpsertLogsWarnings(t *testing.T) {
+	core, logs := observer.New(zapcore.WarnLevel)
+	client := NewClient(&http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Body:       io.NopCloser(strings.NewReader(`{"data":{"created":[],"warnings":["subject template \"Cloud resource\" has type \"resource\" and produces no evidence subjects"]}}`)),
+			Header:     make(http.Header),
+		}, nil
+	})}, &Config{BaseURL: "http://example.test", Logger: zap.New(core).Sugar()})
+
+	err := client.SubjectTemplate.Upsert(context.Background(), "plugin-a", types.SubjectTemplate{
+		ID:         "template-a",
+		Name:       "Cloud resource",
+		Type:       "resource",
+		SourceMode: "runtime-derived",
+	})
+	if err != nil {
+		t.Fatalf("upsert subject templates: %v", err)
+	}
+
+	entries := logs.All()
+	if len(entries) != 1 {
+		t.Fatalf("expected 1 warning logged, got %d", len(entries))
+	}
+	fields := entries[0].ContextMap()
+	if entries[0].Message != "Subject template warning" || fields["plugin_id"] != "plugin-a" ||
+		!strings.Contains(fields["warning"].(string), `"Cloud resource"`) {
+		t.Fatalf("unexpected warning log: %q %v", entries[0].Message, fields)
+	}
+}
+
+func TestSubjectTemplateUpsertIgnoresUnreadableResponseBody(t *testing.T) {
+	core, logs := observer.New(zapcore.WarnLevel)
+	client := NewClient(&http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Body:       io.NopCloser(strings.NewReader("not json")),
+			Header:     make(http.Header),
+		}, nil
+	})}, &Config{BaseURL: "http://example.test", Logger: zap.New(core).Sugar()})
+
+	err := client.SubjectTemplate.Upsert(context.Background(), "plugin-a", types.SubjectTemplate{ID: "template-a"})
+	if err != nil {
+		t.Fatalf("expected an unreadable body not to fail the upsert, got %v", err)
+	}
+	if logs.Len() != 0 {
+		t.Fatalf("expected no warnings logged, got %d", logs.Len())
 	}
 }

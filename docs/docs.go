@@ -3639,6 +3639,26 @@ const docTemplate = `{
                 }
             }
         },
+        "/evidence/config": {
+            "get": {
+                "description": "Reports whether evidence submitted by a user must name a subject (CCF_MANUAL_EVIDENCE_REQUIRE_SUBJECT).",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Evidence"
+                ],
+                "summary": "Get evidence submission config",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-handler_evidenceConfigResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/evidence/for-control/{id}": {
             "get": {
                 "description": "Retrieves Evidence records associated with a specific Control ID, including related activities, inventory items, components, subjects, and labels.",
@@ -3849,6 +3869,12 @@ const docTemplate = `{
                         "type": "string",
                         "description": "Case-insensitive evidence name search",
                         "name": "name",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Only evidence with this subject",
+                        "name": "subjectUuid",
                         "in": "query"
                     }
                 ],
@@ -30917,6 +30943,87 @@ const docTemplate = `{
                 ]
             }
         },
+        "/subjects": {
+            "get": {
+                "description": "Lists the entities evidence can name as its subject: defined components, SSP system components, parties and users. Used to pick and filter evidence subjects.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Subjects"
+                ],
+                "summary": "List subjects",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Case-insensitive title search",
+                        "name": "search",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated kinds: defined-component, system-component, party, user",
+                        "name": "kind",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Only system components of this SSP",
+                        "name": "ssp",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated subject UUIDs to look up (at most 100)",
+                        "name": "ids",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page number",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page size",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/service.ListResponse-subjects_Summary"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
         "/users/me": {
             "get": {
                 "description": "Retrieves the details of the currently logged-in user",
@@ -34550,6 +34657,13 @@ const docTemplate = `{
                 "status": {
                     "$ref": "#/definitions/oscalTypes_1_1_3.ObjectiveStatus"
                 },
+                "subject-references": {
+                    "description": "SubjectReferences are the evidence's subjects in display order. Present (possibly\nempty) on responses that load them, so clients can tell \"no subjects\" from \"not\nsupported\"; omitted otherwise.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.SubjectReference"
+                    }
+                },
                 "subjects": {
                     "type": "array",
                     "items": {
@@ -35076,6 +35190,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "identifier": {
+                    "description": "Identifier is the legacy way to name a subject, used when SubjectUUID isn't set.",
                     "type": "string"
                 },
                 "links": {
@@ -35091,6 +35206,10 @@ const docTemplate = `{
                     }
                 },
                 "remarks": {
+                    "type": "string"
+                },
+                "subject-uuid": {
+                    "description": "SubjectUUID names an existing subject: a defined component, SSP system component, party\nor user (see GET /subjects). Its type and title come from that subject.",
                     "type": "string"
                 },
                 "type": {
@@ -36407,6 +36526,19 @@ const docTemplate = `{
                     "allOf": [
                         {
                             "$ref": "#/definitions/handler.configuredSystemDestinationResponse"
+                        }
+                    ]
+                }
+            }
+        },
+        "handler.GenericDataResponse-handler_evidenceConfigResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Wrapped response data",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/handler.evidenceConfigResponse"
                         }
                     ]
                 }
@@ -38209,6 +38341,13 @@ const docTemplate = `{
                 "status": {
                     "$ref": "#/definitions/oscalTypes_1_1_3.ObjectiveStatus"
                 },
+                "subject-references": {
+                    "description": "SubjectReferences are the evidence's subjects in display order. Present (possibly\nempty) on responses that load them, so clients can tell \"no subjects\" from \"not\nsupported\"; omitted otherwise.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.SubjectReference"
+                    }
+                },
                 "subjects": {
                     "type": "array",
                     "items": {
@@ -38750,6 +38889,15 @@ const docTemplate = `{
                 "viaGroup": {
                     "description": "the granting group's name, when inherited",
                     "type": "string"
+                }
+            }
+        },
+        "handler.evidenceConfigResponse": {
+            "type": "object",
+            "properties": {
+                "manual-subject-required": {
+                    "description": "ManualSubjectRequired is true when evidence submitted by a user must name a subject.",
+                    "type": "boolean"
                 }
             }
         },
@@ -47502,6 +47650,13 @@ const docTemplate = `{
                         }
                     ]
                 },
+                "subject-references": {
+                    "description": "SubjectReferences are the evidence's subjects as OSCAL subject references: derived from\nsubject templates, declared, or legacy plugin identifiers.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/relational.EvidenceSubjectReference"
+                    }
+                },
                 "subjects": {
                     "description": "Who or What are we providing evidence for. What's under test.",
                     "type": "array",
@@ -47598,6 +47753,58 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "type": {
+                    "type": "string"
+                }
+            }
+        },
+        "relational.EvidenceSubjectReference": {
+            "type": "object",
+            "properties": {
+                "evidenceId": {
+                    "description": "EvidenceID is indexed on its own so an evidence's subjects load without the\n(subject_uuid, evidence_id) index, which serves lookups by subject.",
+                    "type": "string"
+                },
+                "group": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/relational.Link"
+                    }
+                },
+                "priority": {
+                    "description": "Priority is the template's display priority: higher subjects are shown first.",
+                    "type": "integer"
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/relational.Prop"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "source": {
+                    "description": "Source is one of the EvidenceSubjectSource* values.",
+                    "type": "string"
+                },
+                "subjectUuid": {
+                    "type": "string"
+                },
+                "templateId": {
+                    "description": "TemplateID is the subject template a template-derived subject came from.",
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "type": {
+                    "description": "Type is the OSCAL subject type, e.g. component.",
                     "type": "string"
                 }
             }
@@ -50236,6 +50443,29 @@ const docTemplate = `{
                 }
             }
         },
+        "service.ListResponse-subjects_Summary": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/subjects.Summary"
+                    }
+                },
+                "limit": {
+                    "type": "integer"
+                },
+                "page": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
+                },
+                "totalPages": {
+                    "type": "integer"
+                }
+            }
+        },
         "service.ListResponse-templates_riskTemplateResponse": {
             "type": "object",
             "properties": {
@@ -50302,6 +50532,85 @@ const docTemplate = `{
                 },
                 "totalPages": {
                     "type": "integer"
+                }
+            }
+        },
+        "subjects.IdentityLabel": {
+            "type": "object",
+            "properties": {
+                "key": {
+                    "type": "string"
+                },
+                "value": {
+                    "type": "string"
+                }
+            }
+        },
+        "subjects.Kind": {
+            "type": "string",
+            "enum": [
+                "defined-component",
+                "system-component",
+                "party",
+                "user"
+            ],
+            "x-enum-varnames": [
+                "KindDefinedComponent",
+                "KindSystemComponent",
+                "KindParty",
+                "KindUser"
+            ]
+        },
+        "subjects.LinkedSSP": {
+            "type": "object",
+            "properties": {
+                "component-id": {
+                    "type": "string"
+                },
+                "component-title": {
+                    "type": "string"
+                },
+                "ssp-id": {
+                    "type": "string"
+                },
+                "ssp-title": {
+                    "type": "string"
+                }
+            }
+        },
+        "subjects.Summary": {
+            "type": "object",
+            "properties": {
+                "context": {
+                    "description": "Context is what the subject belongs to: a defined component's component definition, or\na system component's SSP.",
+                    "type": "string"
+                },
+                "identity": {
+                    "description": "Identity is a defined component's identity labels: the evidence labels that identify it.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/subjects.IdentityLabel"
+                    }
+                },
+                "kind": {
+                    "$ref": "#/definitions/subjects.Kind"
+                },
+                "linked-ssps": {
+                    "description": "LinkedSSPs are the SSP system components a defined component is linked to.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/subjects.LinkedSSP"
+                    }
+                },
+                "subject-uuid": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "type": {
+                    "description": "Type is the OSCAL subject type: component, party or user.",
+                    "type": "string"
                 }
             }
         },
@@ -50549,8 +50858,14 @@ const docTemplate = `{
         "templates.batchSubjectTemplateItem": {
             "type": "object",
             "properties": {
+                "component-type": {
+                    "type": "string"
+                },
                 "description-template": {
                     "type": "string"
+                },
+                "display-priority": {
+                    "type": "integer"
                 },
                 "id": {
                     "type": "string"
@@ -50688,6 +51003,13 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/templates.subjectTemplateResponse"
+                    }
+                },
+                "warnings": {
+                    "description": "Warnings lists non-component templates, which are accepted but produce no evidence\nsubjects.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
                     }
                 }
             }
@@ -50907,11 +51229,17 @@ const docTemplate = `{
         "templates.subjectTemplateResponse": {
             "type": "object",
             "properties": {
+                "component-type": {
+                    "type": "string"
+                },
                 "createdAt": {
                     "type": "string"
                 },
                 "description-template": {
                     "type": "string"
+                },
+                "display-priority": {
+                    "type": "integer"
                 },
                 "id": {
                     "type": "string"
@@ -51092,8 +51420,14 @@ const docTemplate = `{
                 "type"
             ],
             "properties": {
+                "component-type": {
+                    "type": "string"
+                },
                 "description-template": {
                     "type": "string"
+                },
+                "display-priority": {
+                    "type": "integer"
                 },
                 "identity-label-keys": {
                     "type": "array",

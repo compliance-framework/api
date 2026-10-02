@@ -2,19 +2,28 @@ package evidence
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/compliance-framework/api/internal/config"
 	"github.com/compliance-framework/api/internal/converters/labelfilter"
 	"github.com/compliance-framework/api/internal/service/relational"
+	"github.com/compliance-framework/api/internal/service/relational/subjects"
 	"github.com/compliance-framework/api/internal/service/relational/templates"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
+
+// ErrSubjectRequired is returned when evidence that must have a subject has none.
+var ErrSubjectRequired = errors.New("evidence has no subject")
+
+// ErrUnknownSubject is returned when evidence names a subject that doesn't exist.
+var ErrUnknownSubject = errors.New("unknown subject")
 
 // RiskJobEnqueuer interface to avoid circular imports
 type RiskJobEnqueuer interface {
@@ -49,9 +58,11 @@ const (
 )
 
 type SearchOptions struct {
-	Limit         int
-	Offset        int
-	Name          string
+	Limit  int
+	Offset int
+	Name   string
+	// SubjectUUID limits results to evidence with this subject among its subjects.
+	SubjectUUID   *uuid.UUID
 	SortBy        SearchSortBy
 	SortDirection SearchSortDirection
 }
@@ -95,6 +106,12 @@ type CreateEvidenceParams struct {
 	Subjects       []relational.AssessmentSubject
 	Labels         []relational.Labels
 	Signer         *SignerContext
+	// Origin is set by creation paths that aren't identified by their signer (workflow,
+	// system). Left empty, the signer decides; see EffectiveOrigin.
+	Origin EvidenceOrigin
+	// DeclaredSubjectUUIDs are subjects the submitter names explicitly: defined components,
+	// SSP system components, parties or users.
+	DeclaredSubjectUUIDs []uuid.UUID
 }
 
 func (s *EvidenceService) Create(ctx context.Context, params CreateEvidenceParams) (*relational.Evidence, error) {
@@ -106,13 +123,29 @@ func (s *EvidenceService) Create(ctx context.Context, params CreateEvidenceParam
 		status      string
 	}
 
-	// Resolve ComponentDefinitions from labels and merge any linked SystemComponents.
+	// Resolve ComponentDefinitions from labels: they are the evidence's template-derived
+	// subjects, and any SystemComponents linked to them are merged into its components.
+	var derivedSubjects []templates.ResolvedSubject
 	if s.cdResolver != nil && len(params.Labels) > 0 {
-		params.Components = s.resolveAndMergeComponents(params.Labels, params.Components)
+		if resolved := s.resolveComponentDefinitions(params.Labels); resolved != nil {
+			derivedSubjects = resolved.Subjects
+			params.Components = s.mergeLinkedSystemComponents(resolved.DefinedComponentIDs, params.Components)
+		}
+	}
+
+	declaredSubjects, err := s.resolveDeclaredSubjects(params.DeclaredSubjectUUIDs)
+	if err != nil {
+		return nil, err
+	}
+
+	// Set on the evidence so they're saved with it and returned on the created evidence.
+	params.Evidence.SubjectReferences = buildSubjectReferences(derivedSubjects, declaredSubjects, params.Subjects)
+	if err := s.checkSubjectRequirement(params); err != nil {
+		return nil, err
 	}
 
 	// Use a complete database transaction
-	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		// Create all related entities first
 		for i := range params.Components {
 			if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&params.Components[i]).Error; err != nil {
@@ -249,6 +282,12 @@ func (s *EvidenceService) Create(ctx context.Context, params CreateEvidenceParam
 	return evidence, nil
 }
 
+// ManualEvidenceRequiresSubject reports whether user-submitted evidence must name a subject
+// (CCF_MANUAL_EVIDENCE_REQUIRE_SUBJECT).
+func (s *EvidenceService) ManualEvidenceRequiresSubject() bool {
+	return s != nil && s.cfg != nil && s.cfg.EvidenceSubjects != nil && s.cfg.EvidenceSubjects.ManualRequireSubject
+}
+
 func (s *EvidenceService) GetByID(id uuid.UUID) (*relational.Evidence, error) {
 	var evidence relational.Evidence
 	if err := s.evidenceQuery(s.db).
@@ -310,7 +349,8 @@ func (s *EvidenceService) evidenceQuery(db *gorm.DB) *gorm.DB {
 		Preload("Components").
 		Preload("Subjects").
 		Preload("Subjects.IncludeSubjects").
-		Preload("Subjects.ExcludeSubjects")
+		Preload("Subjects.ExcludeSubjects").
+		Preload("SubjectReferences")
 }
 
 func (s *EvidenceService) Search(filter labelfilter.Filter) ([]relational.Evidence, error) {
@@ -337,6 +377,10 @@ func (s *EvidenceService) SearchPaginated(filter labelfilter.Filter, opts Search
 		query = query.Where("l.title ILIKE ? ESCAPE '\\'", "%"+escapeILikePattern(name)+"%")
 	}
 
+	if opts.SubjectUUID != nil {
+		query = query.Where("EXISTS (SELECT 1 FROM evidence_subject_references esr WHERE esr.evidence_id = l.id AND esr.subject_uuid = ?)", *opts.SubjectUUID)
+	}
+
 	var total int64
 	if err := query.Model(&relational.Evidence{}).Count(&total).Error; err != nil {
 		return nil, 0, err
@@ -345,6 +389,7 @@ func (s *EvidenceService) SearchPaginated(filter labelfilter.Filter, opts Search
 	var results []relational.Evidence
 	if err := query.
 		Preload("Labels").
+		Preload("SubjectReferences").
 		Scopes(applyEvidenceSearchOrder(opts.SortBy, opts.SortDirection)).
 		Limit(opts.Limit).
 		Offset(opts.Offset).
@@ -500,11 +545,9 @@ func (s *EvidenceService) GetControlByID(id string) (*relational.Control, error)
 	return &control, nil
 }
 
-// resolveAndMergeComponents uses the ComponentDefinition resolver to discover
-// SystemComponents from evidence labels and merges them into the existing list,
-// deduplicating by ID.
-func (s *EvidenceService) resolveAndMergeComponents(labels []relational.Labels, existing []relational.SystemComponent) []relational.SystemComponent {
-	definedComponentIDs := s.resolveDefinedComponentIDs(labels)
+// mergeLinkedSystemComponents merges the SystemComponents linked to the resolved
+// DefinedComponents into the existing list, deduplicating by ID.
+func (s *EvidenceService) mergeLinkedSystemComponents(definedComponentIDs []uuid.UUID, existing []relational.SystemComponent) []relational.SystemComponent {
 	if len(definedComponentIDs) == 0 {
 		return existing
 	}
@@ -520,7 +563,10 @@ func (s *EvidenceService) resolveAndMergeComponents(labels []relational.Labels, 
 	return mergeSystemComponents(existing, discovered)
 }
 
-func (s *EvidenceService) resolveDefinedComponentIDs(labels []relational.Labels) []uuid.UUID {
+// resolveComponentDefinitions resolves the DefinedComponents (template-derived subjects)
+// matching the evidence labels. A resolver error is logged and treated as no match, so the
+// evidence is still saved, without derived subjects.
+func (s *EvidenceService) resolveComponentDefinitions(labels []relational.Labels) *templates.ResolveOrUpsertComponentDefinitionResult {
 	result, err := s.cdResolver.ResolveOrUpsertComponentDefinition(templates.ResolveOrUpsertComponentDefinitionInput{
 		EvidenceLabels: labels,
 	})
@@ -530,10 +576,133 @@ func (s *EvidenceService) resolveDefinedComponentIDs(labels []relational.Labels)
 		}
 		return nil
 	}
-	if result == nil {
+	return result
+}
+
+// resolveDeclaredSubjects looks up the subjects the submitter named, in the order named.
+func (s *EvidenceService) resolveDeclaredSubjects(ids []uuid.UUID) ([]subjects.Summary, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	found, err := subjects.NewService(s.db).Resolve(ids)
+	if err != nil {
+		return nil, err
+	}
+	declared := make([]subjects.Summary, 0, len(ids))
+	for _, id := range ids {
+		subject, ok := found[id]
+		if !ok {
+			return nil, fmt.Errorf("%w %s: subject-uuid must be a defined component, SSP system component, party or user", ErrUnknownSubject, id)
+		}
+		declared = append(declared, subject)
+	}
+	return declared, nil
+}
+
+// buildSubjectReferences turns the template-derived subjects, the declared subjects and the
+// legacy identifier subjects into the evidence's subject references.
+func buildSubjectReferences(derived []templates.ResolvedSubject, declared []subjects.Summary, legacy []relational.AssessmentSubject) []relational.EvidenceSubjectReference {
+	refs := make([]relational.EvidenceSubjectReference, 0, len(derived)+len(declared)+len(legacy))
+
+	for _, subject := range derived {
+		templateID := subject.TemplateID
+		refs = append(refs, relational.EvidenceSubjectReference{
+			SubjectUUID: subject.DefinedComponentID,
+			Type:        subject.Type,
+			Title:       subject.Title,
+			Source:      relational.EvidenceSubjectSourceTemplate,
+			TemplateID:  &templateID,
+			Priority:    subject.DisplayPriority,
+			Props: []relational.Prop{
+				subjectProp(relational.EvidenceSubjectPropSource, relational.EvidenceSubjectSourceTemplate),
+				subjectProp(relational.EvidenceSubjectPropTemplate, subject.TemplateName),
+				subjectProp(relational.EvidenceSubjectPropDisplayPriority, strconv.Itoa(subject.DisplayPriority)),
+			},
+			Links: append([]relational.Link{}, subject.Links...),
+		})
+	}
+
+	// Declared subjects take their type and title from the entity named.
+	for _, subject := range declared {
+		refs = append(refs, relational.EvidenceSubjectReference{
+			SubjectUUID: subject.SubjectUUID,
+			Type:        subject.Type,
+			Title:       subject.Title,
+			Source:      relational.EvidenceSubjectSourceDeclared,
+			Props: []relational.Prop{
+				subjectProp(relational.EvidenceSubjectPropSource, relational.EvidenceSubjectSourceDeclared),
+			},
+		})
+	}
+
+	// Legacy subjects keep what the plugin sent, marked as legacy. Their subject UUID is the
+	// one seeded from the plugin's identifier.
+	for _, subject := range legacy {
+		props := append([]relational.Prop{}, subject.Props...)
+		props = append(props, subjectProp(relational.EvidenceSubjectPropSource, relational.EvidenceSubjectSourceLegacy))
+		var remarks *string
+		if subject.Remarks != nil && *subject.Remarks != "" {
+			remarks = subject.Remarks
+		}
+		for _, include := range subject.IncludeSubjects {
+			refs = append(refs, relational.EvidenceSubjectReference{
+				SubjectUUID: include.SubjectUUID,
+				Type:        subject.Type,
+				Source:      relational.EvidenceSubjectSourceLegacy,
+				Props:       props,
+				Links:       append([]relational.Link{}, subject.Links...),
+				Remarks:     remarks,
+			})
+		}
+	}
+
+	return refs
+}
+
+func subjectProp(name, value string) relational.Prop {
+	return relational.Prop{Ns: relational.CCFOSCALNamespace, Name: name, Value: value}
+}
+
+// checkSubjectRequirement applies the subject requirement for the evidence's origin: a
+// subject that isn't legacy is needed by agent evidence under CCF_EVIDENCE_REQUIRE_SUBJECT
+// and by user evidence under CCF_MANUAL_EVIDENCE_REQUIRE_SUBJECT.
+func (s *EvidenceService) checkSubjectRequirement(params CreateEvidenceParams) error {
+	if hasAttributedSubject(params.Evidence.SubjectReferences) {
 		return nil
 	}
-	return result.DefinedComponentIDs
+
+	switch params.EffectiveOrigin() {
+	case OriginAgent:
+		switch s.requireSubjectMode() {
+		case config.EvidenceRequireSubjectEnforce:
+			return fmt.Errorf("%w: its labels must match a registered component subject template", ErrSubjectRequired)
+		case config.EvidenceRequireSubjectWarn:
+			if s.logger != nil {
+				s.logger.Warnw("Agent evidence has no subject", "evidence_uuid", params.Evidence.UUID, "title", params.Evidence.Title)
+			}
+		}
+	case OriginUser:
+		if s.ManualEvidenceRequiresSubject() {
+			return fmt.Errorf("%w: name one in subjects[].subject-uuid", ErrSubjectRequired)
+		}
+	}
+	return nil
+}
+
+func (s *EvidenceService) requireSubjectMode() config.EvidenceRequireSubjectMode {
+	if s.cfg == nil || s.cfg.EvidenceSubjects == nil {
+		return config.EvidenceRequireSubjectOff
+	}
+	return s.cfg.EvidenceSubjects.RequireSubject
+}
+
+func hasAttributedSubject(refs []relational.EvidenceSubjectReference) bool {
+	for _, ref := range refs {
+		if ref.Source != relational.EvidenceSubjectSourceLegacy {
+			return true
+		}
+	}
+	return false
 }
 
 func mergeSystemComponents(existing, discovered []relational.SystemComponent) []relational.SystemComponent {

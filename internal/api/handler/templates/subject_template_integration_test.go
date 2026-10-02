@@ -44,6 +44,8 @@ type subjectTemplateAPIResponse struct {
 	Name              string                                    `json:"name"`
 	Type              string                                    `json:"type"`
 	SourceMode        string                                    `json:"source-mode"`
+	DisplayPriority   int                                       `json:"display-priority"`
+	ComponentType     *string                                   `json:"component-type"`
 	IdentityLabelKeys []string                                  `json:"identity-label-keys"`
 	SelectorLabels    []subjectTemplateSelectorLabelResponse    `json:"selector-labels"`
 	LabelSchema       []subjectTemplateLabelSchemaFieldResponse `json:"label-schema"`
@@ -250,9 +252,10 @@ func (suite *SubjectTemplateApiIntegrationSuite) TestSubjectTemplateRequiresAuth
 
 type batchSubjectTemplateResult struct {
 	Data struct {
-		Created []subjectTemplateAPIResponse `json:"created"`
-		Updated []subjectTemplateAPIResponse `json:"updated"`
-		Deleted []uuid.UUID                  `json:"deleted"`
+		Created  []subjectTemplateAPIResponse `json:"created"`
+		Updated  []subjectTemplateAPIResponse `json:"updated"`
+		Deleted  []uuid.UUID                  `json:"deleted"`
+		Warnings []string                     `json:"warnings"`
 	} `json:"data"`
 }
 
@@ -468,4 +471,62 @@ func (suite *SubjectTemplateApiIntegrationSuite) TestSubjectTemplateBatchUpsertR
 	})
 	suite.server.E().ServeHTTP(rec, req)
 	require.Equal(suite.T(), http.StatusUnauthorized, rec.Code)
+}
+
+func (suite *SubjectTemplateApiIntegrationSuite) TestSubjectTemplateBatchUpsertDisplayPriorityComponentTypeAndWarnings() {
+	componentID := uuid.New()
+	resourceID := uuid.New()
+	batchReq := map[string]any{
+		"plugin-id": "fields-plugin",
+		"templates": []map[string]any{
+			{
+				"id":                  componentID.String(),
+				"name":                "GitHub Organization",
+				"type":                "component",
+				"source-mode":         "runtime-derived",
+				"display-priority":    7,
+				"component-type":      "Software",
+				"identity-label-keys": []string{"organization"},
+				"links": []map[string]any{
+					{"href": "https://github.com/{{ .organization }}", "rel": "canonical"},
+				},
+				"selector-labels": []map[string]any{
+					{"key": "_plugin", "value": "fields-plugin"},
+				},
+				"label-schema": []map[string]any{
+					{"key": "organization"},
+				},
+			},
+			{
+				"id":                  resourceID.String(),
+				"name":                "Cloud resource",
+				"type":                "resource",
+				"source-mode":         "runtime-derived",
+				"identity-label-keys": []string{"resource_id"},
+				"selector-labels": []map[string]any{
+					{"key": "_plugin", "value": "fields-plugin"},
+				},
+				"label-schema": []map[string]any{
+					{"key": "resource_id"},
+				},
+			},
+		},
+	}
+
+	rec, req := suite.agentRequest(http.MethodPost, "/api/agent/subject-templates/batch", batchReq)
+	suite.server.E().ServeHTTP(rec, req)
+	require.Equal(suite.T(), http.StatusOK, rec.Code, rec.Body.String())
+
+	var result batchSubjectTemplateResult
+	require.NoError(suite.T(), json.Unmarshal(rec.Body.Bytes(), &result))
+	require.Len(suite.T(), result.Data.Created, 2)
+	for _, row := range result.Data.Created {
+		if row.ID == componentID {
+			require.Equal(suite.T(), 7, row.DisplayPriority)
+			require.NotNil(suite.T(), row.ComponentType)
+			require.Equal(suite.T(), "software", *row.ComponentType)
+		}
+	}
+	require.Len(suite.T(), result.Data.Warnings, 1)
+	require.Contains(suite.T(), result.Data.Warnings[0], resourceID.String())
 }
