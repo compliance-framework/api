@@ -6,7 +6,9 @@ import (
 )
 
 // Normalize applies the remote_config defaults (R29):
-//   - Mode "" becomes apply_safe with auth, off without; no auth always forces off;
+//   - Mode "" becomes report with auth (the agent reports but never applies a revision
+//     until the operator opts in with apply_safe or apply_all), off without; no auth
+//     always forces off;
 //   - PollInterval "" becomes "60s";
 //   - nil TrustedSources / OverridableConfigFlags become [];
 //   - AllowLocalSources stays false unless set.
@@ -16,7 +18,7 @@ func (rc RemoteConfig) Normalize(hasAuth bool) RemoteConfig {
 	case !hasAuth:
 		out.Mode = ModeOff
 	case out.Mode == "":
-		out.Mode = ModeApplySafe
+		out.Mode = ModeReport
 	}
 	if out.PollInterval == "" {
 		out.PollInterval = "60s" // DefaultPollInterval, in the form operators write

@@ -79,6 +79,8 @@ func (a *APIConfig) HasPartialAuth() bool {
 // RemoteConfig is the agent's remote-configuration policy. It is set locally only (file,
 // host env, CLI), never remotely (R30).
 type RemoteConfig struct {
+	// Mode is off, report, apply_safe or apply_all. Unset means report for an agent with
+	// credentials (it reports but never applies), off without (see Normalize).
 	Mode                   string   `json:"mode,omitempty" mapstructure:"mode"`
 	PollInterval           string   `json:"poll_interval,omitempty" mapstructure:"poll_interval"`
 	TrustedSources         []string `json:"trusted_sources" mapstructure:"trusted_sources"`                   // default []

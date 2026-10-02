@@ -11,7 +11,7 @@ func TestNormalize(t *testing.T) {
 	t.Run("defaults with auth", func(t *testing.T) {
 		got := RemoteConfig{}.Normalize(true)
 		assert.Equal(t, RemoteConfig{
-			Mode:                   ModeApplySafe,
+			Mode:                   ModeReport,
 			PollInterval:           "60s",
 			TrustedSources:         []string{},
 			OverridableConfigFlags: []string{},
@@ -19,6 +19,18 @@ func TestNormalize(t *testing.T) {
 		}, got)
 		require.NotNil(t, got.TrustedSources, "[] not nil")
 		require.NotNil(t, got.OverridableConfigFlags, "[] not nil")
+	})
+	t.Run("unset mode with auth reports, never applies", func(t *testing.T) {
+		rc := RemoteConfig{PollInterval: "2m"}.Normalize(true)
+		assert.Equal(t, ModeReport, rc.Mode)
+		apply, reason := WillApply(rc, nil)
+		assert.False(t, apply, "an agent that did not opt in never applies")
+		assert.Equal(t, WillApplyReasonModeReport, reason)
+	})
+	t.Run("explicit modes kept with auth", func(t *testing.T) {
+		for _, mode := range []string{ModeOff, ModeReport, ModeApplySafe, ModeApplyAll} {
+			assert.Equal(t, mode, RemoteConfig{Mode: mode}.Normalize(true).Mode, mode)
+		}
 	})
 	t.Run("no auth forces off", func(t *testing.T) {
 		for _, mode := range []string{"", ModeOff, ModeReport, ModeApplySafe, ModeApplyAll} {
@@ -58,7 +70,8 @@ func TestNormalize(t *testing.T) {
 func TestEffectiveRemoteConfig(t *testing.T) {
 	withAuth := &APIConfig{URL: "http://x", Auth: &APIAuth{ClientID: "id", ClientSecret: "secret"}}
 
-	assert.Equal(t, ModeApplySafe, Config{API: withAuth}.EffectiveRemoteConfig().Mode)
+	assert.Equal(t, ModeReport, Config{API: withAuth}.EffectiveRemoteConfig().Mode, "unset mode defaults to report")
+	assert.Equal(t, ModeApplySafe, Config{API: withAuth, RemoteConfig: &RemoteConfig{Mode: ModeApplySafe}}.EffectiveRemoteConfig().Mode)
 	assert.Equal(t, ModeOff, Config{}.EffectiveRemoteConfig().Mode, "nil api")
 	assert.Equal(t, ModeOff, Config{API: &APIConfig{URL: "http://x"}}.EffectiveRemoteConfig().Mode, "no auth")
 	assert.Equal(t, ModeOff, Config{API: &APIConfig{URL: "http://x", Auth: &APIAuth{ClientID: "id", ClientSecret: " "}}}.EffectiveRemoteConfig().Mode, "blank secret")
