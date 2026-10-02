@@ -19,9 +19,8 @@ func UnescapePointerToken(token string) string {
 }
 
 // Pointer builds an RFC 6901 JSON Pointer from unescaped segments, e.g.
-// Pointer("policy_bundles", "ssh", "modules", "banner.rego") ==
-// "/policy_bundles/ssh/modules/banner.rego" and Pointer("plugins", "x", "config", "a/b") ==
-// "/plugins/x/config/a~1b". No segments yields "" (the whole document).
+// Pointer("plugins", "x", "config", "a/b") == "/plugins/x/config/a~1b". No segments yields
+// "" (the whole document).
 func Pointer(segments ...string) string {
 	if len(segments) == 0 {
 		return ""

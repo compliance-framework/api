@@ -19,21 +19,18 @@ import (
 // coercion. Rules:
 //
 //	O1  must be a JSON object ({} allowed)
-//	O2  compact size <= MaxOverlayBytes, or MaxOverlayBytesWithBundles when policy_bundles
-//	    is present and non-null
+//	O2  compact size <= MaxOverlayBytes
 //	O3  no locked key (api, daemon, remote_config), even with a null value
 //	O4  unknown keys are rejected
 //	O5  types: verbosity integer 0-2; agent_evidence.{enabled,emit_on_run_completion} bool,
 //	    interval a Go duration >= 0; plugins.*.config and labels values strings (or null);
 //	    policy_behavior values string arrays; protocol_version 1 or 2 (explicit 0 rejected,
 //	    R9); schedule a string
-//	O6  plugin names set by the overlay and bundle names match PluginNamePattern
+//	O6  plugin names set by the overlay match PluginNamePattern
 //	O7  schedule parses with ParseSchedule
-//	O8  source (when non-null) is non-empty and not inline:; policy entries are non-empty
-//	    and inline: entries carry a valid bundle name
+//	O8  source (when non-null) and policy entries are non-empty
 //	O9  ${env:NAME} only in plugins.*.config values; NAME must not be forbidden
 //	O10 no string value equals MaskedValue
-//	O11 policy_bundles shape via the bundle checks (per bundle patch)
 func ValidateOverlay(overlay json.RawMessage) error {
 	v, err := decodeAny(overlay)
 	if err != nil {
@@ -48,14 +45,8 @@ func ValidateOverlay(overlay json.RawMessage) error {
 
 	// O2: size of the compact encoding.
 	var compact bytes.Buffer
-	if err := json.Compact(&compact, overlay); err == nil {
-		limit := MaxOverlayBytes
-		if pb, present := obj["policy_bundles"]; present && pb != nil {
-			limit = MaxOverlayBytesWithBundles
-		}
-		if compact.Len() > limit {
-			ov.add("", FieldCodeSize, "overlay is %d bytes; the limit is %d", compact.Len(), limit)
-		}
+	if err := json.Compact(&compact, overlay); err == nil && compact.Len() > MaxOverlayBytes {
+		ov.add("", FieldCodeSize, "overlay is %d bytes; the limit is %d", compact.Len(), MaxOverlayBytes)
 	}
 
 	for _, key := range sortedKeys(obj) {
@@ -74,8 +65,6 @@ func ValidateOverlay(overlay json.RawMessage) error {
 			ov.plugins(ptr, val)
 		case "agent_evidence":
 			ov.agentEvidence(ptr, val)
-		case "policy_bundles":
-			ov.policyBundles(ptr, val)
 		default:
 			ov.add(ptr, FieldCodeUnknownField, "unknown field %q", key)
 		}
@@ -246,24 +235,14 @@ func (ov *overlayValidator) plugins(ptr string, v any) {
 }
 
 func (ov *overlayValidator) pluginSource(ptr, s string) {
-	switch {
-	case strings.TrimSpace(s) == "":
+	if strings.TrimSpace(s) == "" {
 		ov.add(ptr, FieldCodeSource, "plugin source must not be empty")
-	case IsInlineSource(s):
-		ov.add(ptr, FieldCodeSource, "plugin source must not be an inline bundle")
 	}
 }
 
 func (ov *overlayValidator) policyEntry(ptr, e string) {
 	if strings.TrimSpace(e) == "" {
 		ov.add(ptr, FieldCodeSource, "policy entry must not be empty")
-		return
-	}
-	if IsInlineSource(e) {
-		name, ok := InlineBundleName(e)
-		if !ok || !BundleNamePattern.MatchString(name) {
-			ov.add(ptr, FieldCodeSource, "inline policy entry %q must name a bundle matching %s", e, BundleNamePattern.String())
-		}
 	}
 }
 
@@ -296,75 +275,6 @@ func (ov *overlayValidator) agentEvidence(ptr string, v any) {
 			ov.add(fptr, FieldCodeUnknownField, "unknown field %q", key)
 		}
 	}
-}
-
-func (ov *overlayValidator) policyBundles(ptr string, v any) {
-	if v == nil {
-		return
-	}
-	obj, ok := ov.object(ptr, v)
-	if !ok {
-		return
-	}
-	patches := map[string]*PolicyBundle{}
-	for _, name := range sortedKeys(obj) {
-		bptr := appendPointer(ptr, name)
-		val := obj[name]
-		if val == nil {
-			continue // delete the bundle
-		}
-		bundleObj, ok := ov.object(bptr, val)
-		if !ok {
-			continue
-		}
-		patch := &PolicyBundle{}
-		for _, key := range sortedKeys(bundleObj) {
-			fv := bundleObj[key]
-			fptr := appendPointer(bptr, key)
-			switch key {
-			case "extends":
-				if fv == nil {
-					continue
-				}
-				if s, ok := ov.str(fptr, fv); ok {
-					patch.Extends = &s
-				}
-			case "modules":
-				if fv == nil {
-					continue
-				}
-				modules, ok := ov.object(fptr, fv)
-				if !ok {
-					continue
-				}
-				for _, p := range sortedKeys(modules) {
-					if modules[p] == nil {
-						continue // delete the effective module
-					}
-					if s, ok := ov.str(appendPointer(fptr, p), modules[p]); ok {
-						if patch.Modules == nil {
-							patch.Modules = map[string]string{}
-						}
-						patch.Modules[p] = s
-					}
-				}
-			case "delete":
-				entries, _ := ov.stringArray(fptr, fv)
-				patch.Delete = entries
-			case "data":
-				if fv == nil {
-					continue
-				}
-				if data, ok := ov.object(fptr, fv); ok {
-					patch.Data = data
-				}
-			default:
-				ov.add(fptr, FieldCodeUnknownField, "unknown field %q", key)
-			}
-		}
-		patches[name] = patch
-	}
-	ov.errs = append(ov.errs, issuesToFieldErrors(validateBundles(patches, true))...)
 }
 
 // envRefs applies O9 to one string value.
@@ -425,10 +335,9 @@ func checkDuration(s string, min time.Duration) string {
 // ValidateEditable checks an effective config except the locked blocks (api, daemon,
 // remote_config). The API uses it on redacted reported bases merged with an overlay, so it
 // never rejects masked values or a missing client secret. Rules: verbosity >= 0;
-// agent_evidence.interval a non-negative duration; every plugin non-nil with a non-empty,
-// non-inline source, a parseable schedule, protocol_version in {0,1,2}, non-empty policy
-// entries whose inline:<b> references resolve in PolicyBundles; env references obey O9;
-// PolicyBundles pass ValidateBundles.
+// agent_evidence.interval a non-negative duration; every plugin non-nil with a non-empty
+// source, a parseable schedule, protocol_version in {0,1,2} and non-empty policy entries;
+// env references obey O9.
 func (c Config) ValidateEditable() error {
 	return asError(c.validateEditable())
 }
@@ -462,11 +371,8 @@ func (c Config) validateEditable() []FieldError {
 			ov.add(pptr, FieldCodeRequired, "plugin %q has no configuration", name)
 			continue
 		}
-		switch {
-		case strings.TrimSpace(p.Source) == "":
+		if strings.TrimSpace(p.Source) == "" {
 			ov.add(pptr+"/source", FieldCodeRequired, "plugin source is required")
-		case IsInlineSource(p.Source):
-			ov.add(pptr+"/source", FieldCodeSource, "plugin source must not be an inline bundle")
 		}
 		if p.Schedule != nil {
 			if _, err := ParseSchedule(*p.Schedule); err != nil {
@@ -477,16 +383,9 @@ func (c Config) validateEditable() []FieldError {
 			ov.add(pptr+"/protocol_version", FieldCodeInvalidValue, "must be 1 or 2 (0 or unset = auto)")
 		}
 		for i, e := range p.Policies {
-			eptr := pptr + "/policies/" + strconv.Itoa(i)
-			ov.policyEntry(eptr, e)
-			if name, ok := InlineBundleName(e); ok && BundleNamePattern.MatchString(name) {
-				if b, found := c.PolicyBundles[name]; !found || b == nil {
-					ov.add(eptr, FieldCodeUnresolvedRef, "policy bundle %q is not defined", name)
-				}
-			}
+			ov.policyEntry(pptr+"/policies/"+strconv.Itoa(i), e)
 		}
 	}
-	ov.errs = append(ov.errs, issuesToFieldErrors(validateBundles(c.PolicyBundles, false))...)
 
 	// O9 over the editable part of the document.
 	if raw, err := json.Marshal(c.clone().editableView()); err == nil {

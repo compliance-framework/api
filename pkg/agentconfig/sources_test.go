@@ -23,35 +23,13 @@ func TestKindOfAndIsOCISource(t *testing.T) {
 		{"/opt/plugin", SourceKindLocal},
 		{"plugin", SourceKindLocal},
 		{"", SourceKindLocal},
-		{"inline:ssh", SourceKindInline},
-		{"inline:", SourceKindInline},
+		{"inline:ssh", SourceKindLocal}, // no special meaning: a local path
 	}
 	for _, tt := range tests {
 		t.Run(tt.source, func(t *testing.T) {
 			assert.Equal(t, tt.kind, KindOf(tt.source))
 			assert.Equal(t, tt.kind == SourceKindOCI, IsOCISource(tt.source))
-			assert.Equal(t, tt.kind == SourceKindInline, IsInlineSource(tt.source))
 		})
-	}
-}
-
-func TestInlineBundleName(t *testing.T) {
-	tests := []struct {
-		in     string
-		name   string
-		wantOK bool
-	}{
-		{"inline:ssh", "ssh", true},
-		{"inline:Ssh.Tuned", "Ssh.Tuned", true}, // not pattern-checked
-		{"inline:", "", false},
-		{"ssh", "", false},
-		{"Inline:ssh", "", false},
-		{"", "", false},
-	}
-	for _, tt := range tests {
-		name, ok := InlineBundleName(tt.in)
-		assert.Equal(t, tt.wantOK, ok, tt.in)
-		assert.Equal(t, tt.name, name, tt.in)
 	}
 }
 
@@ -62,5 +40,4 @@ func TestNamePatterns(t *testing.T) {
 	for _, bad := range []string{"", "GitHub", "Ssh.Tuned", "-a", "_a", "a.b", "a b", "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijkl"} {
 		assert.False(t, PluginNamePattern.MatchString(bad), bad)
 	}
-	assert.Same(t, PluginNamePattern, BundleNamePattern)
 }

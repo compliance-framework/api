@@ -224,7 +224,7 @@ type ArtifactFileSource struct {
 // ListFiles godoc
 //
 //	@Summary		List the files of a policy bundle artifact
-//	@Description	Returns every file of a stored policy bundle with its SHA-256, size and, for Rego modules, its package, plus the bundle's tree digest (the digest agent config reports use for the same tree). Agent config reports name bundle artifacts in policy-bundles[].artifact-digest. Any logged-in user or agent may read artifacts; that includes the inline Rego agents upload.
+//	@Description	Returns every file of a stored policy bundle with its SHA-256, size and, for Rego modules, its package, plus the bundle's tree digest (the digest agent config reports use for the same tree). Agent config reports name bundle artifacts in policy-bundles[].artifact-digest. Any logged-in user or agent may read artifacts; that includes the policy bundles agents upload.
 //	@Tags			Artifacts
 //	@Produce		json
 //	@Param			digest	path		string	true	"Artifact digest, sha256:<64 hex>"
@@ -266,7 +266,7 @@ func (h *ArtifactHandler) ListFiles(ctx echo.Context) error {
 // GetFile godoc
 //
 //	@Summary		Get one file of a policy bundle artifact
-//	@Description	Returns the source of one file of a stored policy bundle, with its SHA-256 and, for Rego modules, its package. path is the file's path in the bundle, as GET /artifacts/{digest}/files lists it. Files over 1 MiB, or that are not UTF-8 text, are not returned as source (422); download the artifact instead. Any logged-in user or agent may read artifacts; that includes the inline Rego agents upload.
+//	@Description	Returns the source of one file of a stored policy bundle, with its SHA-256 and, for Rego modules, its package. path is the file's path in the bundle, as GET /artifacts/{digest}/files lists it. Files over 1 MiB, or that are not UTF-8 text, are not returned as source (422); download the artifact instead. Any logged-in user or agent may read artifacts; that includes the policy bundles agents upload.
 //	@Tags			Artifacts
 //	@Produce		json
 //	@Param			digest	path		string	true	"Artifact digest, sha256:<64 hex>"

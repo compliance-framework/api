@@ -84,13 +84,12 @@ func decodeConfig(data []byte) (Config, error) {
 
 // Schema field names per object level, for dropMiscasedKeys.
 var (
-	rootFields         = []string{"daemon", "verbosity", "api", "remote_config", "plugins", "agent_evidence", "policy_bundles"}
+	rootFields         = []string{"daemon", "verbosity", "api", "remote_config", "plugins", "agent_evidence"}
 	apiFields          = []string{"url", "auth"}
 	apiAuthFields      = []string{"client_id", "client_secret"}
-	remoteConfigFields = []string{"mode", "poll_interval", "trusted_sources", "overridable_config_flags", "allow_local_sources", "allow_inline_policies"}
+	remoteConfigFields = []string{"mode", "poll_interval", "trusted_sources", "overridable_config_flags", "allow_local_sources"}
 	evidenceFields     = []string{"enabled", "emit_on_run_completion", "interval"}
 	pluginFields       = []string{"enabled", "protocol_version", "schedule", "source", "policies", "config", "labels", "policy_data", "policy_behavior"}
-	bundleFields       = []string{"extends", "modules", "delete", "data"}
 )
 
 // dropMiscasedKeys removes keys that encoding/json would match case-insensitively to a schema
@@ -115,13 +114,6 @@ func dropMiscasedKeys(root map[string]any) {
 		for _, raw := range plugins {
 			if p, ok := raw.(map[string]any); ok {
 				dropMiscased(p, pluginFields)
-			}
-		}
-	}
-	if bundles, ok := root["policy_bundles"].(map[string]any); ok {
-		for _, raw := range bundles {
-			if b, ok := raw.(map[string]any); ok {
-				dropMiscased(b, bundleFields)
 			}
 		}
 	}
@@ -151,7 +143,7 @@ func DecodeConfig(data []byte) (Config, error) {
 	return c, nil
 }
 
-// clone deep-copies a Config. Free-form values (policy_data, bundle data) are normalized
+// clone deep-copies a Config. Free-form values (policy_data) are normalized
 // on the way: map[any]any (as produced by some YAML decoders) becomes map[string]any, so the
 // copy is always JSON-encodable.
 func (c Config) clone() Config {
@@ -168,10 +160,6 @@ func (c Config) clone() Config {
 		rc := *c.RemoteConfig
 		rc.TrustedSources = cloneStrings(c.RemoteConfig.TrustedSources)
 		rc.OverridableConfigFlags = cloneStrings(c.RemoteConfig.OverridableConfigFlags)
-		if c.RemoteConfig.AllowInlinePolicies != nil {
-			v := *c.RemoteConfig.AllowInlinePolicies
-			rc.AllowInlinePolicies = &v
-		}
 		out.RemoteConfig = &rc
 	}
 	if c.AgentEvidence != nil {
@@ -184,12 +172,6 @@ func (c Config) clone() Config {
 		out.Plugins = make(map[string]*Plugin, len(c.Plugins))
 		for name, p := range c.Plugins {
 			out.Plugins[name] = p.clone()
-		}
-	}
-	if c.PolicyBundles != nil {
-		out.PolicyBundles = make(map[string]*PolicyBundle, len(c.PolicyBundles))
-		for name, b := range c.PolicyBundles {
-			out.PolicyBundles[name] = b.clone()
 		}
 	}
 	return out
@@ -216,23 +198,6 @@ func (p *Plugin) clone() *Plugin {
 		for k, v := range p.PolicyBehavior {
 			out.PolicyBehavior[k] = cloneStrings(v)
 		}
-	}
-	return &out
-}
-
-func (b *PolicyBundle) clone() *PolicyBundle {
-	if b == nil {
-		return nil
-	}
-	out := *b
-	if b.Extends != nil {
-		e := *b.Extends
-		out.Extends = &e
-	}
-	out.Modules = cloneStringMap(b.Modules)
-	out.Delete = cloneStrings(b.Delete)
-	if b.Data != nil {
-		out.Data = deepCopyAny(map[string]any(b.Data)).(map[string]any)
 	}
 	return &out
 }

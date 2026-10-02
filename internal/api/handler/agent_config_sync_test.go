@@ -55,9 +55,8 @@ func TestNormalizeReport_Valid(t *testing.T) {
 	// artifact-digest is optional and checked for format only (R62).
 	r = validReport()
 	r.PolicyBundles = []agentconfig.PolicyBundleReport{
-		{Source: "inline:a", ArtifactDigest: testDigest, Extends: &agentconfig.PolicyExtendsReport{Source: "ghcr.io/v/p:1", ArtifactDigest: testDigest}},
+		{Source: "ghcr.io/v/a:1", ArtifactDigest: testDigest},
 		{Source: "ghcr.io/v/p:1"},
-		{Source: "inline:b", Extends: &agentconfig.PolicyExtendsReport{Source: "ghcr.io/v/p:1"}},
 	}
 	assert.NoError(t, normalizeReport(&r))
 	assert.Equal(t, testDigest, r.PolicyBundles[0].ArtifactDigest, "kept as sent")
@@ -85,16 +84,16 @@ func TestNormalizeReport_Rejects(t *testing.T) {
 		"digest long":                 func(r *agentconfig.Report) { r.EffectiveDigest = testDigest + "0" },
 		"digest non-hex":              func(r *agentconfig.Report) { r.EffectiveDigest = testDigest[:len(testDigest)-1] + "g" },
 		"artifact-digest malformed": func(r *agentconfig.Report) {
-			r.PolicyBundles = []agentconfig.PolicyBundleReport{{Source: "inline:a", ArtifactDigest: "sha256:nope"}}
+			r.PolicyBundles = []agentconfig.PolicyBundleReport{{Source: "ghcr.io/v/a:1", ArtifactDigest: "sha256:nope"}}
 		},
 		"artifact-digest is a tree digest": func(r *agentconfig.Report) {
-			r.PolicyBundles = []agentconfig.PolicyBundleReport{{Source: "inline:a", ArtifactDigest: "tree:" + testDigest}}
+			r.PolicyBundles = []agentconfig.PolicyBundleReport{{Source: "ghcr.io/v/a:1", ArtifactDigest: "tree:" + testDigest}}
 		},
 		"plugin without a name": func(r *agentconfig.Report) {
 			r.Plugins = []agentconfig.PluginReport{{Name: "ssh"}, {Name: "  ", LibVersion: "v0.7.1"}}
 		},
-		"extends artifact-digest malformed": func(r *agentconfig.Report) {
-			r.PolicyBundles = []agentconfig.PolicyBundleReport{{Source: "inline:a", Extends: &agentconfig.PolicyExtendsReport{ArtifactDigest: strings.ToUpper(testDigest)}}}
+		"artifact-digest upper case": func(r *agentconfig.Report) {
+			r.PolicyBundles = []agentconfig.PolicyBundleReport{{Source: "ghcr.io/v/a:1", ArtifactDigest: strings.ToUpper(testDigest)}}
 		},
 	}
 	for name, mutate := range cases {

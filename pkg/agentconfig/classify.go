@@ -30,21 +30,19 @@ func (s Safety) rank() int {
 
 // Change reason codes (stable; translated by the UI).
 const (
-	ChangeReasonLockedKey              = "locked-key"
-	ChangeReasonLogging                = "logging"
-	ChangeReasonDataOnly               = "data-only"
-	ChangeReasonReducesScope           = "reduces-scope"
-	ChangeReasonAlreadyUsed            = "already-used"
-	ChangeReasonTrustedSource          = "trusted-source"
-	ChangeReasonUntrustedSource        = "untrusted-source"
-	ChangeReasonLocalSourceNotAllowed  = "local-source-not-allowed"
-	ChangeReasonNewLocalSource         = "new-local-source"
-	ChangeReasonInlinePolicy           = "inline-policy"
-	ChangeReasonInlinePoliciesDisabled = "inline-policies-disabled"
-	ChangeReasonOverridableConfigFlag  = "overridable-config-flag"
-	ChangeReasonConfigNotOverridable   = "config-not-overridable"
-	ChangeReasonNewEnvReference        = "new-env-reference"
-	ChangeReasonForbiddenEnvReference  = "forbidden-env-reference"
+	ChangeReasonLockedKey             = "locked-key"
+	ChangeReasonLogging               = "logging"
+	ChangeReasonDataOnly              = "data-only"
+	ChangeReasonReducesScope          = "reduces-scope"
+	ChangeReasonAlreadyUsed           = "already-used"
+	ChangeReasonTrustedSource         = "trusted-source"
+	ChangeReasonUntrustedSource       = "untrusted-source"
+	ChangeReasonLocalSourceNotAllowed = "local-source-not-allowed"
+	ChangeReasonNewLocalSource        = "new-local-source"
+	ChangeReasonOverridableConfigFlag = "overridable-config-flag"
+	ChangeReasonConfigNotOverridable  = "config-not-overridable"
+	ChangeReasonNewEnvReference       = "new-env-reference"
+	ChangeReasonForbiddenEnvReference = "forbidden-env-reference"
 )
 
 // WillApply reasons besides ReasonUnsafeChanges / ReasonForbiddenChanges.
@@ -125,8 +123,8 @@ type classifier struct {
 	used map[string]bool
 }
 
-// usedSources is every plugin source, non-inline policy entry and non-nil extends in the
-// base, disabled plugins included.
+// usedSources is every plugin source and policy entry in the base, disabled plugins
+// included.
 func usedSources(base Config) map[string]bool {
 	used := map[string]bool{}
 	for _, p := range base.Plugins {
@@ -137,14 +135,7 @@ func usedSources(base Config) map[string]bool {
 			used[p.Source] = true
 		}
 		for _, e := range p.Policies {
-			if !IsInlineSource(e) {
-				used[e] = true
-			}
-		}
-	}
-	for _, b := range base.PolicyBundles {
-		if b != nil && b.Extends != nil {
-			used[*b.Extends] = true
+			used[e] = true
 		}
 	}
 	return used
@@ -164,13 +155,6 @@ func (cl classifier) sourceClass(path, s string) Change {
 	default:
 		return Change{Path: path, Safety: Unsafe, Reason: ChangeReasonUntrustedSource, Value: s}
 	}
-}
-
-func (cl classifier) inlineClass(path, value string) Change {
-	if cl.rc.AllowInlinePolicies == nil || *cl.rc.AllowInlinePolicies {
-		return Change{Path: path, Safety: Safe, Reason: ChangeReasonInlinePolicy, Value: value}
-	}
-	return Change{Path: path, Safety: Unsafe, Reason: ChangeReasonInlinePoliciesDisabled, Value: value}
 }
 
 func (cl classifier) classify(base, eff Config) []Change {
@@ -197,23 +181,6 @@ func (cl classifier) classify(base, eff Config) []Change {
 			bp = &Plugin{} // a new plugin is the class of its parts
 		}
 		out = append(out, cl.classifyPlugin(ptr, name, bp, ep)...)
-	}
-
-	for _, name := range unionMapKeys(base.PolicyBundles, eff.PolicyBundles) {
-		ptr := Pointer("policy_bundles", name)
-		bb, inBase := base.PolicyBundles[name]
-		eb, inEff := eff.PolicyBundles[name]
-		if inBase && bb != nil && (!inEff || eb == nil) {
-			out = append(out, Change{Path: ptr, Safety: Safe, Reason: ChangeReasonReducesScope})
-			continue
-		}
-		if eb == nil {
-			continue
-		}
-		if bb == nil {
-			bb = &PolicyBundle{}
-		}
-		out = append(out, cl.classifyBundle(ptr, bb, eb)...)
 	}
 	return out
 }
@@ -244,11 +211,7 @@ func (cl classifier) classifyPlugin(ptr, name string, bp, ep *Plugin) []Change {
 				continue
 			}
 			added = true
-			if IsInlineSource(e) {
-				out = append(out, cl.inlineClass(polPtr, e))
-			} else {
-				out = append(out, cl.sourceClass(polPtr, e))
-			}
+			out = append(out, cl.sourceClass(polPtr, e))
 		}
 		if !added {
 			out = append(out, Change{Path: polPtr, Safety: Safe, Reason: ChangeReasonReducesScope})
@@ -283,39 +246,6 @@ func (cl classifier) classifyPlugin(ptr, name string, bp, ep *Plugin) []Change {
 			out = append(out, Change{Path: kptr, Safety: Safe, Reason: ChangeReasonOverridableConfigFlag})
 		} else {
 			out = append(out, Change{Path: kptr, Safety: Unsafe, Reason: ChangeReasonConfigNotOverridable})
-		}
-	}
-	return out
-}
-
-func (cl classifier) classifyBundle(ptr string, bb, eb *PolicyBundle) []Change {
-	var out []Change
-	for _, p := range unionMapKeys(bb.Modules, eb.Modules) {
-		bv, inBase := bb.Modules[p]
-		ev, inEff := eb.Modules[p]
-		if inBase == inEff && bv == ev {
-			continue
-		}
-		out = append(out, cl.inlineClass(ptr+"/modules/"+EscapePointerToken(p), ""))
-	}
-	if !jsonValueEqual(nilIfEmptyMap(bb.Data), nilIfEmptyMap(eb.Data)) {
-		out = append(out, cl.inlineClass(ptr+"/data", ""))
-	}
-	if !slices.Equal(bb.Delete, eb.Delete) {
-		out = append(out, cl.inlineClass(ptr+"/delete", ""))
-	}
-	if !jsonValueEqual(bb.Extends, eb.Extends) {
-		extPtr := ptr + "/extends"
-		if eb.Extends == nil {
-			out = append(out, cl.inlineClass(extPtr, ""))
-		} else {
-			inline := cl.inlineClass(extPtr, *eb.Extends)
-			src := cl.sourceClass(extPtr, *eb.Extends)
-			if src.Safety.rank() > inline.Safety.rank() {
-				out = append(out, src)
-			} else {
-				out = append(out, inline)
-			}
 		}
 	}
 	return out

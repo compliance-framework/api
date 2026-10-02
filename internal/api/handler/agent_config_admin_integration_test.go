@@ -37,10 +37,6 @@ const (
 	acaVendorPolicy = "ghcr.io/vendor/ssh-policies:v1"
 	acaDigest       = "sha256:0000000000000000000000000000000000000000000000000000000000000000"
 	acaOtherDigest  = "sha256:1111111111111111111111111111111111111111111111111111111111111111"
-	acaCleanRego    = "package compliance_framework.banner\n\nimport rego.v1\n\ntitle := \"Banner\"\n\nviolation contains {\"id\": \"banner\"} if {\n\tinput.banner == \"\"\n}\n"
-	acaEditedRego   = "package compliance_framework.banner\n\nimport rego.v1\n\ntitle := \"Banner\"\n\nviolation contains {\"id\": \"banner-missing\"} if {\n\tnot input.banner\n}\n"
-	acaTraceRego    = "package compliance_framework.banner\n\nimport rego.v1\n\ntitle := \"Banner\"\n\nviolation contains {\"id\": \"banner\"} if {\n\ttrace(\"checking banner\")\n\tinput.banner == \"\"\n}\n"
-	acaHTTPRego     = "package compliance_framework.banner\n\nimport rego.v1\n\ntitle := \"Banner\"\n\nviolation contains r if {\n\tr := http.send({\"method\": \"get\", \"url\": \"https://example.com\"})\n}\n"
 )
 
 func TestAgentConfigAdminAPI(t *testing.T) {
@@ -304,7 +300,7 @@ func (s *AgentConfigAdminIntegrationSuite) TestGetConfigRevisionZero() {
 }
 
 func (s *AgentConfigAdminIntegrationSuite) TestGetConfigAfterSave() {
-	overlay := fmt.Sprintf(`{"policy_bundles":{"banner":{"modules":{"banner.rego":%q}}}}`, acaCleanRego)
+	overlay := `{"verbosity":2,"plugins":{"ssh":{"labels":{"env":"prod"}}}}`
 	s.save(`"0"`, overlay, 1)
 
 	rec := s.call(http.MethodGet, s.path("/config"), nil)
@@ -383,7 +379,7 @@ func (s *AgentConfigAdminIntegrationSuite) TestPutOverlayValidationErrors() {
 		{"locked key", `{"api":{}}`, "/api", agentconfig.FieldCodeLockedKey},
 		{"non-string config value", `{"plugins":{"x":{"source":"ghcr.io/x/x:v1","config":{"port":2222}}}}`, "/plugins/x/config/port", agentconfig.FieldCodeInvalidType},
 		{"unknown field", `{"foo":true}`, "/foo", agentconfig.FieldCodeUnknownField},
-		{"data file name", fmt.Sprintf(`{"policy_bundles":{"banner":{"modules":{"foo.json":%q}}}}`, `{"a":1}`), "/policy_bundles/banner/modules/foo.json", agentconfig.FieldCodePattern},
+		{"policy_bundles is not a field", `{"policy_bundles":{"banner":{"modules":{}}}}`, "/policy_bundles", agentconfig.FieldCodeUnknownField},
 		{"masked value", `{"plugins":{"ssh":{"config":{"password":"••••"}}}}`, "/plugins/ssh/config/password", agentconfig.FieldCodeMaskedValue},
 	}
 	for _, tc := range cases {
@@ -396,81 +392,6 @@ func (s *AgentConfigAdminIntegrationSuite) TestPutOverlayValidationErrors() {
 		})
 	}
 	s.Equal(int64(0), s.revisionCount(*s.agent.ID))
-}
-
-func (s *AgentConfigAdminIntegrationSuite) TestPutRegoChecks() {
-	// A direct call to http.send is an error-severity policy error => 422.
-	overlay := fmt.Sprintf(`{"policy_bundles":{"banner":{"modules":{"banner.rego":%q}}}}`, acaHTTPRego)
-	errs := s.unprocessable(s.put(s.server, s.token, `"0"`, overlay))
-	s.Empty(errs.Overlay)
-	s.Require().NotEmpty(errs.PolicyErrors)
-	pe := errs.PolicyErrors[0]
-	s.Equal("banner", pe.Bundle)
-	s.Equal("banner.rego", pe.Path)
-	s.Equal(agentconfig.SeverityError, pe.Severity)
-	s.Contains(pe.Message, "http.send")
-	s.Positive(pe.Row)
-
-	// trace is pure and allowed (R19) => 201.
-	overlay = fmt.Sprintf(`{"policy_bundles":{"banner":{"modules":{"banner.rego":%q}}}}`, acaTraceRego)
-	s.save(`"0"`, overlay, 1)
-}
-
-// TestPutContractChecks: the static policy contract check (R63) on overlay modules. The
-// e2e override (a violation but no title) blocks a standalone bundle, and is only a
-// warning when the bundle extends a source or patches a bundle an instance's file defines.
-func (s *AgentConfigAdminIntegrationSuite) TestPutContractChecks() {
-	noTitle := "package compliance_framework.banner\n\nimport rego.v1\n\nviolation contains {\"id\": \"banner\"} if {\n\tinput.banner == \"\"\n}\n"
-
-	overlay := fmt.Sprintf(`{"policy_bundles":{"banner":{"modules":{"banner.rego":%q}}}}`, noTitle)
-	errs := s.unprocessable(s.put(s.server, s.token, `"0"`, overlay))
-	s.Require().Len(errs.PolicyErrors, 1)
-	pe := errs.PolicyErrors[0]
-	s.Equal(agentconfig.PolicyError{
-		Bundle:   "banner",
-		Path:     "banner.rego",
-		Row:      1,
-		Col:      1,
-		Message:  "package compliance_framework.banner has no title, so the agent records no evidence for it",
-		Severity: agentconfig.SeverityError,
-		Code:     agentconfig.PolicyCodeMissingTitle,
-	}, pe)
-
-	// A literal shape error blocks even when the bundle extends a source.
-	badShape := "package compliance_framework.banner\n\nimport rego.v1\n\ntitle := 1\n"
-	overlay = fmt.Sprintf(`{"policy_bundles":{"banner":{"extends":%q,"modules":{"banner.rego":%q}}}}`, acaVendorPolicy, badShape)
-	errs = s.unprocessable(s.put(s.server, s.token, `"0"`, overlay))
-	byCode := map[string]string{}
-	for _, e := range errs.PolicyErrors {
-		byCode[e.Code] = e.Severity
-	}
-	s.Equal(map[string]string{
-		agentconfig.PolicyCodeInvalidType:      agentconfig.SeverityError,
-		agentconfig.PolicyCodeMissingViolation: agentconfig.SeverityWarning,
-	}, byCode)
-	s.Equal(int64(0), s.revisionCount(*s.agent.ID))
-
-	// Extending a source: the vendor modules may define the title. Preview shows the warning.
-	overlay = fmt.Sprintf(`{"policy_bundles":{"banner":{"extends":%q,"modules":{"banner.rego":%q}}}}`, acaVendorPolicy, noTitle)
-	rec := s.call(http.MethodPost, s.path("/config/preview"), acaPutBody(overlay))
-	s.Require().Equal(http.StatusOK, rec.Code, rec.Body.String())
-	preview := acaData[configPreviewResponse](s, rec)
-	s.Require().Len(preview.PolicyErrors, 1)
-	s.Equal(agentconfig.SeverityWarning, preview.PolicyErrors[0].Severity)
-	s.Equal(agentconfig.PolicyCodeMissingTitle, preview.PolicyErrors[0].Code)
-	s.save(`"0"`, overlay, 1)
-
-	// Patching a bundle an instance's file defines: the file's modules may define it.
-	s.report(*s.agent.ID, agentconfig.ModeApplySafe, func(r *agentconfig.Report) {
-		var base agentconfig.Config
-		s.Require().NoError(json.Unmarshal(r.Base, &base))
-		base.PolicyBundles = map[string]*agentconfig.PolicyBundle{"local": {Modules: map[string]string{"local.rego": acaCleanRego}}}
-		raw, err := json.Marshal(base)
-		s.Require().NoError(err)
-		r.Base, r.Effective = raw, raw
-	})
-	overlay = fmt.Sprintf(`{"policy_bundles":{"local":{"modules":{"extra.rego":%q}}}}`, noTitle)
-	s.save(`"1"`, overlay, 2)
 }
 
 // ---- PUT /config: validation against instance bases (R14, R48) ----
@@ -542,10 +463,16 @@ func (s *AgentConfigAdminIntegrationSuite) TestPutStandaloneWithoutInstances() {
 // ---- PUT /config: request body handling ----
 
 func (s *AgentConfigAdminIntegrationSuite) TestPutBodyHandling() {
-	// Over the 3M body limit => 413.
-	big := []byte(`{"overlay":{"verbosity":1},"comment":"` + strings.Repeat("a", 3<<20) + `"}`)
+	// Over the body limit => 413.
+	big := []byte(`{"overlay":{"verbosity":1},"comment":"` + strings.Repeat("a", agentConfigBodyLimit) + `"}`)
 	rec := s.call(http.MethodPut, s.path("/config"), big, "If-Match", `"0"`)
 	s.Equal(http.StatusRequestEntityTooLarge, rec.Code)
+
+	// An overlay over MaxOverlayBytes but within the body limit reaches validation => 422.
+	oversized := fmt.Sprintf(`{"overlay":{"plugins":{"ssh":{"labels":{"a":%q}}}}}`, strings.Repeat("v", agentconfig.MaxOverlayBytes))
+	errs := s.unprocessable(s.call(http.MethodPut, s.path("/config"), []byte(oversized), "If-Match", `"0"`))
+	s.Require().NotEmpty(errs.Overlay)
+	s.Equal(agentconfig.FieldCodeSize, errs.Overlay[0].Code)
 
 	// A non-JSON media type => 415.
 	rec = s.call(http.MethodPut, s.path("/config"), acaPutBody(`{"verbosity":1}`), "If-Match", `"0"`, echo.HeaderContentType, "text/plain")
@@ -1097,10 +1024,6 @@ func (s *AgentConfigAdminIntegrationSuite) TestCedarViewer() {
 		s.Equal(http.StatusForbidden, rec.Code, "%s %s: %s", tc.method, tc.path, rec.Body.String())
 	}
 	s.Equal(int64(0), s.revisionCount(*s.agent.ID))
-}
-
-func acaBundleOverlay(name, module string) string {
-	return fmt.Sprintf(`{"policy_bundles":{%q:{"modules":{"banner.rego":%q}}}}`, name, module)
 }
 
 func (s *AgentConfigAdminIntegrationSuite) TestCedarAdminCanEditSchedule() {

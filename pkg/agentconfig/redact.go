@@ -33,8 +33,8 @@ func WithMaskedPointers(ptrs ...string) RedactOption {
 // replaced by MaskedValue. Apply it to the UNRESOLVED config (placeholders intact). It is
 // idempotent.
 //
-// Mask rule, under plugins.*.config, plugins.*.policy_data (any depth) and
-// policy_bundles.*.data (any depth), for each string value:
+// Mask rule, under plugins.*.config and plugins.*.policy_data (any depth), for each string
+// value:
 //  1. a value containing an ${env:...} reference is kept verbatim;
 //  2. else a value at a pointer given to WithMaskedPointers becomes MaskedValue;
 //  3. else a value whose key matches (?i)(secret|token|password|passwd|key|credential|auth)
@@ -63,12 +63,6 @@ func Redact(c Config, opts ...RedactOption) Config {
 		if p.PolicyData != nil {
 			p.PolicyData = o.redactMap(Pointer("plugins", pluginName, "policy_data"), p.PolicyData)
 		}
-	}
-	for bundleName, b := range out.PolicyBundles {
-		if b == nil || b.Data == nil {
-			continue
-		}
-		b.Data = o.redactMap(Pointer("policy_bundles", bundleName, "data"), b.Data)
 	}
 	return out
 }

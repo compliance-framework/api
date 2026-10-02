@@ -224,9 +224,6 @@ func normalizeReport(r *agentconfig.Report) error {
 		if b.ArtifactDigest != "" && !artifact.ValidDigest(b.ArtifactDigest) {
 			return fmt.Errorf("policy-bundles[%d].artifact-digest must match sha256:<64 lowercase hex>", i)
 		}
-		if b.Extends != nil && b.Extends.ArtifactDigest != "" && !artifact.ValidDigest(b.Extends.ArtifactDigest) {
-			return fmt.Errorf("policy-bundles[%d].extends.artifact-digest must match sha256:<64 lowercase hex>", i)
-		}
 	}
 	for i, p := range r.Plugins {
 		if strings.TrimSpace(p.Name) == "" {

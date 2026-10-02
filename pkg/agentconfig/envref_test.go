@@ -57,7 +57,6 @@ func envConfig() Config {
 			},
 			"nil": nil,
 		},
-		PolicyBundles: map[string]*PolicyBundle{"b": {Data: map[string]any{"d": "${env:PW}"}}},
 	}
 }
 
@@ -76,7 +75,6 @@ func TestResolveEnv(t *testing.T) {
 	assert.Equal(t, "ghcr.io/x/${env:ORG}:v1", p.Source, "only plugins.*.config is resolved")
 	assert.Equal(t, "${env:PW}", p.Labels["l"])
 	assert.Equal(t, "${env:PW}", p.PolicyData["d"])
-	assert.Equal(t, "${env:PW}", out.PolicyBundles["b"].Data["d"])
 	assert.Nil(t, out.Plugins["nil"])
 
 	assert.Equal(t, envConfig(), in, "input not mutated")

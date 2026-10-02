@@ -20,7 +20,7 @@ func TestPointer(t *testing.T) {
 		{[]string{"k~ey"}, "/k~0ey"},
 		{[]string{"~/", "/~"}, "/~0~1/~1~0"},
 		{[]string{"~1"}, "/~01"},
-		{[]string{"policy_bundles", "ssh", "modules", "sub/banner.rego"}, "/policy_bundles/ssh/modules/sub~1banner.rego"},
+		{[]string{"plugins", "ssh", "policy_data", "sub/key"}, "/plugins/ssh/policy_data/sub~1key"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.want, func(t *testing.T) {

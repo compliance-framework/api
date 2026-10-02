@@ -46,20 +46,6 @@ func redactBase() Config {
 			},
 			"nil-plugin": nil,
 		},
-		PolicyBundles: map[string]*PolicyBundle{
-			"ssh-tuned": {
-				Extends: strPtr(srcPolicies),
-				Modules: map[string]string{"secret.rego": "package secret"},
-				Data: map[string]any{
-					"allowed":     []any{"a"},
-					"nested":      map[string]any{"auth": map[string]any{"x": "y"}, "plain": "keep"},
-					"credential":  true,
-					"public_note": "keep",
-				},
-			},
-			"nil-bundle": nil,
-			"no-data":    {Extends: strPtr(srcPolicies)},
-		},
 	}
 }
 
@@ -98,17 +84,6 @@ func TestRedact(t *testing.T) {
 	assert.Contains(t, pd, "nothing")
 	assert.Nil(t, pd["nothing"])
 
-	b := out.PolicyBundles["ssh-tuned"]
-	assert.Equal(t, map[string]any{
-		"allowed":     []any{"a"},
-		"nested":      map[string]any{"auth": MaskedValue, "plain": "keep"},
-		"credential":  MaskedValue,
-		"public_note": "keep",
-	}, b.Data)
-	assert.Equal(t, map[string]string{"secret.rego": "package secret"}, b.Modules, "modules are never redacted")
-	assert.Nil(t, out.PolicyBundles["nil-bundle"])
-	assert.Nil(t, out.PolicyBundles["no-data"].Data)
-
 	assert.Equal(t, redactBase(), in, "input not mutated")
 }
 
@@ -118,7 +93,6 @@ func TestRedactWithMaskedPointers(t *testing.T) {
 		"/plugins/local-ssh/config/db_password", // placeholder wins over the pointer
 		"/plugins/local-ssh/policy_data/db/host",
 		"/plugins/local-ssh/policy_data/threshold",
-		"/policy_bundles/ssh-tuned/data/public_note",
 	), WithMaskedPointers("/plugins/local-ssh/config/host"))
 
 	cfg := out.Plugins["local-ssh"].Config
@@ -128,7 +102,6 @@ func TestRedactWithMaskedPointers(t *testing.T) {
 	pd := out.Plugins["local-ssh"].PolicyData
 	assert.Equal(t, MaskedValue, pd["db"].(map[string]any)["host"])
 	assert.Equal(t, MaskedValue, pd["threshold"], "non-string at a masked pointer")
-	assert.Equal(t, MaskedValue, out.PolicyBundles["ssh-tuned"].Data["public_note"])
 }
 
 func TestRedactPointerEscaping(t *testing.T) {

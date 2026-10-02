@@ -129,7 +129,7 @@ func lockedBase() Config {
 			PollInterval:           "30s",
 			TrustedSources:         []string{"ghcr.io/compliance-framework/*"},
 			OverridableConfigFlags: []string{"local-ssh:port"},
-			AllowInlinePolicies:    boolPtr(false),
+			AllowLocalSources:      true,
 		},
 		Plugins: map[string]*Plugin{
 			"local-ssh": {
@@ -202,9 +202,9 @@ func TestMerge(t *testing.T) {
 	})
 
 	t.Run("policies array replaced", func(t *testing.T) {
-		eff, err := Merge(lockedBase(), json.RawMessage(`{"plugins":{"local-ssh":{"policies":["inline:x"]}}}`))
+		eff, err := Merge(lockedBase(), json.RawMessage(`{"plugins":{"local-ssh":{"policies":["./policies/x"]}}}`))
 		require.NoError(t, err)
-		assert.Equal(t, []string{"inline:x"}, eff.Plugins["local-ssh"].Policies)
+		assert.Equal(t, []string{"./policies/x"}, eff.Plugins["local-ssh"].Policies)
 	})
 
 	t.Run("protocol_version null resets to auto", func(t *testing.T) {
@@ -233,20 +233,6 @@ func TestMerge(t *testing.T) {
 		eff, err := Merge(base, json.RawMessage(`{}`))
 		require.NoError(t, err)
 		assert.Equal(t, map[string]any{"a": json.Number("1")}, eff.Plugins["local-ssh"].PolicyData["m"])
-	})
-
-	t.Run("policy bundles merge and module null deletes", func(t *testing.T) {
-		base := lockedBase()
-		base.PolicyBundles = map[string]*PolicyBundle{
-			"ssh": {Extends: strPtr("ghcr.io/v/p:v1"), Modules: map[string]string{"a.rego": "package a", "b.rego": "package b"}},
-		}
-		eff, err := Merge(base, json.RawMessage(`{"policy_bundles":{"ssh":{"modules":{"a.rego":null,"c.rego":"package c"},"delete":["x.rego"]}}}`))
-		require.NoError(t, err)
-		b := eff.PolicyBundles["ssh"]
-		require.NotNil(t, b)
-		assert.Equal(t, map[string]string{"b.rego": "package b", "c.rego": "package c"}, b.Modules)
-		assert.Equal(t, []string{"x.rego"}, b.Delete)
-		assert.Equal(t, "ghcr.io/v/p:v1", *b.Extends)
 	})
 
 	t.Run("unknown overlay keys are ignored (non-strict)", func(t *testing.T) {
@@ -279,7 +265,6 @@ func FuzzMergeNeverChangesLocked(f *testing.F) {
 		`{"remote_config":null,"api":null,"daemon":false}`,
 		`{"verbosity":2,"plugins":{"x":{"source":"ghcr.io/x/y:v1"}}}`,
 		`{"plugins":{"api":{"config":{"daemon":"x"}}}}`,
-		`{"policy_bundles":{"b":{"modules":{"a.rego":"package a"}}}}`,
 		`{"API":{"url":"case"},"Daemon":false,"Remote_Config":{"mode":"apply_all"}}`,
 		`{"api":1,"api":{"url":"dup"}}`,
 		`[1,2]`,

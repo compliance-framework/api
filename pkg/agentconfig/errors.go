@@ -19,23 +19,21 @@ type FieldError struct {
 // env-missing; locked-key / forbidden-env -> forbidden-changes; everything else ->
 // invalid-config.
 const (
-	FieldCodeUnknownField  = "unknown-field"  // key not in the schema (O4)
-	FieldCodeInvalidType   = "invalid-type"   // wrong JSON type, e.g. a non-string config/labels value (O5)
-	FieldCodeInvalidValue  = "invalid-value"  // right type, out of range / not in enum
-	FieldCodeLockedKey     = "locked-key"     // api / daemon / remote_config in an overlay (O3)
-	FieldCodeSize          = "size"           // overlay / module / bundle size limits (O2, A1.9)
-	FieldCodePattern       = "pattern"        // name or module-path pattern, data-file name (O6, A1.9)
-	FieldCodeCron          = "cron"           // schedule does not parse (O7)
-	FieldCodeDuration      = "duration"       // interval / poll_interval
-	FieldCodeSource        = "source"         // empty / inline plugin source, bad policy entry (O8)
-	FieldCodeUnresolvedRef = "unresolved-ref" // inline:<b> without a bundle
-	FieldCodeEnvLocation   = "env-location"   // ${env:} outside plugins.*.config (O9)
-	FieldCodeForbiddenEnv  = "forbidden-env"  // ${env:CCF_API_AUTH_*} (O9)
-	FieldCodeEnvMissing    = "env-missing"    // ResolveEnv: variable unset (agent only)
-	FieldCodeMaskedValue   = "masked-value"   // "••••" submitted (O10)
-	FieldCodeRequired      = "required"       // missing required field (api.url, plugin source, ...)
-	FieldCodeConflict      = "conflict"       // data vs data.json, delete ∩ modules, delete without extends
-	FieldCodeParse         = "parse"          // not a JSON object / data file does not parse
+	FieldCodeUnknownField = "unknown-field" // key not in the schema (O4)
+	FieldCodeInvalidType  = "invalid-type"  // wrong JSON type, e.g. a non-string config/labels value (O5)
+	FieldCodeInvalidValue = "invalid-value" // right type, out of range / not in enum
+	FieldCodeLockedKey    = "locked-key"    // api / daemon / remote_config in an overlay (O3)
+	FieldCodeSize         = "size"          // overlay size limit (O2)
+	FieldCodePattern      = "pattern"       // plugin name or glob pattern (O6)
+	FieldCodeCron         = "cron"          // schedule does not parse (O7)
+	FieldCodeDuration     = "duration"      // interval / poll_interval
+	FieldCodeSource       = "source"        // empty plugin source or policy entry (O8)
+	FieldCodeEnvLocation  = "env-location"  // ${env:} outside plugins.*.config (O9)
+	FieldCodeForbiddenEnv = "forbidden-env" // ${env:CCF_API_AUTH_*} (O9)
+	FieldCodeEnvMissing   = "env-missing"   // ResolveEnv: variable unset (agent only)
+	FieldCodeMaskedValue  = "masked-value"  // "••••" submitted (O10)
+	FieldCodeRequired     = "required"      // missing required field (api.url, plugin source, ...)
+	FieldCodeParse        = "parse"         // not a JSON object
 )
 
 // ValidationErrors is a list of FieldErrors; it is the error type returned by the
@@ -179,34 +177,4 @@ func SortPolicyErrors(errs []PolicyError) {
 			strings.Compare(a.Message, b.Message),
 		)
 	})
-}
-
-// bundleIssue is a bundle-shape problem with the extra detail needed to report it as a
-// FieldError: the FieldError code and the pointer suffix under /policy_bundles/<bundle>.
-type bundleIssue struct {
-	PolicyError
-	code  string // FieldCode*
-	field string // pointer suffix under the bundle; "" = derived from PolicyError.Path
-}
-
-func (i bundleIssue) fieldError() FieldError {
-	ptr := Pointer("policy_bundles", i.Bundle)
-	switch {
-	case i.field != "":
-		ptr += i.field
-	case i.Path != "":
-		ptr = appendPointer(appendPointer(ptr, "modules"), i.Path)
-	}
-	return FieldError{Path: ptr, Code: i.code, Message: i.Message}
-}
-
-// issuesToFieldErrors converts error-severity bundle issues into FieldErrors.
-func issuesToFieldErrors(issues []bundleIssue) []FieldError {
-	var out []FieldError
-	for _, i := range issues {
-		if i.Severity == SeverityError {
-			out = append(out, i.fieldError())
-		}
-	}
-	return out
 }

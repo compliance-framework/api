@@ -321,7 +321,7 @@ func (s *AgentCfgServiceIntegrationSuite) TestUpsertReportInsertsThenUpdates() {
 	t0 := s.now
 
 	warnings := []agentconfig.FieldError{{Path: "/plugins/p1/foo", Code: "unknown-field", Message: "unknown"}}
-	bundles := []agentconfig.PolicyBundleReport{{Source: "inline:b1", Digest: "sha256:1", Files: []agentconfig.PolicyFileReport{{Path: "a.rego", SHA256: "x"}}}}
+	bundles := []agentconfig.PolicyBundleReport{{Source: "ghcr.io/v/b1:1", Digest: "sha256:1", Files: []agentconfig.PolicyFileReport{{Path: "a.rego", SHA256: "x"}}}}
 	plugins := []agentconfig.PluginReport{{Name: "p1", Source: "ghcr.io/x/p1:v1", LibVersion: "v0.7.1"}}
 	policyErrs := []agentconfig.PolicyError{{Bundle: "b1", Path: "a.rego", Row: 3, Message: "boom", Severity: "error"}}
 	unsafe := []agentconfig.Change{{Path: "/plugins/p1/source", Safety: agentconfig.Unsafe, Reason: "source-changed"}}
@@ -515,7 +515,7 @@ func (s *AgentCfgServiceIntegrationSuite) TestListAndGetInstances() {
 	older, newer := uuid.New(), uuid.New()
 	report := applyReport(agentconfig.ModeApplySafe, baseConfig)
 	report.Warnings = []agentconfig.FieldError{{Path: "/x", Code: "unknown-field", Message: "m"}}
-	report.PolicyBundles = []agentconfig.PolicyBundleReport{{Source: "inline:b", Digest: "d", Files: []agentconfig.PolicyFileReport{}}}
+	report.PolicyBundles = []agentconfig.PolicyBundleReport{{Source: "ghcr.io/v/b:1", Digest: "d", Files: []agentconfig.PolicyFileReport{}}}
 	report.RemoteConfig = &agentconfig.RemoteConfig{Mode: agentconfig.ModeApplySafe}
 	s.Require().NoError(s.reportAt(s.svc, s.now.Add(-time.Hour), agentID, older, report))
 	s.Require().NoError(s.reportAt(s.svc, s.now, agentID, newer, report))
@@ -620,8 +620,7 @@ func (s *AgentCfgServiceIntegrationSuite) TestValidationBasesFreshInstances() {
 	s.Equal("30s", allRemote.PollInterval)
 	s.Equal([]string{}, allRemote.TrustedSources)
 	s.Equal([]string{}, allRemote.OverridableConfigFlags)
-	s.Require().NotNil(allRemote.AllowInlinePolicies)
-	s.True(*allRemote.AllowInlinePolicies)
+	s.False(allRemote.AllowLocalSources)
 }
 
 func (s *AgentCfgServiceIntegrationSuite) TestValidationBasesFallbackAndStandalone() {

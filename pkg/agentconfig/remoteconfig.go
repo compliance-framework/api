@@ -9,8 +9,7 @@ import (
 //   - Mode "" becomes apply_safe with auth, off without; no auth always forces off;
 //   - PollInterval "" becomes "60s";
 //   - nil TrustedSources / OverridableConfigFlags become [];
-//   - AllowLocalSources stays false unless set;
-//   - nil AllowInlinePolicies becomes true.
+//   - AllowLocalSources stays false unless set.
 func (rc RemoteConfig) Normalize(hasAuth bool) RemoteConfig {
 	out := rc
 	switch {
@@ -30,11 +29,6 @@ func (rc RemoteConfig) Normalize(hasAuth bool) RemoteConfig {
 	if out.OverridableConfigFlags == nil {
 		out.OverridableConfigFlags = []string{}
 	}
-	allowInline := true
-	if rc.AllowInlinePolicies != nil {
-		allowInline = *rc.AllowInlinePolicies
-	}
-	out.AllowInlinePolicies = &allowInline
 	return out
 }
 

@@ -16,7 +16,6 @@ func TestNormalize(t *testing.T) {
 			TrustedSources:         []string{},
 			OverridableConfigFlags: []string{},
 			AllowLocalSources:      false,
-			AllowInlinePolicies:    boolPtr(true),
 		}, got)
 		require.NotNil(t, got.TrustedSources, "[] not nil")
 		require.NotNil(t, got.OverridableConfigFlags, "[] not nil")
@@ -33,7 +32,6 @@ func TestNormalize(t *testing.T) {
 			TrustedSources:         []string{"ghcr.io/*"},
 			OverridableConfigFlags: []string{"*"},
 			AllowLocalSources:      true,
-			AllowInlinePolicies:    boolPtr(false),
 		}
 		got := in.Normalize(true)
 		assert.Equal(t, ModeReport, got.Mode)
@@ -41,13 +39,10 @@ func TestNormalize(t *testing.T) {
 		assert.Equal(t, []string{"ghcr.io/*"}, got.TrustedSources)
 		assert.Equal(t, []string{"*"}, got.OverridableConfigFlags)
 		assert.True(t, got.AllowLocalSources)
-		assert.False(t, *got.AllowInlinePolicies)
 
 		// The result does not alias the input.
 		got.TrustedSources[0] = "changed"
-		*got.AllowInlinePolicies = true
 		assert.Equal(t, "ghcr.io/*", in.TrustedSources[0])
-		assert.False(t, *in.AllowInlinePolicies)
 	})
 	t.Run("empty slices stay empty", func(t *testing.T) {
 		got := RemoteConfig{TrustedSources: []string{}, OverridableConfigFlags: []string{}}.Normalize(true)
@@ -71,7 +66,6 @@ func TestEffectiveRemoteConfig(t *testing.T) {
 	got := Config{API: withAuth, RemoteConfig: &RemoteConfig{Mode: ModeReport, PollInterval: "2m"}}.EffectiveRemoteConfig()
 	assert.Equal(t, ModeReport, got.Mode)
 	assert.Equal(t, "2m", got.PollInterval)
-	assert.True(t, *got.AllowInlinePolicies)
 }
 
 func TestAPIConfigAuth(t *testing.T) {

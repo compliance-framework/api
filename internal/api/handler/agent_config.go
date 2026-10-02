@@ -18,7 +18,6 @@ import (
 	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/compliance-framework/api/internal/service/relational/agentcfg"
 	"github.com/compliance-framework/api/pkg/agentconfig"
-	"github.com/compliance-framework/api/pkg/agentconfig/regocheck"
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 	echomiddleware "github.com/labstack/echo/v4/middleware"
@@ -27,9 +26,15 @@ import (
 )
 
 const (
-	// agentConfigBodyLimit bounds PUT/preview bodies: the largest overlay plus the envelope.
-	agentConfigBodyLimit    = 3 << 20
-	agentConfigBodyLimitStr = "3M"
+	// agentConfigBodyLimit bounds PUT/preview/revert bodies. agentconfig.MaxOverlayBytes
+	// (256 KiB) is measured on the compact overlay, but clients may send it pretty-printed,
+	// which can roughly double or triple it, inside an envelope with a comment of up to
+	// maxRevisionCommentLen characters (at most ~12 KiB JSON-escaped). Four times the overlay
+	// limit (1 MiB) leaves room for that, so an overlay is rejected by ValidateOverlay with a
+	// precise 422 rather than by the transport with a 413. agentConfigBodyLimitStr is the
+	// same limit for echo's BodyLimit middleware.
+	agentConfigBodyLimit    = 4 * agentconfig.MaxOverlayBytes
+	agentConfigBodyLimitStr = "1M"
 	maxRevisionCommentLen   = 2000
 )
 
@@ -212,7 +217,7 @@ func (h *AgentConfigHandler) Get(ctx echo.Context) error {
 // Put godoc
 //
 //	@Summary		Save an agent's configuration overlay
-//	@Description	Creates the next configuration revision. Requires If-Match with the current revision ("0" for the first save): missing is 428, stale is 409 with current-revision. A semantically unchanged overlay returns 200 with the current revision and creates nothing. The overlay is validated on its own, its inline Rego is checked at parse level (advisory: the agent is the security boundary; direct calls to http.send, net.lookup_ip_addr and opa.runtime are rejected; cross-bundle imports are unsupported) and against the policy contract (R63: literal type and shape errors in title, description, remarks, skip_reason, labels, violation and risk_templates are rejected; a package without a title is rejected unless the bundle extends a source or patches a bundle an instance's file defines, where it is a warning), and the merged config is validated against every fresh apply-mode instance's reported base (or the latest reported one); only errors the overlay introduces block (errors already present in the instance's own file are ignored, R59). Errors are a 422 with overlay, instances (errors plus non-blocking warnings) and policy-errors lists. Needs agent:configure.
+//	@Description	Creates the next configuration revision. Requires If-Match with the current revision ("0" for the first save): missing is 428, stale is 409 with current-revision. A semantically unchanged overlay returns 200 with the current revision and creates nothing. The overlay is validated on its own, and the merged config is validated against every fresh apply-mode instance's reported base (or the latest reported one); only errors the overlay introduces block (errors already present in the instance's own file are ignored, R59). Errors are a 422 with overlay, instances (errors plus non-blocking warnings) and policy-errors lists. Needs agent:configure.
 //	@Tags			Agent Configuration
 //	@Accept			json
 //	@Produce		json
@@ -386,7 +391,7 @@ func (h *AgentConfigHandler) save(ctx echo.Context, agent *relational.Agent, exp
 // Preview godoc
 //
 //	@Summary		Preview an agent configuration overlay
-//	@Description	Validates a candidate overlay without saving it and shows, per reporting instance (fresh and stale), the redacted effective config, its diff against the instance's current effective config, the classified changes and whether the agent would apply it. validated marks the instances a save validates against; only their errors block a save. errors are the problems the overlay introduces; warnings are problems already in the instance's own file (present in Merge(base, {})), which never block a save or force invalid-config (R59). The inline Rego check is parse-level and advisory; cross-bundle imports are unsupported. Validation problems are returned in the 200 body.
+//	@Description	Validates a candidate overlay without saving it and shows, per reporting instance (fresh and stale), the redacted effective config, its diff against the instance's current effective config, the classified changes and whether the agent would apply it. validated marks the instances a save validates against; only their errors block a save. errors are the problems the overlay introduces; warnings are problems already in the instance's own file (present in Merge(base, {})), which never block a save or force invalid-config (R59). Validation problems are returned in the 200 body.
 //	@Tags			Agent Configuration
 //	@Accept			json
 //	@Produce		json
@@ -518,14 +523,10 @@ func (r candidateResult) errorBody() api.Error {
 
 // validateCandidate runs the pipeline shared by PUT, revert and preview:
 //  1. ValidateOverlay (the overlay on its own);
-//  2. the parse-level Rego checks and the static policy contract check on the bundles the
-//     overlay defines (only non-null modules); advisory, but error-severity entries block
-//     (R20, R54, R63). A missing title is only a warning for bundles that extend a source
-//     or patch a bundle a validation base defines;
-//  3. when (1) passed: Merge(base, overlay).ValidateEditable() for every validation base,
+//  2. when (1) passed: Merge(base, overlay).ValidateEditable() for every validation base,
 //     grouped by instance. Only errors the overlay introduces are kept (R59, see
 //     splitIntroduced); an instance is listed only when it has at least one. With no bases
-//     (standalone) only (1) and (2) run.
+//     (standalone) only (1) runs.
 func validateCandidate(overlay json.RawMessage, bases []agentcfg.InstanceBase) candidateResult {
 	var r candidateResult
 	if err := agentconfig.ValidateOverlay(overlay); err != nil {
@@ -535,9 +536,6 @@ func validateCandidate(overlay json.RawMessage, bases []agentcfg.InstanceBase) c
 		} else {
 			r.overlay = []agentconfig.FieldError{{Path: "", Code: agentconfig.FieldCodeParse, Message: err.Error()}}
 		}
-	}
-	if bundles, err := agentconfig.OverlayBundles(overlay); err == nil && len(bundles) > 0 {
-		r.policy = regocheck.ValidateModules(bundles, regocheck.WithPartialBundles(fileBundleNames(bases)...))
 	}
 	if len(r.overlay) > 0 {
 		return r
@@ -553,20 +551,6 @@ func validateCandidate(overlay json.RawMessage, bases []agentcfg.InstanceBase) c
 		}
 	}
 	return r
-}
-
-// fileBundleNames returns the bundles any validation base defines. An overlay bundle of the
-// same name patches that bundle, so the overlay's modules are only part of it (R63).
-func fileBundleNames(bases []agentcfg.InstanceBase) []string {
-	var names []string
-	for _, b := range bases {
-		for name, bundle := range b.Base.PolicyBundles {
-			if bundle != nil {
-				names = append(names, name)
-			}
-		}
-	}
-	return names
 }
 
 // splitIntroduced validates Merge(base, overlay) and splits its errors into the ones the

@@ -3,8 +3,8 @@
 // overlay onto the agent's file config, overlay validation, change-safety classification,
 // redaction, digests, opaque ETags, and the agent<->API wire types.
 //
-// The package does no I/O and never imports OPA; Rego checks live in the regocheck
-// sub-package so that importing agentconfig (as sdk/ does) stays light.
+// The package does no I/O and never imports OPA, so importing agentconfig (as sdk/ does)
+// stays light.
 //
 // Conventions:
 //   - Config documents are snake_case JSON and are treated as opaque by API envelopes.

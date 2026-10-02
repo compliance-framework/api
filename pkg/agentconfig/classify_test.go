@@ -43,13 +43,6 @@ func classifyBase() Config {
 				Policies: []string{srcLocalUsed},
 			},
 		},
-		PolicyBundles: map[string]*PolicyBundle{
-			"ssh-tuned": {
-				Extends: strPtr(srcPolicies),
-				Modules: map[string]string{"banner.rego": "package compliance_framework.banner"},
-				Data:    map[string]any{"k": "v"},
-			},
-		},
 	}
 }
 
@@ -65,7 +58,6 @@ func testRC(mode string, mutate ...func(*RemoteConfig)) RemoteConfig {
 	return rc.Normalize(true)
 }
 
-func noInline(rc *RemoteConfig)   { rc.AllowInlinePolicies = boolPtr(false) }
 func allowLocal(rc *RemoteConfig) { rc.AllowLocalSources = true }
 func overridable(flags ...string) func(*RemoteConfig) {
 	return func(rc *RemoteConfig) { rc.OverridableConfigFlags = flags }
@@ -128,7 +120,7 @@ func TestClassify(t *testing.T) {
 		{
 			name:    "policy_data is always safe, even with secret-like keys and env-like strings",
 			overlay: `{"plugins":{"local-ssh":{"policy_data":{"password":"x","ref":"${env:CCF_API_AUTH_CLIENT_SECRET}"}}}}`,
-			rc:      testRC(ModeApplySafe, noInline, overridable()),
+			rc:      testRC(ModeApplySafe, overridable()),
 			want:    []Change{{Path: "/plugins/local-ssh/policy_data", Safety: Safe, Reason: ChangeReasonDataOnly}},
 		},
 		// Source.
@@ -142,17 +134,16 @@ func TestClassify(t *testing.T) {
 		{name: "source local in apply_all with allow_local_sources", overlay: `{"plugins":{"local-ssh":{"source":"` + srcLocalNew + `"}}}`, rc: testRC(ModeApplyAll, allowLocal), want: []Change{{Path: "/plugins/local-ssh/source", Safety: Unsafe, Reason: ChangeReasonNewLocalSource, Value: srcLocalNew}}},
 		{name: "source OCI without tag is local", overlay: `{"plugins":{"local-ssh":{"source":"ghcr.io/compliance-framework/p"}}}`, rc: safe, want: []Change{{Path: "/plugins/local-ssh/source", Safety: Forbidden, Reason: ChangeReasonLocalSourceNotAllowed, Value: "ghcr.io/compliance-framework/p"}}},
 		// Policies.
-		{name: "policies add inline", overlay: `{"plugins":{"local-ssh":{"policies":["` + srcPolicies + `","` + srcCommon + `","inline:ssh-tuned"]}}}`, rc: safe, want: []Change{{Path: "/plugins/local-ssh/policies", Safety: Safe, Reason: ChangeReasonInlinePolicy, Value: "inline:ssh-tuned"}}},
-		{name: "policies add inline, inline disabled", overlay: `{"plugins":{"local-ssh":{"policies":["inline:ssh-tuned"]}}}`, rc: testRC(ModeApplySafe, noInline), want: []Change{{Path: "/plugins/local-ssh/policies", Safety: Unsafe, Reason: ChangeReasonInlinePoliciesDisabled, Value: "inline:ssh-tuned"}}},
+		{name: "policies add an inline:-prefixed entry, a local path", overlay: `{"plugins":{"local-ssh":{"policies":["` + srcPolicies + `","` + srcCommon + `","inline:ssh-tuned"]}}}`, rc: safe, want: []Change{{Path: "/plugins/local-ssh/policies", Safety: Forbidden, Reason: ChangeReasonLocalSourceNotAllowed, Value: "inline:ssh-tuned"}}},
 		{name: "policies add trusted OCI", overlay: `{"plugins":{"local-ssh":{"policies":["` + srcPolicies + `","ghcr.io/compliance-framework/extra:v1"]}}}`, rc: safe, want: []Change{{Path: "/plugins/local-ssh/policies", Safety: Safe, Reason: ChangeReasonTrustedSource, Value: "ghcr.io/compliance-framework/extra:v1"}}},
 		{
 			name:    "policies add several",
-			overlay: `{"plugins":{"local-ssh":{"policies":["` + srcUntrusted + `","inline:ssh-tuned","` + srcLocalUsed + `"]}}}`,
+			overlay: `{"plugins":{"local-ssh":{"policies":["` + srcUntrusted + `","ghcr.io/compliance-framework/extra:v1","` + srcLocalUsed + `"]}}}`,
 			rc:      safe,
 			want: []Change{
 				{Path: "/plugins/local-ssh/policies", Safety: Safe, Reason: ChangeReasonAlreadyUsed, Value: srcLocalUsed},
+				{Path: "/plugins/local-ssh/policies", Safety: Safe, Reason: ChangeReasonTrustedSource, Value: "ghcr.io/compliance-framework/extra:v1"},
 				{Path: "/plugins/local-ssh/policies", Safety: Unsafe, Reason: ChangeReasonUntrustedSource, Value: srcUntrusted},
-				{Path: "/plugins/local-ssh/policies", Safety: Safe, Reason: ChangeReasonInlinePolicy, Value: "inline:ssh-tuned"},
 			},
 		},
 		{name: "policies removal", overlay: `{"plugins":{"local-ssh":{"policies":["` + srcCommon + `"]}}}`, rc: safe, want: []Change{{Path: "/plugins/local-ssh/policies", Safety: Safe, Reason: ChangeReasonReducesScope}}},
@@ -188,37 +179,15 @@ func TestClassify(t *testing.T) {
 		// New plugin: the class of its parts.
 		{
 			name:    "new plugin",
-			overlay: `{"plugins":{"new":{"source":"ghcr.io/compliance-framework/new:v1","schedule":"@hourly","config":{"port":"1"},"policies":["inline:ssh-tuned"]}}}`,
+			overlay: `{"plugins":{"new":{"source":"ghcr.io/compliance-framework/new:v1","schedule":"@hourly","config":{"port":"1"},"policies":["` + srcCommon + `"]}}}`,
 			rc:      safe,
 			want: []Change{
 				{Path: "/plugins/new/config/port", Safety: Unsafe, Reason: ChangeReasonConfigNotOverridable},
-				{Path: "/plugins/new/policies", Safety: Safe, Reason: ChangeReasonInlinePolicy, Value: "inline:ssh-tuned"},
+				{Path: "/plugins/new/policies", Safety: Safe, Reason: ChangeReasonAlreadyUsed, Value: srcCommon},
 				{Path: "/plugins/new/schedule", Safety: Safe, Reason: ChangeReasonDataOnly},
 				{Path: "/plugins/new/source", Safety: Safe, Reason: ChangeReasonTrustedSource, Value: "ghcr.io/compliance-framework/new:v1"},
 			},
 		},
-		// Bundles.
-		{name: "bundle removed", overlay: `{"policy_bundles":{"ssh-tuned":null}}`, rc: safe, want: []Change{{Path: "/policy_bundles/ssh-tuned", Safety: Safe, Reason: ChangeReasonReducesScope}}},
-		{name: "module changed", overlay: `{"policy_bundles":{"ssh-tuned":{"modules":{"banner.rego":"package compliance_framework.banner2"}}}}`, rc: safe, want: []Change{{Path: "/policy_bundles/ssh-tuned/modules/banner.rego", Safety: Safe, Reason: ChangeReasonInlinePolicy}}},
-		{name: "module added nested, inline disabled", overlay: `{"policy_bundles":{"ssh-tuned":{"modules":{"sub/x.rego":"package x"}}}}`, rc: testRC(ModeApplySafe, noInline), want: []Change{{Path: "/policy_bundles/ssh-tuned/modules/sub~1x.rego", Safety: Unsafe, Reason: ChangeReasonInlinePoliciesDisabled}}},
-		{name: "module deleted by null", overlay: `{"policy_bundles":{"ssh-tuned":{"modules":{"banner.rego":null}}}}`, rc: safe, want: []Change{{Path: "/policy_bundles/ssh-tuned/modules/banner.rego", Safety: Safe, Reason: ChangeReasonInlinePolicy}}},
-		{name: "data changed", overlay: `{"policy_bundles":{"ssh-tuned":{"data":{"k":"w"}}}}`, rc: safe, want: []Change{{Path: "/policy_bundles/ssh-tuned/data", Safety: Safe, Reason: ChangeReasonInlinePolicy}}},
-		{name: "delete changed", overlay: `{"policy_bundles":{"ssh-tuned":{"delete":["x.rego"]}}}`, rc: testRC(ModeApplySafe, noInline), want: []Change{{Path: "/policy_bundles/ssh-tuned/delete", Safety: Unsafe, Reason: ChangeReasonInlinePoliciesDisabled}}},
-		{name: "extends trusted", overlay: `{"policy_bundles":{"ssh-tuned":{"extends":"ghcr.io/compliance-framework/p:v2"}}}`, rc: safe, want: []Change{{Path: "/policy_bundles/ssh-tuned/extends", Safety: Safe, Reason: ChangeReasonInlinePolicy, Value: "ghcr.io/compliance-framework/p:v2"}}},
-		{name: "extends untrusted", overlay: `{"policy_bundles":{"ssh-tuned":{"extends":"` + srcUntrusted + `"}}}`, rc: safe, want: []Change{{Path: "/policy_bundles/ssh-tuned/extends", Safety: Unsafe, Reason: ChangeReasonUntrustedSource, Value: srcUntrusted}}},
-		{name: "extends trusted, inline disabled", overlay: `{"policy_bundles":{"ssh-tuned":{"extends":"ghcr.io/compliance-framework/p:v2"}}}`, rc: testRC(ModeApplySafe, noInline), want: []Change{{Path: "/policy_bundles/ssh-tuned/extends", Safety: Unsafe, Reason: ChangeReasonInlinePoliciesDisabled, Value: "ghcr.io/compliance-framework/p:v2"}}},
-		{name: "extends local", overlay: `{"policy_bundles":{"ssh-tuned":{"extends":"` + srcLocalNew + `"}}}`, rc: safe, want: []Change{{Path: "/policy_bundles/ssh-tuned/extends", Safety: Forbidden, Reason: ChangeReasonLocalSourceNotAllowed, Value: srcLocalNew}}},
-		{name: "extends removed", overlay: `{"policy_bundles":{"ssh-tuned":{"extends":null}}}`, rc: safe, want: []Change{{Path: "/policy_bundles/ssh-tuned/extends", Safety: Safe, Reason: ChangeReasonInlinePolicy}}},
-		{
-			name:    "new bundle",
-			overlay: `{"policy_bundles":{"new":{"extends":"` + srcUntrusted + `","modules":{"a.rego":"package a"}}}}`,
-			rc:      safe,
-			want: []Change{
-				{Path: "/policy_bundles/new/extends", Safety: Unsafe, Reason: ChangeReasonUntrustedSource, Value: srcUntrusted},
-				{Path: "/policy_bundles/new/modules/a.rego", Safety: Safe, Reason: ChangeReasonInlinePolicy},
-			},
-		},
-		{name: "unknown bundle null is a no-op", overlay: `{"policy_bundles":{"nope":null}}`, rc: safe, want: nil},
 		// Mixed: locked key plus a real change.
 		{
 			name:    "locked key and verbosity",
@@ -247,12 +216,6 @@ func TestClassifyErrors(t *testing.T) {
 		_, err := Classify(classifyBase(), json.RawMessage(o), rc)
 		assert.Error(t, err, o)
 	}
-}
-
-func TestClassifyUnnormalizedInlineDefaultsToAllowed(t *testing.T) {
-	got, err := Classify(classifyBase(), json.RawMessage(`{"policy_bundles":{"ssh-tuned":{"data":{"k":"w"}}}}`), RemoteConfig{Mode: ModeApplySafe})
-	require.NoError(t, err)
-	assert.Equal(t, []Change{{Path: "/policy_bundles/ssh-tuned/data", Safety: Safe, Reason: ChangeReasonInlinePolicy}}, got)
 }
 
 func TestWillApply(t *testing.T) {

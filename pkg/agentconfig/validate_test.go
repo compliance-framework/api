@@ -27,7 +27,7 @@ func TestValidateOverlayValid(t *testing.T) {
 			"protocol_version": 2,
 			"schedule": "*/5 * * * *",
 			"source": "ghcr.io/compliance-framework/plugin-local-ssh:v1.0.0",
-			"policies": ["ghcr.io/compliance-framework/plugin-local-ssh-policies:v1.0.0", "inline:ssh-tuned"],
+			"policies": ["ghcr.io/compliance-framework/plugin-local-ssh-policies:v1.0.0", "./policies/extra"],
 			"config": {"port": "2222", "host": null, "password": "${env:SSH_PASSWORD}", "dsn": "user=${env:U}@h"},
 			"labels": {"env": "prod", "old": null},
 			"policy_data": {"threshold": 5, "nested": {"a": [1, true]}},
@@ -39,14 +39,6 @@ func TestValidateOverlayValid(t *testing.T) {
 		`{"plugins":{"x":{"schedule":null}}}`,
 		`{"plugins":{"x":{"enabled":null,"source":null,"policies":null,"config":null,"labels":null,"policy_data":null,"policy_behavior":null}}}`,
 		`{"plugins":{"x":{"policies":[]}}}`,
-		`{"policy_bundles":null}`,
-		`{"policy_bundles":{"old":null}}`,
-		`{"policy_bundles":{"ssh-tuned":{"extends":"ghcr.io/v/p:v1","modules":{"banner.rego":"package compliance_framework.banner","gone.rego":null,"sub/data.yml":"a: 1"},"delete":["x.rego"],"data":{"k":1}}}}`,
-		// Partial patches: the whole-bundle rules (at least one of extends/modules/data,
-		// delete requires extends) are checked on the effective config, not on the patch.
-		`{"policy_bundles":{"b":{}}}`,
-		`{"policy_bundles":{"b":{"delete":["x.rego"]}}}`,
-		`{"policy_bundles":{"b":{"extends":null,"modules":null,"delete":null,"data":null}}}`,
 	}
 	for _, o := range overlays {
 		t.Run(o, func(t *testing.T) {
@@ -82,7 +74,8 @@ func TestValidateOverlayRules(t *testing.T) {
 		{name: "O4 unknown plugin key", overlay: `{"plugins":{"x":{"sorce":"s"}}}`, path: "/plugins/x/sorce", code: FieldCodeUnknownField},
 		{name: "O4 unknown plugin key null", overlay: `{"plugins":{"x":{"sorce":null}}}`, path: "/plugins/x/sorce", code: FieldCodeUnknownField},
 		{name: "O4 unknown agent_evidence key", overlay: `{"agent_evidence":{"on":true}}`, path: "/agent_evidence/on", code: FieldCodeUnknownField},
-		{name: "O4 unknown bundle key", overlay: `{"policy_bundles":{"b":{"module":{}}}}`, path: "/policy_bundles/b/module", code: FieldCodeUnknownField},
+		{name: "O4 policy_bundles is unknown", overlay: `{"policy_bundles":{"b":{"modules":{}}}}`, path: "/policy_bundles", code: FieldCodeUnknownField},
+		{name: "O4 policy_bundles null is unknown", overlay: `{"policy_bundles":null}`, path: "/policy_bundles", code: FieldCodeUnknownField},
 		// O5
 		{name: "O5 config number", overlay: `{"plugins":{"x":{"config":{"port":2222}}}}`, path: "/plugins/x/config/port", code: FieldCodeInvalidType, contains: "must be a string"},
 		{name: "O5 config bool", overlay: `{"plugins":{"x":{"config":{"tls":false}}}}`, path: "/plugins/x/config/tls", code: FieldCodeInvalidType, contains: "must be a string"},
@@ -117,7 +110,6 @@ func TestValidateOverlayRules(t *testing.T) {
 		{name: "O6 plugin name upper case", overlay: `{"plugins":{"GitHub":{"source":"ghcr.io/x/y:v1"}}}`, path: "/plugins/GitHub", code: FieldCodePattern},
 		{name: "O6 plugin name leading dash", overlay: `{"plugins":{"-x":{}}}`, path: "/plugins/-x", code: FieldCodePattern},
 		{name: "O6 plugin name too long", overlay: `{"plugins":{"` + strings.Repeat("a", 64) + `":{}}}`, path: "/plugins/" + strings.Repeat("a", 64), code: FieldCodePattern},
-		{name: "O6 bundle name", overlay: `{"policy_bundles":{"Ssh.Tuned":{"modules":{"a.rego":"package a"}}}}`, path: "/policy_bundles/Ssh.Tuned", code: FieldCodePattern},
 		// O7
 		{name: "O7 bad cron", overlay: `{"plugins":{"x":{"schedule":"every minute"}}}`, path: "/plugins/x/schedule", code: FieldCodeCron},
 		{name: "O7 six-field cron", overlay: `{"plugins":{"x":{"schedule":"0 */5 * * * *"}}}`, path: "/plugins/x/schedule", code: FieldCodeCron},
@@ -125,39 +117,17 @@ func TestValidateOverlayRules(t *testing.T) {
 		// O8
 		{name: "O8 empty source", overlay: `{"plugins":{"x":{"source":""}}}`, path: "/plugins/x/source", code: FieldCodeSource},
 		{name: "O8 blank source", overlay: `{"plugins":{"x":{"source":"  "}}}`, path: "/plugins/x/source", code: FieldCodeSource},
-		{name: "O8 inline plugin source", overlay: `{"plugins":{"x":{"source":"inline:ssh"}}}`, path: "/plugins/x/source", code: FieldCodeSource},
 		{name: "O8 empty policy entry", overlay: `{"plugins":{"x":{"policies":["ghcr.io/x/p:v1",""]}}}`, path: "/plugins/x/policies/1", code: FieldCodeSource},
-		{name: "O8 inline without name", overlay: `{"plugins":{"x":{"policies":["inline:"]}}}`, path: "/plugins/x/policies/0", code: FieldCodeSource},
-		{name: "O8 inline bad name", overlay: `{"plugins":{"x":{"policies":["inline:Ssh.Tuned"]}}}`, path: "/plugins/x/policies/0", code: FieldCodeSource},
 		// O9
 		{name: "O9 env in policy_data", overlay: `{"plugins":{"x":{"policy_data":{"t":"${env:X}"}}}}`, path: "/plugins/x/policy_data/t", code: FieldCodeEnvLocation},
 		{name: "O9 env in nested policy_data array", overlay: `{"plugins":{"x":{"policy_data":{"a":["${env:X}"]}}}}`, path: "/plugins/x/policy_data/a/0", code: FieldCodeEnvLocation},
 		{name: "O9 env in labels", overlay: `{"plugins":{"x":{"labels":{"t":"a-${env:X}"}}}}`, path: "/plugins/x/labels/t", code: FieldCodeEnvLocation},
 		{name: "O9 env in source", overlay: `{"plugins":{"x":{"source":"ghcr.io/${env:ORG}/y:v1"}}}`, path: "/plugins/x/source", code: FieldCodeEnvLocation},
-		{name: "O9 env in bundle module", overlay: `{"policy_bundles":{"b":{"modules":{"a.rego":"package a # ${env:X}"}}}}`, path: "/policy_bundles/b/modules/a.rego", code: FieldCodeEnvLocation},
-		{name: "O9 env in bundle data", overlay: `{"policy_bundles":{"b":{"data":{"k":"${env:X}"}}}}`, path: "/policy_bundles/b/data/k", code: FieldCodeEnvLocation},
 		{name: "O9 forbidden env", overlay: `{"plugins":{"x":{"config":{"s":"${env:CCF_API_AUTH_CLIENT_SECRET}"}}}}`, path: "/plugins/x/config/s", code: FieldCodeForbiddenEnv},
 		{name: "O9 forbidden env embedded lower case", overlay: `{"plugins":{"x":{"config":{"s":"a${env:ccf_api_auth_client_id}b"}}}}`, path: "/plugins/x/config/s", code: FieldCodeForbiddenEnv},
 		// O10
 		{name: "O10 masked config", overlay: `{"plugins":{"x":{"config":{"password":"••••"}}}}`, path: "/plugins/x/config/password", code: FieldCodeMaskedValue},
 		{name: "O10 masked policy_data", overlay: `{"plugins":{"x":{"policy_data":{"a":{"token":"••••"}}}}}`, path: "/plugins/x/policy_data/a/token", code: FieldCodeMaskedValue},
-		{name: "O10 masked bundle data", overlay: `{"policy_bundles":{"b":{"data":{"k":["••••"]}}}}`, path: "/policy_bundles/b/data/k/0", code: FieldCodeMaskedValue},
-		// O11
-		{name: "O11 foo.json module", overlay: `{"policy_bundles":{"b":{"modules":{"foo.json":"{}"}}}}`, path: "/policy_bundles/b/modules/foo.json", code: FieldCodePattern},
-		{name: "O11 traversal module", overlay: `{"policy_bundles":{"b":{"modules":{"../x.rego":"package x"}}}}`, path: "/policy_bundles/b/modules/..~1x.rego", code: FieldCodePattern},
-		{name: "O11 extends inline", overlay: `{"policy_bundles":{"b":{"extends":"inline:c"}}}`, path: "/policy_bundles/b/extends", code: FieldCodeSource},
-		{name: "O11 extends empty", overlay: `{"policy_bundles":{"b":{"extends":""}}}`, path: "/policy_bundles/b/extends", code: FieldCodeSource},
-		{name: "O11 data and data.json", overlay: `{"policy_bundles":{"b":{"modules":{"data.json":"{}"},"data":{"a":1}}}}`, path: "/policy_bundles/b/modules/data.json", code: FieldCodeConflict},
-		{name: "O11 delete also in modules", overlay: `{"policy_bundles":{"b":{"extends":"ghcr.io/v/p:v1","modules":{"a.rego":"package a"},"delete":["a.rego"]}}}`, path: "/policy_bundles/b/delete/0", code: FieldCodeConflict},
-		{name: "O11 bad delete path", overlay: `{"policy_bundles":{"b":{"delete":["/abs.rego"]}}}`, path: "/policy_bundles/b/delete/0", code: FieldCodePattern},
-		{name: "O11 module too big", overlay: `{"policy_bundles":{"b":{"modules":{"a.rego":"` + strings.Repeat("x", MaxModuleBytes+1) + `"}}}}`, path: "/policy_bundles/b/modules/a.rego", code: FieldCodeSize},
-		{name: "O11 bad data.json", overlay: `{"policy_bundles":{"b":{"modules":{"data.json":"{"}}}}`, path: "/policy_bundles/b/modules/data.json", code: FieldCodeParse},
-		{name: "O11 module number", overlay: `{"policy_bundles":{"b":{"modules":{"a.rego":1}}}}`, path: "/policy_bundles/b/modules/a.rego", code: FieldCodeInvalidType},
-		{name: "O11 modules not object", overlay: `{"policy_bundles":{"b":{"modules":[]}}}`, path: "/policy_bundles/b/modules", code: FieldCodeInvalidType},
-		{name: "O11 data not object", overlay: `{"policy_bundles":{"b":{"data":"x"}}}`, path: "/policy_bundles/b/data", code: FieldCodeInvalidType},
-		{name: "O11 extends number", overlay: `{"policy_bundles":{"b":{"extends":1}}}`, path: "/policy_bundles/b/extends", code: FieldCodeInvalidType},
-		{name: "O11 bundle not object", overlay: `{"policy_bundles":{"b":"x"}}`, path: "/policy_bundles/b", code: FieldCodeInvalidType},
-		{name: "O11 policy_bundles not object", overlay: `{"policy_bundles":[]}`, path: "/policy_bundles", code: FieldCodeInvalidType},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -178,11 +148,6 @@ func TestValidateOverlayPortMessage(t *testing.T) {
 	assert.Contains(t, err.Error(), "must be a string")
 }
 
-func TestValidateOverlayModuleNullAllowed(t *testing.T) {
-	assert.NoError(t, ValidateOverlay(json.RawMessage(`{"policy_bundles":{"b":{"modules":{"a.rego":null,"foo.json":null}}}}`)),
-		"a null module deletes it; its path is not validated")
-}
-
 func TestValidateOverlaySize(t *testing.T) {
 	// labelOverlay returns a valid overlay whose compact size is exactly n bytes.
 	labelOverlay := func(t *testing.T, prefix string, n int) string {
@@ -196,17 +161,9 @@ func TestValidateOverlaySize(t *testing.T) {
 		return o
 	}
 
-	t.Run("without bundles", func(t *testing.T) {
+	t.Run("limit", func(t *testing.T) {
 		assert.NoError(t, ValidateOverlay(json.RawMessage(labelOverlay(t, "", MaxOverlayBytes))))
 		requireFieldError(t, ValidateOverlay(json.RawMessage(labelOverlay(t, "", MaxOverlayBytes+1))), "", FieldCodeSize)
-	})
-	t.Run("policy_bundles null does not raise the limit", func(t *testing.T) {
-		requireFieldError(t, ValidateOverlay(json.RawMessage(labelOverlay(t, `"policy_bundles":null,`, MaxOverlayBytes+1))), "", FieldCodeSize)
-	})
-	t.Run("with bundles", func(t *testing.T) {
-		assert.NoError(t, ValidateOverlay(json.RawMessage(labelOverlay(t, `"policy_bundles":{},`, MaxOverlayBytes+1))))
-		assert.NoError(t, ValidateOverlay(json.RawMessage(labelOverlay(t, `"policy_bundles":{},`, MaxOverlayBytesWithBundles))))
-		requireFieldError(t, ValidateOverlay(json.RawMessage(labelOverlay(t, `"policy_bundles":{},`, MaxOverlayBytesWithBundles+1))), "", FieldCodeSize)
 	})
 	t.Run("size is measured on compact JSON", func(t *testing.T) {
 		o := labelOverlay(t, "", MaxOverlayBytes)
@@ -247,13 +204,10 @@ func validConfig() Config {
 				Source:          "ghcr.io/compliance-framework/plugin-local-ssh:v1.0.0",
 				Schedule:        strPtr("*/5 * * * *"),
 				ProtocolVersion: 2,
-				Policies:        []string{"ghcr.io/compliance-framework/plugin-local-ssh-policies:v1.0.0", "inline:ssh-tuned"},
+				Policies:        []string{"ghcr.io/compliance-framework/plugin-local-ssh-policies:v1.0.0"},
 				Config:          map[string]string{"host": "localhost", "password": "${env:SSH_PASSWORD}"},
 				PolicyData:      map[string]any{"threshold": json.Number("5")},
 			},
-		},
-		PolicyBundles: map[string]*PolicyBundle{
-			"ssh-tuned": {Extends: strPtr("ghcr.io/compliance-framework/plugin-local-ssh-policies:v1.0.0"), Modules: map[string]string{"banner.rego": "package compliance_framework.banner"}},
 		},
 	}
 }
@@ -295,24 +249,14 @@ func TestValidateEditableErrors(t *testing.T) {
 		{name: "negative evidence interval", mutate: func(c *Config) { c.AgentEvidence.Interval = "-5m" }, path: "/agent_evidence/interval", code: FieldCodeDuration},
 		{name: "nil plugin", mutate: func(c *Config) { c.Plugins["other"] = nil }, path: "/plugins/other", code: FieldCodeRequired},
 		{name: "empty source", mutate: func(c *Config) { c.Plugins["local-ssh"].Source = "" }, path: "/plugins/local-ssh/source", code: FieldCodeRequired},
-		{name: "inline source", mutate: func(c *Config) { c.Plugins["local-ssh"].Source = "inline:ssh-tuned" }, path: "/plugins/local-ssh/source", code: FieldCodeSource},
 		{name: "bad cron", mutate: func(c *Config) { c.Plugins["local-ssh"].Schedule = strPtr("nope") }, path: "/plugins/local-ssh/schedule", code: FieldCodeCron},
 		{name: "six-field cron", mutate: func(c *Config) { c.Plugins["local-ssh"].Schedule = strPtr("0 */5 * * * *") }, path: "/plugins/local-ssh/schedule", code: FieldCodeCron},
 		{name: "protocol_version 3", mutate: func(c *Config) { c.Plugins["local-ssh"].ProtocolVersion = 3 }, path: "/plugins/local-ssh/protocol_version", code: FieldCodeInvalidValue},
 		{name: "protocol_version negative", mutate: func(c *Config) { c.Plugins["local-ssh"].ProtocolVersion = -1 }, path: "/plugins/local-ssh/protocol_version", code: FieldCodeInvalidValue},
-		{name: "empty policy entry", mutate: func(c *Config) { c.Plugins["local-ssh"].Policies = append(c.Plugins["local-ssh"].Policies, "") }, path: "/plugins/local-ssh/policies/2", code: FieldCodeSource},
-		{name: "unknown inline ref", mutate: func(c *Config) { c.Plugins["local-ssh"].Policies = []string{"inline:nope"} }, path: "/plugins/local-ssh/policies/0", code: FieldCodeUnresolvedRef},
-		{name: "nil bundle for inline ref", mutate: func(c *Config) { c.PolicyBundles["ssh-tuned"] = nil }, path: "/plugins/local-ssh/policies/1", code: FieldCodeUnresolvedRef},
-		{name: "bad inline name", mutate: func(c *Config) { c.Plugins["local-ssh"].Policies = []string{"inline:Bad.Name"} }, path: "/plugins/local-ssh/policies/0", code: FieldCodeSource},
+		{name: "empty policy entry", mutate: func(c *Config) { c.Plugins["local-ssh"].Policies = append(c.Plugins["local-ssh"].Policies, "") }, path: "/plugins/local-ssh/policies/1", code: FieldCodeSource},
 		{name: "env in policy_data", mutate: func(c *Config) { c.Plugins["local-ssh"].PolicyData = map[string]any{"t": "${env:X}"} }, path: "/plugins/local-ssh/policy_data/t", code: FieldCodeEnvLocation},
 		{name: "env in labels", mutate: func(c *Config) { c.Plugins["local-ssh"].Labels = map[string]string{"t": "${env:X}"} }, path: "/plugins/local-ssh/labels/t", code: FieldCodeEnvLocation},
 		{name: "forbidden env in config", mutate: func(c *Config) { c.Plugins["local-ssh"].Config["s"] = "${env:CCF_API_AUTH_CLIENT_SECRET}" }, path: "/plugins/local-ssh/config/s", code: FieldCodeForbiddenEnv},
-		{name: "bundle shape", mutate: func(c *Config) { c.PolicyBundles["ssh-tuned"].Modules["foo.json"] = "{}" }, path: "/policy_bundles/ssh-tuned/modules/foo.json", code: FieldCodePattern},
-		{name: "empty bundle", mutate: func(c *Config) { c.PolicyBundles["empty"] = &PolicyBundle{} }, path: "/policy_bundles/empty", code: FieldCodeRequired},
-		{name: "delete without extends", mutate: func(c *Config) {
-			c.PolicyBundles["ssh-tuned"].Extends = nil
-			c.PolicyBundles["ssh-tuned"].Delete = []string{"x.rego"}
-		}, path: "/policy_bundles/ssh-tuned/delete", code: FieldCodeConflict},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -336,7 +280,7 @@ func TestValidateEditableRedactedBase(t *testing.T) {
 	c := validConfig()
 	c.Plugins["local-ssh"].Config["token"] = "abc"
 	c.Plugins["local-ssh"].Config["user"] = "root"
-	c.PolicyBundles["ssh-tuned"].Data = map[string]any{"api_key": "k"}
+	c.Plugins["local-ssh"].PolicyData["api_key"] = "k"
 	red := Redact(c, WithMaskedPointers("/plugins/local-ssh/config/user"))
 	require.Empty(t, red.API.Auth.ClientSecret)
 	require.Equal(t, MaskedValue, red.Plugins["local-ssh"].Config["user"])

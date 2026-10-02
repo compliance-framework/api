@@ -5,56 +5,10 @@ import (
 	"fmt"
 )
 
-// OverlayBundles extracts the policy bundles an overlay defines, for the Rego checks: only
-// non-null bundles, and only their non-null string modules (a null module is a deletion).
-// Non-object or wrongly-typed parts are skipped; ValidateOverlay reports them.
-func OverlayBundles(overlay json.RawMessage) (map[string]*PolicyBundle, error) {
-	v, err := decodeAny(overlay)
-	if err != nil {
-		return nil, fmt.Errorf("overlay bundles: %w", err)
-	}
-	obj, _ := v.(map[string]any)
-	bundles, _ := obj["policy_bundles"].(map[string]any)
-	out := map[string]*PolicyBundle{}
-	for name, raw := range bundles {
-		b, ok := raw.(map[string]any)
-		if !ok {
-			continue
-		}
-		pb := &PolicyBundle{}
-		if ext, ok := b["extends"].(string); ok {
-			pb.Extends = &ext
-		}
-		if modules, ok := b["modules"].(map[string]any); ok {
-			for p, src := range modules {
-				if s, ok := src.(string); ok {
-					if pb.Modules == nil {
-						pb.Modules = map[string]string{}
-					}
-					pb.Modules[p] = s
-				}
-			}
-		}
-		if del, ok := b["delete"].([]any); ok {
-			for _, d := range del {
-				if s, ok := d.(string); ok {
-					pb.Delete = append(pb.Delete, s)
-				}
-			}
-		}
-		if data, ok := b["data"].(map[string]any); ok {
-			pb.Data = data
-		}
-		out[name] = pb
-	}
-	return out, nil
-}
-
 // RedactDocument re-applies the server-side part of Redact to a reported config document
 // (base or effective) WITHOUT decoding it into Config, so fields a newer agent sends are
 // preserved (R51). It removes api.auth.client_secret and masks key-name matches under
-// plugins.*.config, plugins.*.policy_data and policy_bundles.*.data (env placeholders are
-// kept). It cannot know the agent's env-sourced pointers (R55), so it is best effort; on an
+// plugins.*.config and plugins.*.policy_data (env placeholders are kept). It cannot know the agent's env-sourced pointers (R55), so it is best effort; on an
 // agent-redacted document it is a no-op. changed reports whether anything was altered. The
 // input must be a JSON object.
 func RedactDocument(doc json.RawMessage) (out json.RawMessage, changed bool, err error) {
@@ -91,18 +45,6 @@ func RedactDocument(doc json.RawMessage) (out json.RawMessage, changed bool, err
 			}
 		}
 	}
-	if bundles, ok := obj["policy_bundles"].(map[string]any); ok {
-		for name, raw := range bundles {
-			b, ok := raw.(map[string]any)
-			if !ok {
-				continue
-			}
-			if data, ok := b["data"].(map[string]any); ok {
-				b["data"] = o.redactMap(Pointer("policy_bundles", name, "data"), data)
-			}
-		}
-	}
-
 	after, err := encodeCanonical(obj)
 	if err != nil {
 		return nil, false, err
