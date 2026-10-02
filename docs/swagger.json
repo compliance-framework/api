@@ -73,7 +73,7 @@
                 ]
             },
             "put": {
-                "description": "Creates the next configuration revision. Requires If-Match with the current revision (\"0\" for the first save): missing is 428, stale is 409 with current-revision. A semantically unchanged overlay returns 200 with the current revision and creates nothing. The overlay is validated on its own, its inline Rego is checked at parse level (advisory: the agent is the security boundary; direct calls to http.send, net.lookup_ip_addr and opa.runtime are rejected; cross-bundle imports are unsupported) and against the policy contract (R63: literal type and shape errors in title, description, remarks, skip_reason, labels, violation and risk_templates are rejected; a package without a title is rejected unless the bundle extends a source or patches a bundle an instance's file defines, where it is a warning), and the merged config is validated against every fresh apply-mode instance's reported base (or the latest reported one); only errors the overlay introduces block (errors already present in the instance's own file are ignored, R59). Errors are a 422 with overlay, instances (errors plus non-blocking warnings) and policy-errors lists. Needs agent:configure, or agent:configure-policy for changes limited to policy bundles and plugin policy lists (a new policy_bundles extends must name a source the instances already use, or the source it swaps out, R58).",
+                "description": "Creates the next configuration revision. Requires If-Match with the current revision (\"0\" for the first save): missing is 428, stale is 409 with current-revision. A semantically unchanged overlay returns 200 with the current revision and creates nothing. The overlay is validated on its own, and the merged config is validated against every fresh apply-mode instance's reported base (or the latest reported one); only errors the overlay introduces block (errors already present in the instance's own file are ignored, R59). Errors are a 422 with overlay and instances (errors plus non-blocking warnings) lists. Needs agent:configure.",
                 "consumes": [
                     "application/json"
                 ],
@@ -186,7 +186,7 @@
         },
         "/admin/agents/{id}/config/preview": {
             "post": {
-                "description": "Validates a candidate overlay without saving it and shows, per reporting instance (fresh and stale), the redacted effective config, its diff against the instance's current effective config, the classified changes and whether the agent would apply it. validated marks the instances a save validates against; only their errors block a save. errors are the problems the overlay introduces; warnings are problems already in the instance's own file (present in Merge(base, {})), which never block a save or force invalid-config (R59). The inline Rego check is parse-level and advisory; cross-bundle imports are unsupported. Validation problems are returned in the 200 body.",
+                "description": "Validates a candidate overlay without saving it and shows, per reporting instance (fresh and stale), the redacted effective config, its diff against the instance's current effective config, the classified changes and whether the agent would apply it. validated marks the instances a save validates against; only their errors block a save. errors are the problems the overlay introduces; warnings are problems already in the instance's own file (present in Merge(base, {})), which never block a save or force invalid-config (R59). Validation problems are returned in the 200 body.",
                 "consumes": [
                     "application/json"
                 ],
@@ -3557,7 +3557,7 @@
         },
         "/artifacts/{digest}/files": {
             "get": {
-                "description": "Returns every file of a stored policy bundle with its SHA-256, size and, for Rego modules, its package, plus the bundle's tree digest (the digest agent config reports use for the same tree). Agent config reports name bundle artifacts in policy-bundles[].artifact-digest. Any logged-in user or agent may read artifacts; that includes the inline Rego agents upload.",
+                "description": "Returns every file of a stored policy bundle with its SHA-256, size and, for Rego modules, its package, plus the bundle's tree digest (the digest agent config reports use for the same tree). Agent config reports name bundle artifacts in policy-bundles[].artifact-digest. Any logged-in user or agent may read artifacts; that includes the policy bundles agents upload.",
                 "produces": [
                     "application/json"
                 ],
@@ -3624,7 +3624,7 @@
         },
         "/artifacts/{digest}/files/{path}": {
             "get": {
-                "description": "Returns the source of one file of a stored policy bundle, with its SHA-256 and, for Rego modules, its package. path is the file's path in the bundle, as GET /artifacts/{digest}/files lists it. Files over 1 MiB, or that are not UTF-8 text, are not returned as source (422); download the artifact instead. Any logged-in user or agent may read artifacts; that includes the inline Rego agents upload.",
+                "description": "Returns the source of one file of a stored policy bundle, with its SHA-256 and, for Rego modules, its package. path is the file's path in the bundle, as GET /artifacts/{digest}/files lists it. Files over 1 MiB, or that are not UTF-8 text, are not returned as source (422); download the artifact instead. Any logged-in user or agent may read artifacts; that includes the policy bundles agents upload.",
                 "produces": [
                     "application/json"
                 ],
@@ -35224,65 +35224,8 @@
                     "description": "tree digest on main (R10)",
                     "type": "string"
                 },
-                "extends": {
-                    "description": "inline bundles with extends: the vendor tree (R10)",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/agentconfig.PolicyExtendsReport"
-                        }
-                    ]
-                },
                 "files": {
-                    "description": "inline: the materialized tree; others: their tree",
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/agentconfig.PolicyFileReport"
-                    }
-                },
-                "source": {
-                    "type": "string"
-                }
-            }
-        },
-        "agentconfig.PolicyError": {
-            "type": "object",
-            "properties": {
-                "bundle": {
-                    "type": "string"
-                },
-                "code": {
-                    "description": "Code classifies the problem when known: one of the PolicyCode* codes, or one of the\nregocheck codes. Empty for older producers.",
-                    "type": "string"
-                },
-                "col": {
-                    "type": "integer"
-                },
-                "message": {
-                    "type": "string"
-                },
-                "path": {
-                    "type": "string"
-                },
-                "row": {
-                    "type": "integer"
-                },
-                "severity": {
-                    "description": "\"error\" | \"warning\"",
-                    "type": "string"
-                }
-            }
-        },
-        "agentconfig.PolicyExtendsReport": {
-            "type": "object",
-            "properties": {
-                "artifact-digest": {
-                    "description": "ArtifactDigest names the artifact of the vendor tree alone; see\nPolicyBundleReport.ArtifactDigest.",
-                    "type": "string"
-                },
-                "digest": {
-                    "type": "string"
-                },
-                "files": {
+                    "description": "the loaded tree",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/agentconfig.PolicyFileReport"
@@ -35311,10 +35254,6 @@
         "agentconfig.RemoteConfig": {
             "type": "object",
             "properties": {
-                "allow_inline_policies": {
-                    "description": "default true",
-                    "type": "boolean"
-                },
                 "allow_local_sources": {
                     "description": "default false",
                     "type": "boolean"
@@ -35389,12 +35328,6 @@
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/agentconfig.PolicyBundleReport"
-                    }
-                },
-                "policy-errors": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/agentconfig.PolicyError"
                     }
                 },
                 "reason": {
@@ -36169,13 +36102,6 @@
                     "description": "Error explains why the agent would not have turned the result into evidence.",
                     "type": "string"
                 },
-                "issues": {
-                    "description": "Issues are the policy contract problems policyeval.ValidateResult finds in the\nreplayed result.",
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/policyeval.Issue"
-                    }
-                },
                 "rawJson": {
                     "type": "string"
                 },
@@ -36225,13 +36151,6 @@
                 "inputTruncated": {
                     "description": "InputTruncated means InputJSON holds only the first part of the input; the full input\nis the input artifact.",
                     "type": "boolean"
-                },
-                "issues": {
-                    "description": "Issues are the static policy contract problems policyeval.CheckContract finds in the\nstored bundle's modules, as POST /api/playback/evaluate reports them. They never fail\nthe playback.",
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/policyeval.Issue"
-                    }
                 },
                 "package": {
                     "description": "Package is the policy package that produced the evidence.",
@@ -39837,12 +39756,6 @@
                         "$ref": "#/definitions/agentconfig.PolicyBundleReport"
                     }
                 },
-                "policy-errors": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/agentconfig.PolicyError"
-                    }
-                },
                 "reason": {
                     "type": "string"
                 },
@@ -39943,12 +39856,6 @@
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/agentconfig.PluginReport"
-                    }
-                },
-                "policy-errors": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/agentconfig.PolicyError"
                     }
                 },
                 "reason": {
@@ -40139,13 +40046,6 @@
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/agentconfig.FieldError"
-                    }
-                },
-                "policy-errors": {
-                    "description": "incl. warnings",
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/agentconfig.PolicyError"
                     }
                 },
                 "standalone": {
@@ -48018,13 +47918,6 @@
                 "durationMs": {
                     "type": "integer"
                 },
-                "issues": {
-                    "description": "Issues are the static policy contract problems CheckContract finds in the request's\nmodules. They never fail the request.",
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/policyeval.Issue"
-                    }
-                },
                 "prints": {
                     "type": "array",
                     "items": {
@@ -48056,13 +47949,6 @@
                 "file": {
                     "type": "string"
                 },
-                "issues": {
-                    "description": "Issues are the policy contract problems ValidateResult finds in this result.",
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/policyeval.Issue"
-                    }
-                },
                 "labels": {
                     "type": "object",
                     "additionalProperties": {
@@ -48093,35 +47979,6 @@
                     "items": {
                         "$ref": "#/definitions/policyeval.Violation"
                     }
-                }
-            }
-        },
-        "policyeval.Issue": {
-            "type": "object",
-            "properties": {
-                "code": {
-                    "description": "agentconfig.PolicyCode* constants",
-                    "type": "string"
-                },
-                "col": {
-                    "type": "integer"
-                },
-                "file": {
-                    "type": "string"
-                },
-                "message": {
-                    "type": "string"
-                },
-                "package": {
-                    "description": "without the leading \"data.\"",
-                    "type": "string"
-                },
-                "row": {
-                    "type": "integer"
-                },
-                "severity": {
-                    "description": "agentconfig.SeverityError | agentconfig.SeverityWarning",
-                    "type": "string"
                 }
             }
         },
