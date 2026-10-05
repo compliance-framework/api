@@ -1,0 +1,16 @@
+lisa-addressed:
+---
+Comment (internal/api/handler/heartbeat.go:100):
+**[Nit] Heartbeats register instances under heartbeat:ingest, not agent:sync**
+
+A heartbeat with a `config_digest` inserts an instance row through `TouchFromHeartbeat`, but the route is guarded by `heartbeat:ingest`, not `agent:sync`. Under Cedar, an operator who removes `sync` from the agent role to turn remote configuration off for agents still gets instances registered and listed.
+
+**Why:** The registration path isn't obvious from the authz vocabulary, so it should be written down where operators look.
+**Fix:** Document it: in the heartbeat route's swag description, and next to the agent role's `sync` grant in `internal/authz/manifest.yaml`, say that heartbeats carrying `config_digest` also register instances under `heartbeat:ingest`, and that removing `sync` stops overlay fetches and reports but not that registration. Regenerate swagger. No behaviour change.
+**Severity basis:** no rule matched; decision tree: none of the tree questions.
+
+<sub>ccf-review · a875c6eeecea · rules@6be9e11b8bc6</sub>
+Replies:
+**lisa implementation guidance:** **lisa implementation guidance:** Docs only, no behaviour change. (1) In the `Create` heartbeat godoc (internal/api/handler/heartbeat.go), add one sentence: the registration is authorized by heartbeat:ingest, not agent:sync, so removing sync from an agent's role stops overlay fetches and config reports but not instance registration by heartbeats. (2) Next to `agent: [register, ingest, sync]` in the agent role of internal/authz/manifest.yaml, add a comment saying the same. (3) `make swag` and commit docs/.
+
+<!-- lisa-guidance-posted -->
