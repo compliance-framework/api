@@ -796,24 +796,18 @@ func (s *Service) toBases(rows []relational.AgentInstance, now time.Time, valida
 	return out
 }
 
-// reportedRemote returns the instance's reported remote-config block, or the base's block
-// normalized with hasAuth=true (the base is redacted, so it has no client secret).
+// reportedRemote returns the instance's reported remote-config block, or the base's block,
+// normalized with hasAuth=true (the base is redacted, so it has no client secret). The mode
+// always comes from the report's validated top-level mode (row.Mode), which ValidationBases
+// also selects on; the block's own mode is not validated, so it is ignored.
 func reportedRemote(row relational.AgentInstance, base agentconfig.Config) agentconfig.RemoteConfig {
 	var rc agentconfig.RemoteConfig
-	if len(row.RemoteConfig) > 0 && string(row.RemoteConfig) != "null" {
-		if err := json.Unmarshal(row.RemoteConfig, &rc); err == nil {
-			if rc.Mode == "" {
-				rc.Mode = row.Mode
-			}
-			return rc.Normalize(true)
-		}
-	}
-	if base.RemoteConfig != nil {
+	decoded := len(row.RemoteConfig) > 0 && string(row.RemoteConfig) != "null" &&
+		json.Unmarshal(row.RemoteConfig, &rc) == nil
+	if !decoded && base.RemoteConfig != nil {
 		rc = *base.RemoteConfig
 	}
-	if rc.Mode == "" {
-		rc.Mode = row.Mode
-	}
+	rc.Mode = row.Mode
 	return rc.Normalize(true)
 }
 
