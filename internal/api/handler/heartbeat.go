@@ -61,7 +61,7 @@ type HeartbeatCreateRequest struct {
 // Create godoc
 //
 //	@Summary		Create Heartbeat
-//	@Description	Creates a new heartbeat record for monitoring. An authenticated agent heartbeat also refreshes the instance's last-seen time; with config_digest (new agents, mode != off) it records config_revision/config_digest and registers the instance if needed.
+//	@Description	Creates a new heartbeat record for monitoring. An authenticated agent heartbeat also refreshes the instance's last-seen time; with config_digest (new agents, mode != off) it records config_revision/config_digest and registers the instance if needed. That registration is authorized by heartbeat:ingest, not agent:sync: removing sync from an agent's role stops overlay fetches and config reports, not instance registration by heartbeats.
 //	@Tags			Heartbeat
 //	@Accept			json
 //	@Produce		json
