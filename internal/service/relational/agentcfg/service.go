@@ -817,7 +817,7 @@ type PreviewSet struct {
 	// against (R48). Their configs are not loaded: preview only shows them.
 	Validated int
 	// Instances are the instances the preview shows, each marked Validated when it is in
-	// Validation: the validated ones first, then the others, newest first, within
+	// the validation set: the validated ones first, then the others, newest first, within
 	// PreviewMaxInstances and PreviewMaxConfigBytes.
 	Instances []InstanceBase
 	// Omitted counts the instances with a reported base the bounds left out.
