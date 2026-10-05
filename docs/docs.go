@@ -526,6 +526,129 @@ const docTemplate = `{
                 ]
             }
         },
+        "/admin/agents/{id}/instances": {
+            "get": {
+                "description": "Summaries of the instances that reported or heartbeated with a config digest, with the derived status (pending and unknown are server-derived), sync status, staleness and counts. Base/effective configs are on the instance detail route.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agent Configuration"
+                ],
+                "summary": "List an agent's instances",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Agent ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.agentInstanceListResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/admin/agents/{id}/instances/{instanceId}": {
+            "get": {
+                "description": "The instance's summary plus its redacted base and effective configs (snake_case). instanceId is the agent-side instance UUID.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agent Configuration"
+                ],
+                "summary": "Get one agent instance",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Agent ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Instance ID",
+                        "name": "instanceId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-handler_agentInstanceDetail"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
         "/admin/ai-diagnostics/runs": {
             "get": {
                 "description": "Lists dashboard suggestion runs across all SSPs, newest first, with optional status and SSP filters.",
@@ -37365,6 +37488,19 @@ const docTemplate = `{
                 }
             }
         },
+        "handler.GenericDataResponse-handler_agentInstanceDetail": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Wrapped response data",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/handler.agentInstanceDetail"
+                        }
+                    ]
+                }
+            }
+        },
         "handler.GenericDataResponse-handler_bulkControlLinkResponse": {
             "type": "object",
             "properties": {
@@ -39425,6 +39561,245 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "revision": {
+                    "type": "integer"
+                }
+            }
+        },
+        "handler.agentInstanceCounts": {
+            "type": "object",
+            "properties": {
+                "failed": {
+                    "type": "integer"
+                },
+                "fresh": {
+                    "type": "integer"
+                },
+                "in-sync": {
+                    "type": "integer"
+                },
+                "out-of-sync": {
+                    "type": "integer"
+                },
+                "pending": {
+                    "type": "integer"
+                },
+                "rejected": {
+                    "type": "integer"
+                },
+                "stale": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
+                },
+                "unknown": {
+                    "type": "integer"
+                }
+            }
+        },
+        "handler.agentInstanceDetail": {
+            "type": "object",
+            "properties": {
+                "agent-version": {
+                    "type": "string"
+                },
+                "applied-revision": {
+                    "type": "integer"
+                },
+                "attempted-revision": {
+                    "type": "integer"
+                },
+                "base": {
+                    "type": "object"
+                },
+                "daemon": {
+                    "type": "boolean"
+                },
+                "effective": {
+                    "type": "object"
+                },
+                "effective-digest": {
+                    "type": "string"
+                },
+                "error": {
+                    "type": "string"
+                },
+                "first-seen-at": {
+                    "type": "string"
+                },
+                "heartbeat-config-revision": {
+                    "type": "integer"
+                },
+                "hostname": {
+                    "type": "string"
+                },
+                "instance-id": {
+                    "type": "string"
+                },
+                "last-seen-at": {
+                    "type": "string"
+                },
+                "mode": {
+                    "type": "string"
+                },
+                "plugins": {
+                    "description": "Plugins are the reported plugins and the agent library each was built with (R76).\nEmpty until an agent that reports them does.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/agentconfig.PluginReport"
+                    }
+                },
+                "reason": {
+                    "type": "string"
+                },
+                "remote-config": {
+                    "type": "object"
+                },
+                "report-stale": {
+                    "description": "heartbeat digest != reported digest",
+                    "type": "boolean"
+                },
+                "reported-at": {
+                    "type": "string"
+                },
+                "stale": {
+                    "type": "boolean"
+                },
+                "status": {
+                    "description": "applied|rejected|failed|not-applicable|pending|unknown",
+                    "type": "string"
+                },
+                "sync-status": {
+                    "description": "in-sync|out-of-sync|not-applicable|unknown",
+                    "type": "string"
+                },
+                "truncated": {
+                    "type": "boolean"
+                },
+                "unsafe": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/agentconfig.Change"
+                    }
+                },
+                "warnings": {
+                    "description": "R41",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/agentconfig.FieldError"
+                    }
+                }
+            }
+        },
+        "handler.agentInstanceListResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handler.agentInstanceSummary"
+                    }
+                },
+                "meta": {
+                    "$ref": "#/definitions/handler.agentInstancesMeta"
+                }
+            }
+        },
+        "handler.agentInstanceSummary": {
+            "type": "object",
+            "properties": {
+                "agent-version": {
+                    "type": "string"
+                },
+                "applied-revision": {
+                    "type": "integer"
+                },
+                "attempted-revision": {
+                    "type": "integer"
+                },
+                "daemon": {
+                    "type": "boolean"
+                },
+                "effective-digest": {
+                    "type": "string"
+                },
+                "error": {
+                    "type": "string"
+                },
+                "first-seen-at": {
+                    "type": "string"
+                },
+                "heartbeat-config-revision": {
+                    "type": "integer"
+                },
+                "hostname": {
+                    "type": "string"
+                },
+                "instance-id": {
+                    "type": "string"
+                },
+                "last-seen-at": {
+                    "type": "string"
+                },
+                "mode": {
+                    "type": "string"
+                },
+                "plugins": {
+                    "description": "Plugins are the reported plugins and the agent library each was built with (R76).\nEmpty until an agent that reports them does.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/agentconfig.PluginReport"
+                    }
+                },
+                "reason": {
+                    "type": "string"
+                },
+                "remote-config": {
+                    "type": "object"
+                },
+                "report-stale": {
+                    "description": "heartbeat digest != reported digest",
+                    "type": "boolean"
+                },
+                "reported-at": {
+                    "type": "string"
+                },
+                "stale": {
+                    "type": "boolean"
+                },
+                "status": {
+                    "description": "applied|rejected|failed|not-applicable|pending|unknown",
+                    "type": "string"
+                },
+                "sync-status": {
+                    "description": "in-sync|out-of-sync|not-applicable|unknown",
+                    "type": "string"
+                },
+                "truncated": {
+                    "type": "boolean"
+                },
+                "unsafe": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/agentconfig.Change"
+                    }
+                },
+                "warnings": {
+                    "description": "R41",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/agentconfig.FieldError"
+                    }
+                }
+            }
+        },
+        "handler.agentInstancesMeta": {
+            "type": "object",
+            "properties": {
+                "counts": {
+                    "$ref": "#/definitions/handler.agentInstanceCounts"
+                },
+                "desired-revision": {
                     "type": "integer"
                 }
             }

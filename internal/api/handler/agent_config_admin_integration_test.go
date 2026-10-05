@@ -17,8 +17,10 @@ import (
 	"github.com/compliance-framework/api/internal/api/middleware"
 	"github.com/compliance-framework/api/internal/authn"
 	"github.com/compliance-framework/api/internal/authz"
+	"github.com/compliance-framework/api/internal/config"
 	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/compliance-framework/api/internal/service/relational/agentcfg"
+	"github.com/compliance-framework/api/internal/service/sso"
 	"github.com/compliance-framework/api/internal/tests"
 	"github.com/compliance-framework/api/pkg/agentconfig"
 	"github.com/google/uuid"
@@ -210,6 +212,8 @@ func acaData[T any](s *AgentConfigAdminIntegrationSuite, rec *httptest.ResponseR
 }
 
 // ---- instance helpers ----
+
+func acaI64(v int64) *int64 { return &v }
 
 // acaBase returns a reported base (redacted as the agent does: Redact clears the client secret) in the given mode with the vendor ssh plugin
 // plus any extra plugins.
@@ -801,6 +805,132 @@ func (s *AgentConfigAdminIntegrationSuite) TestFileOriginErrorsDoNotBlock() {
 
 // ---- Instances ----
 
+func (s *AgentConfigAdminIntegrationSuite) TestInstances() {
+	ctx := context.Background()
+	agentID := *s.agent.ID
+
+	// Desired revision 1.
+	s.save(`"0"`, `{"verbosity":1}`, 1)
+
+	inSync := s.report(agentID, agentconfig.ModeApplySafe, func(r *agentconfig.Report) {
+		r.AppliedRevision = acaI64(1)
+		r.Plugins = []agentconfig.PluginReport{{Name: "ssh", Source: acaVendorPlugin, LibVersion: "v0.7.1"}, {Name: "local"}}
+	})
+	pending := s.report(agentID, agentconfig.ModeApplySafe, nil) // applied nil, attempted nil
+	rejected := s.report(agentID, agentconfig.ModeApplyAll, func(r *agentconfig.Report) {
+		r.AttemptedRevision = acaI64(1)
+		r.Status = agentconfig.StatusRejected
+		r.Reason = agentconfig.ReasonDownloadFailed
+	})
+	s.makeStale(rejected, time.Hour)
+	reportOnly := s.report(agentID, agentconfig.ModeReport, nil)
+	heartbeatOnly := uuid.New()
+	digest := acaDigest
+	s.Require().NoError(s.svc.TouchFromHeartbeat(ctx, agentID, nil, heartbeatOnly, acaI64(0), &digest))
+	// A newer heartbeat digest than the reported one marks the report stale.
+	other := acaOtherDigest
+	s.Require().NoError(s.svc.TouchFromHeartbeat(ctx, agentID, nil, inSync, acaI64(1), &other))
+
+	// Another agent's instance never shows up.
+	otherAgent, err := s.CreateAgent("other-agent")
+	s.Require().NoError(err)
+	foreign := s.report(*otherAgent.ID, agentconfig.ModeApplySafe, nil)
+
+	rec := s.call(http.MethodGet, s.path("/instances"), nil)
+	s.Require().Equal(http.StatusOK, rec.Code, rec.Body.String())
+	var list agentInstanceListResponse
+	s.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &list))
+	s.Equal(int64(1), list.Meta.DesiredRevision)
+	s.Equal(agentInstanceCounts{
+		Total: 5, Fresh: 4, Stale: 1,
+		InSync: 1, OutOfSync: 2,
+		Pending: 1, Rejected: 1, Failed: 0, Unknown: 1,
+	}, list.Meta.Counts)
+
+	byID := map[string]agentInstanceSummary{}
+	for _, inst := range list.Data {
+		byID[inst.InstanceID] = inst
+	}
+	s.NotContains(byID, foreign.String())
+
+	st := byID[inSync.String()]
+	s.Equal(agentconfig.StatusApplied, st.Status)
+	s.Equal(agentcfg.SyncInSync, st.SyncStatus)
+	s.True(st.ReportStale)
+	s.Equal([]agentconfig.PluginReport{{Name: "ssh", Source: acaVendorPlugin, LibVersion: "v0.7.1"}, {Name: "local"}}, st.Plugins, "R76: listed with the summary")
+	s.Require().NotNil(st.HeartbeatConfigRevision)
+	s.Equal(int64(1), *st.HeartbeatConfigRevision)
+	s.NotEmpty(st.RemoteConfig)
+
+	st = byID[pending.String()]
+	s.Equal([]agentconfig.PluginReport{}, st.Plugins, "an agent that does not report plugins")
+	s.Equal(agentconfig.StatusPending, st.Status)
+	s.Equal(agentcfg.SyncOutOfSync, st.SyncStatus)
+	s.False(st.Stale)
+
+	st = byID[rejected.String()]
+	s.Equal(agentconfig.StatusRejected, st.Status)
+	s.True(st.Stale)
+	s.Require().NotNil(st.Reason)
+	s.Equal(agentconfig.ReasonDownloadFailed, *st.Reason)
+
+	st = byID[reportOnly.String()]
+	s.Equal(agentconfig.StatusNotApplicable, st.Status)
+	s.Equal(agentcfg.SyncNotApplicable, st.SyncStatus)
+
+	st = byID[heartbeatOnly.String()]
+	s.Equal(agentconfig.StatusUnknown, st.Status)
+	s.Equal(agentcfg.SyncUnknown, st.SyncStatus)
+	s.Nil(st.ReportedAt)
+
+	// Summaries carry [] for list fields and no base/effective.
+	var rawList struct {
+		Data []map[string]json.RawMessage `json:"data"`
+	}
+	s.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &rawList))
+	for _, item := range rawList.Data {
+		s.NotContains(item, "base")
+		s.NotContains(item, "effective")
+		for _, k := range []string{"unsafe", "warnings"} {
+			s.JSONEq(`[]`, string(item[k]), k)
+		}
+		s.NotContains(item, "policy-errors")
+		s.Contains(item, "plugins")
+	}
+
+	// Detail: base and effective.
+	rec = s.call(http.MethodGet, s.path("/instances/"+inSync.String()), nil)
+	s.Require().Equal(http.StatusOK, rec.Code, rec.Body.String())
+	detail := acaData[agentInstanceDetail](s, rec)
+	s.Equal(inSync.String(), detail.InstanceID)
+	s.Contains(string(detail.Base), acaVendorPlugin)
+	s.Contains(string(detail.Effective), acaVendorPolicy)
+	s.Equal([]agentconfig.PluginReport{{Name: "ssh", Source: acaVendorPlugin, LibVersion: "v0.7.1"}, {Name: "local"}}, detail.Plugins, "R76")
+
+	// A heartbeat-only instance has null configs and [] plugins.
+	rec = s.call(http.MethodGet, s.path("/instances/"+heartbeatOnly.String()), nil)
+	s.Require().Equal(http.StatusOK, rec.Code, rec.Body.String())
+	var rawDetail struct {
+		Data map[string]json.RawMessage `json:"data"`
+	}
+	s.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &rawDetail))
+	s.JSONEq(`null`, string(rawDetail.Data["base"]))
+	s.NotContains(rawDetail.Data, "policy-bundles")
+	s.JSONEq(`[]`, string(rawDetail.Data["plugins"]))
+
+	// Another agent's instance => 404; a bad instance id => 400.
+	rec = s.call(http.MethodGet, s.path("/instances/"+foreign.String()), nil)
+	s.Equal(http.StatusNotFound, rec.Code, rec.Body.String())
+	rec = s.call(http.MethodGet, s.path("/instances/not-a-uuid"), nil)
+	s.Equal(http.StatusBadRequest, rec.Code, rec.Body.String())
+}
+
+func (s *AgentConfigAdminIntegrationSuite) TestInstancesEmpty() {
+	rec := s.call(http.MethodGet, s.path("/instances"), nil)
+	s.Require().Equal(http.StatusOK, rec.Code, rec.Body.String())
+	s.JSONEq(`{"data":[],"meta":{"desired-revision":0,"counts":{"total":0,"fresh":0,"stale":0,"in-sync":0,"out-of-sync":0,"pending":0,"rejected":0,"failed":0,"unknown":0}}}`, rec.Body.String())
+}
+
 // ---- Agent deletion ----
 
 // Deleting an agent removes its instances and its revisions (the purge path for an overlay
@@ -831,7 +961,99 @@ func (s *AgentConfigAdminIntegrationSuite) TestDeleteAgentRemovesInstancesAndRev
 
 // ---- Builtin authz (R39) ----
 
+func (s *AgentConfigAdminIntegrationSuite) TestBuiltinSSOUserNeedsAdminGroup() {
+	original := s.Config.SSO
+	s.Config.SSO = &config.SSOConfig{
+		Enabled: true,
+		Providers: map[string]config.SSOProviderConfig{
+			"test": {Name: "test", RequiredAdminGroups: []string{"ccf-admins"}},
+		},
+	}
+	defer func() { s.Config.SSO = original }()
+
+	ssoToken := func(email string, groups []string) string {
+		user, token := s.userToken(email, "sso", "")
+		s.Require().NoError(s.DB.Create(&relational.SSOUserLink{
+			UserID:     user.ID.String(),
+			Provider:   "test",
+			ExternalID: email,
+			Email:      email,
+			Groups:     sso.SerializeStringArray(groups),
+			LastSync:   time.Now(),
+		}).Error)
+		return token
+	}
+	member := ssoToken("sso-member@example.com", []string{"developers"})
+	admin := ssoToken("sso-admin@example.com", []string{"ccf-admins"})
+
+	denied := []struct {
+		method, path string
+		body         []byte
+		headers      []string
+	}{
+		{http.MethodGet, "/api/admin/agents", nil, nil},
+		{http.MethodGet, s.path(""), nil, nil},
+		{http.MethodGet, s.path("/config"), nil, nil},
+		{http.MethodPut, s.path("/config"), acaPutBody(`{"verbosity":1}`), []string{"If-Match", `"0"`}},
+		{http.MethodPost, s.path("/config/preview"), acaPutBody(`{"verbosity":1}`), nil},
+		{http.MethodGet, s.path("/config/revisions"), nil, nil},
+		{http.MethodGet, s.path("/instances"), nil, nil},
+	}
+	for _, tc := range denied {
+		rec := s.send(s.server, member, tc.method, tc.path, tc.body, tc.headers...)
+		s.Equal(http.StatusForbidden, rec.Code, "%s %s: %s", tc.method, tc.path, rec.Body.String())
+	}
+
+	// An SSO user in the admin group and the password user are allowed.
+	for _, token := range []string{admin, s.token} {
+		rec := s.send(s.server, token, http.MethodGet, "/api/admin/agents", nil)
+		s.Equal(http.StatusOK, rec.Code, rec.Body.String())
+		rec = s.send(s.server, token, http.MethodGet, s.path("/config"), nil)
+		s.Equal(http.StatusOK, rec.Code, rec.Body.String())
+	}
+	rec := s.send(s.server, admin, http.MethodPut, s.path("/config"), acaPutBody(`{"verbosity":1}`), "If-Match", `"0"`)
+	s.Equal(http.StatusCreated, rec.Code, rec.Body.String())
+	s.Equal(int64(1), s.revisionCount(*s.agent.ID))
+}
+
 // ---- Cedar authz (R40) ----
+
+func (s *AgentConfigAdminIntegrationSuite) TestCedarViewer() {
+	_, viewer := s.userToken("viewer@example.com", "", "viewer")
+	srv := s.cedarServer()
+
+	allowed := []struct{ method, path string }{
+		{http.MethodGet, "/api/admin/agents"},
+		{http.MethodGet, s.path("")},
+		{http.MethodGet, s.path("/config")},
+		{http.MethodGet, s.path("/config/revisions")},
+		{http.MethodGet, s.path("/instances")},
+	}
+	for _, tc := range allowed {
+		rec := s.send(srv, viewer, tc.method, tc.path, nil)
+		s.Equal(http.StatusOK, rec.Code, "%s %s: %s", tc.method, tc.path, rec.Body.String())
+	}
+
+	denied := []struct {
+		method, path string
+		body         []byte
+		headers      []string
+	}{
+		{http.MethodPost, s.path("/config/preview"), acaPutBody(`{"verbosity":1}`), nil},
+		{http.MethodPut, s.path("/config"), acaPutBody(`{"verbosity":1}`), []string{"If-Match", `"0"`}},
+		{http.MethodPost, s.path("/config/revisions/1/revert"), nil, []string{"If-Match", `"0"`}},
+		{http.MethodPost, "/api/admin/agents", []byte(`{"name":"viewer-agent"}`), nil},
+		{http.MethodPut, s.path(""), []byte(`{"name":"renamed"}`), nil},
+		{http.MethodDelete, s.path(""), nil, nil},
+		{http.MethodGet, s.path("/keys"), nil, nil},
+		{http.MethodPost, s.path("/keys"), []byte(`{"never-expires":true}`), nil},
+	}
+	for _, tc := range denied {
+		rec := s.send(srv, viewer, tc.method, tc.path, tc.body, tc.headers...)
+		s.Equal(http.StatusForbidden, rec.Code, "%s %s: %s", tc.method, tc.path, rec.Body.String())
+	}
+	s.Equal(int64(0), s.revisionCount(*s.agent.ID))
+}
 
 // Overlays are verbatim for agent:configure holders and redacted for read-only callers.
 func (s *AgentConfigAdminIntegrationSuite) TestCedarOverlayRedactedForReaders() {
@@ -911,3 +1133,26 @@ func (s *AgentConfigAdminIntegrationSuite) TestCedarUserWithoutRoleDenied() {
 }
 
 // ---- CORS (R13) ----
+
+func (s *AgentConfigAdminIntegrationSuite) TestCORSAllowsIfMatchAndExposesETag() {
+	const origin = "http://ui.example.com"
+	original := s.Config.APIAllowedOrigins
+	s.Config.APIAllowedOrigins = []string{origin}
+	defer func() { s.Config.APIAllowedOrigins = original }()
+	srv := s.newServer(nil)
+
+	rec := s.send(srv, "", http.MethodOptions, s.path("/config"), nil,
+		echo.HeaderOrigin, origin,
+		echo.HeaderAccessControlRequestMethod, http.MethodPut,
+		echo.HeaderAccessControlRequestHeaders, "if-match",
+	)
+	s.Require().Equal(http.StatusNoContent, rec.Code, rec.Body.String())
+	s.Equal(origin, rec.Header().Get(echo.HeaderAccessControlAllowOrigin))
+	s.Contains(strings.ToLower(rec.Header().Get(echo.HeaderAccessControlAllowHeaders)), "if-match")
+
+	rec = s.send(srv, s.token, http.MethodGet, s.path("/config"), nil, echo.HeaderOrigin, origin)
+	s.Require().Equal(http.StatusOK, rec.Code, rec.Body.String())
+	s.Equal(origin, rec.Header().Get(echo.HeaderAccessControlAllowOrigin))
+	s.Contains(rec.Header().Get(echo.HeaderAccessControlExposeHeaders), "ETag")
+	s.Equal(`"0"`, rec.Header().Get("ETag"))
+}

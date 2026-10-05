@@ -61,6 +61,8 @@ func (h *AgentConfigHandler) Register(g *echo.Group, guard middleware.ResourceGu
 	g.GET("/:id/config/revisions", h.ListRevisions, guard.Read())
 	g.GET("/:id/config/revisions/:rev", h.GetRevision, guard.Read())
 	g.POST("/:id/config/revisions/:rev/revert", h.Revert, write)
+	g.GET("/:id/instances", h.ListInstances, guard.Read())
+	g.GET("/:id/instances/:instanceId", h.GetInstance, guard.Read())
 }
 
 // ---- DTOs (A4.4) ----
@@ -74,6 +76,62 @@ type agentConfigRevisionResponse struct {
 	CreatedBy   *string         `json:"created-by"`
 	CreatedAt   *time.Time      `json:"created-at"`
 	RevertOf    *int64          `json:"revert-of"`
+}
+
+type agentInstanceSummary struct {
+	InstanceID              string                   `json:"instance-id"`
+	Hostname                *string                  `json:"hostname"`
+	AgentVersion            *string                  `json:"agent-version"`
+	Mode                    string                   `json:"mode"`
+	Daemon                  *bool                    `json:"daemon"`
+	FirstSeenAt             time.Time                `json:"first-seen-at"`
+	LastSeenAt              time.Time                `json:"last-seen-at"`
+	ReportedAt              *time.Time               `json:"reported-at"`
+	Stale                   bool                     `json:"stale"`
+	AppliedRevision         *int64                   `json:"applied-revision"`
+	AttemptedRevision       *int64                   `json:"attempted-revision"`
+	Status                  string                   `json:"status"` // applied|rejected|failed|not-applicable|pending|unknown
+	Reason                  *string                  `json:"reason"`
+	Error                   *string                  `json:"error"`
+	Truncated               bool                     `json:"truncated"`
+	SyncStatus              string                   `json:"sync-status"` // in-sync|out-of-sync|not-applicable|unknown
+	EffectiveDigest         *string                  `json:"effective-digest"`
+	HeartbeatConfigRevision *int64                   `json:"heartbeat-config-revision"`
+	ReportStale             bool                     `json:"report-stale"` // heartbeat digest != reported digest
+	RemoteConfig            json.RawMessage          `json:"remote-config,omitempty" swaggertype:"object"`
+	Unsafe                  []agentconfig.Change     `json:"unsafe"`
+	Warnings                []agentconfig.FieldError `json:"warnings"` // R41
+	// Plugins are the reported plugins and the agent library each was built with (R76).
+	// Empty until an agent that reports them does.
+	Plugins []agentconfig.PluginReport `json:"plugins"`
+}
+
+type agentInstanceDetail struct {
+	agentInstanceSummary
+	Base      json.RawMessage `json:"base" swaggertype:"object"`
+	Effective json.RawMessage `json:"effective" swaggertype:"object"`
+}
+
+type agentInstanceCounts struct {
+	Total     int `json:"total"`
+	Fresh     int `json:"fresh"`
+	Stale     int `json:"stale"`
+	InSync    int `json:"in-sync"`
+	OutOfSync int `json:"out-of-sync"`
+	Pending   int `json:"pending"`
+	Rejected  int `json:"rejected"`
+	Failed    int `json:"failed"`
+	Unknown   int `json:"unknown"`
+}
+
+type agentInstancesMeta struct {
+	DesiredRevision int64               `json:"desired-revision"`
+	Counts          agentInstanceCounts `json:"counts"`
+}
+
+type agentInstanceListResponse struct {
+	Data []agentInstanceSummary `json:"data"`
+	Meta agentInstancesMeta     `json:"meta"`
 }
 
 type configPreviewResponse struct {
@@ -633,7 +691,160 @@ func (h *AgentConfigHandler) GetRevision(ctx echo.Context) error {
 	return ctx.JSON(http.StatusOK, GenericDataResponse[agentConfigRevisionResponse]{Data: resp})
 }
 
+// ListInstances godoc
+//
+//	@Summary		List an agent's instances
+//	@Description	Summaries of the instances that reported or heartbeated with a config digest, with the derived status (pending and unknown are server-derived), sync status, staleness and counts. Base/effective configs are on the instance detail route.
+//	@Tags			Agent Configuration
+//	@Produce		json
+//	@Param			id	path		string	true	"Agent ID"
+//	@Success		200	{object}	handler.agentInstanceListResponse
+//	@Failure		400	{object}	api.Error
+//	@Failure		403	{object}	api.Error
+//	@Failure		404	{object}	api.Error
+//	@Failure		500	{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/admin/agents/{id}/instances [get]
+func (h *AgentConfigHandler) ListInstances(ctx echo.Context) error {
+	agent, errResp := h.resolveAgent(ctx)
+	if agent == nil {
+		return errResp
+	}
+	reqCtx := ctx.Request().Context()
+	desired, err := h.svc.CurrentRevisionNumber(reqCtx, *agent.ID)
+	if err != nil {
+		return h.internalError(ctx, "load agent configuration", err)
+	}
+	instances, err := h.svc.ListInstances(reqCtx, *agent.ID)
+	if err != nil {
+		return h.internalError(ctx, "list instances", err)
+	}
+	now := h.svc.Now()
+	resp := agentInstanceListResponse{
+		Data: make([]agentInstanceSummary, 0, len(instances)),
+		Meta: agentInstancesMeta{DesiredRevision: desired},
+	}
+	counts := &resp.Meta.Counts
+	for _, inst := range instances {
+		s := h.instanceSummary(inst, desired, now)
+		resp.Data = append(resp.Data, s)
+		counts.Total++
+		if s.Stale {
+			counts.Stale++
+		} else {
+			counts.Fresh++
+		}
+		switch s.SyncStatus {
+		case agentcfg.SyncInSync:
+			counts.InSync++
+		case agentcfg.SyncOutOfSync:
+			counts.OutOfSync++
+		}
+		switch s.Status {
+		case agentconfig.StatusPending:
+			counts.Pending++
+		case agentconfig.StatusRejected:
+			counts.Rejected++
+		case agentconfig.StatusFailed:
+			counts.Failed++
+		case agentconfig.StatusUnknown:
+			counts.Unknown++
+		}
+	}
+	return ctx.JSON(http.StatusOK, resp)
+}
+
+// GetInstance godoc
+//
+//	@Summary		Get one agent instance
+//	@Description	The instance's summary plus its redacted base and effective configs (snake_case). instanceId is the agent-side instance UUID.
+//	@Tags			Agent Configuration
+//	@Produce		json
+//	@Param			id			path		string	true	"Agent ID"
+//	@Param			instanceId	path		string	true	"Instance ID"
+//	@Success		200			{object}	handler.GenericDataResponse[handler.agentInstanceDetail]
+//	@Failure		400			{object}	api.Error
+//	@Failure		403			{object}	api.Error
+//	@Failure		404			{object}	api.Error
+//	@Failure		500			{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/admin/agents/{id}/instances/{instanceId} [get]
+func (h *AgentConfigHandler) GetInstance(ctx echo.Context) error {
+	agent, errResp := h.resolveAgent(ctx)
+	if agent == nil {
+		return errResp
+	}
+	instanceID, err := uuid.Parse(ctx.Param("instanceId"))
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.InvalidUUID())
+	}
+	reqCtx := ctx.Request().Context()
+	inst, err := h.svc.GetInstance(reqCtx, *agent.ID, instanceID)
+	if errors.Is(err, agentcfg.ErrNotFound) {
+		return ctx.JSON(http.StatusNotFound, api.NotFoundCustomMsg("instance not found"))
+	}
+	if err != nil {
+		return h.internalError(ctx, "load instance", err)
+	}
+	desired, err := h.svc.CurrentRevisionNumber(reqCtx, *agent.ID)
+	if err != nil {
+		return h.internalError(ctx, "load agent configuration", err)
+	}
+	detail := agentInstanceDetail{
+		agentInstanceSummary: h.instanceSummary(*inst, desired, h.svc.Now()),
+		Base:                 rawOrNull(inst.BaseConfig),
+		Effective:            rawOrNull(inst.EffectiveConfig),
+	}
+	return ctx.JSON(http.StatusOK, GenericDataResponse[agentInstanceDetail]{Data: detail})
+}
+
 // ---- helpers ----
+
+func (h *AgentConfigHandler) instanceSummary(inst relational.AgentInstance, desired int64, now time.Time) agentInstanceSummary {
+	s := agentInstanceSummary{
+		InstanceID:              inst.InstanceID.String(),
+		Hostname:                inst.Hostname,
+		AgentVersion:            inst.AgentVersion,
+		Mode:                    inst.Mode,
+		Daemon:                  inst.Daemon,
+		FirstSeenAt:             inst.FirstSeenAt.UTC(),
+		LastSeenAt:              inst.LastSeenAt.UTC(),
+		ReportedAt:              inst.ReportedAt,
+		Stale:                   agentcfg.IsStale(inst, now, h.svc.Settings()),
+		AppliedRevision:         inst.AppliedRevision,
+		AttemptedRevision:       inst.AttemptedRevision,
+		Status:                  agentcfg.DeriveStatus(inst, desired),
+		Reason:                  inst.ApplyReason,
+		Error:                   inst.ApplyError,
+		Truncated:               inst.Truncated,
+		SyncStatus:              agentcfg.DeriveSyncStatus(inst, desired),
+		EffectiveDigest:         inst.EffectiveDigest,
+		HeartbeatConfigRevision: inst.HeartbeatConfigRevision,
+		ReportStale: inst.HeartbeatConfigDigest != nil && inst.EffectiveDigest != nil &&
+			*inst.HeartbeatConfigDigest != *inst.EffectiveDigest,
+		Unsafe:   []agentconfig.Change{},
+		Warnings: []agentconfig.FieldError{},
+		Plugins:  []agentconfig.PluginReport{},
+	}
+	if len(inst.RemoteConfig) > 0 && string(inst.RemoteConfig) != "null" {
+		s.RemoteConfig = json.RawMessage(inst.RemoteConfig)
+	}
+	h.decodeColumn(&inst, "unsafe_changes", inst.UnsafeChanges, &s.Unsafe)
+	h.decodeColumn(&inst, "warnings", inst.Warnings, &s.Warnings)
+	h.decodeColumn(&inst, "plugins", inst.Plugins, &s.Plugins)
+	return s
+}
+
+// decodeColumn decodes a stored JSON column into dst, leaving dst untouched when the column
+// is empty or does not decode (logged).
+func (h *AgentConfigHandler) decodeColumn(inst *relational.AgentInstance, column string, raw []byte, dst any) {
+	if len(raw) == 0 || string(raw) == "null" {
+		return
+	}
+	if err := json.Unmarshal(raw, dst); err != nil {
+		h.sugar.Warnw("Failed to decode agent instance column", "instanceID", inst.InstanceID, "column", column, "error", err)
+	}
+}
 
 // resolveAgent loads :id. On failure it returns nil and the already-written error response.
 func (h *AgentConfigHandler) resolveAgent(ctx echo.Context) (*relational.Agent, error) {
@@ -794,6 +1005,13 @@ func compactJSON(raw json.RawMessage) (json.RawMessage, error) {
 		return nil, fmt.Errorf("overlay is not valid JSON: %w", err)
 	}
 	return buf.Bytes(), nil
+}
+
+func rawOrNull(raw []byte) json.RawMessage {
+	if len(raw) == 0 {
+		return json.RawMessage("null")
+	}
+	return json.RawMessage(raw)
 }
 
 // nonNil returns an empty (non-nil) slice for nil, so JSON renders [] rather than null.
