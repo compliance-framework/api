@@ -1,0 +1,28 @@
+lisa-addressed:
+---
+Comment (pkg/agentconfig/classify.go:208):
+**[Must-fix] Re-enabling a plugin with a trusted source is Safe even when its policies are untrusted**
+
+When a plugin the base disables is re-enabled, only `ep.Source` is checked against `trusted_sources`. The plugin's `policies` are never classified: `usedSources` skips disabled plugins, and `bp.Policies == ep.Policies`, so the policies branch never runs. The same goes for `${env:}` references already in its `config`.
+
+Repro (scratch test against this package):
+```go
+base := Config{Plugins: map[string]*Plugin{"x": {Enabled: &f, Source: "ghcr.io/trusted/p:v1",
+    Policies: []string{"ghcr.io/evil/pol:v9", "/tmp/local-policy"}}}}
+rc := RemoteConfig{Mode: ModeApplySafe, TrustedSources: []string{"ghcr.io/trusted/*"}}.Normalize(true)
+Classify(base, `{"plugins":{"x":{"enabled":true}}}`, rc)
+// -> [{/plugins/x/enabled safe trusted-source}]; WillApply(rc, ch) == true
+```
+So under `apply_safe` a remote editor can bring back an untrusted policy bundle, or a local-path policy that `allow_local_sources` would otherwise forbid, which the host operator disabled together with the plugin.
+
+**Reviewer decision:** re-enabling a disabled plugin must classify its parts as if the plugin were new. Its policy entries go through `sourceClass`, and its `${env:}` references count as new references (`new-env-reference` / `forbidden-env-reference`).
+
+**Why:** It's the same kind of gap as the disabled-source finding fixed in #465: a disabled plugin's sources aren't 'already used', so turning it back on must not skip their checks.
+**Fix:** In the re-enable branch, classify the source as it does today, and also classify each policy entry with `cl.sourceClass(ptr+"/policies", e)` and each config value's env references as new references (against an empty base value), as `classify` does for a new plugin (`bp = &Plugin{}`). Add tests: a trusted source with an untrusted policy is `unsafe/untrusted-source`; a local policy is `forbidden/local-source-not-allowed`; a config value with `${env:X}` is `unsafe/new-env-reference`. Update the `Classify` doc comment.
+**Severity basis:** no rule matched; decision tree: wrong behaviour or missing companion change.
+
+<sub>ccf-review · b1aab7a63821 · rules@6be9e11b8bc6</sub>
+Replies:
+**lisa implementation guidance:** **lisa implementation guidance:** In `classifyPlugin` (pkg/agentconfig/classify.go), compute `reenabled := !bp.IsEnabled() && ep.IsEnabled()`. Keep the existing enabled change (trusted-source Safe / reenables-plugin Unsafe). When reenabled: (1) classify every policy entry the plugin keeps (`slices.Contains(bp.Policies, e)`) with `cl.sourceClass(ptr+"/policies", e)`; entries the overlay adds are already classified by the policies branch, and `slices.Compact` drops exact duplicates. (2) In the config loop, don't skip unchanged keys and treat `baseRefs` as empty, so every `${env:}` reference is new-env-reference/forbidden-env-reference; an unchanged key with no env references still produces no change (no config-not-overridable for values the overlay didn't touch). Update the `Classify` doc comment and the table tests: the fixture's disabled plugin keeps `./local/policies`, so re-enabling it now also yields `forbidden/local-source-not-allowed` under apply_safe. Add cases for a trusted source with an untrusted policy (unsafe/untrusted-source), and a kept config value `${env:X}` (unsafe/new-env-reference).
+
+<!-- lisa-guidance-posted -->
