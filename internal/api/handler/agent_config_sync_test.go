@@ -31,26 +31,32 @@ func validReport() agentconfig.Report {
 
 func int64Ptr(v int64) *int64 { return &v }
 
+// normalizeReportErr is normalizeReport without the scrubbed flag.
+func normalizeReportErr(r *agentconfig.Report) error {
+	_, err := normalizeReport(r)
+	return err
+}
+
 func TestNormalizeReport_Valid(t *testing.T) {
 	for _, mode := range agentconfig.Modes {
 		for _, status := range agentconfig.AgentStatuses {
 			r := validReport()
 			r.Mode = mode
 			r.Status = status
-			assert.NoError(t, normalizeReport(&r), "mode=%s status=%s", mode, status)
+			assert.NoError(t, normalizeReportErr(&r), "mode=%s status=%s", mode, status)
 		}
 	}
 	for _, reason := range agentconfig.Reasons {
 		r := validReport()
 		r.Status = agentconfig.StatusRejected
 		r.Reason = reason
-		assert.NoError(t, normalizeReport(&r), "reason=%s", reason)
+		assert.NoError(t, normalizeReportErr(&r), "reason=%s", reason)
 	}
 	r := validReport()
 	r.AppliedRevision = int64Ptr(0)
 	r.AttemptedRevision = int64Ptr(3)
 	r.Base = json.RawMessage("  \n{\"a\":1}")
-	assert.NoError(t, normalizeReport(&r))
+	assert.NoError(t, normalizeReportErr(&r))
 }
 
 func TestNormalizeReport_Rejects(t *testing.T) {
@@ -105,7 +111,7 @@ func TestNormalizeReport_Rejects(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			r := validReport()
 			mutate(&r)
-			assert.Error(t, normalizeReport(&r))
+			assert.Error(t, normalizeReportErr(&r))
 		})
 	}
 }
@@ -117,7 +123,7 @@ func TestNormalizeReport_Truncates(t *testing.T) {
 	r.AgentVersion = strings.Repeat("v", 100)
 	longErr := strings.Repeat("é", maxReportErrorBytes) // 2 bytes each
 	r.Error = &longErr
-	require.NoError(t, normalizeReport(&r))
+	require.NoError(t, normalizeReportErr(&r))
 
 	assert.Len(t, r.Warnings, maxReportWarnings)
 	assert.True(t, r.Truncated)
@@ -133,7 +139,7 @@ func TestNormalizeReport_Truncates(t *testing.T) {
 	r.Hostname = " host "
 	msg := "short"
 	r.Error = &msg
-	require.NoError(t, normalizeReport(&r))
+	require.NoError(t, normalizeReportErr(&r))
 	assert.Len(t, r.Warnings, maxReportWarnings)
 	assert.False(t, r.Truncated)
 	assert.Equal(t, "host", r.Hostname)
@@ -142,14 +148,14 @@ func TestNormalizeReport_Truncates(t *testing.T) {
 	// An agent-set truncated flag is kept.
 	r = validReport()
 	r.Truncated = true
-	require.NoError(t, normalizeReport(&r))
+	require.NoError(t, normalizeReportErr(&r))
 	assert.True(t, r.Truncated)
 }
 
 func TestNormalizeReport_LiteralBackslashU0000IsNotNUL(t *testing.T) {
 	r := validReport()
 	r.Base = json.RawMessage(`{"a":"\\u0000"}`) // the 6 characters \u0000, not a NUL
-	assert.NoError(t, normalizeReport(&r))
+	assert.NoError(t, normalizeReportErr(&r))
 }
 
 func TestNormalizeReport_CapsSummaryFields(t *testing.T) {
@@ -165,7 +171,7 @@ func TestNormalizeReport_CapsSummaryFields(t *testing.T) {
 		Safety: agentconfig.Unsafe,
 		Value:  strings.Repeat("v", maxReportChangeValueBytes+1),
 	}
-	require.NoError(t, normalizeReport(&r))
+	require.NoError(t, normalizeReportErr(&r))
 	assert.True(t, r.Truncated)
 	assert.Len(t, r.Warnings[0].Path, maxReportWarningPathBytes)
 	assert.LessOrEqual(t, len(r.Warnings[0].Message), maxReportWarningMessageBytes)
@@ -178,7 +184,7 @@ func TestNormalizeReport_CapsSummaryFields(t *testing.T) {
 	r = validReport()
 	r.Warnings = []agentconfig.FieldError{{Path: "/x", Code: "c", Message: strings.Repeat("m", maxReportWarningMessageBytes)}}
 	r.Unsafe = make([]agentconfig.Change, maxReportUnsafe)
-	require.NoError(t, normalizeReport(&r))
+	require.NoError(t, normalizeReportErr(&r))
 	assert.False(t, r.Truncated)
 	assert.Len(t, r.Unsafe, maxReportUnsafe)
 }
@@ -226,7 +232,7 @@ func TestNormalizeReport_Plugins(t *testing.T) {
 		{Name: "ssh", Source: "ghcr.io/compliance-framework/plugin-local-ssh:v0.2.0", LibVersion: " v0.1.9 "},
 		{Name: "local"},
 	}
-	require.NoError(t, normalizeReport(&r))
+	require.NoError(t, normalizeReportErr(&r))
 	assert.Equal(t, []agentconfig.PluginReport{
 		{Name: "ssh", Source: "ghcr.io/compliance-framework/plugin-local-ssh:v0.2.0", LibVersion: "v0.1.9"},
 		{Name: "local"},
@@ -244,7 +250,7 @@ func TestNormalizeReport_Plugins(t *testing.T) {
 		Source:     strings.Repeat("s", maxReportPluginSourceLen+1),
 		LibVersion: strings.Repeat("v", maxReportPluginLibVersionLen+1),
 	}
-	require.NoError(t, normalizeReport(&r))
+	require.NoError(t, normalizeReportErr(&r))
 	assert.Len(t, r.Plugins, maxReportPlugins)
 	assert.Len(t, r.Plugins[0].Name, maxReportPluginNameLen)
 	assert.Len(t, r.Plugins[0].Source, maxReportPluginSourceLen)
@@ -355,4 +361,30 @@ func TestReadJSONBody(t *testing.T) {
 		assert.Equal(t, http.StatusBadRequest, err.status)
 		assert.Equal(t, "failed to read request body", err.msg)
 	})
+}
+
+// A secret that straddles a length cap is masked whole: masking runs before truncation, so
+// no prefix of it survives.
+func TestNormalizeReport_ScrubsBeforeTruncating(t *testing.T) {
+	secret := "postgres://app:hunter2secretpw@db:5432/app"
+	r := validReport()
+	errMsg := strings.Repeat("x", maxReportErrorBytes-20) + " dial " + secret
+	r.Error = &errMsg
+	r.Warnings = []agentconfig.FieldError{{Path: "/p", Code: "c", Message: strings.Repeat("y", maxReportWarningMessageBytes-20) + " " + secret}}
+	r.Unsafe = []agentconfig.Change{{Path: "/plugins/a/source", Safety: agentconfig.Unsafe, Reason: agentconfig.ChangeReasonUntrustedSource, Value: strings.Repeat("z", maxReportChangeValueBytes-20) + " " + secret}}
+	r.Plugins = []agentconfig.PluginReport{{Name: "a", Source: strings.Repeat("s", maxReportPluginSourceLen-20) + " " + secret}}
+
+	scrubbed, err := normalizeReport(&r)
+	require.NoError(t, err)
+	assert.True(t, scrubbed)
+	assert.Equal(t, agentconfig.MaskedValue, *r.Error)
+	assert.Equal(t, agentconfig.MaskedValue, r.Warnings[0].Message)
+	assert.Equal(t, agentconfig.MaskedValue, r.Unsafe[0].Value)
+	assert.Equal(t, agentconfig.MaskedValue, r.Plugins[0].Source)
+	assert.False(t, r.Truncated, "masked values are short, so nothing is cut")
+
+	clean := validReport()
+	scrubbed, err = normalizeReport(&clean)
+	require.NoError(t, err)
+	assert.False(t, scrubbed)
 }

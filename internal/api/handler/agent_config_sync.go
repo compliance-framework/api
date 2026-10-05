@@ -185,8 +185,13 @@ func (h *AgentConfigSyncHandler) PutReport(ctx echo.Context) error {
 	if err := json.Unmarshal(body, &report); err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("invalid report body: %w", err)))
 	}
-	if err := normalizeReport(&report); err != nil {
+	scrubbed, err := normalizeReport(&report)
+	if err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	if scrubbed {
+		h.sugar.Warnw("Agent config report carried a secret in free text; masked server-side",
+			"agentID", agentID, "instanceID", instanceID)
 	}
 
 	// Best-effort server-side re-redaction; the digest is stored exactly as sent (R55).
@@ -204,11 +209,6 @@ func (h *AgentConfigSyncHandler) PutReport(ctx echo.Context) error {
 		}
 		*doc.raw = redacted
 	}
-	if scrubReportText(&report) {
-		h.sugar.Warnw("Agent config report carried a secret in free text; masked server-side",
-			"agentID", agentID, "instanceID", instanceID)
-	}
-
 	var credentialID *uuid.UUID
 	if auth.Key != nil && auth.Key.ID != nil {
 		id := *auth.Key.ID
@@ -315,63 +315,70 @@ func hasJSONNULEscape(raw []byte) bool {
 	}
 }
 
-// normalizeReport validates the enums and shapes of a report and applies the length caps
-// (truncating, not rejecting, the free-text fields).
-func normalizeReport(r *agentconfig.Report) error {
+// normalizeReport validates the enums and shapes of a report, applies the count caps, masks
+// the free-text fields that contain a secret (scrubReportText) and then applies the length
+// caps (truncating, not rejecting). Masking runs before truncation so a secret cut at a cap
+// cannot slip past the content checks. scrubbed reports whether anything was masked.
+func normalizeReport(r *agentconfig.Report) (scrubbed bool, err error) {
 	if !slices.Contains(agentconfig.Modes, r.Mode) {
-		return fmt.Errorf("mode must be one of %s", strings.Join(agentconfig.Modes, ", "))
+		return false, fmt.Errorf("mode must be one of %s", strings.Join(agentconfig.Modes, ", "))
 	}
 	if !slices.Contains(agentconfig.AgentStatuses, r.Status) {
-		return fmt.Errorf("status must be one of %s", strings.Join(agentconfig.AgentStatuses, ", "))
+		return false, fmt.Errorf("status must be one of %s", strings.Join(agentconfig.AgentStatuses, ", "))
 	}
 	if r.Reason != "" && !slices.Contains(agentconfig.Reasons, r.Reason) {
-		return fmt.Errorf("reason %q is not a known reason", r.Reason)
+		return false, fmt.Errorf("reason %q is not a known reason", r.Reason)
 	}
 	if r.AppliedRevision != nil && *r.AppliedRevision < 0 {
-		return errors.New("applied-revision must not be negative")
+		return false, errors.New("applied-revision must not be negative")
 	}
 	if r.AttemptedRevision != nil && *r.AttemptedRevision < 0 {
-		return errors.New("attempted-revision must not be negative")
+		return false, errors.New("attempted-revision must not be negative")
 	}
 	if !isJSONObject(r.Base) {
-		return errors.New("base must be a JSON object")
+		return false, errors.New("base must be a JSON object")
 	}
 	if !isJSONObject(r.Effective) {
-		return errors.New("effective must be a JSON object")
+		return false, errors.New("effective must be a JSON object")
 	}
 	if err := checkReportNUL(r); err != nil {
-		return err
+		return false, err
 	}
 	if !effectiveDigestPattern.MatchString(r.EffectiveDigest) {
-		return errors.New("effective-digest must match sha256:<64 lowercase hex>")
+		return false, errors.New("effective-digest must match sha256:<64 lowercase hex>")
 	}
 	for i, p := range r.Plugins {
 		if strings.TrimSpace(p.Name) == "" {
-			return fmt.Errorf("plugins[%d].name is required", i)
+			return false, fmt.Errorf("plugins[%d].name is required", i)
 		}
 	}
+
+	// Count caps first, so masking only scans what is kept.
 	if len(r.Plugins) > maxReportPlugins {
 		r.Plugins = r.Plugins[:maxReportPlugins]
 		r.Truncated = true
 	}
+	if len(r.Warnings) > maxReportWarnings {
+		r.Warnings = r.Warnings[:maxReportWarnings]
+		r.Truncated = true
+	}
+	if len(r.Unsafe) > maxReportUnsafe {
+		r.Unsafe = r.Unsafe[:maxReportUnsafe]
+		r.Truncated = true
+	}
+
+	scrubbed = scrubReportText(r)
+
 	for i := range r.Plugins {
 		p := &r.Plugins[i]
 		p.Name = truncateUTF8(p.Name, maxReportPluginNameLen)
 		p.Source = truncateUTF8(p.Source, maxReportPluginSourceLen)
 		p.LibVersion = truncateUTF8(strings.TrimSpace(p.LibVersion), maxReportPluginLibVersionLen)
 	}
-	if len(r.Warnings) > maxReportWarnings {
-		r.Warnings = r.Warnings[:maxReportWarnings]
-		r.Truncated = true
-	}
 	for i := range r.Warnings {
 		w := &r.Warnings[i]
 		w.Message = truncateReportField(r, w.Message, maxReportWarningMessageBytes)
 		w.Path = truncateReportField(r, w.Path, maxReportWarningPathBytes)
-	}
-	if len(r.Unsafe) > maxReportUnsafe {
-		r.Unsafe = r.Unsafe[:maxReportUnsafe]
-		r.Truncated = true
 	}
 	for i := range r.Unsafe {
 		c := &r.Unsafe[i]
@@ -384,7 +391,7 @@ func normalizeReport(r *agentconfig.Report) error {
 		msg := truncateUTF8(*r.Error, maxReportErrorBytes)
 		r.Error = &msg
 	}
-	return nil
+	return scrubbed, nil
 }
 
 // truncateReportField cuts s to n bytes (truncateUTF8) and marks the report truncated when
