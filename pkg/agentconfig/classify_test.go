@@ -116,6 +116,12 @@ func TestClassify(t *testing.T) {
 		{name: "protocol_version null", overlay: `{"plugins":{"local-ssh":{"protocol_version":null}}}`, rc: safe, want: []Change{{Path: "/plugins/local-ssh/protocol_version", Safety: Safe, Reason: ChangeReasonDataOnly}}},
 		{name: "enabled false", overlay: `{"plugins":{"local-ssh":{"enabled":false}}}`, rc: safe, want: []Change{{Path: "/plugins/local-ssh/enabled", Safety: Safe, Reason: ChangeReasonDataOnly}}},
 		{name: "enabled true on a nil-enabled plugin is no change", overlay: `{"plugins":{"local-ssh":{"enabled":true}}}`, rc: safe, want: nil},
+		{name: "re-enabling an untrusted plugin", overlay: `{"plugins":{"disabled":{"enabled":true}}}`, rc: safe, want: []Change{{Path: "/plugins/disabled/enabled", Safety: Unsafe, Reason: ChangeReasonReenablePlugin, Value: srcDisabled}}},
+		{name: "re-enabling a trusted plugin", overlay: `{"plugins":{"disabled":{"enabled":null}}}`, rc: testRC(ModeApplySafe, func(rc *RemoteConfig) { rc.TrustedSources = []string{"ghcr.io/other/*"} }), want: []Change{{Path: "/plugins/disabled/enabled", Safety: Safe, Reason: ChangeReasonTrustedSource, Value: srcDisabled}}},
+		{name: "re-enabling with a new source", overlay: `{"plugins":{"disabled":{"enabled":true,"source":"` + srcSSHv2 + `"}}}`, rc: safe, want: []Change{
+			{Path: "/plugins/disabled/enabled", Safety: Safe, Reason: ChangeReasonTrustedSource, Value: srcSSHv2},
+			{Path: "/plugins/disabled/source", Safety: Safe, Reason: ChangeReasonTrustedSource, Value: srcSSHv2},
+		}},
 		{name: "policy_data", overlay: `{"plugins":{"local-ssh":{"policy_data":{"threshold":6}}}}`, rc: safe, want: []Change{{Path: "/plugins/local-ssh/policy_data", Safety: Safe, Reason: ChangeReasonDataOnly}}},
 		{
 			name:    "policy_data is always safe, even with secret-like keys and env-like strings",

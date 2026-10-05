@@ -16,9 +16,11 @@ import (
 // secretKeyStems mark a key as secret wherever they occur in it. They are matched against
 // the key lowercased with every non-alphanumeric character removed, so "db_password",
 // "dbPassword", "dbpassword" (viper lowercases keys) and "API-Key" all match. Matching
-// anywhere is deliberate: it also masks some non-secrets such as "tokens_per_minute",
-// "max_tokens", "secret_name" or "password_file". A false positive only hides a value from
-// reports and digests; a miss leaks a secret.
+// anywhere is deliberate: a false positive only hides a value from reports and digests; a
+// miss leaks a secret. Keys that only describe a secret (nonSecretKeyLastWords,
+// nonSecretKeyFirstWords) are exempt, so "max_tokens", "tokens_per_minute", "secret_name",
+// "token_url" and "password_file" are not masked by key; their values still get the
+// content check (containsSecretValue).
 var secretKeyStems = []string{
 	"password", "passwd", "passphrase",
 	"secret", "token", "credential",
@@ -46,12 +48,47 @@ var secretKeyWordExceptions = []string{
 	"bypass", "compass", "encompass", "surpass", "overpass", "underpass", "trespass",
 }
 
+// nonSecretKeyLastWords end a key that describes a secret rather than holds one: its name,
+// location, identifier, size or switch ("secret_name", "token_url", "password_file",
+// "api_key_id", "token_ttl", "auth_enabled").
+var nonSecretKeyLastWords = []string{
+	"name", "url", "uri", "file", "path", "dir", "id", "count", "limit", "ttl", "size",
+	"length", "enabled",
+}
+
+// nonSecretKeyFirstWords start a key that bounds a quantity ("max_tokens", "min_key_size").
+var nonSecretKeyFirstWords = []string{"max", "min"}
+
+// isNonSecretKeyName reports whether a key (split by keyWords) describes a secret rather
+// than holds one: it starts with max/min or "tokens_per", or its last word is in
+// nonSecretKeyLastWords. A key whose secret stem needs that last word still names a secret
+// ("session_id" is the stem "sessionid").
+func isNonSecretKeyName(words []string) bool {
+	if len(words) < 2 {
+		return false
+	}
+	if slices.Contains(nonSecretKeyFirstWords, words[0]) || (words[0] == "tokens" && words[1] == "per") {
+		return true
+	}
+	if !slices.Contains(nonSecretKeyLastWords, words[len(words)-1]) {
+		return false
+	}
+	joined := strings.Join(words, "")
+	prefix := strings.Join(words[:len(words)-1], "")
+	for _, stem := range secretKeyStems {
+		if strings.Contains(joined, stem) && !strings.Contains(prefix, stem) {
+			return false
+		}
+	}
+	return true
+}
+
 // isSecretKey reports whether a config or policy_data key names a secret. Keys that name
 // public or non-secret material, such as "cert", "certificate", "signature" or "session",
 // do not match; private key material is caught by its content (containsSecretValue).
 func isSecretKey(key string) bool {
 	words := keyWords(key)
-	if len(words) == 0 {
+	if len(words) == 0 || isNonSecretKeyName(words) {
 		return false
 	}
 	joined := strings.Join(words, "")
@@ -140,14 +177,40 @@ var secretValuePatterns = []secretValuePattern{
 	{"vault-token", regexp.MustCompile(`\bhv[sb]\.[A-Za-z0-9_-]{90,}`)},
 	{"azure-ad-client-secret", regexp.MustCompile(`(?:^|[\\'"\x60\s>=:(,)])[A-Za-z0-9_~.]{3}[0-9]Q~[A-Za-z0-9_~.-]{31,34}(?:$|[\\'"\x60\s<),])`)},
 	{"age-secret-key", regexp.MustCompile(`AGE-SECRET-KEY-1[QPZRY9X8GF2TVDW0S3JN54KHCE6MUA7L]{58}`)},
+	// Go MySQL driver DSN without a scheme: user:password@tcp(host:port)/db.
+	{"mysql-dsn", regexp.MustCompile(`[^\s:@/]*:[^\s@]+@(?:tcp[46]?|udp[46]?|unix)\(`)},
 }
 
 // urlSchemePattern finds the start of each URL in a string.
 var urlSchemePattern = regexp.MustCompile(`[A-Za-z][A-Za-z0-9+.\-]*://`)
 
 // urlUserinfoPattern recognizes "scheme://user:password@" in a URL net/url cannot parse
-// (an unescaped '/', '#', '?' or '@' in the password is common in hand-written DSNs).
-var urlUserinfoPattern = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9+.\-]*://[^\s/@:]*:[^\s@]+@`)
+// (an unescaped '/', '#', '?' or '@' in the password is common in hand-written DSNs) or
+// parses as host:port (a password starting with digits then '/'). A password ending in '/'
+// is not matched, so "https://host:443/users/@me" (a path) is not taken for userinfo.
+var urlUserinfoPattern = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9+.\-]*://[^\s/@:]*:[^\s@]*[^\s@/]@`)
+
+// Bounds on the URL password scan (hasURLPassword), so its cost is linear in the input.
+const (
+	// maxURLScanBytes is the prefix of a value scanned for URLs with a password. The token
+	// patterns (RE2, linear) still run on the whole value.
+	maxURLScanBytes = 64 << 10
+	// maxURLCandidates caps the URLs inspected in one value.
+	maxURLCandidates = 64
+	// maxURLCandidateBytes caps the length of one URL candidate.
+	maxURLCandidateBytes = 2048
+)
+
+// ScrubSecretText returns MaskedValue and true when s contains a secret by content (the
+// rule Redact applies whatever the key: a URL with a password, a DSN, a PEM private key, a
+// password=... assignment or a provider token), else s and false. It masks the whole string.
+// Use it on free text such as error messages and plugin sources.
+func ScrubSecretText(s string) (string, bool) {
+	if containsSecretValue(s) {
+		return MaskedValue, true
+	}
+	return s, false
+}
 
 // containsSecretValue reports whether s holds a secret whatever its key: a URL with a
 // non-empty password in its userinfo (anywhere in s, so DSNs and command lines count), a
@@ -168,26 +231,42 @@ func containsSecretValue(s string) bool {
 	return false
 }
 
-// hasURLPassword reports whether any URL in s carries a non-empty password.
+// hasURLPassword reports whether any URL in s carries a non-empty password. Only the first
+// maxURLScanBytes of s and its first maxURLCandidates URLs are inspected, and each candidate
+// ends at the next URL, so the work is linear in len(s).
 func hasURLPassword(s string) bool {
-	for _, loc := range urlSchemePattern.FindAllStringIndex(s, -1) {
-		candidate := s[loc[0]:]
-		if end := strings.IndexFunc(candidate, isURLTerminator); end >= 0 {
-			candidate = candidate[:end]
+	if len(s) > maxURLScanBytes {
+		s = s[:maxURLScanBytes]
+	}
+	locs := urlSchemePattern.FindAllStringIndex(s, maxURLCandidates)
+	for i, loc := range locs {
+		end := len(s)
+		if i+1 < len(locs) {
+			end = locs[i+1][0]
 		}
-		if u, err := url.Parse(candidate); err == nil {
-			if u.User != nil {
-				if password, ok := u.User.Password(); ok && password != "" {
-					return true
-				}
+		end = min(end, loc[0]+maxURLCandidateBytes)
+		candidate := s[loc[0]:end]
+		if t := strings.IndexFunc(candidate, isURLTerminator); t >= 0 {
+			candidate = candidate[:t]
+		}
+		if u, err := url.Parse(candidate); err == nil && u.User != nil {
+			if password, ok := u.User.Password(); ok && password != "" {
+				return true
 			}
-			continue
 		}
-		if urlUserinfoPattern.MatchString(candidate) {
+		// Also when net/url parses the candidate without a password: it reads
+		// "https://user:5678/abc@host" as host "user" and port 5678. An image digest after
+		// the '@' ("oci://registry:5000/plugin@sha256:...") is a reference, not userinfo.
+		if m := urlUserinfoPattern.FindStringIndex(candidate); m != nil && !isDigestReference(candidate[m[1]:]) {
 			return true
 		}
 	}
 	return false
+}
+
+// isDigestReference reports whether s starts with a content digest ("sha256:...").
+func isDigestReference(s string) bool {
+	return strings.HasPrefix(s, "sha256:") || strings.HasPrefix(s, "sha384:") || strings.HasPrefix(s, "sha512:")
 }
 
 func isURLTerminator(r rune) bool {

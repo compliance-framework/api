@@ -128,6 +128,10 @@ func TestValidateOverlayRules(t *testing.T) {
 		// O10
 		{name: "O10 masked config", overlay: `{"plugins":{"x":{"config":{"password":"••••"}}}}`, path: "/plugins/x/config/password", code: FieldCodeMaskedValue},
 		{name: "O10 masked policy_data", overlay: `{"plugins":{"x":{"policy_data":{"a":{"token":"••••"}}}}}`, path: "/plugins/x/policy_data/a/token", code: FieldCodeMaskedValue},
+		// O11
+		{name: "O11 NUL in config value", overlay: `{"plugins":{"x":{"config":{"a":"b\u0000c"}}}}`, path: "/plugins/x/config/a", code: FieldCodeInvalidValue, contains: "NUL"},
+		{name: "O11 NUL in nested policy_data", overlay: `{"plugins":{"x":{"policy_data":{"a":["\u0000"]}}}}`, path: "/plugins/x/policy_data/a/0", code: FieldCodeInvalidValue, contains: "NUL"},
+		{name: "O11 NUL in key", overlay: `{"plugins":{"x":{"labels":{"a\u0000":"b"}}}}`, path: "/plugins/x/labels/a\x00", code: FieldCodeInvalidValue, contains: "NUL"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

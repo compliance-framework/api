@@ -22,10 +22,15 @@ type AgentsConfig struct {
 	// CCF_AGENT_INSTANCE_PRUNE_ENABLED, default true.
 	InstancePruneEnabled bool `json:"instancePruneEnabled"`
 	// InstancePruneSchedule is the River (6-field, seconds first) cron of the prune job.
-	// CCF_AGENT_INSTANCE_PRUNE_SCHEDULE, default "0 17 * * * *" (hourly).
+	// CCF_AGENT_INSTANCE_PRUNE_SCHEDULE, default "0 17 * * * *" (hourly). The job is
+	// deduplicated per hour, so it runs at most hourly: a more frequent schedule is not
+	// honored.
 	InstancePruneSchedule string `json:"instancePruneSchedule"`
-	// MaxInstancesPerAgent caps the non-prunable instances of one agent; a report from a new
-	// instance over the cap gets 409. CCF_AGENT_MAX_INSTANCES, default 500.
+	// MaxInstancesPerAgent caps the non-prunable instances of one agent. When the cap is
+	// reached, a new instance replaces the oldest stale one (not seen within
+	// InstanceStaleAfter); only when every counted instance is fresh does a report from a new
+	// instance get 409 (and its heartbeats are not recorded). CCF_AGENT_MAX_INSTANCES,
+	// default 500.
 	MaxInstancesPerAgent int `json:"maxInstancesPerAgent"`
 }
 

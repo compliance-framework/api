@@ -12715,9 +12715,11 @@ paths:
     get:
       description: Returns the current configuration revision (overlay as an RFC 7396
         merge patch, snake_case). Revision 0 means no overlay. The ETag is the plain
-        revision number; send it as If-Match when saving. The overlay is returned
-        unredacted to every agent:read holder, so do not put literal secrets in it;
-        use ${env:NAME} placeholders (R57).
+        revision number; send it as If-Match when saving. The overlay is verbatim
+        for callers that also hold agent:configure; for every other caller it is redacted
+        like an instance report (secret-like keys and values become ••••), and it
+        is redacted whenever that check cannot be evaluated. Prefer ${env:NAME} placeholders
+        to literal secrets.
       parameters:
       - description: Agent ID
         in: path
@@ -12844,7 +12846,8 @@ paths:
         against; only their errors block a save. errors are the problems the overlay
         introduces; warnings are problems already in the instance's own file (present
         in Merge(base, {})), which never block a save or force invalid-config (R59).
-        Validation problems are returned in the 200 body.
+        Validation problems are returned in the 200 body; when the overlay itself
+        is invalid (overlay-errors), instances is empty. Needs agent:configure.
       parameters:
       - description: Agent ID
         in: path
@@ -12940,6 +12943,9 @@ paths:
       - Agent Configuration
   /admin/agents/{id}/config/revisions/{rev}:
     get:
+      description: The overlay is verbatim for callers that also hold agent:configure
+        and redacted (secret-like keys and values become ••••) for every other caller,
+        as on GET config.
       parameters:
       - description: Agent ID
         in: path
@@ -14906,9 +14912,11 @@ paths:
         the server derives pending and unknown), the redacted base and effective configs
         (snake_case), the effective digest, plugins (with their agent-library version),
         unsafe changes, warnings and the normalized local remote_config block. The
-        server re-redacts base and effective as a best effort and stores effective-digest
-        as sent. Body limit 4 MiB. A 409 means the per-agent instance cap is reached;
-        back off.'
+        server re-redacts base and effective as a best effort, replaces error, warning
+        messages, plugin sources and remote-config strings that contain a secret with
+        ••••, and stores effective-digest as sent. Long warning messages and unsafe
+        lists are truncated (truncated=true). A NUL character anywhere is a 400. Body
+        limit 4 MiB. A 409 means the per-agent instance cap is reached; back off.'
       parameters:
       - description: Agent instance ID (UUID)
         in: path

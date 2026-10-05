@@ -81,6 +81,12 @@ func TestBuiltinAgentResource(t *testing.T) {
 			t.Errorf("agent %s: allow=%v err=%v, want allow", action, dec.Allow, err)
 		}
 	}
+	for _, action := range []string{ActionRead, ActionConfigure, ActionCreate, ActionUpdate, ActionDelete} {
+		dec, err := b.Evaluate(ctx, Subject{Type: "agent", ID: "agent-1"}, action, Resource{Type: ResourceAgent}, nil)
+		if err != nil || dec.Allow {
+			t.Errorf("agent %s: allow=%v err=%v, want deny (Cedar parity)", action, dec.Allow, err)
+		}
+	}
 	for _, action := range []string{ActionRead, ActionConfigure, ActionSync} {
 		dec, err := b.Evaluate(ctx, Subject{Type: "anonymous"}, action, Resource{Type: ResourceAgent}, nil)
 		if err != nil || dec.Allow {
@@ -98,11 +104,12 @@ func TestBuiltinAgentResource(t *testing.T) {
 		{Subject: Subject{Type: "user", ID: ""}, Action: ActionManage, Resource: Resource{Type: ResourceAdmin}},
 		{Subject: Subject{Type: "agent", ID: "a"}, Action: ActionSync, Resource: Resource{Type: ResourceAgent}},
 		{Subject: Subject{Type: "user", ID: "x@y"}, Action: ActionRead, Resource: Resource{Type: ResourceEvidence}},
+		{Subject: Subject{Type: "agent", ID: "a"}, Action: ActionConfigure, Resource: Resource{Type: ResourceAgent}},
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []bool{false, false, true, true}
+	want := []bool{false, false, true, true, false}
 	for i, d := range decs {
 		if d.Allow != want[i] {
 			t.Errorf("batch[%d] allow = %v, want %v", i, d.Allow, want[i])

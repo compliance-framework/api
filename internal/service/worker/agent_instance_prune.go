@@ -61,6 +61,8 @@ func NewAgentInstancePrunePeriodicJob(schedule string, logger *zap.SugaredLogger
 			return &AgentInstancePruneArgs{}, &river.InsertOpts{
 				Queue:       "scheduler",
 				MaxAttempts: 3,
+				// Deduplicated per hour: the job runs at most hourly, so a
+				// CCF_AGENT_INSTANCE_PRUNE_SCHEDULE more frequent than hourly is not honored.
 				UniqueOpts: river.UniqueOpts{
 					ByArgs:   true,
 					ByPeriod: time.Hour,

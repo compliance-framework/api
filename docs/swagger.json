@@ -17,7 +17,7 @@
     "paths": {
         "/admin/agents/{id}/config": {
             "get": {
-                "description": "Returns the current configuration revision (overlay as an RFC 7396 merge patch, snake_case). Revision 0 means no overlay. The ETag is the plain revision number; send it as If-Match when saving. The overlay is returned unredacted to every agent:read holder, so do not put literal secrets in it; use ${env:NAME} placeholders (R57).",
+                "description": "Returns the current configuration revision (overlay as an RFC 7396 merge patch, snake_case). Revision 0 means no overlay. The ETag is the plain revision number; send it as If-Match when saving. The overlay is verbatim for callers that also hold agent:configure; for every other caller it is redacted like an instance report (secret-like keys and values become ••••), and it is redacted whenever that check cannot be evaluated. Prefer ${env:NAME} placeholders to literal secrets.",
                 "produces": [
                     "application/json"
                 ],
@@ -186,7 +186,7 @@
         },
         "/admin/agents/{id}/config/preview": {
             "post": {
-                "description": "Validates a candidate overlay without saving it and shows, per reporting instance (fresh and stale), the redacted effective config, its diff against the instance's current effective config, the classified changes and whether the agent would apply it. validated marks the instances a save validates against; only their errors block a save. errors are the problems the overlay introduces; warnings are problems already in the instance's own file (present in Merge(base, {})), which never block a save or force invalid-config (R59). Validation problems are returned in the 200 body.",
+                "description": "Validates a candidate overlay without saving it and shows, per reporting instance (fresh and stale), the redacted effective config, its diff against the instance's current effective config, the classified changes and whether the agent would apply it. validated marks the instances a save validates against; only their errors block a save. errors are the problems the overlay introduces; warnings are problems already in the instance's own file (present in Merge(base, {})), which never block a save or force invalid-config (R59). Validation problems are returned in the 200 body; when the overlay itself is invalid (overlay-errors), instances is empty. Needs agent:configure.",
                 "consumes": [
                     "application/json"
                 ],
@@ -338,6 +338,7 @@
         },
         "/admin/agents/{id}/config/revisions/{rev}": {
             "get": {
+                "description": "The overlay is verbatim for callers that also hold agent:configure and redacted (secret-like keys and values become ••••) for every other caller, as on GET config.",
                 "produces": [
                     "application/json"
                 ],
@@ -3324,7 +3325,7 @@
         },
         "/agent/instances/{instanceId}/config-report": {
             "put": {
-                "description": "Stores the authenticated agent instance's config report: mode, applied/attempted revision, status (applied, rejected, failed or not-applicable; the server derives pending and unknown), the redacted base and effective configs (snake_case), the effective digest, plugins (with their agent-library version), unsafe changes, warnings and the normalized local remote_config block. The server re-redacts base and effective as a best effort and stores effective-digest as sent. Body limit 4 MiB. A 409 means the per-agent instance cap is reached; back off.",
+                "description": "Stores the authenticated agent instance's config report: mode, applied/attempted revision, status (applied, rejected, failed or not-applicable; the server derives pending and unknown), the redacted base and effective configs (snake_case), the effective digest, plugins (with their agent-library version), unsafe changes, warnings and the normalized local remote_config block. The server re-redacts base and effective as a best effort, replaces error, warning messages, plugin sources and remote-config strings that contain a secret with ••••, and stores effective-digest as sent. Long warning messages and unsafe lists are truncated (truncated=true). A NUL character anywhere is a 400. Body limit 4 MiB. A 409 means the per-agent instance cap is reached; back off.",
                 "consumes": [
                     "application/json"
                 ],

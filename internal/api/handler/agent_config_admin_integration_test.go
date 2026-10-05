@@ -312,6 +312,29 @@ func (s *AgentConfigAdminIntegrationSuite) TestGetConfigAfterSave() {
 	s.Equal("dummy@example.com", *got.CreatedBy)
 }
 
+// The PUT response shows the stored revision: the same overlay bytes and size as GET and
+// the revision list.
+func (s *AgentConfigAdminIntegrationSuite) TestPutResponseMatchesReads() {
+	rec := s.put(s.server, s.token, `"0"`, `{"verbosity":1}`)
+	s.Require().Equal(http.StatusCreated, rec.Code, rec.Body.String())
+	put := acaData[agentConfigRevisionResponse](s, rec)
+
+	rec = s.call(http.MethodGet, s.path("/config"), nil)
+	s.Require().Equal(http.StatusOK, rec.Code, rec.Body.String())
+	get := acaData[agentConfigRevisionResponse](s, rec)
+	s.Equal(get.OverlaySize, put.OverlaySize)
+	s.Equal(string(get.Overlay), string(put.Overlay))
+
+	rec = s.call(http.MethodGet, s.path("/config/revisions"), nil)
+	s.Require().Equal(http.StatusOK, rec.Code, rec.Body.String())
+	var list struct {
+		Data []agentConfigRevisionResponse `json:"data"`
+	}
+	s.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &list))
+	s.Require().Len(list.Data, 1)
+	s.Equal(put.OverlaySize, list.Data[0].OverlaySize)
+}
+
 func (s *AgentConfigAdminIntegrationSuite) TestGetConfigBadAndUnknownAgent() {
 	rec := s.call(http.MethodGet, "/api/admin/agents/not-a-uuid/config", nil)
 	s.Equal(http.StatusBadRequest, rec.Code, rec.Body.String())
@@ -692,11 +715,18 @@ func (s *AgentConfigAdminIntegrationSuite) TestPreviewInvalidOverlay() {
 	s.Require().NotEmpty(preview.OverlayErrors)
 	s.Equal("/api", preview.OverlayErrors[0].Path)
 	s.Equal(agentconfig.FieldCodeLockedKey, preview.OverlayErrors[0].Code)
-	s.Require().Len(preview.Instances, 2)
-	for _, inst := range preview.Instances {
-		s.False(inst.WillApply)
-		s.Equal(agentconfig.ReasonInvalidConfig, inst.WillApplyReason)
-	}
+	s.NotNil(preview.Instances)
+	s.Empty(preview.Instances, "an invalid overlay is not previewed per instance")
+	s.Contains(rec.Body.String(), `"instances":[]`)
+
+	// Over MaxOverlayBytes (but within the body limit): overlay errors only.
+	big := `{"plugins":{"ssh":{"labels":{"x":"` + strings.Repeat("a", agentconfig.MaxOverlayBytes) + `"}}}}`
+	rec = s.call(http.MethodPost, s.path("/config/preview"), acaPutBody(big))
+	s.Require().Equal(http.StatusOK, rec.Code, rec.Body.String())
+	preview = acaData[configPreviewResponse](s, rec)
+	s.Require().NotEmpty(preview.OverlayErrors)
+	s.Equal(agentconfig.FieldCodeSize, preview.OverlayErrors[0].Code)
+	s.Empty(preview.Instances)
 
 	// Instance-level errors (no source) also force invalid-config, and are listed per instance.
 	rec = s.call(http.MethodPost, s.path("/config/preview"), acaPutBody(`{"plugins":{"newp":{"schedule":"* * * * *"}}}`))
@@ -903,18 +933,26 @@ func (s *AgentConfigAdminIntegrationSuite) TestInstancesEmpty() {
 
 // ---- Agent deletion ----
 
-func (s *AgentConfigAdminIntegrationSuite) TestDeleteAgentRemovesInstancesKeepsRevisions() {
+// Deleting an agent removes its instances and its revisions (the purge path for an overlay
+// that held a secret); other agents' revisions are kept.
+func (s *AgentConfigAdminIntegrationSuite) TestDeleteAgentRemovesInstancesAndRevisions() {
+	other, err := s.CreateAgent("other-agent")
+	s.Require().NoError(err)
 	s.report(*s.agent.ID, agentconfig.ModeApplySafe, nil)
 	s.report(*s.agent.ID, agentconfig.ModeReport, nil)
 	s.save(`"0"`, `{"verbosity":1}`, 1)
+	s.save(`"1"`, `{"plugins":{"ssh":{"config":{"password":"hunter2"}}}}`, 2)
+	rec := s.send(s.server, s.token, http.MethodPut, s.agentPath(*other.ID, "/config"), acaPutBody(`{"verbosity":1}`), "If-Match", `"0"`)
+	s.Require().Equal(http.StatusCreated, rec.Code, rec.Body.String())
 
-	rec := s.call(http.MethodDelete, s.path(""), nil)
+	rec = s.call(http.MethodDelete, s.path(""), nil)
 	s.Require().Equal(http.StatusNoContent, rec.Code, rec.Body.String())
 
 	var instances int64
 	s.Require().NoError(s.DB.Model(&relational.AgentInstance{}).Where("agent_id = ?", *s.agent.ID).Count(&instances).Error)
 	s.Zero(instances)
-	s.Equal(int64(1), s.revisionCount(*s.agent.ID))
+	s.Zero(s.revisionCount(*s.agent.ID))
+	s.Equal(int64(1), s.revisionCount(*other.ID))
 
 	// The (soft-deleted) agent is gone for the config routes.
 	rec = s.call(http.MethodGet, s.path("/config"), nil)
@@ -995,14 +1033,13 @@ func (s *AgentConfigAdminIntegrationSuite) TestCedarViewer() {
 		rec := s.send(srv, viewer, tc.method, tc.path, nil)
 		s.Equal(http.StatusOK, rec.Code, "%s %s: %s", tc.method, tc.path, rec.Body.String())
 	}
-	rec := s.send(srv, viewer, http.MethodPost, s.path("/config/preview"), acaPutBody(`{"verbosity":1}`))
-	s.Equal(http.StatusOK, rec.Code, rec.Body.String())
 
 	denied := []struct {
 		method, path string
 		body         []byte
 		headers      []string
 	}{
+		{http.MethodPost, s.path("/config/preview"), acaPutBody(`{"verbosity":1}`), nil},
 		{http.MethodPut, s.path("/config"), acaPutBody(`{"verbosity":1}`), []string{"If-Match", `"0"`}},
 		{http.MethodPost, s.path("/config/revisions/1/revert"), nil, []string{"If-Match", `"0"`}},
 		{http.MethodPost, "/api/admin/agents", []byte(`{"name":"viewer-agent"}`), nil},
@@ -1016,6 +1053,65 @@ func (s *AgentConfigAdminIntegrationSuite) TestCedarViewer() {
 		s.Equal(http.StatusForbidden, rec.Code, "%s %s: %s", tc.method, tc.path, rec.Body.String())
 	}
 	s.Equal(int64(0), s.revisionCount(*s.agent.ID))
+}
+
+// Overlays are verbatim for agent:configure holders and redacted for read-only callers.
+func (s *AgentConfigAdminIntegrationSuite) TestCedarOverlayRedactedForReaders() {
+	overlay := `{"plugins":{"ssh":{"config":{"password":"hunter2","host":"db","pass_ref":"${env:SSH_PASS}"},"policy_data":{"api_token":"t0k3n","threshold":3}}}}`
+	s.save(`"0"`, overlay, 1)
+	_, viewer := s.userToken("viewer@example.com", "", "viewer")
+	_, contributor := s.userToken("contributor@example.com", "", "contributor")
+	_, admin := s.userToken("cedar-admin@example.com", "", "admin")
+	srv := s.cedarServer()
+
+	redacted := `{"plugins":{"ssh":{"config":{"password":"••••","host":"db","pass_ref":"${env:SSH_PASS}"},"policy_data":{"api_token":"••••","threshold":3}}}}`
+	for _, path := range []string{s.path("/config"), s.path("/config/revisions/1")} {
+		for _, token := range []string{viewer, contributor} {
+			rec := s.send(srv, token, http.MethodGet, path, nil)
+			s.Require().Equal(http.StatusOK, rec.Code, rec.Body.String())
+			got := acaData[agentConfigRevisionResponse](s, rec)
+			s.JSONEq(redacted, string(got.Overlay), path)
+			s.NotContains(rec.Body.String(), "hunter2", path)
+			s.NotContains(rec.Body.String(), "t0k3n", path)
+		}
+		rec := s.send(srv, admin, http.MethodGet, path, nil)
+		s.Require().Equal(http.StatusOK, rec.Code, rec.Body.String())
+		got := acaData[agentConfigRevisionResponse](s, rec)
+		s.JSONEq(overlay, string(got.Overlay), "a configure holder gets the literal overlay: %s", path)
+	}
+}
+
+// configureFailsPDP allows everything except agent:configure, which is unavailable.
+type configureFailsPDP struct{}
+
+func (configureFailsPDP) Evaluate(_ context.Context, _ authz.Subject, action string, _ authz.Resource, _ map[string]any) (authz.Decision, error) {
+	if action == authz.ActionConfigure {
+		return authz.Decision{}, authz.ErrUnavailable
+	}
+	return authz.Decision{Allow: true}, nil
+}
+
+func (p configureFailsPDP) Evaluations(ctx context.Context, reqs []authz.EvalRequest) ([]authz.Decision, error) {
+	out := make([]authz.Decision, len(reqs))
+	for i, r := range reqs {
+		d, err := p.Evaluate(ctx, r.Subject, r.Action, r.Resource, r.Context)
+		if err != nil {
+			return nil, err
+		}
+		out[i] = d
+	}
+	return out, nil
+}
+
+// When agent:configure cannot be evaluated, the overlay is redacted (fail closed), whatever
+// the PEP's fail mode.
+func (s *AgentConfigAdminIntegrationSuite) TestOverlayRedactedWhenConfigureCheckFails() {
+	s.save(`"0"`, `{"plugins":{"ssh":{"config":{"password":"hunter2"}}}}`, 1)
+	srv := s.newServer(middleware.NewPEP(configureFailsPDP{}, authz.FailOpen, s.logger))
+	rec := s.send(srv, s.token, http.MethodGet, s.path("/config"), nil)
+	s.Require().Equal(http.StatusOK, rec.Code, rec.Body.String())
+	got := acaData[agentConfigRevisionResponse](s, rec)
+	s.JSONEq(`{"plugins":{"ssh":{"config":{"password":"••••"}}}}`, string(got.Overlay))
 }
 
 func (s *AgentConfigAdminIntegrationSuite) TestCedarAdminCanEditSchedule() {

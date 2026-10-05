@@ -27,7 +27,8 @@
 # any of it into an engine on its own. The default `builtin` driver does NOT consume these
 # roles — it allows every authenticated non-admin request and only gates `admin` via SSO
 # groups (zero behavior change), except the `agent` resource: users need the same admin
-# check there, agent service accounts are allowed and anonymous is denied (R39). The embedded Cedar engine (BCH-1316) DOES honor this C0 role
+# check there, agent service accounts may only register, ingest and sync, and anonymous is
+# denied (R39). The embedded Cedar engine (BCH-1316) DOES honor this C0 role
 # set; select it with `authz.driver: cedar` (see docs/authz-oss-cedar.md). C1/C2 stay
 # Enterprise/BYO.
 schemaVersion: 1
@@ -293,9 +294,9 @@ resources:
 # in their PAP. "*" means all resources / all actions.
 roles:
   # viewer/auditor/contributor read agent configurations through "*": [read]. This is
-  # intended (R40/RA-21). Operators can narrow it with a Cedar `forbid`. Instance base/effective reports are redacted, but overlays are returned
-  # unredacted to agent:read holders, so secrets belong in ${env:NAME} placeholders, not
-  # literal overlay values (R57).
+  # intended (R40/RA-21). Operators can narrow it with a Cedar `forbid`. Instance base/effective reports are redacted, and overlays are returned
+  # verbatim only to callers that also hold agent:configure; other agent:read holders get
+  # them redacted. Secrets still belong in ${env:NAME} placeholders, not literal overlay values.
   #
   # Full access.
   admin:

@@ -45,6 +45,9 @@ func encodeCanonical(v any) ([]byte, error) {
 // CanonicalJSON returns the canonical encoding of v: json.Marshal, decode to any with
 // UseNumber, re-encode with SetEscapeHTML(false) and no trailing newline. Object keys are
 // sorted. It is the encoding Digest hashes.
+//
+// It intentionally duplicates the API's internal/artifact.CanonicalJSON: artifact forms are
+// pinned by golden tests, and this public package must not import internal/.
 func CanonicalJSON(v any) ([]byte, error) {
 	raw, err := json.Marshal(v)
 	if err != nil {

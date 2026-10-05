@@ -7,9 +7,10 @@ import (
 
 // RedactDocument re-applies Redact's rules to a reported config document (base or
 // effective) WITHOUT decoding it into Config, so fields a newer agent sends are preserved
-// (R51). It removes api.auth.client_secret, masks api.url when it holds a secret, and masks
-// plugins.*.config and plugins.*.policy_data exactly as Redact does (key names, content and
-// placeholder rules). It cannot know the agent's env-sourced pointers (R55), so it is best
+// (R51). It removes api.auth.client_secret, masks api.url, plugins.*.source and
+// plugins.*.policies entries when they hold a secret by content, and masks plugins.*.config
+// and plugins.*.policy_data exactly as Redact does (key names, content and placeholder
+// rules). It cannot know the agent's env-sourced pointers (R55), so it is best
 // effort; on a document Redact produced with the same rules it is a no-op. changed reports
 // whether anything was altered. The input must be a JSON object.
 func RedactDocument(doc json.RawMessage) (out json.RawMessage, changed bool, err error) {
@@ -40,6 +41,16 @@ func RedactDocument(doc json.RawMessage) (out json.RawMessage, changed bool, err
 			p, ok := raw.(map[string]any)
 			if !ok {
 				continue
+			}
+			if src, ok := p["source"].(string); ok {
+				p["source"] = maskSecretText(src)
+			}
+			if policies, ok := p["policies"].([]any); ok {
+				for i, e := range policies {
+					if entry, ok := e.(string); ok {
+						policies[i] = maskSecretText(entry)
+					}
+				}
 			}
 			if cfg, ok := p["config"].(map[string]any); ok {
 				p["config"] = o.redactMap(Pointer("plugins", name, "config"), cfg)

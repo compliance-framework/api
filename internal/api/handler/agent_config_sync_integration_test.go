@@ -434,6 +434,47 @@ func (s *AgentConfigSyncIntegrationSuite) TestPutReportReRedacts() {
 	s.Equal(syncTestDigest, *row.EffectiveDigest, "digest stored exactly as sent, never recomputed")
 }
 
+// Free-text fields that carry a secret are masked whole before they are stored.
+func (s *AgentConfigSyncIntegrationSuite) TestPutReportScrubsFreeText() {
+	a := s.newAgent("scrub")
+	instanceID := uuid.New()
+	body := validReportBody()
+	body["status"] = agentconfig.StatusFailed
+	body["reason"] = agentconfig.ReasonInternal
+	body["error"] = "dial postgres://app:hunter2@db:5432/app: connection refused"
+	body["warnings"] = []map[string]any{
+		{"path": "/plugins/x/config/dsn", "code": agentconfig.FieldCodeInvalidValue, "message": "cannot parse app:hunter2@tcp(db:3306)/app"},
+		{"path": "/plugins/x/schedule", "code": agentconfig.FieldCodeCron, "message": "bad cron"},
+	}
+	body["plugins"] = []map[string]any{
+		{"name": "x", "source": "https://ci:hunter2@plugins.example.com/x.tar.gz"},
+		{"name": "y", "source": "ghcr.io/compliance-framework/y:v1"},
+	}
+	body["remote-config"] = map[string]any{
+		"mode":            agentconfig.ModeApplySafe,
+		"trusted_sources": []string{"https://u:hunter2@registry.example.com/*"},
+	}
+
+	rec := s.putReport(s.server, a.token, instanceID.String(), body, nil)
+	s.Require().Equal(http.StatusNoContent, rec.Code, rec.Body.String())
+
+	row, ok := s.instance(*a.agent.ID, instanceID)
+	s.Require().True(ok)
+	s.Require().NotNil(row.ApplyError)
+	s.Equal(agentconfig.MaskedValue, *row.ApplyError)
+	for name, raw := range map[string][]byte{"warnings": row.Warnings, "plugins": row.Plugins, "remote-config": row.RemoteConfig} {
+		s.NotContains(string(raw), "hunter2", name)
+	}
+	var warnings []agentconfig.FieldError
+	s.Require().NoError(json.Unmarshal(row.Warnings, &warnings))
+	s.Equal(agentconfig.MaskedValue, warnings[0].Message)
+	s.Equal("bad cron", warnings[1].Message)
+	var plugins []agentconfig.PluginReport
+	s.Require().NoError(json.Unmarshal(row.Plugins, &plugins))
+	s.Equal(agentconfig.MaskedValue, plugins[0].Source)
+	s.Equal("ghcr.io/compliance-framework/y:v1", plugins[1].Source)
+}
+
 func (s *AgentConfigSyncIntegrationSuite) TestPutReportValidation() {
 	a := s.newAgent("validation")
 	instanceID := uuid.NewString()
@@ -456,6 +497,12 @@ func (s *AgentConfigSyncIntegrationSuite) TestPutReportValidation() {
 			b["plugins"] = []map[string]any{{"source": "ghcr.io/x/p:1", "lib-version": "v0.7.1"}}
 		},
 		"plugins not a list": func(b map[string]any) { b["plugins"] = map[string]any{"ssh": "v0.7.1"} },
+		"NUL in hostname":    func(b map[string]any) { b["hostname"] = "host\x00" },
+		"NUL in error":       func(b map[string]any) { b["error"] = "boom\x00" },
+		"NUL in base":        func(b map[string]any) { b["base"] = map[string]any{"a": "\x00"} },
+		"NUL in warning": func(b map[string]any) {
+			b["warnings"] = []map[string]any{{"path": "/x", "code": "c", "message": "\x00"}}
+		},
 	}
 	for name, mutate := range cases {
 		body := validReportBody()

@@ -39,20 +39,24 @@ func WithMaskedPointers(ptrs ...string) RedactOption {
 //  2. Else it is masked when it is at a pointer given to WithMaskedPointers, or its key is
 //     secret-like (isSecretKey: e.g. password, passphrase, secret, token, credential,
 //     api_key, private_key, dsn, connection_string, auth, cookie, session_id; see
-//     secretKeyStems and secretKeyWords). Under such a key, literal text mixed with a
-//     placeholder ("lit${env:X}") is masked.
+//     secretKeyStems and secretKeyWords). Keys that only describe a secret are not
+//     secret-like (e.g. secret_name, token_url, password_file, api_key_id, max_tokens; see
+//     isNonSecretKeyName). Under a secret-like key, literal text mixed with a placeholder
+//     ("lit${env:X}") is masked.
 //  3. Else it is masked when its literal contains a secret by content, whatever the key
 //     (containsSecretValue): a URL with a password in its userinfo (also inside a longer
 //     string such as a DSN), a PEM private key, a password=... assignment, or a
 //     high-confidence provider token (AWS access key ID, GitHub, GitLab, Slack, Google API
 //     key, Stripe, JWT, SendGrid, npm, PyPI, OpenAI, Anthropic, Hugging Face,
-//     DigitalOcean, Shopify, Terraform Cloud, Vault, Azure AD client secret, age).
+//     DigitalOcean, Shopify, Terraform Cloud, Vault, Azure AD client secret, age), or a
+//     scheme-less MySQL DSN with a password (user:pass@tcp(host)/db).
 //
 // A non-string value (number, object, array) at a masked pointer or under a secret-like key
 // is masked whole; booleans and null are never secret and are kept unless at a masked
 // pointer. Strings nested in kept objects and arrays get the same rules, with the nearest
-// enclosing object key as their key. api.url is masked when it contains a secret by content
-// (rule 3). Map keys, labels, sources and policies are never masked.
+// enclosing object key as their key. api.url, plugins.*.source and each plugins.*.policies
+// entry are masked when they contain a secret by content (rule 3 only; no key rule). Map
+// keys and labels are never masked.
 func Redact(c Config, opts ...RedactOption) Config {
 	var o redactOpts
 	for _, opt := range opts {
@@ -71,6 +75,10 @@ func Redact(c Config, opts ...RedactOption) Config {
 		if p == nil {
 			continue
 		}
+		p.Source = maskSecretText(p.Source)
+		for i, e := range p.Policies {
+			p.Policies[i] = maskSecretText(e)
+		}
 		for key, value := range p.Config {
 			ptr := Pointer("plugins", pluginName, "config", key)
 			if o.shouldMask(ptr, key, value) {
@@ -82,6 +90,12 @@ func Redact(c Config, opts ...RedactOption) Config {
 		}
 	}
 	return out
+}
+
+// maskSecretText returns MaskedValue when s contains a secret by content, else s.
+func maskSecretText(s string) string {
+	masked, _ := ScrubSecretText(s)
+	return masked
 }
 
 // shouldMask applies the mask rule (see Redact) to one string value.

@@ -26,11 +26,15 @@ import (
 //	    interval a Go duration >= 0; plugins.*.config and labels values strings (or null);
 //	    policy_behavior values string arrays; protocol_version 1 or 2 (explicit 0 rejected,
 //	    R9); schedule a string
-//	O6  plugin names set by the overlay match PluginNamePattern
+//	O6  every non-null plugin key in the overlay matches PluginNamePattern, also for a file
+//	    plugin the overlay only changes (there is no base here); so a file plugin whose name
+//	    does not match (e.g. "_legacy", or longer than 63 characters) cannot be changed
+//	    remotely, only deleted with null
 //	O7  schedule parses with ParseSchedule
 //	O8  source (when non-null) and policy entries are non-empty
 //	O9  ${env:NAME} only in plugins.*.config values; NAME must not be forbidden
 //	O10 no string value equals MaskedValue
+//	O11 no key or string value contains a NUL character (Postgres cannot store it)
 func ValidateOverlay(overlay json.RawMessage) error {
 	v, err := decodeAny(overlay)
 	if err != nil {
@@ -70,8 +74,18 @@ func ValidateOverlay(overlay json.RawMessage) error {
 		}
 	}
 
-	// O9 and O10 apply to every string in the document.
+	// O11: NUL in a key.
+	walkKeys("", obj, func(ptr, k string) {
+		if strings.ContainsRune(k, 0) {
+			ov.add(ptr, FieldCodeInvalidValue, "keys must not contain a NUL character")
+		}
+	})
+
+	// O9, O10 and O11 apply to every string in the document.
 	walkStrings("", obj, func(ptr, s string) {
+		if strings.ContainsRune(s, 0) {
+			ov.add(ptr, FieldCodeInvalidValue, "must not contain a NUL character")
+		}
 		if s == MaskedValue {
 			ov.add(ptr, FieldCodeMaskedValue, "redacted placeholder %q cannot be submitted; set the real value or omit the key", MaskedValue)
 		}
@@ -313,6 +327,22 @@ func walkStrings(ptr string, v any, fn func(ptr, s string)) {
 	case []any:
 		for i, item := range t {
 			walkStrings(appendPointer(ptr, strconv.Itoa(i)), item, fn)
+		}
+	}
+}
+
+// walkKeys calls fn for every object key in a decoded JSON tree, with the key's pointer.
+func walkKeys(ptr string, v any, fn func(ptr, key string)) {
+	switch t := v.(type) {
+	case map[string]any:
+		for _, k := range sortedKeys(t) {
+			kptr := appendPointer(ptr, k)
+			fn(kptr, k)
+			walkKeys(kptr, t[k], fn)
+		}
+	case []any:
+		for i, item := range t {
+			walkKeys(appendPointer(ptr, strconv.Itoa(i)), item, fn)
 		}
 	}
 }

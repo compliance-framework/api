@@ -212,6 +212,10 @@ func (h *AgentHandler) DeleteAgent(ctx echo.Context) error {
 			return err
 		}
 
+		if err := agentcfg.DeleteRevisionsForAgent(tx, *agent.ID); err != nil {
+			return err
+		}
+
 		if err := tx.Delete(agent).Error; err != nil {
 			return err
 		}

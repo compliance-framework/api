@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/compliance-framework/api/internal/config"
@@ -16,7 +17,6 @@ import (
 	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/compliance-framework/api/pkg/agentconfig"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgconn"
 	"go.uber.org/zap"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
@@ -29,6 +29,11 @@ const (
 	DefaultInstanceRetention        = 720 * time.Hour
 	DefaultOneShotInstanceRetention = 24 * time.Hour
 	DefaultMaxInstancesPerAgent     = 500
+
+	// capReachedTTL is how long the service remembers that an agent is at its instance
+	// cap with every counted instance fresh (nothing to replace), so heartbeats from
+	// unregistered instances skip the locked count meanwhile.
+	capReachedTTL = time.Minute
 )
 
 // Settings tunes instance freshness, retention and the per-agent instance cap.
@@ -36,7 +41,7 @@ type Settings struct {
 	InstanceStaleAfter       time.Duration // fresh <=> last_seen_at >= now - InstanceStaleAfter
 	InstanceRetention        time.Duration // daemon (or unknown) instances
 	OneShotInstanceRetention time.Duration // daemon=false instances (R37)
-	MaxInstancesPerAgent     int
+	MaxInstancesPerAgent     int           // non-prunable instances per agent; the oldest stale one is replaced when full
 }
 
 // WithDefaults fills zero or negative values with the defaults.
@@ -99,6 +104,9 @@ type Service struct {
 	settings Settings
 	logger   *zap.SugaredLogger
 	now      func() time.Time
+
+	capMu      sync.Mutex
+	capReached map[uuid.UUID]time.Time // agent -> when its instance cap was last found reached
 }
 
 // NewService builds a Service. Zero settings take the defaults; a nil logger is a no-op.
@@ -106,7 +114,13 @@ func NewService(db *gorm.DB, s Settings, logger *zap.SugaredLogger) *Service {
 	if logger == nil {
 		logger = zap.NewNop().Sugar()
 	}
-	return &Service{db: db, settings: s.WithDefaults(), logger: logger, now: func() time.Time { return time.Now().UTC() }}
+	return &Service{
+		db:         db,
+		settings:   s.WithDefaults(),
+		logger:     logger,
+		now:        func() time.Time { return time.Now().UTC() },
+		capReached: map[uuid.UUID]time.Time{},
+	}
 }
 
 // Settings returns the effective settings.
@@ -207,7 +221,10 @@ type CreateRevisionParams struct {
 
 // CreateRevision appends revision ExpectedRevision+1 in one transaction: it locks the agent
 // row, re-reads the current revision and fails with *RevisionConflictError when it is not
-// ExpectedRevision. A unique violation (a concurrent writer) also maps to a conflict.
+// ExpectedRevision. The agent row lock serializes writers, so the insert cannot hit the
+// unique (agent_id, revision) index; any insert error is returned as is. The returned row
+// is read back after the insert, so its Overlay bytes are the stored form GetRevision and
+// ListRevisions (overlay size) see.
 func (s *Service) CreateRevision(ctx context.Context, p CreateRevisionParams) (*relational.AgentConfigRevision, error) {
 	var created *relational.AgentConfigRevision
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -242,23 +259,19 @@ func (s *Service) CreateRevision(ctx context.Context, p CreateRevisionParams) (*
 			CreatedAt:   s.now(),
 		}
 		if err := tx.Create(rev).Error; err != nil {
-			if isUniqueViolation(err) {
-				return &RevisionConflictError{Current: cur + 1}
-			}
 			return err
 		}
-		created = rev
+		var stored relational.AgentConfigRevision
+		if err := tx.Where("agent_id = ? AND revision = ?", p.AgentID, rev.Revision).Take(&stored).Error; err != nil {
+			return err
+		}
+		created = &stored
 		return nil
 	})
 	if err != nil {
 		return nil, err
 	}
 	return created, nil
-}
-
-func isUniqueViolation(err error) bool {
-	var pgErr *pgconn.PgError
-	return errors.Is(err, gorm.ErrDuplicatedKey) || (errors.As(err, &pgErr) && pgErr.Code == "23505")
 }
 
 // ---- Instances ----
@@ -272,15 +285,16 @@ var reportColumns = []string{
 	"unsafe_changes", "plugins", "updated_at",
 }
 
-// UpsertReport stores a (validated, re-redacted) config report. A new instance over the
-// per-agent cap fails with ErrInstanceLimit; prune-eligible rows do not count (R37).
+// UpsertReport stores a (validated, re-redacted) config report. A new instance at the
+// per-agent cap replaces the oldest stale instance, or fails with ErrInstanceLimit when every
+// counted instance is fresh; prune-eligible rows do not count (R37).
 func (s *Service) UpsertReport(ctx context.Context, agentID uuid.UUID, credentialID *uuid.UUID, instanceID uuid.UUID, r agentconfig.Report) error {
 	now := s.now()
 	row, err := reportRow(agentID, credentialID, instanceID, r, now)
 	if err != nil {
 		return err
 	}
-	return s.upsert(ctx, row, reportColumns)
+	return s.upsert(ctx, row, reportColumns, false)
 }
 
 func reportRow(agentID uuid.UUID, credentialID *uuid.UUID, instanceID uuid.UUID, r agentconfig.Report, now time.Time) (*relational.AgentInstance, error) {
@@ -328,9 +342,11 @@ func reportRow(agentID uuid.UUID, credentialID *uuid.UUID, instanceID uuid.UUID,
 
 // TouchFromHeartbeat records an authenticated heartbeat (R11). With a digest it upserts
 // only last_seen_at, credential_id and the heartbeat_* columns (a new row keeps an empty
-// reported status; over the cap it is silently skipped with a warning). Without a digest (an
-// old agent, or mode off) it only updates last_seen_at of an existing row and never inserts,
-// so old agents' per-reload random instance ids never flood the table.
+// reported status; over the cap it is silently skipped, with a warning at most once per
+// agent per capReachedTTL, and for capReachedTTL after the cap was found reached a new
+// instance skips the cap check altogether). Without a digest (an old agent, or mode off) it
+// only updates last_seen_at of an existing row and never inserts, so old agents' per-reload
+// random instance ids never flood the table.
 func (s *Service) TouchFromHeartbeat(ctx context.Context, agentID uuid.UUID, credentialID *uuid.UUID, instanceID uuid.UUID, rev *int64, digest *string) error {
 	now := s.now()
 	if digest == nil {
@@ -349,32 +365,53 @@ func (s *Service) TouchFromHeartbeat(ctx context.Context, agentID uuid.UUID, cre
 		CreatedAt:               now,
 		UpdatedAt:               now,
 	}
-	err := s.upsert(ctx, row, []string{"last_seen_at", "credential_id", "heartbeat_config_revision", "heartbeat_config_digest", "updated_at"})
+	err := s.upsert(ctx, row, []string{"last_seen_at", "credential_id", "heartbeat_config_revision", "heartbeat_config_digest", "updated_at"}, true)
 	if errors.Is(err, ErrInstanceLimit) {
-		s.logger.Warnw("Agent instance cap reached; heartbeat not recorded as a new instance",
-			"agentID", agentID, "instanceID", instanceID, "max", s.settings.MaxInstancesPerAgent)
 		return nil
 	}
 	return err
 }
 
 // upsert updates the instance row when it exists, else inserts it after the cap check under
-// a lock on the agent row (so concurrent first reports cannot overshoot the cap).
-func (s *Service) upsert(ctx context.Context, row *relational.AgentInstance, columns []string) error {
+// a lock on the agent row (so concurrent first reports cannot overshoot the cap). The update
+// writes exactly the given columns from row, zero values included; UpdateColumns (no hooks)
+// keeps updated_at at row.UpdatedAt (the service clock). With skipWhenCapped, a new instance
+// of an agent whose cap was found reached within capReachedTTL fails with ErrInstanceLimit
+// without the locked count.
+func (s *Service) upsert(ctx context.Context, row *relational.AgentInstance, columns []string, skipWhenCapped bool) error {
 	db := s.db.WithContext(ctx)
-	updates := map[string]any{}
-	for _, c := range columns {
-		updates[c] = columnValue(row, c)
-	}
 	res := db.Model(&relational.AgentInstance{}).
 		Where("agent_id = ? AND instance_id = ?", row.AgentID, row.InstanceID).
-		Updates(updates)
+		Select(columns).
+		UpdateColumns(row)
 	if res.Error != nil {
 		return res.Error
 	}
 	if res.RowsAffected > 0 {
 		return nil
 	}
+	if skipWhenCapped && s.capReachedRecently(row.AgentID) {
+		return ErrInstanceLimit
+	}
+	err := s.insertUnderCap(db, row, columns)
+	switch {
+	case errors.Is(err, ErrInstanceLimit):
+		if s.markCapReached(row.AgentID) {
+			s.logger.Warnw("Agent instance cap reached; new instances are not recorded",
+				"agentID", row.AgentID, "instanceID", row.InstanceID, "max", s.settings.MaxInstancesPerAgent)
+		}
+	case err == nil:
+		s.clearCapReached(row.AgentID)
+	}
+	return err
+}
+
+// insertUnderCap inserts a new instance row under the per-agent cap (R37). When the agent
+// already has MaxInstancesPerAgent non-prunable instances, the oldest stale one among them is
+// deleted to make room (instance ids change on restart, so a restarted daemon's old ids must
+// not lock out its new ones); when every one of them is fresh it fails with
+// ErrInstanceLimit. So the non-prunable rows of an agent never exceed the cap.
+func (s *Service) insertUnderCap(db *gorm.DB, row *relational.AgentInstance, columns []string) error {
 	return db.Transaction(func(tx *gorm.DB) error {
 		var agent relational.Agent
 		if err := tx.Clauses(clause.Locking{Strength: clause.LockingStrengthUpdate}).
@@ -384,12 +421,19 @@ func (s *Service) upsert(ctx context.Context, row *relational.AgentInstance, col
 			}
 			return err
 		}
-		count, err := s.countActiveInstances(tx, row.AgentID, row.LastSeenAt)
+		now := row.LastSeenAt
+		count, err := s.countActiveInstances(tx, row.AgentID, now)
 		if err != nil {
 			return err
 		}
 		if count >= int64(s.settings.MaxInstancesPerAgent) {
-			return ErrInstanceLimit
+			evicted, err := s.evictOldestStaleInstance(tx, row.AgentID, now)
+			if err != nil {
+				return err
+			}
+			if !evicted {
+				return ErrInstanceLimit
+			}
 		}
 		return tx.Clauses(clause.OnConflict{
 			Columns:   []clause.Column{{Name: "agent_id"}, {Name: "instance_id"}},
@@ -398,71 +442,72 @@ func (s *Service) upsert(ctx context.Context, row *relational.AgentInstance, col
 	})
 }
 
+// notPrunableClause selects the instances that are not eligible for pruning (R37); its two
+// arguments are the one-shot and the daemon retention cutoffs. "daemon IS FALSE" (not
+// "daemon = false") keeps unknown-daemon rows counted like daemon rows, as PruneInstances
+// keeps them: with "= false" a NULL daemon makes the NOT(...) NULL and the row silently
+// drops out.
+const notPrunableClause = "NOT ((daemon IS FALSE AND last_seen_at < ?) OR last_seen_at < ?)"
+
 // countActiveInstances counts the instances that are not eligible for pruning (R37).
-// "daemon IS FALSE" (not "daemon = false") keeps unknown-daemon rows counted like daemon
-// rows, as PruneInstances keeps them: with "= false" a NULL daemon makes the NOT(...) NULL
-// and the row silently drops out of the count.
 func (s *Service) countActiveInstances(tx *gorm.DB, agentID uuid.UUID, now time.Time) (int64, error) {
 	var count int64
 	err := tx.Model(&relational.AgentInstance{}).
 		Where("agent_id = ?", agentID).
-		Where("NOT ((daemon IS FALSE AND last_seen_at < ?) OR last_seen_at < ?)",
-			now.Add(-s.settings.OneShotInstanceRetention), now.Add(-s.settings.InstanceRetention)).
+		Where(notPrunableClause, now.Add(-s.settings.OneShotInstanceRetention), now.Add(-s.settings.InstanceRetention)).
 		Count(&count).Error
 	return count, err
 }
 
-func columnValue(row *relational.AgentInstance, column string) any {
-	switch column {
-	case "credential_id":
-		return row.CredentialID
-	case "hostname":
-		return row.Hostname
-	case "agent_version":
-		return row.AgentVersion
-	case "mode":
-		return row.Mode
-	case "daemon":
-		return row.Daemon
-	case "last_seen_at":
-		return row.LastSeenAt
-	case "reported_at":
-		return row.ReportedAt
-	case "applied_revision":
-		return row.AppliedRevision
-	case "attempted_revision":
-		return row.AttemptedRevision
-	case "reported_status":
-		return row.ReportedStatus
-	case "apply_reason":
-		return row.ApplyReason
-	case "apply_error":
-		return row.ApplyError
-	case "truncated":
-		return row.Truncated
-	case "warnings":
-		return row.Warnings
-	case "base_config":
-		return row.BaseConfig
-	case "effective_config":
-		return row.EffectiveConfig
-	case "effective_digest":
-		return row.EffectiveDigest
-	case "remote_config":
-		return row.RemoteConfig
-	case "unsafe_changes":
-		return row.UnsafeChanges
-	case "plugins":
-		return row.Plugins
-	case "heartbeat_config_revision":
-		return row.HeartbeatConfigRevision
-	case "heartbeat_config_digest":
-		return row.HeartbeatConfigDigest
-	case "updated_at":
-		return row.UpdatedAt
-	default:
-		panic("agentcfg: unknown instance column " + column)
+// evictOldestStaleInstance deletes the least recently seen stale instance (IsStale:
+// last_seen_at < now - InstanceStaleAfter) among the agent's non-prunable ones, the rows the
+// cap counts, and reports whether there was one.
+func (s *Service) evictOldestStaleInstance(tx *gorm.DB, agentID uuid.UUID, now time.Time) (bool, error) {
+	var victim relational.AgentInstance
+	res := tx.Select("id", "instance_id").
+		Where("agent_id = ? AND last_seen_at < ?", agentID, now.Add(-s.settings.InstanceStaleAfter)).
+		Where(notPrunableClause, now.Add(-s.settings.OneShotInstanceRetention), now.Add(-s.settings.InstanceRetention)).
+		Order("last_seen_at ASC, instance_id").
+		Limit(1).
+		Find(&victim)
+	if res.Error != nil || res.RowsAffected == 0 {
+		return false, res.Error
 	}
+	if err := tx.Delete(&relational.AgentInstance{}, "id = ?", victim.ID).Error; err != nil {
+		return false, err
+	}
+	s.logger.Debugw("Agent instance cap reached; replaced the oldest stale instance",
+		"agentID", agentID, "evictedInstanceID", victim.InstanceID)
+	return true, nil
+}
+
+// capReachedRecently reports whether agentID's instance cap was found reached within
+// capReachedTTL.
+func (s *Service) capReachedRecently(agentID uuid.UUID) bool {
+	s.capMu.Lock()
+	defer s.capMu.Unlock()
+	at, ok := s.capReached[agentID]
+	return ok && s.now().Sub(at) < capReachedTTL
+}
+
+// markCapReached records that agentID's instance cap is reached and reports whether that is
+// news (not already recorded within capReachedTTL), i.e. whether to log it.
+func (s *Service) markCapReached(agentID uuid.UUID) bool {
+	s.capMu.Lock()
+	defer s.capMu.Unlock()
+	now := s.now()
+	if at, ok := s.capReached[agentID]; ok && now.Sub(at) < capReachedTTL {
+		return false
+	}
+	s.capReached[agentID] = now
+	return true
+}
+
+// clearCapReached forgets that agentID's cap was reached (a new instance was inserted).
+func (s *Service) clearCapReached(agentID uuid.UUID) {
+	s.capMu.Lock()
+	defer s.capMu.Unlock()
+	delete(s.capReached, agentID)
 }
 
 // summaryColumns are the instance columns loaded for list views (no base/effective).
@@ -476,7 +521,9 @@ var summaryColumns = []string{
 }
 
 // ListInstances returns an agent's instances (most recently seen first) without the heavy
-// base/effective columns.
+// base/effective columns. It is deliberately unpaginated: the UI needs every row for its
+// counts, the instance count is capped and pruned, and normalizeReport bounds the summary
+// columns (warnings, unsafe changes, plugins).
 func (s *Service) ListInstances(ctx context.Context, agentID uuid.UUID) ([]relational.AgentInstance, error) {
 	var out []relational.AgentInstance
 	err := s.db.WithContext(ctx).
@@ -624,10 +671,18 @@ func reportedRemote(row relational.AgentInstance, base agentconfig.Config) agent
 	return rc.Normalize(true)
 }
 
-// DeleteInstancesForAgent removes every instance of an agent (agent deletion). Revisions
-// are kept.
+// DeleteInstancesForAgent removes every instance of an agent (agent deletion).
 func DeleteInstancesForAgent(tx *gorm.DB, agentID uuid.UUID) error {
 	return tx.Where("agent_id = ?", agentID).Delete(&relational.AgentInstance{}).Error
+}
+
+// DeleteRevisionsForAgent removes every configuration revision of an agent (agent deletion).
+// It is the purge path for an overlay that held a secret, so it bypasses the append-only
+// BeforeDelete hook, which still blocks every other delete of a revision.
+func DeleteRevisionsForAgent(tx *gorm.DB, agentID uuid.UUID) error {
+	return tx.Session(&gorm.Session{SkipHooks: true}).
+		Where("agent_id = ?", agentID).
+		Delete(&relational.AgentConfigRevision{}).Error
 }
 
 // PruneInstances deletes one-shot instances (daemon=false) not seen for

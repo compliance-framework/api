@@ -44,19 +44,22 @@ type AgentConfigHandler struct {
 	sugar *zap.SugaredLogger
 	db    *gorm.DB
 	svc   *agentcfg.Service
+	// pdp decides whether a reader also holds agent:configure, which gets overlays
+	// unredacted. nil means nobody does (fail closed).
+	pdp authz.PDP
 }
 
-func NewAgentConfigHandler(sugar *zap.SugaredLogger, db *gorm.DB, svc *agentcfg.Service) *AgentConfigHandler {
-	return &AgentConfigHandler{sugar: sugar, db: db, svc: svc}
+func NewAgentConfigHandler(sugar *zap.SugaredLogger, db *gorm.DB, svc *agentcfg.Service, pdp authz.PDP) *AgentConfigHandler {
+	return &AgentConfigHandler{sugar: sugar, db: db, svc: svc, pdp: pdp}
 }
 
 // Register mounts the routes on an /admin/agents group of their own (so they inherit no
-// group guard). Writes need agent:configure.
+// group guard). Writes and preview need agent:configure.
 func (h *AgentConfigHandler) Register(g *echo.Group, guard middleware.ResourceGuard) {
 	write := guard.Do(authz.ActionConfigure)
 	g.GET("/:id/config", h.Get, guard.Read())
 	g.PUT("/:id/config", h.Put, write, echomiddleware.BodyLimit(agentConfigBodyLimitStr))
-	g.POST("/:id/config/preview", h.Preview, guard.Read(), echomiddleware.BodyLimit(agentConfigBodyLimitStr))
+	g.POST("/:id/config/preview", h.Preview, write, echomiddleware.BodyLimit(agentConfigBodyLimitStr))
 	g.GET("/:id/config/revisions", h.ListRevisions, guard.Read())
 	g.GET("/:id/config/revisions/:rev", h.GetRevision, guard.Read())
 	g.POST("/:id/config/revisions/:rev/revert", h.Revert, write, echomiddleware.BodyLimit(agentConfigBodyLimitStr))
@@ -186,7 +189,7 @@ type agentConfigPreviewRequest struct {
 // Get godoc
 //
 //	@Summary		Get an agent's configuration overlay
-//	@Description	Returns the current configuration revision (overlay as an RFC 7396 merge patch, snake_case). Revision 0 means no overlay. The ETag is the plain revision number; send it as If-Match when saving. The overlay is returned unredacted to every agent:read holder, so do not put literal secrets in it; use ${env:NAME} placeholders (R57).
+//	@Description	Returns the current configuration revision (overlay as an RFC 7396 merge patch, snake_case). Revision 0 means no overlay. The ETag is the plain revision number; send it as If-Match when saving. The overlay is verbatim for callers that also hold agent:configure; for every other caller it is redacted like an instance report (secret-like keys and values become ••••), and it is redacted whenever that check cannot be evaluated. Prefer ${env:NAME} placeholders to literal secrets.
 //	@Tags			Agent Configuration
 //	@Produce		json
 //	@Param			id	path		string	true	"Agent ID"
@@ -207,6 +210,9 @@ func (h *AgentConfigHandler) Get(ctx echo.Context) error {
 		return h.internalError(ctx, "load agent configuration", err)
 	}
 	resp := revisionResponse(*agent.ID, cur, true)
+	if err := h.redactForReader(ctx, &resp); err != nil {
+		return h.internalError(ctx, "redact overlay", err)
+	}
 	ctx.Response().Header().Set(headerETag, agentconfig.AdminETag(resp.Revision))
 	return ctx.JSON(http.StatusOK, GenericDataResponse[agentConfigRevisionResponse]{Data: resp})
 }
@@ -388,7 +394,7 @@ func (h *AgentConfigHandler) save(ctx echo.Context, agent *relational.Agent, exp
 // Preview godoc
 //
 //	@Summary		Preview an agent configuration overlay
-//	@Description	Validates a candidate overlay without saving it and shows, per reporting instance (fresh and stale), the redacted effective config, its diff against the instance's current effective config, the classified changes and whether the agent would apply it. validated marks the instances a save validates against; only their errors block a save. errors are the problems the overlay introduces; warnings are problems already in the instance's own file (present in Merge(base, {})), which never block a save or force invalid-config (R59). Validation problems are returned in the 200 body.
+//	@Description	Validates a candidate overlay without saving it and shows, per reporting instance (fresh and stale), the redacted effective config, its diff against the instance's current effective config, the classified changes and whether the agent would apply it. validated marks the instances a save validates against; only their errors block a save. errors are the problems the overlay introduces; warnings are problems already in the instance's own file (present in Merge(base, {})), which never block a save or force invalid-config (R59). Validation problems are returned in the 200 body; when the overlay itself is invalid (overlay-errors), instances is empty. Needs agent:configure.
 //	@Tags			Agent Configuration
 //	@Accept			json
 //	@Produce		json
@@ -441,21 +447,26 @@ func (h *AgentConfigHandler) Preview(ctx echo.Context) error {
 	standalone := len(validation) == 0
 
 	result := validateCandidate(req.Overlay, validation)
-	overlayInvalid := len(result.overlay) > 0
 	resp := configPreviewResponse{
 		DesiredRevision: desired,
 		Standalone:      standalone,
 		OverlayErrors:   nonNil(result.overlay),
-		Instances:       make([]instancePreview, 0, len(previewBases)),
+		Instances:       []instancePreview{},
 	}
+	// An overlay that is invalid on its own (including over MaxOverlayBytes) is not
+	// previewed per instance: it cannot be saved, and the per-instance work is costly.
+	if len(result.overlay) > 0 {
+		return ctx.JSON(http.StatusOK, GenericDataResponse[configPreviewResponse]{Data: resp})
+	}
+	resp.Instances = make([]instancePreview, 0, len(previewBases))
 	for _, b := range previewBases {
-		resp.Instances = append(resp.Instances, previewInstance(b, req.Overlay, overlayInvalid))
+		resp.Instances = append(resp.Instances, previewInstance(b, req.Overlay))
 	}
 	return ctx.JSON(http.StatusOK, GenericDataResponse[configPreviewResponse]{Data: resp})
 }
 
-// previewInstance computes one instance's preview.
-func previewInstance(b agentcfg.InstanceBase, overlay json.RawMessage, overlayInvalid bool) instancePreview {
+// previewInstance computes one instance's preview of a valid overlay.
+func previewInstance(b agentcfg.InstanceBase, overlay json.RawMessage) instancePreview {
 	p := instancePreview{
 		InstanceID:    b.Instance.InstanceID.String(),
 		Hostname:      b.Instance.Hostname,
@@ -488,7 +499,7 @@ func previewInstance(b agentcfg.InstanceBase, overlay json.RawMessage, overlayIn
 	p.WillApply, p.WillApplyReason = agentconfig.WillApply(b.Remote, p.Changes)
 	// Only errors the overlay introduces force invalid-config; file-origin warnings do not,
 	// since the agent only warns about them (R34, R41, R59).
-	if len(p.Errors) > 0 || overlayInvalid {
+	if len(p.Errors) > 0 {
 		p.WillApply, p.WillApplyReason = false, agentconfig.ReasonInvalidConfig
 	}
 	return p
@@ -635,18 +646,19 @@ func (h *AgentConfigHandler) ListRevisions(ctx echo.Context) error {
 
 // GetRevision godoc
 //
-//	@Summary	Get one configuration revision
-//	@Tags		Agent Configuration
-//	@Produce	json
-//	@Param		id	path		string	true	"Agent ID"
-//	@Param		rev	path		integer	true	"Revision number"
-//	@Success	200	{object}	handler.GenericDataResponse[handler.agentConfigRevisionResponse]
-//	@Failure	400	{object}	api.Error
-//	@Failure	403	{object}	api.Error
-//	@Failure	404	{object}	api.Error
-//	@Failure	500	{object}	api.Error
-//	@Security	OAuth2Password
-//	@Router		/admin/agents/{id}/config/revisions/{rev} [get]
+//	@Summary		Get one configuration revision
+//	@Description	The overlay is verbatim for callers that also hold agent:configure and redacted (secret-like keys and values become ••••) for every other caller, as on GET config.
+//	@Tags			Agent Configuration
+//	@Produce		json
+//	@Param			id	path		string	true	"Agent ID"
+//	@Param			rev	path		integer	true	"Revision number"
+//	@Success		200	{object}	handler.GenericDataResponse[handler.agentConfigRevisionResponse]
+//	@Failure		400	{object}	api.Error
+//	@Failure		403	{object}	api.Error
+//	@Failure		404	{object}	api.Error
+//	@Failure		500	{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/admin/agents/{id}/config/revisions/{rev} [get]
 func (h *AgentConfigHandler) GetRevision(ctx echo.Context) error {
 	agent, errResp := h.resolveAgent(ctx)
 	if agent == nil {
@@ -663,7 +675,11 @@ func (h *AgentConfigHandler) GetRevision(ctx echo.Context) error {
 	if err != nil {
 		return h.internalError(ctx, "load revision", err)
 	}
-	return ctx.JSON(http.StatusOK, GenericDataResponse[agentConfigRevisionResponse]{Data: revisionResponse(*agent.ID, rev, true)})
+	resp := revisionResponse(*agent.ID, rev, true)
+	if err := h.redactForReader(ctx, &resp); err != nil {
+		return h.internalError(ctx, "redact overlay", err)
+	}
+	return ctx.JSON(http.StatusOK, GenericDataResponse[agentConfigRevisionResponse]{Data: resp})
 }
 
 // ListInstances godoc
@@ -835,6 +851,39 @@ func (h *AgentConfigHandler) resolveAgent(ctx echo.Context) (*relational.Agent, 
 		return nil, h.internalError(ctx, "load agent", err)
 	}
 	return &agent, nil
+}
+
+// canConfigure reports whether the caller holds agent:configure on the agent in :id,
+// evaluated against the PDP like the route guard does. It fails closed: no PDP, an
+// unavailable PDP or an evaluation error all count as no.
+func (h *AgentConfigHandler) canConfigure(ctx echo.Context) bool {
+	if h.pdp == nil {
+		return false
+	}
+	subject := middleware.SubjectFromContext(ctx)
+	resource := authz.Resource{Type: authz.ResourceAgent, ID: ctx.Param("id")}
+	reqCtx := map[string]any{"method": ctx.Request().Method, "path": ctx.Path()}
+	decision, err := h.pdp.Evaluate(ctx.Request().Context(), subject, authz.ActionConfigure, resource, reqCtx)
+	if err != nil {
+		h.sugar.Warnw("agent:configure check failed; returning the overlay redacted", "path", ctx.Path(), "error", err)
+		return false
+	}
+	return decision.Allow
+}
+
+// redactForReader redacts resp.Overlay (agentconfig.RedactDocument) unless the caller holds
+// agent:configure, so plain readers never see literal secrets typed into an overlay.
+// OverlaySize stays the stored size.
+func (h *AgentConfigHandler) redactForReader(ctx echo.Context, resp *agentConfigRevisionResponse) error {
+	if len(resp.Overlay) == 0 || h.canConfigure(ctx) {
+		return nil
+	}
+	redacted, _, err := agentconfig.RedactDocument(resp.Overlay)
+	if err != nil {
+		return err
+	}
+	resp.Overlay = redacted
+	return nil
 }
 
 func (h *AgentConfigHandler) internalError(ctx echo.Context, what string, err error) error {

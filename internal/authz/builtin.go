@@ -22,7 +22,7 @@ func init() {
 // Builtin is the default, in-process PDP. It reproduces CCF's pre-authz access rules with
 // zero behavior change: admin resources require SSO admin-group membership (password
 // users are treated as super admins), the agent resource requires the same admin check for
-// users (agent service accounts are allowed, anonymous denied; R39), and every other
+// users (agent service accounts may register, ingest and sync; anonymous is denied; R39), and every other
 // resource is allowed once the request is authenticated — the authn middleware having already enforced authentication
 // and any public-endpoint policy before the PEP runs.
 //
@@ -46,18 +46,22 @@ func NewBuiltin(db *gorm.DB, cfg *config.Config, logger *zap.SugaredLogger) *Bui
 }
 
 // Evaluate implements PDP.
-func (b *Builtin) Evaluate(ctx context.Context, s Subject, _ string, r Resource, _ map[string]any) (Decision, error) {
+func (b *Builtin) Evaluate(ctx context.Context, s Subject, action string, r Resource, _ map[string]any) (Decision, error) {
 	switch r.Type {
 	case ResourceAdmin:
 		return b.evaluateAdmin(ctx, s)
 	case ResourceAgent:
 		// Agent configuration can push plugins and policies to hosts, so under builtin a
 		// user needs the admin check for every agent action (parity with /admin/agents,
-		// R39). Agent service accounts are allowed (register/ingest/sync); anonymous
-		// subjects are denied.
+		// R39). Agent service accounts may only register, ingest and sync (parity with
+		// Cedar's agent role); anonymous subjects are denied.
 		switch s.Type {
 		case "agent":
-			return Decision{Allow: true, Reason: "builtin: agent service account"}, nil
+			switch action {
+			case ActionRegister, ActionIngest, ActionSync:
+				return Decision{Allow: true, Reason: "builtin: agent service account"}, nil
+			}
+			return Decision{Allow: false, Reason: "builtin: agent service accounts may only register, ingest and sync on the agent resource"}, nil
 		case "user":
 			return b.evaluateAdmin(ctx, s)
 		default:

@@ -13,7 +13,7 @@ class). Attribute-rich (ABAC/ReBAC) policy is an Enterprise / bring-your-own-PDP
 
 | Driver    | What it is                                                              |
 | --------- | ---------------------------------------------------------------------- |
-| `builtin` | **Default.** Pre-authz rules: authenticated = allowed, admin via SSO groups. The `agent` resource (agent reads and remote configuration) also requires the admin check for users; agent service accounts are allowed. |
+| `builtin` | **Default.** Pre-authz rules: authenticated = allowed, admin via SSO groups. The `agent` resource (agent reads and remote configuration) also requires the admin check for users; agent service accounts may only register, ingest and sync. |
 | `cedar`   | Embedded Cedar RBAC against the bundled role policies (this document).  |
 | `authzen` | Delegate every decision to a remote AuthZen-compliant PDP (bring your own). |
 
@@ -40,11 +40,14 @@ Four fixed global roles plus the agent service role (the manifest lists every ro
 | `agent`       | Service accounts: ingest evidence/heartbeats, register, sync their remote configuration. |
 
 viewer, auditor and contributor read agent configurations through `"*": [read]`. This is
-intended; narrow it with an operator `forbid` policy if needed. The instance reports (`base`/`effective`) are redacted, but the **overlay** is not:
-`GET …/config` and `GET …/config/revisions/{rev}` return it verbatim so it can be edited, so a
-literal secret typed into an overlay's `plugins.*.config` is readable by every `agent:read`
-holder. Put secrets on the host and reference them with `${env:NAME}` placeholders instead
-(R57).
+intended; narrow it with an operator `forbid` policy if needed. The instance reports
+(`base`/`effective`) are redacted. `GET …/config` and `GET …/config/revisions/{rev}` return
+the **overlay** verbatim only to callers that also hold `agent:configure` (editors), so it
+can be edited; every other `agent:read` holder gets it redacted with the report rules
+(secret-like keys and values become `••••`). If the configure check cannot be evaluated,
+the overlay is redacted. Still, prefer `${env:NAME}` placeholders over literal secrets in
+an overlay: editors and every stored revision keep the literal. Deleting an agent deletes
+its revisions. Previewing an overlay (`POST …/config/preview`) needs `agent:configure`.
 
 Cedar is **deny-by-default**: a subject with no assigned role is denied every request.
 

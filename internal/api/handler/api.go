@@ -220,7 +220,7 @@ func RegisterHandlers(server *api.Server, logger *zap.SugaredLogger, db *gorm.DB
 
 	// Admin agent-configuration routes, on their own group object so they inherit no group
 	// guard (same prefix; precedent /admin/users).
-	agentConfigHandler := NewAgentConfigHandler(logger, db, agentCfgSvc)
+	agentConfigHandler := NewAgentConfigHandler(logger, db, agentCfgSvc, pdp)
 	agentConfigGroup := server.API().Group("/admin/agents")
 	agentConfigGroup.Use(middleware.JWTMiddleware(config.JWTPublicKey))
 	agentConfigHandler.Register(agentConfigGroup, agentGuard)

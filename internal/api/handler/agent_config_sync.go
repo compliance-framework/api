@@ -30,6 +30,13 @@ const (
 	maxReportErrorBytes      = 8 << 10
 	maxReportWarnings        = 500
 
+	// Bounds on the summary columns ListInstances returns for every instance.
+	maxReportWarningMessageBytes = 1 << 10
+	maxReportWarningPathBytes    = 1 << 10
+	maxReportUnsafe              = 200
+	maxReportChangePathBytes     = 1 << 10
+	maxReportChangeValueBytes    = 2048
+
 	// R76: plugins.
 	maxReportPlugins             = 500
 	maxReportPluginNameLen       = 255
@@ -122,7 +129,7 @@ func (h *AgentConfigSyncHandler) GetConfig(ctx echo.Context) error {
 // PutReport godoc
 //
 //	@Summary		Report this instance's effective configuration
-//	@Description	Stores the authenticated agent instance's config report: mode, applied/attempted revision, status (applied, rejected, failed or not-applicable; the server derives pending and unknown), the redacted base and effective configs (snake_case), the effective digest, plugins (with their agent-library version), unsafe changes, warnings and the normalized local remote_config block. The server re-redacts base and effective as a best effort and stores effective-digest as sent. Body limit 4 MiB. A 409 means the per-agent instance cap is reached; back off.
+//	@Description	Stores the authenticated agent instance's config report: mode, applied/attempted revision, status (applied, rejected, failed or not-applicable; the server derives pending and unknown), the redacted base and effective configs (snake_case), the effective digest, plugins (with their agent-library version), unsafe changes, warnings and the normalized local remote_config block. The server re-redacts base and effective as a best effort, replaces error, warning messages, plugin sources and remote-config strings that contain a secret with ••••, and stores effective-digest as sent. Long warning messages and unsafe lists are truncated (truncated=true). A NUL character anywhere is a 400. Body limit 4 MiB. A 409 means the per-agent instance cap is reached; back off.
 //	@Tags			Agents
 //	@Accept			json
 //	@Param			instanceId	path	string				true	"Agent instance ID (UUID)"
@@ -176,6 +183,10 @@ func (h *AgentConfigSyncHandler) PutReport(ctx echo.Context) error {
 		}
 		*doc.raw = redacted
 	}
+	if scrubReportText(&report) {
+		h.sugar.Warnw("Agent config report carried a secret in free text; masked server-side",
+			"agentID", agentID, "instanceID", instanceID)
+	}
 
 	var credentialID *uuid.UUID
 	if auth.Key != nil && auth.Key.ID != nil {
@@ -190,6 +201,93 @@ func (h *AgentConfigSyncHandler) PutReport(ctx echo.Context) error {
 		return ctx.JSON(http.StatusInternalServerError, api.InternalServerError())
 	}
 	return ctx.NoContent(http.StatusNoContent)
+}
+
+// scrubReportText masks the free-text fields of a report that contain a secret by content
+// (agentconfig.ScrubSecretText): error, warning messages, plugin sources and the strings of
+// remote-config. It reports whether anything was masked.
+func scrubReportText(r *agentconfig.Report) bool {
+	scrubbed := false
+	scrub := func(s *string) {
+		if masked, ok := agentconfig.ScrubSecretText(*s); ok {
+			*s = masked
+			scrubbed = true
+		}
+	}
+	if r.Error != nil {
+		scrub(r.Error)
+	}
+	for i := range r.Warnings {
+		scrub(&r.Warnings[i].Message)
+	}
+	for i := range r.Plugins {
+		scrub(&r.Plugins[i].Source)
+	}
+	if rc := r.RemoteConfig; rc != nil {
+		scrub(&rc.Mode)
+		scrub(&rc.PollInterval)
+		for i := range rc.TrustedSources {
+			scrub(&rc.TrustedSources[i])
+		}
+		for i := range rc.OverridableConfigFlags {
+			scrub(&rc.OverridableConfigFlags[i])
+		}
+	}
+	return scrubbed
+}
+
+// checkReportNUL rejects a NUL character anywhere in a report: Postgres stores neither NUL
+// in text columns nor the \u0000 escape in jsonb, so the insert would fail with a 500.
+func checkReportNUL(r *agentconfig.Report) error {
+	for name, v := range map[string]string{
+		"hostname": r.Hostname, "agent-version": r.AgentVersion, "effective-digest": r.EffectiveDigest,
+	} {
+		if strings.ContainsRune(v, 0) {
+			return fmt.Errorf("%s must not contain a NUL character", name)
+		}
+	}
+	if r.Error != nil && strings.ContainsRune(*r.Error, 0) {
+		return errors.New("error must not contain a NUL character")
+	}
+	for name, raw := range map[string]json.RawMessage{"base": r.Base, "effective": r.Effective} {
+		if hasJSONNULEscape(raw) {
+			return fmt.Errorf("%s must not contain a NUL character", name)
+		}
+	}
+	// The remaining parts are stored as jsonb; encoding/json escapes a NUL as \u0000.
+	for name, v := range map[string]any{
+		"warnings": r.Warnings, "unsafe": r.Unsafe, "plugins": r.Plugins, "remote-config": r.RemoteConfig,
+	} {
+		raw, err := json.Marshal(v)
+		if err != nil {
+			return fmt.Errorf("%s: %w", name, err)
+		}
+		if hasJSONNULEscape(raw) {
+			return fmt.Errorf("%s must not contain a NUL character", name)
+		}
+	}
+	return nil
+}
+
+// hasJSONNULEscape reports whether raw JSON contains the \u0000 escape (an unescaped
+// backslash followed by u0000), i.e. a string that decodes to a NUL character.
+func hasJSONNULEscape(raw []byte) bool {
+	const esc = `\u0000`
+	for i := 0; ; {
+		j := bytes.Index(raw[i:], []byte(esc))
+		if j < 0 {
+			return false
+		}
+		at := i + j
+		backslashes := 0
+		for k := at - 1; k >= 0 && raw[k] == '\\'; k-- {
+			backslashes++
+		}
+		if backslashes%2 == 0 {
+			return true
+		}
+		i = at + len(esc)
+	}
 }
 
 // normalizeReport validates the enums and shapes of a report and applies the length caps
@@ -216,6 +314,9 @@ func normalizeReport(r *agentconfig.Report) error {
 	if !isJSONObject(r.Effective) {
 		return errors.New("effective must be a JSON object")
 	}
+	if err := checkReportNUL(r); err != nil {
+		return err
+	}
 	if !effectiveDigestPattern.MatchString(r.EffectiveDigest) {
 		return errors.New("effective-digest must match sha256:<64 lowercase hex>")
 	}
@@ -238,6 +339,20 @@ func normalizeReport(r *agentconfig.Report) error {
 		r.Warnings = r.Warnings[:maxReportWarnings]
 		r.Truncated = true
 	}
+	for i := range r.Warnings {
+		w := &r.Warnings[i]
+		w.Message = truncateReportField(r, w.Message, maxReportWarningMessageBytes)
+		w.Path = truncateReportField(r, w.Path, maxReportWarningPathBytes)
+	}
+	if len(r.Unsafe) > maxReportUnsafe {
+		r.Unsafe = r.Unsafe[:maxReportUnsafe]
+		r.Truncated = true
+	}
+	for i := range r.Unsafe {
+		c := &r.Unsafe[i]
+		c.Path = truncateReportField(r, c.Path, maxReportChangePathBytes)
+		c.Value = truncateReportField(r, c.Value, maxReportChangeValueBytes)
+	}
 	r.Hostname = truncateUTF8(strings.TrimSpace(r.Hostname), maxReportHostnameLen)
 	r.AgentVersion = truncateUTF8(strings.TrimSpace(r.AgentVersion), maxReportAgentVersionLen)
 	if r.Error != nil {
@@ -245,6 +360,16 @@ func normalizeReport(r *agentconfig.Report) error {
 		r.Error = &msg
 	}
 	return nil
+}
+
+// truncateReportField cuts s to n bytes (truncateUTF8) and marks the report truncated when
+// it did.
+func truncateReportField(r *agentconfig.Report, s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	r.Truncated = true
+	return truncateUTF8(s, n)
 }
 
 func isJSONObject(raw json.RawMessage) bool {

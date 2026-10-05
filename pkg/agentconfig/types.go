@@ -34,8 +34,10 @@ const (
 // agent's local config.
 var LockedKeys = []string{"api", "daemon", "remote_config"}
 
-// PluginNamePattern is the name pattern for plugins introduced by an overlay (R28). Viper
+// PluginNamePattern is the name pattern for plugins named in an overlay (R28, O6). Viper
 // lowercases file plugin names, so upper case would silently create a second plugin.
+// ValidateOverlay applies it to every plugin an overlay sets, including file plugins it only
+// changes, so a file plugin whose name does not match cannot be changed remotely.
 var PluginNamePattern = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{0,62}$`)
 
 // Config is the declared form of the agent configuration (file, overlay and effective).

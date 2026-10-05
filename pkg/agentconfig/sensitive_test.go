@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -27,7 +28,7 @@ func TestIsSecretKey(t *testing.T) {
 		"passphrase", "ssh_key_passphrase", "secret", "client_secret", "clientsecret",
 		"token", "access_token", "accessToken", "tokens", "credentials", "credentials_json",
 		"api_key", "apiKey", "APIKey", "apikey", "x-api-key", "private_key", "privateKey",
-		"private_key_path", "access_key", "aws_secret_access_key", "connection_string",
+		"access_key", "aws_secret_access_key", "connection_string",
 		"connectionString", "conn_str", "connstr", "session_id", "sessionid", "SessionID",
 		"authorization", "Authorization", "auth_header", "AuthHeader", "authheader",
 		// last-word matches
@@ -35,8 +36,8 @@ func TestIsSecretKey(t *testing.T) {
 		"encryption_key_hex", "private_key_pem", "passkey", "pass", "db_pass", "dbpass",
 		"pwd", "db_pwd", "auth", "basic_auth", "basicauth", "oauth", "proxyAuth", "dsn",
 		"sentry_dsn", "sentrydsn", "cookie", "cookies", "session_cookie", "setCookie",
-		// documented false positives: masked although not secret
-		"tokens_per_minute", "max_tokens", "secret_name", "password_file",
+		// a stem that needs the last word still names a secret
+		"session_id", "sessionId",
 	}
 	for _, k := range secret {
 		assert.True(t, isSecretKey(k), "%q should be secret-like", k)
@@ -49,6 +50,11 @@ func TestIsSecretKey(t *testing.T) {
 		"auth_method", "authz_mode", "cookie_secure", "cookie_name", "dsn_timeout",
 		"session", "session_timeout", "cert", "certificate", "client_cert", "ca_cert",
 		"signature", "sig", "threshold", "keyed", "monkey_patch",
+		// keys that describe a secret rather than hold one (the value is still content-checked)
+		"tokens_per_minute", "max_tokens", "maxTokens", "min_key_size", "secret_name",
+		"password_file", "private_key_path", "token_url", "auth_uri", "secrets_dir",
+		"api_key_id", "token_count", "token_limit", "token_ttl", "secret_size",
+		"password_length", "auth_enabled",
 	}
 	for _, k := range notSecret {
 		assert.False(t, isSecretKey(k), "%q should not be secret-like", k)
@@ -79,53 +85,56 @@ func TestKeyWords(t *testing.T) {
 func TestContainsSecretValue(t *testing.T) {
 	alnum36 := strings.Repeat("a1B2", 9)
 	positives := map[string]string{
-		"url password":                "postgres://user:hunter2@db.example.com:5432/app",
-		"url empty user":              "redis://:hunter2@cache:6379/0",
-		"url in a longer string":      "--dsn=postgres://user:hunter2@db/app --verbose",
-		"url in a jdbc dsn":           "jdbc:postgresql://user:hunter2@db/app",
-		"url unparseable password":    "postgres://user:pa/ss#w?rd@db/app",
-		"url password with at":        "mongodb://user:p@ss@db/app",
-		"url escaped password":        "amqp://user:p%40ss@mq/vhost",
-		"second url has a password":   "https://example.com/a https://u:p@example.org",
-		"pem private key":             "-----BEGIN PRIVATE KEY-----\nMIIEv...\n-----END PRIVATE KEY-----",
-		"pem rsa private key":         "-----BEGIN RSA PRIVATE KEY-----",
-		"pem openssh private key":     "x -----BEGIN OPENSSH PRIVATE KEY----- y",
-		"pem pgp private key block":   "-----BEGIN PGP PRIVATE KEY BLOCK-----",
-		"libpq password":              "host=db user=app password=hunter2 sslmode=require",
-		"odbc pwd":                    "Server=db;Uid=app;Pwd=hunter2;",
-		"jdbc query password":         "jdbc:mysql://db/app?user=app&password=hunter2",
-		"aws access key id":           fake("AKIA", "IOSFODNN7EXAMPLE"),
-		"aws session key id":          fake("ASIA", "IOSFODNN7EXAMPLE"),
-		"github pat":                  fake("gh", "p_", alnum36),
-		"github oauth":                fake("gh", "o_", alnum36),
-		"github user-to-server":       fake("gh", "u_", alnum36),
-		"github server-to-server":     fake("gh", "s_", alnum36),
-		"github refresh":              fake("gh", "r_", alnum36),
-		"github fine-grained pat":     fake("github", "_pat_", strings.Repeat("a1B2_", 16), "ab"),
-		"gitlab pat":                  fake("gl", "pat-", strings.Repeat("aB3-", 5)),
-		"slack bot token":             fake("xo", "xb-", "1234567890-1234567890-", strings.Repeat("aB3", 8)),
-		"slack user token":            fake("xo", "xp-", "1234567890-1234567890-1234567890-", strings.Repeat("ab12", 8)),
-		"slack app token":             fake("xa", "pp-1-A0123BCDEF-1234567890-", strings.Repeat("ab12", 16)),
-		"slack webhook":               fake("https://hooks.", "slack.com/services/", strings.Repeat("A1b2", 11)),
-		"google api key":              fake("AI", "za", strings.Repeat("Sy0_-", 7)),
-		"stripe live key":             fake("sk", "_live_", strings.Repeat("a1B2", 6)),
-		"stripe restricted key":       fake("rk", "_live_", strings.Repeat("a1B2", 6)),
-		"stripe test key":             fake("sk", "_test_", strings.Repeat("a1B2", 6)),
-		"jwt":                         fake("ey", "JhbGciOiJIUzI1NiJ9", ".", "ey", "JzdWIiOiIxMjM0NTY3ODkwIn0", ".", "dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U"),
-		"jwt in a header":             fake("Bearer ey", "JhbGciOiJIUzI1NiJ9", ".", "ey", "JzdWIiOiIxMjM0NTY3ODkwIn0", "."),
-		"sendgrid":                    fake("SG", ".", strings.Repeat("a", 22), ".", strings.Repeat("b", 43)),
-		"npm":                         fake("np", "m_", alnum36),
-		"pypi":                        fake("pypi-", "AgEIcHlwaS5vcmc", strings.Repeat("ab_-", 13)),
-		"openai":                      fake("sk-proj-", strings.Repeat("a", 24), "T3Blbk", "FJ", strings.Repeat("b", 24)),
-		"anthropic":                   fake("sk-", "ant-api03-", strings.Repeat("aB3_", 22)),
-		"huggingface":                 fake("hf", "_", strings.Repeat("abcd", 8), "ab"),
-		"digitalocean":                fake("do", "p_v1_", strings.Repeat("0a", 32)),
-		"shopify":                     fake("shp", "at_", strings.Repeat("0a", 16)),
-		"terraform cloud":             fake(strings.Repeat("a", 14), ".atlas", "v1.", strings.Repeat("ab", 32)),
-		"vault":                       fake("hv", "s.", strings.Repeat("aB3_", 25)),
-		"azure ad client secret":      fake("abc", "8Q~", strings.Repeat("aB3.", 8), "xy"),
-		"age secret key":              fake("AGE-SECRET", "-KEY-1", strings.Repeat("QPZRY9X8GF", 5), "2TVDW0S3"),
-		"token inside a longer value": fake("token for ci: gh", "p_", alnum36, " (rotate monthly)"),
+		"url password":                         "postgres://user:hunter2@db.example.com:5432/app",
+		"url empty user":                       "redis://:hunter2@cache:6379/0",
+		"url in a longer string":               "--dsn=postgres://user:hunter2@db/app --verbose",
+		"url in a jdbc dsn":                    "jdbc:postgresql://user:hunter2@db/app",
+		"url unparseable password":             "postgres://user:pa/ss#w?rd@db/app",
+		"url password with at":                 "mongodb://user:p@ss@db/app",
+		"url escaped password":                 "amqp://user:p%40ss@mq/vhost",
+		"second url has a password":            "https://example.com/a https://u:p@example.org",
+		"pem private key":                      "-----BEGIN PRIVATE KEY-----\nMIIEv...\n-----END PRIVATE KEY-----",
+		"pem rsa private key":                  "-----BEGIN RSA PRIVATE KEY-----",
+		"pem openssh private key":              "x -----BEGIN OPENSSH PRIVATE KEY----- y",
+		"pem pgp private key block":            "-----BEGIN PGP PRIVATE KEY BLOCK-----",
+		"libpq password":                       "host=db user=app password=hunter2 sslmode=require",
+		"odbc pwd":                             "Server=db;Uid=app;Pwd=hunter2;",
+		"jdbc query password":                  "jdbc:mysql://db/app?user=app&password=hunter2",
+		"aws access key id":                    fake("AKIA", "IOSFODNN7EXAMPLE"),
+		"aws session key id":                   fake("ASIA", "IOSFODNN7EXAMPLE"),
+		"github pat":                           fake("gh", "p_", alnum36),
+		"github oauth":                         fake("gh", "o_", alnum36),
+		"github user-to-server":                fake("gh", "u_", alnum36),
+		"github server-to-server":              fake("gh", "s_", alnum36),
+		"github refresh":                       fake("gh", "r_", alnum36),
+		"github fine-grained pat":              fake("github", "_pat_", strings.Repeat("a1B2_", 16), "ab"),
+		"gitlab pat":                           fake("gl", "pat-", strings.Repeat("aB3-", 5)),
+		"slack bot token":                      fake("xo", "xb-", "1234567890-1234567890-", strings.Repeat("aB3", 8)),
+		"slack user token":                     fake("xo", "xp-", "1234567890-1234567890-1234567890-", strings.Repeat("ab12", 8)),
+		"slack app token":                      fake("xa", "pp-1-A0123BCDEF-1234567890-", strings.Repeat("ab12", 16)),
+		"slack webhook":                        fake("https://hooks.", "slack.com/services/", strings.Repeat("A1b2", 11)),
+		"google api key":                       fake("AI", "za", strings.Repeat("Sy0_-", 7)),
+		"stripe live key":                      fake("sk", "_live_", strings.Repeat("a1B2", 6)),
+		"stripe restricted key":                fake("rk", "_live_", strings.Repeat("a1B2", 6)),
+		"stripe test key":                      fake("sk", "_test_", strings.Repeat("a1B2", 6)),
+		"jwt":                                  fake("ey", "JhbGciOiJIUzI1NiJ9", ".", "ey", "JzdWIiOiIxMjM0NTY3ODkwIn0", ".", "dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U"),
+		"jwt in a header":                      fake("Bearer ey", "JhbGciOiJIUzI1NiJ9", ".", "ey", "JzdWIiOiIxMjM0NTY3ODkwIn0", "."),
+		"sendgrid":                             fake("SG", ".", strings.Repeat("a", 22), ".", strings.Repeat("b", 43)),
+		"npm":                                  fake("np", "m_", alnum36),
+		"pypi":                                 fake("pypi-", "AgEIcHlwaS5vcmc", strings.Repeat("ab_-", 13)),
+		"openai":                               fake("sk-proj-", strings.Repeat("a", 24), "T3Blbk", "FJ", strings.Repeat("b", 24)),
+		"anthropic":                            fake("sk-", "ant-api03-", strings.Repeat("aB3_", 22)),
+		"huggingface":                          fake("hf", "_", strings.Repeat("abcd", 8), "ab"),
+		"digitalocean":                         fake("do", "p_v1_", strings.Repeat("0a", 32)),
+		"shopify":                              fake("shp", "at_", strings.Repeat("0a", 16)),
+		"terraform cloud":                      fake(strings.Repeat("a", 14), ".atlas", "v1.", strings.Repeat("ab", 32)),
+		"vault":                                fake("hv", "s.", strings.Repeat("aB3_", 25)),
+		"azure ad client secret":               fake("abc", "8Q~", strings.Repeat("aB3.", 8), "xy"),
+		"age secret key":                       fake("AGE-SECRET", "-KEY-1", strings.Repeat("QPZRY9X8GF", 5), "2TVDW0S3"),
+		"token inside a longer value":          fake("token for ci: gh", "p_", alnum36, " (rotate monthly)"),
+		"url digits password parsed as a port": "https://user:5678/abc@host",
+		"mysql dsn without a scheme":           "user:hunter2@tcp(db:3306)/app",
+		"mysql dsn unix socket":                "app:hunter2@unix(/var/run/mysqld.sock)/app",
 	}
 	for name, v := range positives {
 		assert.True(t, containsSecretValue(v), "%s: %q", name, v)
@@ -156,10 +165,67 @@ func TestContainsSecretValue(t *testing.T) {
 		"oci ref":                  "ghcr.io/compliance-framework/plugin-local-ssh:v1.2.3",
 		"cron":                     "*/5 * * * *",
 		"keyword like value":       "monkey",
+		"oci digest with a port":   "oci://registry.local:5000/plugins/ssh@sha256:" + strings.Repeat("ab", 32),
+		"mysql dsn no password":    "user@tcp(db:3306)/app",
+		"mysql dsn empty password": "user:@tcp(db:3306)/app",
 	}
 	for name, v := range negatives {
 		assert.False(t, containsSecretValue(v), "%s: %q", name, v)
 	}
+}
+
+// The URL scan is linear: a long value of back-to-back schemes with no terminator used to
+// re-parse the rest of the string for every match.
+func TestContainsSecretValueLinear(t *testing.T) {
+	adversarial := strings.Repeat("a://", (1<<20)/4)
+	start := time.Now()
+	assert.False(t, containsSecretValue(adversarial))
+	assert.Less(t, time.Since(start), 2*time.Second)
+
+	// A real URL password within the scanned prefix is still detected.
+	assert.True(t, containsSecretValue(strings.Repeat("a://", 50)+" https://u:pw@h/x"))
+	assert.True(t, containsSecretValue(strings.Repeat("x", 1000)+"https://u:pw@h/x"))
+}
+
+func TestScrubSecretText(t *testing.T) {
+	got, scrubbed := ScrubSecretText("dial postgres://app:hunter2@db:5432/app: connection refused")
+	assert.True(t, scrubbed)
+	assert.Equal(t, MaskedValue, got)
+
+	got, scrubbed = ScrubSecretText("dial tcp db:5432: connection refused")
+	assert.False(t, scrubbed)
+	assert.Equal(t, "dial tcp db:5432: connection refused", got)
+
+	got, scrubbed = ScrubSecretText(MaskedValue)
+	assert.False(t, scrubbed)
+	assert.Equal(t, MaskedValue, got)
+}
+
+func TestRedactSourcesAndPolicies(t *testing.T) {
+	c := Config{Plugins: map[string]*Plugin{"p": {
+		Source:   "https://u:pw@plugins.example.com/ssh.tar.gz",
+		Policies: []string{srcPolicies, "https://ci:hunter2@policies.example.com/p.tar.gz"},
+	}, "q": {
+		Source:   srcSSH,
+		Policies: []string{srcCommon},
+		Labels:   map[string]string{"token": "x"},
+	}}}
+	out := Redact(c)
+	assert.Equal(t, MaskedValue, out.Plugins["p"].Source)
+	assert.Equal(t, []string{srcPolicies, MaskedValue}, out.Plugins["p"].Policies)
+	assert.Equal(t, srcSSH, out.Plugins["q"].Source, "no key rule on sources")
+	assert.Equal(t, []string{srcCommon}, out.Plugins["q"].Policies)
+	assert.Equal(t, "x", out.Plugins["q"].Labels["token"], "labels are never masked")
+	assert.Equal(t, "https://u:pw@plugins.example.com/ssh.tar.gz", c.Plugins["p"].Source, "input not mutated")
+
+	raw, err := json.Marshal(c)
+	require.NoError(t, err)
+	doc, changed, err := RedactDocument(raw)
+	require.NoError(t, err)
+	assert.True(t, changed)
+	want, err := CanonicalJSON(Redact(c))
+	require.NoError(t, err)
+	assert.JSONEq(t, string(want), string(doc), "RedactDocument applies the same rules")
 }
 
 func TestRedactValueAndPlaceholderRules(t *testing.T) {

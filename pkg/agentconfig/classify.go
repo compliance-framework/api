@@ -43,6 +43,7 @@ const (
 	ChangeReasonConfigNotOverridable  = "config-not-overridable"
 	ChangeReasonNewEnvReference       = "new-env-reference"
 	ChangeReasonForbiddenEnvReference = "forbidden-env-reference"
+	ChangeReasonReenablePlugin        = "reenables-plugin"
 )
 
 // WillApply reasons besides ReasonUnsafeChanges / ReasonForbiddenChanges.
@@ -63,6 +64,13 @@ type Change struct {
 // must be normalized. A locked key in the raw overlay is Forbidden even though Merge strips
 // it. An overlay null is a deletion and is classified as one; an omitted key produces no
 // Change. The result is sorted by Path, then Value.
+//
+// Re-enabling a plugin the base disables is Unsafe (reenables-plugin) unless its source is
+// trusted (trusted-source). By design, apply_safe accepts the rest of a plugin's data
+// without a host opt-in: schedule, labels, policy_data, policy_behavior, protocol_version and
+// disabling a plugin are Safe (data-only), and removing a plugin or policy entries is Safe
+// (reduces-scope). So a remote editor can change the policy inputs that decide pass/fail,
+// or stop a plugin from running, on an apply_safe host.
 func Classify(base Config, overlay json.RawMessage, rc RemoteConfig) ([]Change, error) {
 	raw, err := decodeAny(overlay)
 	if err != nil {
@@ -196,7 +204,16 @@ func (cl classifier) classifyPlugin(ptr, name string, bp, ep *Plugin) []Change {
 	dataOnly("labels", nilIfEmptyMap(bp.Labels), nilIfEmptyMap(ep.Labels))
 	dataOnly("policy_behavior", nilIfEmptyMap(bp.PolicyBehavior), nilIfEmptyMap(ep.PolicyBehavior))
 	dataOnly("protocol_version", bp.ProtocolVersion, ep.ProtocolVersion)
-	dataOnly("enabled", bp.IsEnabled(), ep.IsEnabled())
+	if !bp.IsEnabled() && ep.IsEnabled() {
+		// Re-enabling a plugin the host disabled runs it again: Unsafe unless trusted.
+		if MatchTrustedSource(cl.rc, ep.Source) {
+			out = append(out, Change{Path: ptr + "/enabled", Safety: Safe, Reason: ChangeReasonTrustedSource, Value: ep.Source})
+		} else {
+			out = append(out, Change{Path: ptr + "/enabled", Safety: Unsafe, Reason: ChangeReasonReenablePlugin, Value: ep.Source})
+		}
+	} else {
+		dataOnly("enabled", bp.IsEnabled(), ep.IsEnabled())
+	}
 	dataOnly("policy_data", nilIfEmptyMap(bp.PolicyData), nilIfEmptyMap(ep.PolicyData))
 
 	if bp.Source != ep.Source {

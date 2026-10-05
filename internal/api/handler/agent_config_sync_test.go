@@ -77,6 +77,29 @@ func TestNormalizeReport_Rejects(t *testing.T) {
 		"plugin without a name": func(r *agentconfig.Report) {
 			r.Plugins = []agentconfig.PluginReport{{Name: "ssh"}, {Name: "  ", LibVersion: "v0.7.1"}}
 		},
+		// NUL: Postgres stores it neither in text nor (as \u0000) in jsonb.
+		"NUL in hostname":         func(r *agentconfig.Report) { r.Hostname = "h\x00st" },
+		"NUL in agent-version":    func(r *agentconfig.Report) { r.AgentVersion = "v1\x00" },
+		"NUL in error":            func(r *agentconfig.Report) { e := "boom\x00"; r.Error = &e },
+		"NUL in effective-digest": func(r *agentconfig.Report) { r.EffectiveDigest = testDigest[:10] + "\x00" },
+		"NUL in warning message": func(r *agentconfig.Report) {
+			r.Warnings = []agentconfig.FieldError{{Path: "/x", Code: "c", Message: "m\x00"}}
+		},
+		"NUL in plugin source": func(r *agentconfig.Report) {
+			r.Plugins = []agentconfig.PluginReport{{Name: "ssh", Source: "s\x00"}}
+		},
+		"NUL in plugin name": func(r *agentconfig.Report) { r.Plugins = []agentconfig.PluginReport{{Name: "s\x00sh"}} },
+		"NUL in unsafe value": func(r *agentconfig.Report) {
+			r.Unsafe = []agentconfig.Change{{Path: "/p", Safety: agentconfig.Unsafe, Reason: "r", Value: "\x00"}}
+		},
+		"NUL in remote-config": func(r *agentconfig.Report) {
+			r.RemoteConfig = &agentconfig.RemoteConfig{Mode: agentconfig.ModeReport, TrustedSources: []string{"a\x00"}}
+		},
+		"NUL escape in base":          func(r *agentconfig.Report) { r.Base = json.RawMessage(`{"a":"x\u0000"}`) },
+		"NUL escape in effective key": func(r *agentconfig.Report) { r.Effective = json.RawMessage(`{"\u0000":1}`) },
+		"NUL escape after an escaped backslash": func(r *agentconfig.Report) {
+			r.Base = json.RawMessage(`{"a":"\\\u0000"}`)
+		},
 	}
 	for name, mutate := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -121,6 +144,74 @@ func TestNormalizeReport_Truncates(t *testing.T) {
 	r.Truncated = true
 	require.NoError(t, normalizeReport(&r))
 	assert.True(t, r.Truncated)
+}
+
+func TestNormalizeReport_LiteralBackslashU0000IsNotNUL(t *testing.T) {
+	r := validReport()
+	r.Base = json.RawMessage(`{"a":"\\u0000"}`) // the 6 characters \u0000, not a NUL
+	assert.NoError(t, normalizeReport(&r))
+}
+
+func TestNormalizeReport_CapsSummaryFields(t *testing.T) {
+	r := validReport()
+	r.Warnings = []agentconfig.FieldError{{
+		Path:    strings.Repeat("p", maxReportWarningPathBytes+1),
+		Code:    "c",
+		Message: strings.Repeat("é", maxReportWarningMessageBytes), // 2 bytes each
+	}}
+	r.Unsafe = make([]agentconfig.Change, maxReportUnsafe+1)
+	r.Unsafe[0] = agentconfig.Change{
+		Path:   strings.Repeat("p", maxReportChangePathBytes+1),
+		Safety: agentconfig.Unsafe,
+		Value:  strings.Repeat("v", maxReportChangeValueBytes+1),
+	}
+	require.NoError(t, normalizeReport(&r))
+	assert.True(t, r.Truncated)
+	assert.Len(t, r.Warnings[0].Path, maxReportWarningPathBytes)
+	assert.LessOrEqual(t, len(r.Warnings[0].Message), maxReportWarningMessageBytes)
+	assert.True(t, utf8.ValidString(r.Warnings[0].Message))
+	assert.Len(t, r.Unsafe, maxReportUnsafe)
+	assert.Len(t, r.Unsafe[0].Path, maxReportChangePathBytes)
+	assert.Len(t, r.Unsafe[0].Value, maxReportChangeValueBytes)
+
+	// At the caps: untouched.
+	r = validReport()
+	r.Warnings = []agentconfig.FieldError{{Path: "/x", Code: "c", Message: strings.Repeat("m", maxReportWarningMessageBytes)}}
+	r.Unsafe = make([]agentconfig.Change, maxReportUnsafe)
+	require.NoError(t, normalizeReport(&r))
+	assert.False(t, r.Truncated)
+	assert.Len(t, r.Unsafe, maxReportUnsafe)
+}
+
+func TestScrubReportText(t *testing.T) {
+	pgURL := "postgres://app:hunter2@db:5432/app"
+	r := validReport()
+	errMsg := "dial " + pgURL + ": connection refused"
+	r.Error = &errMsg
+	r.Warnings = []agentconfig.FieldError{
+		{Path: "/plugins/a/config/x", Code: "c", Message: "cannot reach " + pgURL},
+		{Path: "/plugins/b/schedule", Code: "c", Message: "bad cron"},
+	}
+	r.Plugins = []agentconfig.PluginReport{
+		{Name: "a", Source: "https://ci:hunter2@plugins.example.com/a.tar.gz"},
+		{Name: "b", Source: "ghcr.io/compliance-framework/plugin-b:v1"},
+	}
+	r.RemoteConfig = &agentconfig.RemoteConfig{
+		Mode:           agentconfig.ModeApplySafe,
+		TrustedSources: []string{"https://u:p@registry.example.com/*", "ghcr.io/compliance-framework/*"},
+	}
+
+	assert.True(t, scrubReportText(&r))
+	assert.Equal(t, agentconfig.MaskedValue, *r.Error)
+	assert.Equal(t, agentconfig.MaskedValue, r.Warnings[0].Message)
+	assert.Equal(t, "bad cron", r.Warnings[1].Message)
+	assert.Equal(t, agentconfig.MaskedValue, r.Plugins[0].Source)
+	assert.Equal(t, "ghcr.io/compliance-framework/plugin-b:v1", r.Plugins[1].Source)
+	assert.Equal(t, []string{agentconfig.MaskedValue, "ghcr.io/compliance-framework/*"}, r.RemoteConfig.TrustedSources)
+	assert.Equal(t, agentconfig.ModeApplySafe, r.RemoteConfig.Mode)
+
+	clean := validReport()
+	assert.False(t, scrubReportText(&clean))
 }
 
 func TestNormalizeReport_Plugins(t *testing.T) {

@@ -18,6 +18,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/suite"
 	"gorm.io/datatypes"
+	"gorm.io/gorm"
 )
 
 type AgentCfgServiceIntegrationSuite struct {
@@ -77,6 +78,13 @@ func (s *AgentCfgServiceIntegrationSuite) insertInstance(agentID uuid.UUID, daem
 	}
 	s.Require().NoError(s.DB.Create(row).Error)
 	return instanceID
+}
+
+// deleteOneInstance deletes one (any) instance row of an agent.
+func (s *AgentCfgServiceIntegrationSuite) deleteOneInstance(agentID uuid.UUID) {
+	var victim relational.AgentInstance
+	s.Require().NoError(s.DB.Where("agent_id = ?", agentID).First(&victim).Error)
+	s.Require().NoError(s.DB.Delete(&victim).Error)
 }
 
 func (s *AgentCfgServiceIntegrationSuite) countInstances(agentID uuid.UUID) int64 {
@@ -406,12 +414,12 @@ func (s *AgentCfgServiceIntegrationSuite) TestInstanceCapCountsOnlyNonPrunableRo
 	s.Require().NoError(svc.UpsertReport(s.ctx, agentA, nil, i1, report))
 	s.Require().NoError(svc.UpsertReport(s.ctx, agentA, nil, i2, report))
 	err := svc.UpsertReport(s.ctx, agentA, nil, uuid.New(), report)
-	s.ErrorIs(err, agentcfg.ErrInstanceLimit)
+	s.ErrorIs(err, agentcfg.ErrInstanceLimit, "every counted instance is fresh: nothing to replace")
 	s.Equal(int64(2), s.countInstances(agentA))
 	s.NoError(svc.UpsertReport(s.ctx, agentA, nil, i1, report), "an existing instance can still report")
 	s.NoError(svc.UpsertReport(s.ctx, s.newAgent("cap-other"), nil, uuid.New(), report), "the cap is per agent")
 
-	// Prune-eligible rows do not count toward the cap.
+	// Prune-eligible rows do not count toward the cap (and are never evicted).
 	agentB := s.newAgent("cap-b")
 	s.insertInstance(agentB, ptr(false), s.now.Add(-25*time.Hour))  // one-shot, older than 24h
 	s.insertInstance(agentB, ptr(true), s.now.Add(-721*time.Hour))  // daemon, older than 720h
@@ -420,20 +428,115 @@ func (s *AgentCfgServiceIntegrationSuite) TestInstanceCapCountsOnlyNonPrunableRo
 	s.Require().NoError(svc.UpsertReport(s.ctx, agentB, nil, uuid.New(), report))
 	s.Require().NoError(svc.UpsertReport(s.ctx, agentB, nil, uuid.New(), report))
 	s.ErrorIs(svc.UpsertReport(s.ctx, agentB, nil, uuid.New(), report), agentcfg.ErrInstanceLimit)
+	s.Equal(int64(6), s.countInstances(agentB))
 
-	// Non-prunable rows count: a one-shot seen within 24h, a daemon or an unknown (daemon
-	// NULL) instance seen within 720h.
+	// Non-prunable fresh rows count: a one-shot or an unknown (daemon NULL) instance seen
+	// within InstanceStaleAfter (10m by default).
 	agentC := s.newAgent("cap-c")
-	s.insertInstance(agentC, ptr(false), s.now.Add(-23*time.Hour))
-	s.insertInstance(agentC, nil, s.now.Add(-25*time.Hour))
+	s.insertInstance(agentC, ptr(false), s.now.Add(-time.Minute))
+	s.insertInstance(agentC, nil, s.now.Add(-10*time.Minute)) // exactly at the threshold: fresh
 	s.ErrorIs(svc.UpsertReport(s.ctx, agentC, nil, uuid.New(), report), agentcfg.ErrInstanceLimit)
 
-	agentD := s.newAgent("cap-d")
-	s.insertInstance(agentD, ptr(true), s.now.Add(-100*time.Hour))
-	s.insertInstance(agentD, nil, s.now.Add(-100*time.Hour))
-	s.ErrorIs(svc.UpsertReport(s.ctx, agentD, nil, uuid.New(), report), agentcfg.ErrInstanceLimit)
-
 	s.ErrorIs(svc.UpsertReport(s.ctx, uuid.New(), nil, uuid.New(), report), agentcfg.ErrNotFound)
+}
+
+// At the cap, a new instance replaces the oldest stale counted instance (e.g. a restarted
+// DaemonSet's old instance ids), so the counted rows never exceed the cap.
+func (s *AgentCfgServiceIntegrationSuite) TestInstanceCapReplacesOldestStaleInstance() {
+	svc := s.newService(agentcfg.Settings{MaxInstancesPerAgent: 3})
+	report := applyReport(agentconfig.ModeApplySafe, baseConfig)
+	agentID := s.newAgent("cap-evict")
+	instanceExists := func(id uuid.UUID) bool {
+		_, err := svc.GetInstance(s.ctx, agentID, id)
+		if errors.Is(err, agentcfg.ErrNotFound) {
+			return false
+		}
+		s.Require().NoError(err)
+		return true
+	}
+
+	fresh := s.insertInstance(agentID, ptr(true), s.now.Add(-time.Minute))
+	older := s.insertInstance(agentID, ptr(true), s.now.Add(-2*time.Hour))
+	oldest := s.insertInstance(agentID, nil, s.now.Add(-100*time.Hour))
+	prunable := s.insertInstance(agentID, ptr(false), s.now.Add(-48*time.Hour)) // not counted, never evicted
+
+	// A report from a new instance replaces the oldest stale counted row.
+	r1 := uuid.New()
+	s.Require().NoError(svc.UpsertReport(s.ctx, agentID, nil, r1, report))
+	s.True(instanceExists(r1))
+	s.False(instanceExists(oldest), "the oldest stale instance is replaced")
+	s.True(instanceExists(older))
+	s.True(instanceExists(prunable), "prune-eligible rows are left to the prune job")
+	s.Equal(int64(4), s.countInstances(agentID))
+
+	// A heartbeat from a new instance does the same.
+	h1 := uuid.New()
+	s.Require().NoError(svc.TouchFromHeartbeat(s.ctx, agentID, nil, h1, nil, ptr("sha256:hb")))
+	s.True(instanceExists(h1))
+	s.False(instanceExists(older))
+	s.True(instanceExists(fresh))
+	s.Equal(int64(4), s.countInstances(agentID))
+
+	// Now every counted instance is fresh: reports get ErrInstanceLimit, heartbeats are
+	// skipped, and nothing is deleted.
+	s.ErrorIs(svc.UpsertReport(s.ctx, agentID, nil, uuid.New(), report), agentcfg.ErrInstanceLimit)
+	s.NoError(svc.TouchFromHeartbeat(s.ctx, agentID, nil, uuid.New(), nil, ptr("sha256:hb")))
+	s.Equal(int64(4), s.countInstances(agentID))
+	s.True(instanceExists(fresh))
+	s.True(instanceExists(r1))
+	s.True(instanceExists(h1))
+
+	// Many new instances in a row never grow the counted rows past the cap.
+	s.now = s.now.Add(time.Hour) // every row is stale now
+	for i := 0; i < 10; i++ {
+		s.Require().NoError(svc.UpsertReport(s.ctx, agentID, nil, uuid.New(), report))
+		s.now = s.now.Add(11 * time.Minute)
+	}
+	var counted int64
+	s.Require().NoError(s.DB.Model(&relational.AgentInstance{}).
+		Where("agent_id = ? AND (daemon IS NULL OR daemon = true)", agentID).Count(&counted).Error)
+	s.Equal(int64(3), counted)
+}
+
+// Once the cap is found reached, heartbeats from new instances skip the insert path (no
+// locked count) for capReachedTTL (1m); reports always check the cap.
+func (s *AgentCfgServiceIntegrationSuite) TestHeartbeatCapReachedIsCached() {
+	svc := s.newService(agentcfg.Settings{MaxInstancesPerAgent: 2})
+	agentID := s.newAgent("cap-cache")
+	digest := ptr("sha256:hb")
+	s.insertInstance(agentID, ptr(true), s.now)
+	freed := s.insertInstance(agentID, ptr(true), s.now)
+
+	s.NoError(svc.TouchFromHeartbeat(s.ctx, agentID, nil, uuid.New(), nil, digest))
+	s.Equal(int64(2), s.countInstances(agentID))
+
+	// A slot frees up, but within the TTL a new heartbeating instance is still skipped.
+	s.Require().NoError(s.DB.Where("agent_id = ? AND instance_id = ?", agentID, freed).Delete(&relational.AgentInstance{}).Error)
+	s.now = s.now.Add(30 * time.Second)
+	s.NoError(svc.TouchFromHeartbeat(s.ctx, agentID, nil, uuid.New(), nil, digest))
+	s.Equal(int64(1), s.countInstances(agentID))
+
+	// Other agents are not affected.
+	other := s.newAgent("cap-cache-other")
+	s.NoError(svc.TouchFromHeartbeat(s.ctx, other, nil, uuid.New(), nil, digest))
+	s.Equal(int64(1), s.countInstances(other))
+
+	// After the TTL the cap is checked again and the instance is recorded.
+	s.now = s.now.Add(31 * time.Second)
+	s.NoError(svc.TouchFromHeartbeat(s.ctx, agentID, nil, uuid.New(), nil, digest))
+	s.Equal(int64(2), s.countInstances(agentID))
+
+	// Reports ignore the cache: they find the cap reached (409)...
+	report := applyReport(agentconfig.ModeApplySafe, baseConfig)
+	s.ErrorIs(svc.UpsertReport(s.ctx, agentID, nil, uuid.New(), report), agentcfg.ErrInstanceLimit)
+	// ...and are recorded as soon as a slot is free, which also clears the cache.
+	s.deleteOneInstance(agentID)
+	s.Equal(int64(1), s.countInstances(agentID))
+	s.Require().NoError(svc.UpsertReport(s.ctx, agentID, nil, uuid.New(), report))
+	s.Equal(int64(2), s.countInstances(agentID))
+	s.deleteOneInstance(agentID)
+	s.NoError(svc.TouchFromHeartbeat(s.ctx, agentID, nil, uuid.New(), nil, digest))
+	s.Equal(int64(2), s.countInstances(agentID), "a successful insert clears the cached cap")
 }
 
 func (s *AgentCfgServiceIntegrationSuite) TestTouchFromHeartbeat() {
@@ -708,6 +811,43 @@ func (s *AgentCfgServiceIntegrationSuite) TestDeleteInstancesForAgentKeepsRevisi
 	n, err := s.svc.CurrentRevisionNumber(s.ctx, agentA)
 	s.Require().NoError(err)
 	s.Equal(int64(2), n, "revisions are kept")
+}
+
+func (s *AgentCfgServiceIntegrationSuite) TestDeleteRevisionsForAgent() {
+	agentA := s.newAgent("purge-a")
+	agentB := s.newAgent("purge-b")
+	s.createRevision(agentA, 0, `{"plugins":{"p":{"config":{"password":"hunter2"}}}}`)
+	s.createRevision(agentA, 1, `{"verbosity":2}`)
+	s.createRevision(agentB, 0, `{"verbosity":1}`)
+
+	s.Require().NoError(s.DB.Transaction(func(tx *gorm.DB) error {
+		return agentcfg.DeleteRevisionsForAgent(tx, agentA)
+	}))
+
+	var n int64
+	s.Require().NoError(s.DB.Model(&relational.AgentConfigRevision{}).Where("agent_id = ?", agentA).Count(&n).Error)
+	s.Zero(n, "every revision of the agent is purged")
+	cur, err := s.svc.CurrentRevisionNumber(s.ctx, agentB)
+	s.Require().NoError(err)
+	s.Equal(int64(1), cur, "other agents keep theirs")
+
+	// Every other delete path stays append-only.
+	s.ErrorIs(s.DB.Where("agent_id = ?", agentB).Delete(&relational.AgentConfigRevision{}).Error,
+		relational.ErrAgentConfigRevisionAppendOnly)
+}
+
+func (s *AgentCfgServiceIntegrationSuite) TestCreateRevisionReturnsTheStoredRow() {
+	agentID := s.newAgent("stored")
+	rev := s.createRevision(agentID, 0, `{"verbosity":1,"plugins":{"b":{"enabled":false},"a":{"enabled":true}}}`)
+	got, err := s.svc.GetRevision(s.ctx, agentID, rev.Revision)
+	s.Require().NoError(err)
+	s.Equal(string(got.Overlay), string(rev.Overlay), "same bytes as a later read")
+	s.Equal(*got.ID, *rev.ID)
+
+	metas, _, err := s.svc.ListRevisions(s.ctx, agentID, service.PaginationParams{Page: 1, Limit: 10})
+	s.Require().NoError(err)
+	s.Require().Len(metas, 1)
+	s.Equal(len(rev.Overlay), metas[0].OverlaySize)
 }
 
 func (s *AgentCfgServiceIntegrationSuite) TestPruneInstances() {
