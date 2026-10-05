@@ -66,7 +66,9 @@ type Change struct {
 // Change. The result is sorted by Path, then Value.
 //
 // Re-enabling a plugin the base disables is Unsafe (reenables-plugin) unless its source is
-// trusted (trusted-source). By design, apply_safe accepts the rest of a plugin's data
+// trusted (trusted-source). Its other parts are classified as if the plugin were new, since a
+// disabled plugin's sources are not already used: every policy entry it keeps goes through
+// the source rules, and every ${env:} reference in its config is a new reference. By design, apply_safe accepts the rest of a plugin's data
 // without a host opt-in: schedule, labels, policy_data, policy_behavior, protocol_version and
 // disabling a plugin are Safe (data-only), and removing a plugin or policy entries is Safe
 // (reduces-scope). So a remote editor can change the policy inputs that decide pass/fail,
@@ -205,12 +207,20 @@ func (cl classifier) classifyPlugin(ptr, name string, bp, ep *Plugin) []Change {
 	dataOnly("labels", nilIfEmptyMap(bp.Labels), nilIfEmptyMap(ep.Labels))
 	dataOnly("policy_behavior", nilIfEmptyMap(bp.PolicyBehavior), nilIfEmptyMap(ep.PolicyBehavior))
 	dataOnly("protocol_version", bp.ProtocolVersion, ep.ProtocolVersion)
-	if !bp.IsEnabled() && ep.IsEnabled() {
+	reenabled := !bp.IsEnabled() && ep.IsEnabled()
+	if reenabled {
 		// Re-enabling a plugin the host disabled runs it again: Unsafe unless trusted.
 		if MatchTrustedSource(cl.rc, ep.Source) {
 			out = append(out, Change{Path: ptr + "/enabled", Safety: Safe, Reason: ChangeReasonTrustedSource, Value: ep.Source})
 		} else {
 			out = append(out, Change{Path: ptr + "/enabled", Safety: Unsafe, Reason: ChangeReasonReenablePlugin, Value: ep.Source})
+		}
+		// Its policies are not already used (usedSources skips disabled plugins), so the
+		// entries it keeps are classified like new ones; added entries are classified below.
+		for _, e := range ep.Policies {
+			if slices.Contains(bp.Policies, e) {
+				out = append(out, cl.sourceClass(ptr+"/policies", e))
+			}
 		}
 	} else {
 		dataOnly("enabled", bp.IsEnabled(), ep.IsEnabled())
@@ -239,12 +249,17 @@ func (cl classifier) classifyPlugin(ptr, name string, bp, ep *Plugin) []Change {
 	for _, key := range unionMapKeys(bp.Config, ep.Config) {
 		bv, inBase := bp.Config[key]
 		ev, inEff := ep.Config[key]
-		if inBase == inEff && bv == ev {
+		unchanged := inBase == inEff && bv == ev
+		if unchanged && !reenabled {
 			continue
 		}
 		kptr := ptr + "/config/" + EscapePointerToken(key)
-		// Env rule (R24): a variable not referenced by the base value at the same pointer.
+		// Env rule (R24): a variable not referenced by the base value at the same pointer. A
+		// re-enabled plugin's references are not in use, so all of them count as new.
 		baseRefs := EnvRefs(bv)
+		if reenabled {
+			baseRefs = nil
+		}
 		var envChanges []Change
 		for _, n := range EnvRefs(ev) {
 			if slices.Contains(baseRefs, n) {
@@ -259,6 +274,9 @@ func (cl classifier) classifyPlugin(ptr, name string, bp, ep *Plugin) []Change {
 		if len(envChanges) > 0 {
 			out = append(out, envChanges...)
 			continue
+		}
+		if unchanged {
+			continue // re-enabled: only the env references of values the overlay keeps are checked
 		}
 		if MatchOverridableConfigFlag(cl.rc, name, key) {
 			out = append(out, Change{Path: kptr, Safety: Safe, Reason: ChangeReasonOverridableConfigFlag})

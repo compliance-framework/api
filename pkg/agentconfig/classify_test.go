@@ -116,11 +116,28 @@ func TestClassify(t *testing.T) {
 		{name: "protocol_version null", overlay: `{"plugins":{"local-ssh":{"protocol_version":null}}}`, rc: safe, want: []Change{{Path: "/plugins/local-ssh/protocol_version", Safety: Safe, Reason: ChangeReasonDataOnly}}},
 		{name: "enabled false", overlay: `{"plugins":{"local-ssh":{"enabled":false}}}`, rc: safe, want: []Change{{Path: "/plugins/local-ssh/enabled", Safety: Safe, Reason: ChangeReasonDataOnly}}},
 		{name: "enabled true on a nil-enabled plugin is no change", overlay: `{"plugins":{"local-ssh":{"enabled":true}}}`, rc: safe, want: nil},
-		{name: "re-enabling an untrusted plugin", overlay: `{"plugins":{"disabled":{"enabled":true}}}`, rc: safe, want: []Change{{Path: "/plugins/disabled/enabled", Safety: Unsafe, Reason: ChangeReasonReenablePlugin, Value: srcDisabled}}},
-		{name: "re-enabling a trusted plugin", overlay: `{"plugins":{"disabled":{"enabled":null}}}`, rc: testRC(ModeApplySafe, func(rc *RemoteConfig) { rc.TrustedSources = []string{"ghcr.io/other/*"} }), want: []Change{{Path: "/plugins/disabled/enabled", Safety: Safe, Reason: ChangeReasonTrustedSource, Value: srcDisabled}}},
+		// Re-enabling: the disabled plugin keeps the local policy ./local/policies, which no
+		// enabled plugin uses, so it is classified like a new entry.
+		{name: "re-enabling an untrusted plugin", overlay: `{"plugins":{"disabled":{"enabled":true}}}`, rc: safe, want: []Change{
+			{Path: "/plugins/disabled/enabled", Safety: Unsafe, Reason: ChangeReasonReenablePlugin, Value: srcDisabled},
+			{Path: "/plugins/disabled/policies", Safety: Forbidden, Reason: ChangeReasonLocalSourceNotAllowed, Value: srcLocalUsed},
+		}},
+		{name: "re-enabling a trusted plugin", overlay: `{"plugins":{"disabled":{"enabled":null}}}`, rc: testRC(ModeApplySafe, func(rc *RemoteConfig) { rc.TrustedSources = []string{"ghcr.io/other/*"} }), want: []Change{
+			{Path: "/plugins/disabled/enabled", Safety: Safe, Reason: ChangeReasonTrustedSource, Value: srcDisabled},
+			{Path: "/plugins/disabled/policies", Safety: Forbidden, Reason: ChangeReasonLocalSourceNotAllowed, Value: srcLocalUsed},
+		}},
+		{name: "re-enabling a trusted plugin without its local policy", overlay: `{"plugins":{"disabled":{"enabled":true,"policies":null}}}`, rc: testRC(ModeApplySafe, func(rc *RemoteConfig) { rc.TrustedSources = []string{"ghcr.io/other/*"} }), want: []Change{
+			{Path: "/plugins/disabled/enabled", Safety: Safe, Reason: ChangeReasonTrustedSource, Value: srcDisabled},
+			{Path: "/plugins/disabled/policies", Safety: Safe, Reason: ChangeReasonReducesScope},
+		}},
 		{name: "re-enabling with a new source", overlay: `{"plugins":{"disabled":{"enabled":true,"source":"` + srcSSHv2 + `"}}}`, rc: safe, want: []Change{
 			{Path: "/plugins/disabled/enabled", Safety: Safe, Reason: ChangeReasonTrustedSource, Value: srcSSHv2},
+			{Path: "/plugins/disabled/policies", Safety: Forbidden, Reason: ChangeReasonLocalSourceNotAllowed, Value: srcLocalUsed},
 			{Path: "/plugins/disabled/source", Safety: Safe, Reason: ChangeReasonTrustedSource, Value: srcSSHv2},
+		}},
+		{name: "re-enabling a trusted plugin with an untrusted policy", overlay: `{"plugins":{"disabled":{"enabled":true,"policies":["` + srcUntrusted + `"]}}}`, rc: testRC(ModeApplySafe, func(rc *RemoteConfig) { rc.TrustedSources = []string{"ghcr.io/other/*"} }), want: []Change{
+			{Path: "/plugins/disabled/enabled", Safety: Safe, Reason: ChangeReasonTrustedSource, Value: srcDisabled},
+			{Path: "/plugins/disabled/policies", Safety: Unsafe, Reason: ChangeReasonUntrustedSource, Value: srcUntrusted},
 		}},
 		{name: "policy_data", overlay: `{"plugins":{"local-ssh":{"policy_data":{"threshold":6}}}}`, rc: safe, want: []Change{{Path: "/plugins/local-ssh/policy_data", Safety: Safe, Reason: ChangeReasonDataOnly}}},
 		{
@@ -283,4 +300,35 @@ func TestClassifyThenWillApply(t *testing.T) {
 	ok, reason = WillApply(rcNoAuth, nil)
 	assert.False(t, ok)
 	assert.Equal(t, WillApplyReasonModeOff, reason)
+}
+
+// Re-enabling a disabled plugin checks the policies and env references it already had: the
+// host disabled it, so none of them is in use.
+func TestClassifyReenableKeptParts(t *testing.T) {
+	base := Config{Plugins: map[string]*Plugin{"x": {
+		Enabled:  boolPtr(false),
+		Source:   "ghcr.io/trusted/p:v1",
+		Policies: []string{"ghcr.io/evil/pol:v9", "/tmp/local-policy"},
+		Config:   map[string]string{"host": "db", "token": "${env:DB_TOKEN}", "auth": "${env:CCF_API_AUTH_CLIENT_SECRET}"},
+	}}}
+	rc := RemoteConfig{Mode: ModeApplySafe, TrustedSources: []string{"ghcr.io/trusted/*"}}.Normalize(true)
+
+	changes, err := Classify(base, json.RawMessage(`{"plugins":{"x":{"enabled":true}}}`), rc)
+	require.NoError(t, err)
+	assert.Equal(t, []Change{
+		{Path: "/plugins/x/config/auth", Safety: Forbidden, Reason: ChangeReasonForbiddenEnvReference, Value: "CCF_API_AUTH_CLIENT_SECRET"},
+		{Path: "/plugins/x/config/token", Safety: Unsafe, Reason: ChangeReasonNewEnvReference, Value: "DB_TOKEN"},
+		{Path: "/plugins/x/enabled", Safety: Safe, Reason: ChangeReasonTrustedSource, Value: "ghcr.io/trusted/p:v1"},
+		{Path: "/plugins/x/policies", Safety: Forbidden, Reason: ChangeReasonLocalSourceNotAllowed, Value: "/tmp/local-policy"},
+		{Path: "/plugins/x/policies", Safety: Unsafe, Reason: ChangeReasonUntrustedSource, Value: "ghcr.io/evil/pol:v9"},
+	}, changes)
+	ok, reason := WillApply(rc, changes)
+	assert.False(t, ok)
+	assert.Equal(t, ReasonForbiddenChanges, reason)
+
+	// An enabled plugin's kept references stay in use.
+	base.Plugins["x"].Enabled = nil
+	changes, err = Classify(base, json.RawMessage(`{"plugins":{"x":{"labels":{"a":"b"}}}}`), rc)
+	require.NoError(t, err)
+	assert.Equal(t, []Change{{Path: "/plugins/x/labels", Safety: Safe, Reason: ChangeReasonDataOnly}}, changes)
 }
