@@ -15,6 +15,7 @@ import (
 	"github.com/compliance-framework/api/internal/api/middleware"
 	"github.com/compliance-framework/api/internal/authn"
 	"github.com/compliance-framework/api/internal/authz"
+	"github.com/compliance-framework/api/internal/service"
 	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/compliance-framework/api/internal/service/relational/agentcfg"
 	"github.com/compliance-framework/api/pkg/agentconfig"
@@ -51,12 +52,15 @@ func NewAgentConfigHandler(sugar *zap.SugaredLogger, db *gorm.DB, svc *agentcfg.
 }
 
 // Register mounts the routes on an /admin/agents group of their own (so they inherit no
-// group guard). Writes need agent:configure.
+// group guard). Writes and preview need agent:configure.
 func (h *AgentConfigHandler) Register(g *echo.Group, guard middleware.ResourceGuard) {
 	write := guard.Do(authz.ActionConfigure)
 	g.GET("/:id/config", h.Get, guard.Read())
 	g.PUT("/:id/config", h.Put, write)
+	g.POST("/:id/config/preview", h.Preview, write)
+	g.GET("/:id/config/revisions", h.ListRevisions, guard.Read())
 	g.GET("/:id/config/revisions/:rev", h.GetRevision, guard.Read())
+	g.POST("/:id/config/revisions/:rev/revert", h.Revert, write)
 }
 
 // ---- DTOs (A4.4) ----
@@ -70,6 +74,32 @@ type agentConfigRevisionResponse struct {
 	CreatedBy   *string         `json:"created-by"`
 	CreatedAt   *time.Time      `json:"created-at"`
 	RevertOf    *int64          `json:"revert-of"`
+}
+
+type configPreviewResponse struct {
+	DesiredRevision int64                    `json:"desired-revision"`
+	Standalone      bool                     `json:"standalone"`
+	OverlayErrors   []agentconfig.FieldError `json:"overlay-errors"`
+	Instances       []instancePreview        `json:"instances"`
+	// OmittedInstances counts the instances with a reported base the preview bounds left
+	// out (at most agentcfg.PreviewMaxInstances instances and PreviewMaxConfigBytes of
+	// reported config; validated instances first, then newest first).
+	OmittedInstances int64 `json:"omitted-instances"`
+}
+
+type instancePreview struct {
+	InstanceID      string                   `json:"instance-id"`
+	Hostname        *string                  `json:"hostname"`
+	Mode            string                   `json:"mode"`
+	Stale           bool                     `json:"stale"`
+	Validated       bool                     `json:"validated"` // R48: PUT validates against this instance; its errors block a save
+	Effective       json.RawMessage          `json:"effective" swaggertype:"object"`
+	DiffVsCurrent   []agentconfig.DiffEntry  `json:"diff-vs-current"`
+	Errors          []agentconfig.FieldError `json:"errors"`   // introduced by the overlay (R59)
+	Warnings        []agentconfig.FieldError `json:"warnings"` // already in Merge(base, {}): from the host file, non-blocking (R59)
+	Changes         []agentconfig.Change     `json:"changes"`
+	WillApply       bool                     `json:"will-apply"`
+	WillApplyReason string                   `json:"will-apply-reason,omitempty"` // mode-off|mode-report|unsafe-changes|forbidden-changes|invalid-config
 }
 
 // instanceValidationErrors groups the errors of one validated instance in a 422 body.
@@ -86,6 +116,16 @@ type instanceValidationErrors struct {
 type agentConfigPutRequest struct {
 	Overlay json.RawMessage `json:"overlay" swaggertype:"object"`
 	Comment *string         `json:"comment"`
+}
+
+// agentConfigRevertRequest is the (optional) revert body.
+type agentConfigRevertRequest struct {
+	Comment *string `json:"comment"`
+}
+
+// agentConfigPreviewRequest is the preview body.
+type agentConfigPreviewRequest struct {
+	Overlay json.RawMessage `json:"overlay" swaggertype:"object"`
 }
 
 // ---- Handlers ----
@@ -171,6 +211,67 @@ func (h *AgentConfigHandler) Put(ctx echo.Context) error {
 	return h.save(ctx, agent, expected, req.Overlay, comment, nil)
 }
 
+// Revert godoc
+//
+//	@Summary		Revert an agent's configuration to an earlier revision
+//	@Description	Creates the next revision with the overlay of revision :rev (revert-of records it). Same If-Match, validation and authorization rules as PUT. The body is optional.
+//	@Tags			Agent Configuration
+//	@Accept			json
+//	@Produce		json
+//	@Param			id			path		string								true	"Agent ID"
+//	@Param			rev			path		integer								true	"Revision to restore"
+//	@Param			If-Match	header		string								true	"Current revision, e.g. \"7\""
+//	@Param			body		body		handler.agentConfigRevertRequest	false	"Optional comment"
+//	@Success		200			{object}	handler.GenericDataResponse[handler.agentConfigRevisionResponse]
+//	@Success		201			{object}	handler.GenericDataResponse[handler.agentConfigRevisionResponse]
+//	@Failure		400			{object}	api.Error
+//	@Failure		403			{object}	api.Error
+//	@Failure		404			{object}	api.Error
+//	@Failure		409			{object}	api.Error
+//	@Failure		413			{object}	api.Error
+//	@Failure		415			{object}	api.Error
+//	@Failure		422			{object}	api.Error
+//	@Failure		428			{object}	api.Error
+//	@Failure		500			{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/admin/agents/{id}/config/revisions/{rev}/revert [post]
+func (h *AgentConfigHandler) Revert(ctx echo.Context) error {
+	agent, errResp := h.resolveAgent(ctx)
+	if agent == nil {
+		return errResp
+	}
+	revNumber, err := parseRevisionParam(ctx.Param("rev"))
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	target, err := h.svc.GetRevision(ctx.Request().Context(), *agent.ID, revNumber)
+	if errors.Is(err, agentcfg.ErrNotFound) {
+		return ctx.JSON(http.StatusNotFound, api.NotFoundCustomMsg("revision not found"))
+	}
+	if err != nil {
+		return h.internalError(ctx, "load revision", err)
+	}
+	expected, ok := agentconfig.ParseRevisionIfMatch(ctx.Request().Header.Get(headerIfMatch))
+	if !ok {
+		return preconditionRequired(ctx)
+	}
+	body, bodyErr := readJSONBody(ctx, agentConfigBodyLimit)
+	if bodyErr != nil {
+		return bodyErr.respond(ctx)
+	}
+	var req agentConfigRevertRequest
+	if len(bytes.TrimSpace(body)) > 0 {
+		if err := decodeStrict(body, &req); err != nil {
+			return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+		}
+	}
+	comment, err := normalizeComment(req.Comment)
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	return h.save(ctx, agent, expected, json.RawMessage(target.Overlay), comment, &revNumber)
+}
+
 // save implements PUT/revert steps 3-7 (A4.3).
 func (h *AgentConfigHandler) save(ctx echo.Context, agent *relational.Agent, expected int64, overlay json.RawMessage, comment *string, revertOf *int64) error {
 	reqCtx := ctx.Request().Context()
@@ -232,6 +333,114 @@ func (h *AgentConfigHandler) save(ctx echo.Context, agent *relational.Agent, exp
 	}
 	ctx.Response().Header().Set(headerETag, agentconfig.AdminETag(rev.Revision))
 	return ctx.JSON(http.StatusCreated, GenericDataResponse[agentConfigRevisionResponse]{Data: revisionResponse(agentID, rev, true)})
+}
+
+// Preview godoc
+//
+//	@Summary		Preview an agent configuration overlay
+//	@Description	Validates a candidate overlay without saving it and shows, per reporting instance (fresh and stale), the redacted effective config, its diff against the instance's current effective config, the classified changes and whether the agent would apply it. validated marks the instances a save validates against; only their errors block a save. errors are the problems the overlay introduces; warnings are problems already in the instance's own file (present in Merge(base, {})), which never block a save or force invalid-config (R59). Validation problems are returned in the 200 body; when the overlay itself is invalid (overlay-errors), instances is empty. At most 50 instances and 16 MiB of reported config are previewed (validated instances first, then newest first); omitted-instances counts the rest. A save still validates against every validated instance. Needs agent:configure.
+//	@Tags			Agent Configuration
+//	@Accept			json
+//	@Produce		json
+//	@Param			id		path		string								true	"Agent ID"
+//	@Param			body	body		handler.agentConfigPreviewRequest	true	"Candidate overlay"
+//	@Success		200		{object}	handler.GenericDataResponse[handler.configPreviewResponse]
+//	@Failure		400		{object}	api.Error
+//	@Failure		403		{object}	api.Error
+//	@Failure		404		{object}	api.Error
+//	@Failure		413		{object}	api.Error
+//	@Failure		415		{object}	api.Error
+//	@Failure		500		{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/admin/agents/{id}/config/preview [post]
+func (h *AgentConfigHandler) Preview(ctx echo.Context) error {
+	agent, errResp := h.resolveAgent(ctx)
+	if agent == nil {
+		return errResp
+	}
+	body, bodyErr := readJSONBody(ctx, agentConfigBodyLimit)
+	if bodyErr != nil {
+		return bodyErr.respond(ctx)
+	}
+	var req agentConfigPreviewRequest
+	if err := decodeStrict(body, &req); err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	if isNullOrEmpty(req.Overlay) {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(errors.New("overlay is required")))
+	}
+	reqCtx := ctx.Request().Context()
+	agentID := *agent.ID
+
+	desired, err := h.svc.CurrentRevisionNumber(reqCtx, agentID)
+	if err != nil {
+		return h.internalError(ctx, "load agent configuration", err)
+	}
+	set, err := h.svc.PreviewBases(reqCtx, agentID)
+	if err != nil {
+		return h.internalError(ctx, "load instances", err)
+	}
+	// The validation set is what a save validates against (R48); none means standalone.
+	standalone := len(set.Validation) == 0
+
+	result := validateCandidate(req.Overlay, set.Validation)
+	resp := configPreviewResponse{
+		DesiredRevision:  desired,
+		Standalone:       standalone,
+		OverlayErrors:    nonNil(result.overlay),
+		Instances:        []instancePreview{},
+		OmittedInstances: set.Omitted,
+	}
+	// An overlay that is invalid on its own (including over MaxOverlayBytes) is not
+	// previewed per instance: it cannot be saved, and the per-instance work is costly.
+	if len(result.overlay) > 0 {
+		return ctx.JSON(http.StatusOK, GenericDataResponse[configPreviewResponse]{Data: resp})
+	}
+	resp.Instances = make([]instancePreview, 0, len(set.Instances))
+	for _, b := range set.Instances {
+		resp.Instances = append(resp.Instances, previewInstance(b, req.Overlay))
+	}
+	return ctx.JSON(http.StatusOK, GenericDataResponse[configPreviewResponse]{Data: resp})
+}
+
+// previewInstance computes one instance's preview of a valid overlay.
+func previewInstance(b agentcfg.InstanceBase, overlay json.RawMessage) instancePreview {
+	p := instancePreview{
+		InstanceID:    b.Instance.InstanceID.String(),
+		Hostname:      b.Instance.Hostname,
+		Mode:          b.Instance.Mode,
+		Stale:         b.Stale,
+		Validated:     b.Validated,
+		DiffVsCurrent: []agentconfig.DiffEntry{},
+		Errors:        []agentconfig.FieldError{},
+		Warnings:      []agentconfig.FieldError{},
+		Changes:       []agentconfig.Change{},
+	}
+	eff, introduced, fileOrigin := splitIntroduced(b.Base, overlay)
+	p.Errors = append(p.Errors, introduced...)
+	p.Warnings = append(p.Warnings, fileOrigin...)
+	if eff != nil {
+		if raw, err := agentconfig.CanonicalJSON(agentconfig.Redact(*eff)); err == nil {
+			p.Effective = raw
+			if diff, err := agentconfig.DiffJSON(b.Instance.EffectiveConfig, raw); err == nil && diff != nil {
+				p.DiffVsCurrent = diff
+			}
+		}
+		if changes, err := agentconfig.Classify(b.Base, overlay, b.Remote); err == nil {
+			if changes != nil {
+				p.Changes = changes
+			}
+		} else {
+			p.Errors = append(p.Errors, agentconfig.FieldError{Path: "", Code: agentconfig.FieldCodeParse, Message: err.Error()})
+		}
+	}
+	p.WillApply, p.WillApplyReason = agentconfig.WillApply(b.Remote, p.Changes)
+	// Only errors the overlay introduces force invalid-config; file-origin warnings do not,
+	// since the agent only warns about them (R34, R41, R59).
+	if len(p.Errors) > 0 {
+		p.WillApply, p.WillApplyReason = false, agentconfig.ReasonInvalidConfig
+	}
+	return p
 }
 
 // candidateResult is the outcome of the candidate validation pipeline (A4.2).
@@ -336,6 +545,52 @@ func mergeAndValidate(base agentconfig.Config, overlay json.RawMessage) (*agentc
 		return &eff, []agentconfig.FieldError{{Path: "", Code: agentconfig.FieldCodeInvalidValue, Message: err.Error()}}
 	}
 	return &eff, nil
+}
+
+// ListRevisions godoc
+//
+//	@Summary		List an agent's configuration revisions
+//	@Description	Revisions newest first, without overlays.
+//	@Tags			Agent Configuration
+//	@Produce		json
+//	@Param			id		path		string	true	"Agent ID"
+//	@Param			page	query		integer	false	"Page (default 1)"
+//	@Param			limit	query		integer	false	"Page size (default 50, max 100)"
+//	@Success		200		{object}	service.ListResponse[handler.agentConfigRevisionResponse]
+//	@Failure		400		{object}	api.Error
+//	@Failure		403		{object}	api.Error
+//	@Failure		404		{object}	api.Error
+//	@Failure		500		{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/admin/agents/{id}/config/revisions [get]
+func (h *AgentConfigHandler) ListRevisions(ctx echo.Context) error {
+	agent, errResp := h.resolveAgent(ctx)
+	if agent == nil {
+		return errResp
+	}
+	params, err := service.NewPaginationConfig().ParseParams(ctx)
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	rows, total, err := h.svc.ListRevisions(ctx.Request().Context(), *agent.ID, *params)
+	if err != nil {
+		return h.internalError(ctx, "list revisions", err)
+	}
+	items := make([]agentConfigRevisionResponse, 0, len(rows))
+	for _, r := range rows {
+		createdAt := r.CreatedAt.UTC()
+		createdBy := r.CreatedBy
+		items = append(items, agentConfigRevisionResponse{
+			AgentID:     r.AgentID.String(),
+			Revision:    r.Revision,
+			OverlaySize: r.OverlaySize,
+			Comment:     r.Comment,
+			CreatedBy:   &createdBy,
+			CreatedAt:   &createdAt,
+			RevertOf:    r.RevertOf,
+		})
+	}
+	return ctx.JSON(http.StatusOK, service.NewListResponse(items, total, params.Page, params.Limit))
 }
 
 // GetRevision godoc

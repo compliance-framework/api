@@ -65,6 +65,53 @@ func TestSplitIntroduced(t *testing.T) {
 	}
 }
 
+func TestValidateCandidateAndPreview_FileOriginErrorsDoNotBlock(t *testing.T) {
+	base := agentcfg.InstanceBase{
+		Instance:  relational.AgentInstance{InstanceID: uuid.New(), Mode: agentconfig.ModeApplySafe},
+		Base:      badCronBase(),
+		Remote:    agentconfig.RemoteConfig{Mode: agentconfig.ModeApplySafe},
+		Validated: true,
+	}
+
+	ok := json.RawMessage(`{"verbosity":1}`)
+	r := validateCandidate(ok, []agentcfg.InstanceBase{base})
+	assert.False(t, r.blocking(), "file-origin errors must not block a save")
+	assert.Empty(t, r.instances)
+
+	p := previewInstance(base, ok)
+	assert.Empty(t, p.Errors)
+	require.Len(t, p.Warnings, 1)
+	assert.Equal(t, "/plugins/x/schedule", p.Warnings[0].Path)
+	assert.Equal(t, agentconfig.FieldCodeCron, p.Warnings[0].Code)
+	assert.NotEqual(t, agentconfig.ReasonInvalidConfig, p.WillApplyReason)
+
+	// Valid on its own (so it reaches the per-instance step), invalid once merged.
+	bad := json.RawMessage(`{"plugins":{"y":{"source":null}}}`)
+	r = validateCandidate(bad, []agentcfg.InstanceBase{base})
+	assert.Empty(t, r.overlay)
+	assert.True(t, r.blocking())
+	require.Len(t, r.instances, 1)
+	assert.Equal(t, []string{"/plugins/y/source"}, fieldPaths(r.instances[0].Errors))
+	assert.Equal(t, []string{"/plugins/x/schedule"}, fieldPaths(r.instances[0].Warnings))
+
+	p = previewInstance(base, bad)
+	assert.Equal(t, []string{"/plugins/y/source"}, fieldPaths(p.Errors))
+	assert.Equal(t, []string{"/plugins/x/schedule"}, fieldPaths(p.Warnings))
+	assert.False(t, p.WillApply)
+	assert.Equal(t, agentconfig.ReasonInvalidConfig, p.WillApplyReason)
+}
+
+func TestPreviewInstance_WarningsNeverNull(t *testing.T) {
+	base := agentcfg.InstanceBase{
+		Instance: relational.AgentInstance{InstanceID: uuid.New(), Mode: agentconfig.ModeApplySafe},
+		Base:     agentconfig.Config{},
+		Remote:   agentconfig.RemoteConfig{Mode: agentconfig.ModeApplySafe},
+	}
+	raw, err := json.Marshal(previewInstance(base, json.RawMessage(`{"verbosity":1}`)))
+	require.NoError(t, err)
+	assert.Contains(t, string(raw), `"warnings":[]`)
+}
+
 func fieldPaths(errs []agentconfig.FieldError) []string {
 	if len(errs) == 0 {
 		return nil

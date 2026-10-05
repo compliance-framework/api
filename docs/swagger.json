@@ -184,6 +184,158 @@
                 ]
             }
         },
+        "/admin/agents/{id}/config/preview": {
+            "post": {
+                "description": "Validates a candidate overlay without saving it and shows, per reporting instance (fresh and stale), the redacted effective config, its diff against the instance's current effective config, the classified changes and whether the agent would apply it. validated marks the instances a save validates against; only their errors block a save. errors are the problems the overlay introduces; warnings are problems already in the instance's own file (present in Merge(base, {})), which never block a save or force invalid-config (R59). Validation problems are returned in the 200 body; when the overlay itself is invalid (overlay-errors), instances is empty. At most 50 instances and 16 MiB of reported config are previewed (validated instances first, then newest first); omitted-instances counts the rest. A save still validates against every validated instance. Needs agent:configure.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agent Configuration"
+                ],
+                "summary": "Preview an agent configuration overlay",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Agent ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Candidate overlay",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.agentConfigPreviewRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-handler_configPreviewResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "413": {
+                        "description": "Request Entity Too Large",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "415": {
+                        "description": "Unsupported Media Type",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/admin/agents/{id}/config/revisions": {
+            "get": {
+                "description": "Revisions newest first, without overlays.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agent Configuration"
+                ],
+                "summary": "List an agent's configuration revisions",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Agent ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page (default 1)",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page size (default 50, max 100)",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/service.ListResponse-handler_agentConfigRevisionResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
         "/admin/agents/{id}/config/revisions/{rev}": {
             "get": {
                 "description": "The overlay is verbatim for callers that also hold agent:configure and redacted (secret-like keys and values become ••••) for every other caller, as on GET config.",
@@ -231,6 +383,125 @@
                     },
                     "404": {
                         "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/admin/agents/{id}/config/revisions/{rev}/revert": {
+            "post": {
+                "description": "Creates the next revision with the overlay of revision :rev (revert-of records it). Same If-Match, validation and authorization rules as PUT. The body is optional.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agent Configuration"
+                ],
+                "summary": "Revert an agent's configuration to an earlier revision",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Agent ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Revision to restore",
+                        "name": "rev",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Current revision, e.g. \\",
+                        "name": "If-Match",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "description": "Optional comment",
+                        "name": "body",
+                        "in": "body",
+                        "schema": {
+                            "$ref": "#/definitions/handler.agentConfigRevertRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-handler_agentConfigRevisionResponse"
+                        }
+                    },
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-handler_agentConfigRevisionResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "413": {
+                        "description": "Request Entity Too Large",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "415": {
+                        "description": "Unsupported Media Type",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "428": {
+                        "description": "Precondition Required",
                         "schema": {
                             "$ref": "#/definitions/api.Error"
                         }
@@ -34713,6 +34984,24 @@
                 }
             }
         },
+        "agentconfig.DiffEntry": {
+            "type": "object",
+            "properties": {
+                "from": {
+                    "type": "object"
+                },
+                "op": {
+                    "description": "add | remove | replace",
+                    "type": "string"
+                },
+                "path": {
+                    "type": "string"
+                },
+                "to": {
+                    "type": "object"
+                }
+            }
+        },
         "agentconfig.FieldError": {
             "type": "object",
             "properties": {
@@ -37096,6 +37385,19 @@
                 }
             }
         },
+        "handler.GenericDataResponse-handler_configPreviewResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Wrapped response data",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/handler.configPreviewResponse"
+                        }
+                    ]
+                }
+            }
+        },
         "handler.GenericDataResponse-handler_configuredSystemDestinationResponse": {
             "type": "object",
             "properties": {
@@ -39064,6 +39366,14 @@
                 }
             }
         },
+        "handler.agentConfigPreviewRequest": {
+            "type": "object",
+            "properties": {
+                "overlay": {
+                    "type": "object"
+                }
+            }
+        },
         "handler.agentConfigPutRequest": {
             "type": "object",
             "properties": {
@@ -39072,6 +39382,14 @@
                 },
                 "overlay": {
                     "type": "object"
+                }
+            }
+        },
+        "handler.agentConfigRevertRequest": {
+            "type": "object",
+            "properties": {
+                "comment": {
+                    "type": "string"
                 }
             }
         },
@@ -39221,6 +39539,33 @@
                 },
                 "targetControlId": {
                     "type": "string"
+                }
+            }
+        },
+        "handler.configPreviewResponse": {
+            "type": "object",
+            "properties": {
+                "desired-revision": {
+                    "type": "integer"
+                },
+                "instances": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handler.instancePreview"
+                    }
+                },
+                "omitted-instances": {
+                    "description": "OmittedInstances counts the instances with a reported base the preview bounds left\nout (at most agentcfg.PreviewMaxInstances instances and PreviewMaxConfigBytes of\nreported config; validated instances first, then newest first).",
+                    "type": "integer"
+                },
+                "overlay-errors": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/agentconfig.FieldError"
+                    }
+                },
+                "standalone": {
+                    "type": "boolean"
                 }
             }
         },
@@ -39610,6 +39955,63 @@
                     "type": "string"
                 },
                 "updatedAt": {
+                    "type": "string"
+                }
+            }
+        },
+        "handler.instancePreview": {
+            "type": "object",
+            "properties": {
+                "changes": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/agentconfig.Change"
+                    }
+                },
+                "diff-vs-current": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/agentconfig.DiffEntry"
+                    }
+                },
+                "effective": {
+                    "type": "object"
+                },
+                "errors": {
+                    "description": "introduced by the overlay (R59)",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/agentconfig.FieldError"
+                    }
+                },
+                "hostname": {
+                    "type": "string"
+                },
+                "instance-id": {
+                    "type": "string"
+                },
+                "mode": {
+                    "type": "string"
+                },
+                "stale": {
+                    "type": "boolean"
+                },
+                "validated": {
+                    "description": "R48: PUT validates against this instance; its errors block a save",
+                    "type": "boolean"
+                },
+                "warnings": {
+                    "description": "already in Merge(base, {}): from the host file, non-blocking (R59)",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/agentconfig.FieldError"
+                    }
+                },
+                "will-apply": {
+                    "type": "boolean"
+                },
+                "will-apply-reason": {
+                    "description": "mode-off|mode-report|unsafe-changes|forbidden-changes|invalid-config",
                     "type": "string"
                 }
             }
@@ -50848,6 +51250,29 @@
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/handler.PublicEvidenceResponse"
+                    }
+                },
+                "limit": {
+                    "type": "integer"
+                },
+                "page": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
+                },
+                "totalPages": {
+                    "type": "integer"
+                }
+            }
+        },
+        "service.ListResponse-handler_agentConfigRevisionResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handler.agentConfigRevisionResponse"
                     }
                 },
                 "limit": {
