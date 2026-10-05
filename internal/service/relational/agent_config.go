@@ -35,3 +35,45 @@ func (*AgentConfigRevision) BeforeUpdate(*gorm.DB) error { return ErrAgentConfig
 
 // BeforeDelete keeps revisions append-only.
 func (*AgentConfigRevision) BeforeDelete(*gorm.DB) error { return ErrAgentConfigRevisionAppendOnly }
+
+// AgentInstance is one running agent process (instance id) of an agent service account, as
+// last reported through a config report or an authenticated heartbeat. The displayed status
+// is derived at read time (R10), not stored.
+type AgentInstance struct {
+	UUIDModel
+	CreatedAt time.Time
+	UpdatedAt time.Time
+
+	AgentID      uuid.UUID  `gorm:"type:uuid;not null;uniqueIndex:idx_agent_instance,priority:1"`
+	InstanceID   uuid.UUID  `gorm:"type:uuid;not null;uniqueIndex:idx_agent_instance,priority:2"`
+	CredentialID *uuid.UUID `gorm:"type:uuid"`
+
+	Hostname     *string `gorm:"type:text"`
+	AgentVersion *string `gorm:"type:text"`
+	Mode         string  `gorm:"type:text;not null;default:''"` // '' until the first report
+	Daemon       *bool   // R37; null until reported
+
+	FirstSeenAt time.Time `gorm:"not null"`
+	LastSeenAt  time.Time `gorm:"not null;index"` // authenticated heartbeats AND reports
+	ReportedAt  *time.Time
+
+	AppliedRevision   *int64
+	AttemptedRevision *int64
+	ReportedStatus    string         `gorm:"type:text;not null;default:''"` // agent-sent; '' = never reported
+	ApplyReason       *string        `gorm:"type:text"`
+	ApplyError        *string        `gorm:"type:text"`
+	Truncated         bool           `gorm:"not null;default:false"` // R10
+	Warnings          datatypes.JSON `gorm:"type:jsonb"`             // R41: []agentconfig.FieldError
+
+	BaseConfig      datatypes.JSON `gorm:"type:jsonb"`
+	EffectiveConfig datatypes.JSON `gorm:"type:jsonb"`
+	EffectiveDigest *string        `gorm:"type:text"`
+	RemoteConfig    datatypes.JSON `gorm:"type:jsonb"`
+	UnsafeChanges   datatypes.JSON `gorm:"type:jsonb"`
+	Plugins         datatypes.JSON `gorm:"type:jsonb"` // R76: []agentconfig.PluginReport
+
+	HeartbeatConfigRevision *int64
+	HeartbeatConfigDigest   *string `gorm:"type:text"`
+}
+
+func (AgentInstance) TableName() string { return "ccf_agent_instances" }
