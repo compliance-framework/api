@@ -1,7 +1,9 @@
 package agentconfig
 
 import (
+	"cmp"
 	"fmt"
+	"slices"
 	"strings"
 )
 
@@ -52,4 +54,21 @@ func (v ValidationErrors) Error() string {
 		parts = append(parts, fmt.Sprintf("%s: %s", path, e.Message))
 	}
 	return strings.Join(parts, "; ")
+}
+
+// sortFieldErrors orders errors by path, then code, then message, and drops exact
+// duplicates.
+func sortFieldErrors(errs []FieldError) []FieldError {
+	slices.SortFunc(errs, func(a, b FieldError) int {
+		return cmp.Or(strings.Compare(a.Path, b.Path), strings.Compare(a.Code, b.Code), strings.Compare(a.Message, b.Message))
+	})
+	return slices.Compact(errs)
+}
+
+// asError returns nil for an empty list and the sorted ValidationErrors otherwise.
+func asError(errs []FieldError) error {
+	if len(errs) == 0 {
+		return nil
+	}
+	return ValidationErrors(sortFieldErrors(errs))
 }

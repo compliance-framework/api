@@ -1,0 +1,493 @@
+package agentconfig
+
+import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"path"
+	"slices"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/google/uuid"
+)
+
+// ValidateOverlay validates an overlay ON ITS OWN (no base) and returns nil or
+// ValidationErrors. It is the only strict decoder in the package (R27, R51): unknown keys are
+// rejected everywhere, every leaf may be null (RFC 7396 delete) and there is no type
+// coercion. Rules:
+//
+//	O1  must be a JSON object ({} allowed)
+//	O2  compact size <= MaxOverlayBytes
+//	O3  no locked key (api, daemon, remote_config), even with a null value
+//	O4  unknown keys are rejected
+//	O5  types: verbosity integer 0-2; agent_evidence.{enabled,emit_on_run_completion} bool,
+//	    interval a Go duration >= 0; plugins.*.config and labels values strings (or null);
+//	    policy_behavior values string arrays; protocol_version 1 or 2 (explicit 0 rejected,
+//	    R9); schedule a string
+//	O6  every non-null plugin key in the overlay matches PluginNamePattern, also for a file
+//	    plugin the overlay only changes (there is no base here); so a file plugin whose name
+//	    does not match (e.g. "_legacy", or longer than 63 characters) cannot be changed
+//	    remotely, only deleted with null
+//	O7  schedule parses with ParseSchedule
+//	O8  source (when non-null) and policy entries are non-empty
+//	O9  ${env:NAME} only in plugins.*.config values; NAME must not be forbidden
+//	O10 no string value equals MaskedValue
+//	O11 no key or string value contains a NUL character (Postgres cannot store it)
+func ValidateOverlay(overlay json.RawMessage) error {
+	v, err := decodeAny(overlay)
+	if err != nil {
+		return ValidationErrors{{Path: "", Code: FieldCodeParse, Message: fmt.Sprintf("overlay is not valid JSON: %s", err.Error())}}
+	}
+	obj, ok := v.(map[string]any)
+	if !ok {
+		return ValidationErrors{{Path: "", Code: FieldCodeParse, Message: "overlay must be a JSON object"}}
+	}
+
+	ov := &overlayValidator{}
+
+	// O2: size of the compact encoding.
+	var compact bytes.Buffer
+	if err := json.Compact(&compact, overlay); err == nil && compact.Len() > MaxOverlayBytes {
+		ov.add("", FieldCodeSize, "overlay is %d bytes; the limit is %d", compact.Len(), MaxOverlayBytes)
+	}
+
+	for _, key := range sortedKeys(obj) {
+		val := obj[key]
+		ptr := Pointer(key)
+		switch key {
+		case "api", "daemon", "remote_config":
+			ov.add(ptr, FieldCodeLockedKey, "%s is set locally only and cannot be changed remotely", key)
+		case "verbosity":
+			if val != nil {
+				if n, ok := ov.integer(ptr, val); ok && (n < 0 || n > 2) {
+					ov.add(ptr, FieldCodeInvalidValue, "must be 0, 1 or 2")
+				}
+			}
+		case "plugins":
+			ov.plugins(ptr, val)
+		case "agent_evidence":
+			ov.agentEvidence(ptr, val)
+		default:
+			ov.add(ptr, FieldCodeUnknownField, "unknown field %q", key)
+		}
+	}
+
+	// O11: NUL in a key.
+	walkKeys("", obj, func(ptr, k string) {
+		if strings.ContainsRune(k, 0) {
+			ov.add(ptr, FieldCodeInvalidValue, "keys must not contain a NUL character")
+		}
+	})
+
+	// O9, O10 and O11 apply to every string in the document.
+	walkStrings("", obj, func(ptr, s string) {
+		if strings.ContainsRune(s, 0) {
+			ov.add(ptr, FieldCodeInvalidValue, "must not contain a NUL character")
+		}
+		if s == MaskedValue {
+			ov.add(ptr, FieldCodeMaskedValue, "redacted placeholder %q cannot be submitted; set the real value or omit the key", MaskedValue)
+		}
+		ov.envRefs(ptr, s, isPluginConfigValuePointer(ptr))
+	})
+
+	return asError(ov.errs)
+}
+
+type overlayValidator struct {
+	errs []FieldError
+}
+
+func (ov *overlayValidator) add(ptr, code, format string, args ...any) {
+	ov.errs = append(ov.errs, FieldError{Path: ptr, Code: code, Message: fmt.Sprintf(format, args...)})
+}
+
+func (ov *overlayValidator) object(ptr string, v any) (map[string]any, bool) {
+	obj, ok := v.(map[string]any)
+	if !ok {
+		ov.add(ptr, FieldCodeInvalidType, "must be an object")
+	}
+	return obj, ok
+}
+
+func (ov *overlayValidator) str(ptr string, v any) (string, bool) {
+	s, ok := v.(string)
+	if !ok {
+		ov.add(ptr, FieldCodeInvalidType, "must be a string")
+	}
+	return s, ok
+}
+
+func (ov *overlayValidator) boolean(ptr string, v any) {
+	if _, ok := v.(bool); !ok {
+		ov.add(ptr, FieldCodeInvalidType, "must be a boolean")
+	}
+}
+
+func (ov *overlayValidator) integer(ptr string, v any) (int64, bool) {
+	n, ok := v.(json.Number)
+	if ok {
+		if i, err := n.Int64(); err == nil {
+			return i, true
+		}
+	}
+	ov.add(ptr, FieldCodeInvalidType, "must be an integer")
+	return 0, false
+}
+
+// stringMap checks an object whose values must be strings or null.
+func (ov *overlayValidator) stringMap(ptr string, v any) {
+	if v == nil {
+		return
+	}
+	obj, ok := ov.object(ptr, v)
+	if !ok {
+		return
+	}
+	for _, k := range sortedKeys(obj) {
+		if obj[k] != nil {
+			ov.str(appendPointer(ptr, k), obj[k])
+		}
+	}
+}
+
+// stringArray checks an array of strings and returns them (nil for null or invalid).
+func (ov *overlayValidator) stringArray(ptr string, v any) ([]string, bool) {
+	if v == nil {
+		return nil, true
+	}
+	arr, ok := v.([]any)
+	if !ok {
+		ov.add(ptr, FieldCodeInvalidType, "must be an array of strings")
+		return nil, false
+	}
+	out := make([]string, 0, len(arr))
+	valid := true
+	for i, item := range arr {
+		s, ok := ov.str(appendPointer(ptr, strconv.Itoa(i)), item)
+		if !ok {
+			valid = false
+			continue
+		}
+		out = append(out, s)
+	}
+	return out, valid
+}
+
+func (ov *overlayValidator) plugins(ptr string, v any) {
+	if v == nil {
+		return
+	}
+	obj, ok := ov.object(ptr, v)
+	if !ok {
+		return
+	}
+	for _, name := range sortedKeys(obj) {
+		pptr := appendPointer(ptr, name)
+		val := obj[name]
+		if val == nil {
+			continue // RFC 7396: delete the plugin (reduces scope)
+		}
+		if !PluginNamePattern.MatchString(name) {
+			ov.add(pptr, FieldCodePattern, "plugin name %q must match %s", name, PluginNamePattern.String())
+		}
+		plugin, ok := ov.object(pptr, val)
+		if !ok {
+			continue
+		}
+		for _, key := range sortedKeys(plugin) {
+			fv := plugin[key]
+			fptr := appendPointer(pptr, key)
+			if fv == nil {
+				switch key {
+				case "enabled", "protocol_version", "schedule", "source", "policies", "config", "labels", "policy_data", "policy_behavior":
+					continue // null deletes the key; the agent default applies
+				}
+			}
+			switch key {
+			case "enabled":
+				ov.boolean(fptr, fv)
+			case "protocol_version":
+				if n, ok := ov.integer(fptr, fv); ok && n != 1 && n != 2 {
+					if n == 0 {
+						ov.add(fptr, FieldCodeInvalidValue, "must be 1 or 2; omit the key to keep the file value or send null for auto-detection")
+					} else {
+						ov.add(fptr, FieldCodeInvalidValue, "must be 1 or 2")
+					}
+				}
+			case "schedule":
+				if s, ok := ov.str(fptr, fv); ok {
+					if _, err := ParseSchedule(s); err != nil {
+						ov.add(fptr, FieldCodeCron, "invalid cron schedule: %s", err.Error())
+					}
+				}
+			case "source":
+				if s, ok := ov.str(fptr, fv); ok {
+					ov.pluginSource(fptr, s)
+				}
+			case "policies":
+				entries, _ := ov.stringArray(fptr, fv)
+				for i, e := range entries {
+					ov.policyEntry(appendPointer(fptr, strconv.Itoa(i)), e)
+				}
+			case "config", "labels":
+				ov.stringMap(fptr, fv)
+			case "policy_data":
+				ov.object(fptr, fv)
+			case "policy_behavior":
+				if behavior, ok := ov.object(fptr, fv); ok {
+					for _, k := range sortedKeys(behavior) {
+						ov.stringArray(appendPointer(fptr, k), behavior[k])
+					}
+				}
+			default:
+				ov.add(fptr, FieldCodeUnknownField, "unknown field %q", key)
+			}
+		}
+	}
+}
+
+func (ov *overlayValidator) pluginSource(ptr, s string) {
+	if strings.TrimSpace(s) == "" {
+		ov.add(ptr, FieldCodeSource, "plugin source must not be empty")
+	}
+}
+
+func (ov *overlayValidator) policyEntry(ptr, e string) {
+	if strings.TrimSpace(e) == "" {
+		ov.add(ptr, FieldCodeSource, "policy entry must not be empty")
+	}
+}
+
+func (ov *overlayValidator) agentEvidence(ptr string, v any) {
+	if v == nil {
+		return
+	}
+	obj, ok := ov.object(ptr, v)
+	if !ok {
+		return
+	}
+	for _, key := range sortedKeys(obj) {
+		fv := obj[key]
+		fptr := appendPointer(ptr, key)
+		switch key {
+		case "enabled", "emit_on_run_completion":
+			if fv != nil {
+				ov.boolean(fptr, fv)
+			}
+		case "interval":
+			if fv == nil {
+				continue
+			}
+			if s, ok := ov.str(fptr, fv); ok {
+				if msg := checkDuration(s, 0); msg != "" {
+					ov.add(fptr, FieldCodeDuration, "%s", msg)
+				}
+			}
+		default:
+			ov.add(fptr, FieldCodeUnknownField, "unknown field %q", key)
+		}
+	}
+}
+
+// envRefs applies O9 to one string value.
+func (ov *overlayValidator) envRefs(ptr, s string, inPluginConfig bool) {
+	names := EnvRefs(s)
+	if len(names) == 0 {
+		return
+	}
+	if !inPluginConfig {
+		ov.add(ptr, FieldCodeEnvLocation, "${env:...} references are only resolved in plugins.*.config values")
+		return
+	}
+	for _, n := range names {
+		if IsForbiddenEnvName(n) {
+			ov.add(ptr, FieldCodeForbiddenEnv, "${env:%s} may not be referenced", n)
+		}
+	}
+}
+
+// isPluginConfigValuePointer reports whether ptr is exactly /plugins/<p>/config/<k>.
+func isPluginConfigValuePointer(ptr string) bool {
+	segs := SplitPointer(ptr)
+	return len(segs) == 4 && segs[0] == "plugins" && segs[2] == "config"
+}
+
+// walkStrings calls fn for every string value in a decoded JSON tree (object keys are not
+// visited), with the value's pointer.
+func walkStrings(ptr string, v any, fn func(ptr, s string)) {
+	switch t := v.(type) {
+	case string:
+		fn(ptr, t)
+	case map[string]any:
+		for _, k := range sortedKeys(t) {
+			walkStrings(appendPointer(ptr, k), t[k], fn)
+		}
+	case []any:
+		for i, item := range t {
+			walkStrings(appendPointer(ptr, strconv.Itoa(i)), item, fn)
+		}
+	}
+}
+
+// walkKeys calls fn for every object key in a decoded JSON tree, with the key's pointer.
+func walkKeys(ptr string, v any, fn func(ptr, key string)) {
+	switch t := v.(type) {
+	case map[string]any:
+		for _, k := range sortedKeys(t) {
+			kptr := appendPointer(ptr, k)
+			fn(kptr, k)
+			walkKeys(kptr, t[k], fn)
+		}
+	case []any:
+		for i, item := range t {
+			walkKeys(appendPointer(ptr, strconv.Itoa(i)), item, fn)
+		}
+	}
+}
+
+// checkDuration returns "" when s is a Go duration >= min, else a message.
+func checkDuration(s string, min time.Duration) string {
+	d, err := time.ParseDuration(strings.TrimSpace(s))
+	if err != nil {
+		return fmt.Sprintf("must be a duration such as 30s or 5m: %s", err.Error())
+	}
+	if d < min {
+		if min == 0 {
+			return "must not be negative"
+		}
+		return fmt.Sprintf("must be at least %s", min)
+	}
+	return ""
+}
+
+// ValidateEditable checks an effective config except the locked blocks (api, daemon,
+// remote_config). The API uses it on redacted reported bases merged with an overlay, so it
+// never rejects masked values or a missing client secret. Rules: verbosity >= 0;
+// agent_evidence.interval a non-negative duration; every plugin non-nil with a non-empty
+// source, a parseable schedule, protocol_version in {0,1,2} and non-empty policy entries;
+// env references obey O9.
+func (c Config) ValidateEditable() error {
+	return asError(c.validateEditable())
+}
+
+// Validate is the agent's full check of an effective config: ValidateEditable plus the api
+// block (url required, both or neither credential, client_id a UUID) and remote_config (mode
+// enum, poll_interval >= MinPollInterval, valid glob patterns). File-origin leniency (R34)
+// and the explicit-0 protocol_version file check (R9) are agent concerns: the agent chooses
+// which FieldErrors to downgrade.
+func (c Config) Validate() error {
+	errs := c.validateEditable()
+	errs = append(errs, c.validateAPI()...)
+	errs = append(errs, c.validateRemoteConfig()...)
+	return asError(errs)
+}
+
+func (c Config) validateEditable() []FieldError {
+	ov := &overlayValidator{}
+	if c.Verbosity < 0 {
+		ov.add("/verbosity", FieldCodeInvalidValue, "must not be negative")
+	}
+	if c.AgentEvidence != nil && strings.TrimSpace(c.AgentEvidence.Interval) != "" {
+		if msg := checkDuration(c.AgentEvidence.Interval, 0); msg != "" {
+			ov.add("/agent_evidence/interval", FieldCodeDuration, "%s", msg)
+		}
+	}
+	for _, name := range sortedKeys(c.Plugins) {
+		p := c.Plugins[name]
+		pptr := Pointer("plugins", name)
+		if p == nil {
+			ov.add(pptr, FieldCodeRequired, "plugin %q has no configuration", name)
+			continue
+		}
+		if strings.TrimSpace(p.Source) == "" {
+			ov.add(pptr+"/source", FieldCodeRequired, "plugin source is required")
+		}
+		if p.Schedule != nil {
+			if _, err := ParseSchedule(*p.Schedule); err != nil {
+				ov.add(pptr+"/schedule", FieldCodeCron, "invalid cron schedule: %s", err.Error())
+			}
+		}
+		if p.ProtocolVersion < 0 || p.ProtocolVersion > 2 {
+			ov.add(pptr+"/protocol_version", FieldCodeInvalidValue, "must be 1 or 2 (0 or unset = auto)")
+		}
+		for i, e := range p.Policies {
+			ov.policyEntry(pptr+"/policies/"+strconv.Itoa(i), e)
+		}
+	}
+
+	// O9 over the editable part of the document.
+	if raw, err := json.Marshal(c.clone().editableView()); err == nil {
+		if doc, err := decodeAny(raw); err == nil {
+			walkStrings("", doc, func(ptr, s string) {
+				ov.envRefs(ptr, s, isPluginConfigValuePointer(ptr))
+			})
+		}
+	}
+	return ov.errs
+}
+
+// editableView is c without the locked blocks.
+func (c Config) editableView() Config {
+	out := c
+	out.API = nil
+	out.RemoteConfig = nil
+	out.Daemon = false
+	return out
+}
+
+func (c Config) validateAPI() []FieldError {
+	ov := &overlayValidator{}
+	switch {
+	case c.API == nil:
+		ov.add("/api", FieldCodeRequired, "no api config specified")
+		return ov.errs
+	case strings.TrimSpace(c.API.URL) == "":
+		ov.add("/api/url", FieldCodeRequired, "api url must be configured")
+	}
+	if c.API.HasPartialAuth() {
+		ov.add("/api/auth", FieldCodeRequired, "api auth requires both client_id and client_secret when configured")
+	}
+	if c.API.HasAuth() {
+		if _, err := uuid.Parse(strings.TrimSpace(c.API.Auth.ClientID)); err != nil {
+			ov.add("/api/auth/client_id", FieldCodeInvalidValue, "api auth client_id must be a valid UUID")
+		}
+	}
+	return ov.errs
+}
+
+func (c Config) validateRemoteConfig() []FieldError {
+	ov := &overlayValidator{}
+	rc := c.RemoteConfig
+	if rc == nil {
+		return nil
+	}
+	if rc.Mode != "" && !slices.Contains([]string{ModeOff, ModeReport, ModeApplySafe, ModeApplyAll}, rc.Mode) {
+		ov.add("/remote_config/mode", FieldCodeInvalidValue, "mode must be one of off, report, apply_safe, apply_all")
+	}
+	if strings.TrimSpace(rc.PollInterval) != "" {
+		if msg := checkDuration(rc.PollInterval, MinPollInterval); msg != "" {
+			ov.add("/remote_config/poll_interval", FieldCodeDuration, "%s", msg)
+		}
+	}
+	for i, p := range rc.TrustedSources {
+		if _, err := path.Match(p, ""); err != nil {
+			ov.add("/remote_config/trusted_sources/"+strconv.Itoa(i), FieldCodePattern, "invalid glob pattern %q", p)
+		}
+	}
+	for i, entry := range rc.OverridableConfigFlags {
+		pluginGlob, keyGlob, scoped := strings.Cut(entry, ":")
+		globs := []string{entry}
+		if scoped {
+			globs = []string{pluginGlob, keyGlob}
+		}
+		for _, g := range globs {
+			if _, err := path.Match(g, ""); err != nil {
+				ov.add("/remote_config/overridable_config_flags/"+strconv.Itoa(i), FieldCodePattern, "invalid glob pattern %q", entry)
+				break
+			}
+		}
+	}
+	return ov.errs
+}
