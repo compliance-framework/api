@@ -1634,3 +1634,31 @@ func TestSubjectTemplateService_ResolveOrUpsertComponentDefinitionScopesIdentity
 	require.NoError(t, db.Table("component_definitions").Count(&cdCount).Error)
 	require.Equal(t, int64(2), cdCount)
 }
+
+func TestDefinedComponentMatchesRendered(t *testing.T) {
+	rendered := renderedDefinedComponent{
+		Type:  "service",
+		Title: "GitHub Organization: acme",
+		Props: []relational.Prop{{Ns: relational.CCFOSCALNamespace, Name: "identity", Class: "organization", Value: "acme"}},
+		Links: []relational.Link{},
+	}
+	stored := relational.DefinedComponent{
+		Type:  rendered.Type,
+		Title: rendered.Title,
+		Props: datatypes.NewJSONSlice(append([]relational.Prop{}, rendered.Props...)),
+		// Links stored as null match no rendered links.
+	}
+	require.True(t, definedComponentMatchesRendered(stored, rendered))
+
+	changedTitle := stored
+	changedTitle.Title = "GitHub Organization: other"
+	require.False(t, definedComponentMatchesRendered(changedTitle, rendered))
+
+	changedProps := stored
+	changedProps.Props = datatypes.NewJSONSlice([]relational.Prop{{Ns: relational.CCFOSCALNamespace, Name: "identity", Class: "organization", Value: "other"}})
+	require.False(t, definedComponentMatchesRendered(changedProps, rendered))
+
+	withLink := rendered
+	withLink.Links = []relational.Link{{Href: "https://github.com/acme"}}
+	require.False(t, definedComponentMatchesRendered(stored, withLink))
+}

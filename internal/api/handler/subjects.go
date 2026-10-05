@@ -14,9 +14,6 @@ import (
 	"gorm.io/gorm"
 )
 
-// maxSubjectLookupIDs caps the ids lookup to one page at the largest page size.
-const maxSubjectLookupIDs = 100
-
 type SubjectHandler struct {
 	service    *subjects.Service
 	pagination *svc.PaginationConfig
@@ -75,8 +72,8 @@ func (h *SubjectHandler) List(ctx echo.Context) error {
 	}
 	if raw := strings.TrimSpace(ctx.QueryParam("ids")); raw != "" {
 		values := strings.Split(raw, ",")
-		if len(values) > maxSubjectLookupIDs {
-			return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("ids accepts at most %d subjects", maxSubjectLookupIDs)))
+		if len(values) > subjects.MaxLookupIDs {
+			return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("ids accepts at most %d subjects", subjects.MaxLookupIDs)))
 		}
 		for _, value := range values {
 			id, err := uuid.Parse(strings.TrimSpace(value))
@@ -94,10 +91,10 @@ func (h *SubjectHandler) List(ctx echo.Context) error {
 		params.SSPID = &sspID
 	}
 
-	items, total, err := h.service.List(params)
+	items, total, err := h.service.List(ctx.Request().Context(), params)
 	if err != nil {
 		h.sugar.Errorw("Failed to list subjects", "error", err)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		return ctx.JSON(http.StatusInternalServerError, api.InternalServerError())
 	}
 
 	return ctx.JSON(http.StatusOK, svc.NewListResponse(items, total, pagination.Page, pagination.Limit))

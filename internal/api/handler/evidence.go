@@ -453,7 +453,7 @@ func (h *EvidenceHandler) Create(ctx echo.Context) error {
 		Labels:               labels,
 		Signer:               authcontext.SignerContextFromEcho(ctx),
 	})
-	if errors.Is(err, evidencesvc.ErrSubjectRequired) || errors.Is(err, evidencesvc.ErrUnknownSubject) {
+	if errors.Is(err, evidencesvc.ErrSubjectRequired) || errors.Is(err, evidencesvc.ErrUnknownSubject) || errors.Is(err, evidencesvc.ErrTooManySubjects) {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 	if err != nil {

@@ -10,6 +10,7 @@ import (
 	"github.com/compliance-framework/api/internal/authn"
 	"github.com/compliance-framework/api/internal/config"
 	"github.com/compliance-framework/api/internal/service/relational"
+	"github.com/compliance-framework/api/internal/service/relational/subjects"
 	"github.com/compliance-framework/api/internal/service/relational/templates"
 	oscalTypes_1_1_3 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
 	"github.com/google/uuid"
@@ -123,18 +124,22 @@ func TestEvidenceService_Create_StoresLegacySubjectsAsLegacy(t *testing.T) {
 	}, []relational.Prop(ref.Props))
 }
 
+var errResolverUnavailable = errors.New("resolver unavailable")
+
 func TestEvidenceService_Create_AppliesRequireSubjectToAgentEvidence(t *testing.T) {
 	userSigner := NewUserSignerContextFromClaims(&authn.UserClaims{})
 	agentSigner := NewAgentSignerContext(&authn.AgentClaims{}, nil, nil)
 
 	testCases := []struct {
-		name        string
-		mode        config.EvidenceRequireSubjectMode
-		signer      *SignerContext
-		origin      EvidenceOrigin
-		resolver    *mockCDResolver
-		legacy      bool
-		wantErr     bool
+		name     string
+		mode     config.EvidenceRequireSubjectMode
+		signer   *SignerContext
+		origin   EvidenceOrigin
+		resolver *mockCDResolver
+		legacy   bool
+		wantErr  bool
+		// wantErrIs is the error a rejection wraps; nil means ErrSubjectRequired.
+		wantErrIs   error
 		wantRefsLen int
 	}{
 		{name: "off accepts unattributed agent evidence", mode: config.EvidenceRequireSubjectOff},
@@ -149,10 +154,16 @@ func TestEvidenceService_Create_AppliesRequireSubjectToAgentEvidence(t *testing.
 			wantRefsLen: 1,
 		},
 		{
-			name:     "enforce treats a resolver error as no subject",
-			mode:     config.EvidenceRequireSubjectEnforce,
-			resolver: &mockCDResolver{err: errors.New("resolver unavailable")},
-			wantErr:  true,
+			name:      "enforce reports a resolver error, not a missing subject",
+			mode:      config.EvidenceRequireSubjectEnforce,
+			resolver:  &mockCDResolver{err: errResolverUnavailable},
+			wantErr:   true,
+			wantErrIs: errResolverUnavailable,
+		},
+		{
+			name:     "off saves evidence when the resolver fails",
+			mode:     config.EvidenceRequireSubjectOff,
+			resolver: &mockCDResolver{err: errResolverUnavailable},
 		},
 		{name: "enforce does not apply to user evidence", mode: config.EvidenceRequireSubjectEnforce, signer: userSigner},
 		{name: "enforce does not apply to workflow evidence", mode: config.EvidenceRequireSubjectEnforce, signer: userSigner, origin: OriginWorkflow},
@@ -185,7 +196,14 @@ func TestEvidenceService_Create_AppliesRequireSubjectToAgentEvidence(t *testing.
 			var count int64
 			require.NoError(t, db.Model(&relational.Evidence{}).Count(&count).Error)
 			if tc.wantErr {
-				require.ErrorIs(t, err, ErrSubjectRequired)
+				wantErrIs := tc.wantErrIs
+				if wantErrIs == nil {
+					wantErrIs = ErrSubjectRequired
+				}
+				require.ErrorIs(t, err, wantErrIs)
+				if wantErrIs != ErrSubjectRequired {
+					require.NotErrorIs(t, err, ErrSubjectRequired, "a resolver failure is not reported as a missing subject")
+				}
 				require.Zero(t, count, "rejected evidence is not saved")
 				return
 			}
@@ -284,4 +302,38 @@ func TestEvidenceService_Create_AppliesManualRequireSubjectToUserEvidence(t *tes
 			require.NoError(t, err)
 		})
 	}
+}
+
+func TestBuildSubjectReferences_KeepsADerivedSubjectOnce(t *testing.T) {
+	derived := orgSubject()
+	other := subjects.Summary{SubjectUUID: uuid.New(), Type: "party", Kind: subjects.KindParty, Title: "Platform team"}
+	declared := []subjects.Summary{
+		{SubjectUUID: derived.DefinedComponentID, Type: "component", Kind: subjects.KindDefinedComponent, Title: derived.Title},
+		other,
+	}
+
+	refs := buildSubjectReferences([]templates.ResolvedSubject{derived}, declared, nil)
+
+	require.Len(t, refs, 2)
+	require.Equal(t, derived.DefinedComponentID, refs[0].SubjectUUID)
+	require.Equal(t, relational.EvidenceSubjectSourceTemplate, refs[0].Source, "a subject both derived and declared stays derived")
+	require.Equal(t, other.SubjectUUID, refs[1].SubjectUUID)
+	require.Equal(t, relational.EvidenceSubjectSourceDeclared, refs[1].Source)
+}
+
+func TestEvidenceService_Create_RejectsTooManyDeclaredSubjects(t *testing.T) {
+	db := newEvidenceServiceTestDB(t)
+	svc := NewEvidenceService(db, nil, nil, nil)
+
+	params := subjectTestParams()
+	for range subjects.MaxLookupIDs + 1 {
+		params.DeclaredSubjectUUIDs = append(params.DeclaredSubjectUUIDs, uuid.New())
+	}
+
+	_, err := svc.Create(context.Background(), params)
+
+	require.ErrorIs(t, err, ErrTooManySubjects)
+	var count int64
+	require.NoError(t, db.Model(&relational.Evidence{}).Count(&count).Error)
+	require.Zero(t, count)
 }

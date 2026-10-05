@@ -3,6 +3,7 @@
 package subjects
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -19,6 +20,10 @@ const (
 	KindParty            Kind = "party"
 	KindUser             Kind = "user"
 )
+
+// MaxLookupIDs is the most subjects one lookup by ID may name: one page at the largest page
+// size.
+const MaxLookupIDs = 100
 
 // AllKinds lists every subject kind, in the order they're searched.
 var AllKinds = []Kind{KindDefinedComponent, KindSystemComponent, KindParty, KindUser}
@@ -85,7 +90,8 @@ func NewService(db *gorm.DB) *Service {
 }
 
 // List returns one page of subjects ordered by title, and the total matching.
-func (s *Service) List(params ListParams) ([]Summary, int64, error) {
+func (s *Service) List(ctx context.Context, params ListParams) ([]Summary, int64, error) {
+	db := s.db.WithContext(ctx)
 	union, args := subjectsUnion(params)
 	var conditions []string
 	if search := strings.TrimSpace(params.Search); search != "" {
@@ -103,13 +109,13 @@ func (s *Service) List(params ListParams) ([]Summary, int64, error) {
 	from := "FROM (" + union + ") subjects" + where
 
 	var total int64
-	if err := s.db.Raw("SELECT COUNT(*) "+from, args...).Scan(&total).Error; err != nil {
+	if err := db.Raw("SELECT COUNT(*) "+from, args...).Scan(&total).Error; err != nil {
 		return nil, 0, err
 	}
 
 	items := []Summary{}
 	pageArgs := append(append([]any{}, args...), params.Limit, params.Offset)
-	if err := s.db.Raw(
+	if err := db.Raw(
 		"SELECT subjects.subject_uuid, subjects.type, subjects.kind, subjects.title, subjects.context "+
 			from+
 			" ORDER BY LOWER(subjects.title), subjects.kind, subjects.subject_uuid LIMIT ? OFFSET ?",
@@ -118,7 +124,7 @@ func (s *Service) List(params ListParams) ([]Summary, int64, error) {
 		return nil, 0, err
 	}
 
-	if err := s.addDefinedComponentDetails(items); err != nil {
+	if err := addDefinedComponentDetails(db, items); err != nil {
 		return nil, 0, err
 	}
 
@@ -127,7 +133,7 @@ func (s *Service) List(params ListParams) ([]Summary, int64, error) {
 
 // addDefinedComponentDetails fills in the identity labels and linked SSP system components
 // of the defined components among items, with one query each.
-func (s *Service) addDefinedComponentDetails(items []Summary) error {
+func addDefinedComponentDetails(db *gorm.DB, items []Summary) error {
 	byID := map[uuid.UUID]*Summary{}
 	ids := []uuid.UUID{}
 	for i := range items {
@@ -145,7 +151,7 @@ func (s *Service) addDefinedComponentDetails(items []Summary) error {
 		Key                string    `gorm:"column:key"`
 		Value              string    `gorm:"column:value"`
 	}
-	if err := s.db.Raw(`
+	if err := db.Raw(`
 		SELECT defined_component_id, key, value
 		FROM component_definition_labels
 		WHERE defined_component_id IN ?
@@ -165,7 +171,7 @@ func (s *Service) addDefinedComponentDetails(items []Summary) error {
 		ComponentID        uuid.UUID `gorm:"column:component_id"`
 		ComponentTitle     string    `gorm:"column:component_title"`
 	}
-	if err := s.db.Raw(`
+	if err := db.Raw(`
 		SELECT sc.defined_component_id, si.system_security_plan_id AS ssp_id, COALESCE(m.title, '') AS ssp_title,
 		  sc.id AS component_id, sc.title AS component_title
 		FROM system_components sc
@@ -191,12 +197,12 @@ func (s *Service) addDefinedComponentDetails(items []Summary) error {
 }
 
 // Resolve looks up subjects by ID, returning those found keyed by ID.
-func (s *Service) Resolve(ids []uuid.UUID) (map[uuid.UUID]Summary, error) {
+func (s *Service) Resolve(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID]Summary, error) {
 	found := make(map[uuid.UUID]Summary, len(ids))
 	if len(ids) == 0 {
 		return found, nil
 	}
-	items, _, err := s.List(ListParams{IDs: ids, Limit: len(ids) * len(AllKinds)})
+	items, _, err := s.List(ctx, ListParams{IDs: ids, Limit: len(ids) * len(AllKinds)})
 	if err != nil {
 		return nil, err
 	}

@@ -941,9 +941,6 @@ func migrateBackfillOfferingItemStatementIDs(db *gorm.DB) error {
 	return nil
 }
 
-// migrateSSPProfileIDToJoinTable copies the legacy single profile_id FK from
-// system_security_plans into the new ssp_profiles join table. Rows that already
-// exist (ON CONFLICT DO NOTHING) are skipped, making the migration idempotent.
 // migrateComponentDefinitionIdentityKey widens the component_definition_identities primary
 // key from (entity_type, identity_hash) to (entity_type, component_definition_id,
 // identity_hash), so two plugins reporting the same identity labels each get their own
@@ -977,6 +974,9 @@ func migrateComponentDefinitionIdentityKey(db *gorm.DB) error {
 	`).Error
 }
 
+// migrateSSPProfileIDToJoinTable copies the legacy single profile_id FK from
+// system_security_plans into the new ssp_profiles join table. Rows that already
+// exist (ON CONFLICT DO NOTHING) are skipped, making the migration idempotent.
 func migrateSSPProfileIDToJoinTable(db *gorm.DB) error {
 	if !db.Migrator().HasTable("ssp_profiles") {
 		return nil

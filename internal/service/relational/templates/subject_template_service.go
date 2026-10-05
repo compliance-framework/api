@@ -991,13 +991,44 @@ func definedComponentTypeOrDefault(componentType *string) string {
 	return *componentType
 }
 
+// definedComponentMatchesRendered reports whether a stored DefinedComponent already holds the
+// rendered values. Empty and missing props or links count as equal.
+func definedComponentMatchesRendered(current relational.DefinedComponent, rendered renderedDefinedComponent) bool {
+	return current.Type == rendered.Type &&
+		current.Title == rendered.Title &&
+		current.Description == rendered.Description &&
+		current.Purpose == rendered.Purpose &&
+		current.Remarks == rendered.Remarks &&
+		sameJSONList([]relational.Prop(current.Props), rendered.Props) &&
+		sameJSONList([]relational.Link(current.Links), rendered.Links)
+}
+
+func sameJSONList[T any](a, b []T) bool {
+	if len(a) == 0 || len(b) == 0 {
+		return len(a) == len(b)
+	}
+	aJSON, aErr := json.Marshal(a)
+	bJSON, bErr := json.Marshal(b)
+	return aErr == nil && bErr == nil && string(aJSON) == string(bJSON)
+}
+
 // upsertDefinedComponent makes the plugin's DefinedComponent for an identity hold the
 // rendered values, creating it (and its identity record) on first sight, and returns its ID.
 func (s *SubjectTemplateService) upsertDefinedComponent(template SubjectTemplate, normalizedPlugin string, cdID uuid.UUID, identityPairs []identityLabelPair, identityHash string, rendered renderedDefinedComponent) (uuid.UUID, error) {
 	// The identity is already materialised for this plugin: update its DefinedComponent so
-	// it tracks template and label changes.
+	// it tracks template and label changes. Most evidence renders it unchanged, so skip the
+	// write then.
 	var existingIdentity ComponentDefinitionIdentity
 	if err := s.db.Where("entity_type = ? AND component_definition_id = ? AND identity_hash = ?", subjectTemplateTypeComponent, cdID, identityHash).First(&existingIdentity).Error; err == nil {
+		var current relational.DefinedComponent
+		if err := s.db.Select("id", "type", "title", "description", "purpose", "remarks", "props", "links").
+			First(&current, "id = ?", existingIdentity.DefinedComponentID).Error; err == nil {
+			if definedComponentMatchesRendered(current, rendered) {
+				return existingIdentity.DefinedComponentID, nil
+			}
+		} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return uuid.Nil, err
+		}
 		if err := s.db.Model(&relational.DefinedComponent{}).Where("id = ?", existingIdentity.DefinedComponentID).Updates(map[string]interface{}{
 			"type":        rendered.Type,
 			"title":       rendered.Title,

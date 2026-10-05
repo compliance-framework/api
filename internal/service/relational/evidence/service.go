@@ -25,6 +25,9 @@ var ErrSubjectRequired = errors.New("evidence has no subject")
 // ErrUnknownSubject is returned when evidence names a subject that doesn't exist.
 var ErrUnknownSubject = errors.New("unknown subject")
 
+// ErrTooManySubjects is returned when evidence names more subjects than one lookup allows.
+var ErrTooManySubjects = errors.New("too many subjects")
+
 // RiskJobEnqueuer interface to avoid circular imports
 type RiskJobEnqueuer interface {
 	EnqueueRiskProcessEvidence(ctx context.Context, evidenceID uuid.UUID, evidenceEnd, status string) error
@@ -126,14 +129,17 @@ func (s *EvidenceService) Create(ctx context.Context, params CreateEvidenceParam
 	// Resolve ComponentDefinitions from labels: they are the evidence's template-derived
 	// subjects, and any SystemComponents linked to them are merged into its components.
 	var derivedSubjects []templates.ResolvedSubject
+	var resolveErr error
 	if s.cdResolver != nil && len(params.Labels) > 0 {
-		if resolved := s.resolveComponentDefinitions(params.Labels); resolved != nil {
+		var resolved *templates.ResolveOrUpsertComponentDefinitionResult
+		resolved, resolveErr = s.resolveComponentDefinitions(params.Labels)
+		if resolved != nil {
 			derivedSubjects = resolved.Subjects
 			params.Components = s.mergeLinkedSystemComponents(resolved.DefinedComponentIDs, params.Components)
 		}
 	}
 
-	declaredSubjects, err := s.resolveDeclaredSubjects(params.DeclaredSubjectUUIDs)
+	declaredSubjects, err := s.resolveDeclaredSubjects(ctx, params.DeclaredSubjectUUIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -141,6 +147,11 @@ func (s *EvidenceService) Create(ctx context.Context, params CreateEvidenceParam
 	// Set on the evidence so they're saved with it and returned on the created evidence.
 	params.Evidence.SubjectReferences = buildSubjectReferences(derivedSubjects, declaredSubjects, params.Subjects)
 	if err := s.checkSubjectRequirement(params); err != nil {
+		// The subjects couldn't be derived, so the evidence isn't known to lack one: report
+		// the resolver failure, which the submitter can retry, not a missing subject.
+		if resolveErr != nil {
+			return nil, fmt.Errorf("resolve evidence subjects: %w", resolveErr)
+		}
 		return nil, err
 	}
 
@@ -564,9 +575,10 @@ func (s *EvidenceService) mergeLinkedSystemComponents(definedComponentIDs []uuid
 }
 
 // resolveComponentDefinitions resolves the DefinedComponents (template-derived subjects)
-// matching the evidence labels. A resolver error is logged and treated as no match, so the
-// evidence is still saved, without derived subjects.
-func (s *EvidenceService) resolveComponentDefinitions(labels []relational.Labels) *templates.ResolveOrUpsertComponentDefinitionResult {
+// matching the evidence labels. A resolver error is logged and returned with no result: the
+// evidence is still saved, without derived subjects, unless it then fails its subject
+// requirement.
+func (s *EvidenceService) resolveComponentDefinitions(labels []relational.Labels) (*templates.ResolveOrUpsertComponentDefinitionResult, error) {
 	result, err := s.cdResolver.ResolveOrUpsertComponentDefinition(templates.ResolveOrUpsertComponentDefinitionInput{
 		EvidenceLabels: labels,
 	})
@@ -574,17 +586,30 @@ func (s *EvidenceService) resolveComponentDefinitions(labels []relational.Labels
 		if s.logger != nil {
 			s.logger.Warnw("Failed to resolve component definitions from evidence labels", "error", err)
 		}
-		return nil
+		return nil, err
 	}
-	return result
+	return result, nil
 }
 
-// resolveDeclaredSubjects looks up the subjects the submitter named, in the order named.
-func (s *EvidenceService) resolveDeclaredSubjects(ids []uuid.UUID) ([]subjects.Summary, error) {
+// resolveDeclaredSubjects looks up the subjects the submitter named, in the order first named.
+// A subject named more than once is returned once.
+func (s *EvidenceService) resolveDeclaredSubjects(ctx context.Context, named []uuid.UUID) ([]subjects.Summary, error) {
+	ids := make([]uuid.UUID, 0, len(named))
+	seen := make(map[uuid.UUID]struct{}, len(named))
+	for _, id := range named {
+		if _, dup := seen[id]; dup {
+			continue
+		}
+		seen[id] = struct{}{}
+		ids = append(ids, id)
+	}
 	if len(ids) == 0 {
 		return nil, nil
 	}
-	found, err := subjects.NewService(s.db).Resolve(ids)
+	if len(ids) > subjects.MaxLookupIDs {
+		return nil, fmt.Errorf("%w: evidence may name at most %d subjects, got %d", ErrTooManySubjects, subjects.MaxLookupIDs, len(ids))
+	}
+	found, err := subjects.NewService(s.db).Resolve(ctx, ids)
 	if err != nil {
 		return nil, err
 	}
@@ -622,8 +647,16 @@ func buildSubjectReferences(derived []templates.ResolvedSubject, declared []subj
 		})
 	}
 
-	// Declared subjects take their type and title from the entity named.
+	// Declared subjects take their type and title from the entity named. A subject a
+	// template already derived is kept once, as derived.
+	derivedIDs := make(map[uuid.UUID]struct{}, len(derived))
+	for _, subject := range derived {
+		derivedIDs[subject.DefinedComponentID] = struct{}{}
+	}
 	for _, subject := range declared {
+		if _, ok := derivedIDs[subject.SubjectUUID]; ok {
+			continue
+		}
 		refs = append(refs, relational.EvidenceSubjectReference{
 			SubjectUUID: subject.SubjectUUID,
 			Type:        subject.Type,
