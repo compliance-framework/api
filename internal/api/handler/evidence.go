@@ -53,6 +53,7 @@ func NewEvidenceHandler(sugar *zap.SugaredLogger, evidenceService *evidencesvc.E
 
 func (h *EvidenceHandler) Register(api *echo.Group) {
 	api.POST("", h.Create)
+	api.GET("/config", h.Config)
 	api.GET("/:id", h.Get)
 	api.GET("/history/:id", h.History)
 	api.GET("/latest/:id", h.Latest)
@@ -73,6 +74,7 @@ func (h *EvidenceHandler) RegisterCreate(api *echo.Group, middlewares ...echo.Mi
 // optional-auth middleware) as middlewares applied uniformly. POST /search and
 // POST /status-over-time are queries, not mutations — hence read.
 func (h *EvidenceHandler) RegisterReadRoutes(api *echo.Group, middlewares ...echo.MiddlewareFunc) {
+	api.GET("/config", h.Config, middlewares...)
 	api.GET("/:id", h.Get, middlewares...)
 	api.GET("/history/:id", h.History, middlewares...)
 	api.GET("/latest/:id", h.Latest, middlewares...)
@@ -167,6 +169,11 @@ type EvidenceComponent struct {
 }
 
 type EvidenceSubject struct {
+	// SubjectUUID names an existing subject: a defined component, SSP system component, party
+	// or user (see GET /subjects). Its type and title come from that subject.
+	SubjectUUID *uuid.UUID `json:"subject-uuid,omitempty"`
+
+	// Identifier is the legacy way to name a subject, used when SubjectUUID isn't set.
 	Identifier string
 
 	// InventoryItem
@@ -373,7 +380,12 @@ func (h *EvidenceHandler) Create(ctx echo.Context) error {
 	}
 
 	subjects := []relational.AssessmentSubject{}
+	declaredSubjectUUIDs := []uuid.UUID{}
 	for _, i := range input.Subjects {
+		if i.SubjectUUID != nil {
+			declaredSubjectUUIDs = append(declaredSubjectUUIDs, *i.SubjectUUID)
+			continue
+		}
 		id, err := internal.SeededUUID(map[string]string{
 			"identifier": i.Identifier,
 		})
@@ -432,14 +444,18 @@ func (h *EvidenceHandler) Create(ctx echo.Context) error {
 	}
 
 	created, err := h.evidenceService.Create(ctx.Request().Context(), evidencesvc.CreateEvidenceParams{
-		Evidence:       evidence,
-		Components:     components,
-		InventoryItems: inventoryItems,
-		Activities:     activities,
-		Subjects:       subjects,
-		Labels:         labels,
-		Signer:         authcontext.SignerContextFromEcho(ctx),
+		Evidence:             evidence,
+		Components:           components,
+		InventoryItems:       inventoryItems,
+		Activities:           activities,
+		Subjects:             subjects,
+		DeclaredSubjectUUIDs: declaredSubjectUUIDs,
+		Labels:               labels,
+		Signer:               authcontext.SignerContextFromEcho(ctx),
 	})
+	if errors.Is(err, evidencesvc.ErrSubjectRequired) || errors.Is(err, evidencesvc.ErrUnknownSubject) || errors.Is(err, evidencesvc.ErrTooManySubjects) {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
 	if err != nil {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
@@ -450,6 +466,25 @@ func (h *EvidenceHandler) Create(ctx echo.Context) error {
 	}
 
 	return ctx.JSON(http.StatusCreated, GenericDataResponse[*CreatedEvidenceResponse]{Data: output})
+}
+
+type evidenceConfigResponse struct {
+	// ManualSubjectRequired is true when evidence submitted by a user must name a subject.
+	ManualSubjectRequired bool `json:"manual-subject-required"`
+}
+
+// Config godoc
+//
+//	@Summary		Get evidence submission config
+//	@Description	Reports whether evidence submitted by a user must name a subject (CCF_MANUAL_EVIDENCE_REQUIRE_SUBJECT).
+//	@Tags			Evidence
+//	@Produce		json
+//	@Success		200	{object}	GenericDataResponse[evidenceConfigResponse]
+//	@Router			/evidence/config [get]
+func (h *EvidenceHandler) Config(ctx echo.Context) error {
+	return ctx.JSON(http.StatusOK, GenericDataResponse[evidenceConfigResponse]{
+		Data: evidenceConfigResponse{ManualSubjectRequired: h.evidenceService.ManualEvidenceRequiresSubject()},
+	})
 }
 
 // Search godoc
@@ -465,6 +500,7 @@ func (h *EvidenceHandler) Create(ctx echo.Context) error {
 //	@Param			sortBy			query		string					false	"Sort field: lastSeenAt, name, status"
 //	@Param			sortDirection	query		string					false	"Sort direction: asc, desc"
 //	@Param			name			query		string					false	"Case-insensitive evidence name search"
+//	@Param			subjectUuid		query		string					false	"Only evidence with this subject"
 //	@Success		200				{object}	svc.ListResponse[PublicEvidenceResponse]
 //	@Failure		400				{object}	api.Error
 //	@Failure		422				{object}	api.Error
@@ -499,6 +535,7 @@ func (h *EvidenceHandler) Search(ctx echo.Context) error {
 		if err != nil {
 			return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 		}
+		out.SubjectReferences = compactSubjectReferences(evidence.SubjectReferences)
 		output = append(output, out)
 	}
 
@@ -539,10 +576,20 @@ func parseEvidenceSearchOptions(ctx echo.Context, pagination *svc.PaginationPara
 		)
 	}
 
+	var subjectUUID *uuid.UUID
+	if raw := strings.TrimSpace(ctx.QueryParam("subjectUuid")); raw != "" {
+		parsed, err := uuid.Parse(raw)
+		if err != nil {
+			return evidencesvc.SearchOptions{}, fmt.Errorf("invalid subjectUuid parameter: %w", err)
+		}
+		subjectUUID = &parsed
+	}
+
 	return evidencesvc.SearchOptions{
 		Limit:         pagination.Limit,
 		Offset:        pagination.Offset,
 		Name:          ctx.QueryParam("name"),
+		SubjectUUID:   subjectUUID,
 		SortBy:        sortBy,
 		SortDirection: sortDirection,
 	}, nil
@@ -566,7 +613,11 @@ type EvidenceFields struct {
 	InventoryItems []oscalTypes_1_1_3.InventoryItem     `json:"inventory-items,omitempty"`
 	Components     []oscalTypes_1_1_3.SystemComponent   `json:"components,omitempty"`
 	Subjects       []oscalTypes_1_1_3.AssessmentSubject `json:"subjects,omitempty"`
-	Status         oscalTypes_1_1_3.ObjectiveStatus     `json:"status"`
+	// SubjectReferences are the evidence's subjects in display order. Present (possibly
+	// empty) on responses that load them, so clients can tell "no subjects" from "not
+	// supported"; omitted otherwise.
+	SubjectReferences *[]oscalTypes_1_1_3.SubjectReference `json:"subject-references,omitempty"`
+	Status            oscalTypes_1_1_3.ObjectiveStatus     `json:"status"`
 }
 
 type PublicEvidenceResponse struct {
@@ -631,11 +682,49 @@ func newPublicEvidenceResponse(evidence *relational.Evidence) (*PublicEvidenceRe
 	return &PublicEvidenceResponse{EvidenceFields: *fields}, nil
 }
 
+// newEvidenceDetailResponse is a single evidence record with its full subject references.
+func newEvidenceDetailResponse(evidence *relational.Evidence) (*PublicEvidenceResponse, error) {
+	out, err := newPublicEvidenceResponse(evidence)
+	if err != nil {
+		return nil, err
+	}
+	out.SubjectReferences = fullSubjectReferences(evidence.SubjectReferences)
+	return out, nil
+}
+
+// fullSubjectReferences are all of the evidence's subject references, in display order.
+func fullSubjectReferences(refs []relational.EvidenceSubjectReference) *[]oscalTypes_1_1_3.SubjectReference {
+	out := make([]oscalTypes_1_1_3.SubjectReference, 0, len(refs))
+	for _, ref := range relational.SortEvidenceSubjectReferencesForDisplay(refs) {
+		out = append(out, ref.MarshalOscal())
+	}
+	return &out
+}
+
+// compactSubjectReferences are the subject references a search row carries: uuid, type and
+// title, in display order. Legacy subjects are left out because they don't attribute the
+// evidence, so evidence with only legacy subjects lists as unattributed.
+func compactSubjectReferences(refs []relational.EvidenceSubjectReference) *[]oscalTypes_1_1_3.SubjectReference {
+	out := make([]oscalTypes_1_1_3.SubjectReference, 0, len(refs))
+	for _, ref := range relational.SortEvidenceSubjectReferencesForDisplay(refs) {
+		if ref.Source == relational.EvidenceSubjectSourceLegacy {
+			continue
+		}
+		out = append(out, oscalTypes_1_1_3.SubjectReference{
+			SubjectUuid: ref.SubjectUUID.String(),
+			Type:        ref.Type,
+			Title:       ref.Title,
+		})
+	}
+	return &out
+}
+
 func newCreatedEvidenceResponse(evidence *relational.Evidence) (*CreatedEvidenceResponse, error) {
 	fields, err := buildEvidenceFields(evidence)
 	if err != nil {
 		return nil, err
 	}
+	fields.SubjectReferences = fullSubjectReferences(evidence.SubjectReferences)
 
 	response := &CreatedEvidenceResponse{EvidenceFields: *fields}
 	if evidence.Signature != nil {
@@ -678,7 +767,7 @@ func (h *EvidenceHandler) Get(ctx echo.Context) error {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
-	output, err := newPublicEvidenceResponse(evidence)
+	output, err := newEvidenceDetailResponse(evidence)
 	if err != nil {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
@@ -724,7 +813,7 @@ func (h *EvidenceHandler) History(ctx echo.Context) error {
 
 	output := []*PublicEvidenceResponse{}
 	for _, e := range evidences {
-		out, convErr := newPublicEvidenceResponse(&e)
+		out, convErr := newEvidenceDetailResponse(&e)
 		if convErr != nil {
 			return ctx.JSON(http.StatusInternalServerError, api.NewError(convErr))
 		}
@@ -763,7 +852,7 @@ func (h *EvidenceHandler) Latest(ctx echo.Context) error {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
-	output, err := newPublicEvidenceResponse(evidence)
+	output, err := newEvidenceDetailResponse(evidence)
 	if err != nil {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}

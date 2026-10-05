@@ -56,6 +56,9 @@ type Evidence struct {
 	Components []SystemComponent `gorm:"many2many:evidence_components" json:"components,omitempty"`
 	// Who or What are we providing evidence for. What's under test.
 	Subjects []AssessmentSubject `gorm:"many2many:evidence_subjects;" json:"subjects,omitempty"`
+	// SubjectReferences are the evidence's subjects as OSCAL subject references: derived from
+	// subject templates, declared, or legacy plugin identifiers.
+	SubjectReferences []EvidenceSubjectReference `gorm:"foreignKey:EvidenceID;constraint:OnDelete:CASCADE" json:"subject-references,omitempty"`
 
 	// Did we satisfy what was being tested for, or did we fail ?
 	Status datatypes.JSONType[oscalTypes_1_1_3.ObjectiveStatus] `json:"status"`

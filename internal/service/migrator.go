@@ -191,6 +191,7 @@ func MigrateUpWithConfig(db *gorm.DB, cfg *config.Config) error {
 		&Heartbeat{},
 		&relational.Evidence{},
 		&relational.Artifact{},
+		&relational.EvidenceSubjectReference{},
 		&relational.Labels{},
 		&relational.SelectSubjectById{},
 		&relational.Filter{},
@@ -502,6 +503,10 @@ func MigrateUpWithConfig(db *gorm.DB, cfg *config.Config) error {
 			  END IF;
 			END $$;
 		`).Error; err != nil {
+			return err
+		}
+
+		if err := migrateComponentDefinitionIdentityKey(db); err != nil {
 			return err
 		}
 	}
@@ -938,6 +943,39 @@ func migrateBackfillOfferingItemStatementIDs(db *gorm.DB) error {
 	return nil
 }
 
+// migrateComponentDefinitionIdentityKey widens the component_definition_identities primary
+// key from (entity_type, identity_hash) to (entity_type, component_definition_id,
+// identity_hash), so two plugins reporting the same identity labels each get their own
+// DefinedComponent (BCH-1364). AutoMigrate never changes an existing primary key. Rows are
+// unique under the old key, so they stay unique under the wider one.
+//
+// Guarded so it is a no-op once the key includes component_definition_id: the ALTER takes
+// an ACCESS EXCLUSIVE lock, which must not happen on every boot. Postgres only.
+func migrateComponentDefinitionIdentityKey(db *gorm.DB) error {
+	return db.Exec(`
+		DO $$
+		DECLARE
+		  pk_name text;
+		BEGIN
+		  SELECT c.conname INTO pk_name
+		  FROM pg_constraint c
+		  WHERE c.conrelid = to_regclass('component_definition_identities')
+		    AND c.contype = 'p'
+		    AND NOT EXISTS (
+		      SELECT 1 FROM pg_attribute a
+		      WHERE a.attrelid = c.conrelid
+		        AND a.attnum = ANY (c.conkey)
+		        AND a.attname = 'component_definition_id'
+		    );
+		  IF pk_name IS NOT NULL THEN
+		    EXECUTE format('ALTER TABLE component_definition_identities DROP CONSTRAINT %I', pk_name);
+		    ALTER TABLE component_definition_identities
+		      ADD PRIMARY KEY (entity_type, component_definition_id, identity_hash);
+		  END IF;
+		END $$;
+	`).Error
+}
+
 // migrateSSPProfileIDToJoinTable copies the legacy single profile_id FK from
 // system_security_plans into the new ssp_profiles join table. Rows that already
 // exist (ON CONFLICT DO NOTHING) are skipped, making the migration idempotent.
@@ -1139,6 +1177,7 @@ func MigrateDown(db *gorm.DB) error {
 		&relational.SystemNotificationDestination{},
 
 		&Heartbeat{},
+		&relational.EvidenceSubjectReference{},
 		&relational.Evidence{},
 		&relational.Artifact{},
 		"evidence_activities",

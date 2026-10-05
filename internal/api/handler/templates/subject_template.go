@@ -61,6 +61,8 @@ type upsertSubjectTemplateRequest struct {
 	Props               []relational.Prop                        `json:"props"`
 	Links               []relational.Link                        `json:"links"`
 	SourceMode          string                                   `json:"source-mode" validate:"required"`
+	DisplayPriority     int                                      `json:"display-priority"`
+	ComponentType       *string                                  `json:"component-type"`
 	SelectorLabels      []subjectTemplateSelectorLabelRequest    `json:"selector-labels" validate:"required"`
 	LabelSchema         []subjectTemplateLabelSchemaFieldRequest `json:"label-schema" validate:"required"`
 }
@@ -89,6 +91,8 @@ type subjectTemplateResponse struct {
 	Props               []relational.Prop                         `json:"props"`
 	Links               []relational.Link                         `json:"links"`
 	SourceMode          string                                    `json:"source-mode"`
+	DisplayPriority     int                                       `json:"display-priority"`
+	ComponentType       *string                                   `json:"component-type"`
 	SelectorLabels      []subjectTemplateSelectorLabelResponse    `json:"selector-labels"`
 	LabelSchema         []subjectTemplateLabelSchemaFieldResponse `json:"label-schema"`
 }
@@ -257,6 +261,8 @@ func mapSubjectTemplateRequestToPayload(req upsertSubjectTemplateRequest) templa
 		Props:               append([]relational.Prop{}, req.Props...),
 		Links:               append([]relational.Link{}, req.Links...),
 		SourceMode:          req.SourceMode,
+		DisplayPriority:     req.DisplayPriority,
+		ComponentType:       req.ComponentType,
 		SelectorLabels:      make([]templaterel.SubjectTemplateSelectorLabelInput, 0, len(req.SelectorLabels)),
 		LabelSchema:         make([]templaterel.SubjectTemplateLabelSchemaFieldInput, 0, len(req.LabelSchema)),
 	}
@@ -289,6 +295,8 @@ type batchSubjectTemplateItem struct {
 	Props               []relational.Prop                        `json:"props"`
 	Links               []relational.Link                        `json:"links"`
 	SourceMode          string                                   `json:"source-mode"`
+	DisplayPriority     int                                      `json:"display-priority"`
+	ComponentType       *string                                  `json:"component-type"`
 	SelectorLabels      []subjectTemplateSelectorLabelRequest    `json:"selector-labels"`
 	LabelSchema         []subjectTemplateLabelSchemaFieldRequest `json:"label-schema"`
 }
@@ -303,6 +311,9 @@ type batchUpsertSubjectTemplatesData struct {
 	Updated   []subjectTemplateResponse `json:"updated"`
 	Deleted   []uuid.UUID               `json:"deleted"`
 	Unchanged []uuid.UUID               `json:"unchanged"`
+	// Warnings lists non-component templates, which are accepted but produce no evidence
+	// subjects.
+	Warnings []string `json:"warnings"`
 }
 
 type batchUpsertSubjectTemplatesResponse struct {
@@ -355,6 +366,8 @@ func (h *SubjectTemplateHandler) BatchUpsert(ctx echo.Context) error {
 			Props:               append([]relational.Prop{}, item.Props...),
 			Links:               append([]relational.Link{}, item.Links...),
 			SourceMode:          item.SourceMode,
+			DisplayPriority:     item.DisplayPriority,
+			ComponentType:       item.ComponentType,
 			SelectorLabels:      make([]templaterel.SubjectTemplateSelectorLabelInput, 0, len(item.SelectorLabels)),
 			LabelSchema:         make([]templaterel.SubjectTemplateLabelSchemaFieldInput, 0, len(item.LabelSchema)),
 		}
@@ -383,6 +396,7 @@ func (h *SubjectTemplateHandler) BatchUpsert(ctx echo.Context) error {
 		Updated:   make([]subjectTemplateResponse, 0, len(result.Updated)),
 		Deleted:   result.Deleted,
 		Unchanged: result.Unchanged,
+		Warnings:  result.Warnings,
 	}
 	for _, row := range result.Created {
 		data.Created = append(data.Created, mapSubjectTemplateToResponse(row))
@@ -409,6 +423,8 @@ func mapSubjectTemplateToResponse(row templaterel.SubjectTemplate) subjectTempla
 		Props:               append([]relational.Prop{}, row.Props...),
 		Links:               append([]relational.Link{}, row.Links...),
 		SourceMode:          row.SourceMode,
+		DisplayPriority:     row.DisplayPriority,
+		ComponentType:       row.ComponentType,
 		SelectorLabels:      make([]subjectTemplateSelectorLabelResponse, 0, len(row.SelectorLabels)),
 		LabelSchema:         make([]subjectTemplateLabelSchemaFieldResponse, 0, len(row.LabelSchema)),
 	}

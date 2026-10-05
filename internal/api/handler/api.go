@@ -165,6 +165,13 @@ func RegisterHandlers(server *api.Server, logger *zap.SugaredLogger, db *gorm.DB
 	evidenceSignatureGroup.Use(middleware.JWTMiddleware(config.JWTPublicKey))
 	evidenceHandler.RegisterSignatureRoutes(evidenceSignatureGroup, evidenceGuard.Read())
 
+	// Subjects lists user and party names, so unlike the evidence reads it needs a logged-in
+	// user as well as evidence read.
+	subjectHandler := NewSubjectHandler(logger, db)
+	subjectGroup := server.API().Group("/subjects")
+	subjectGroup.Use(middleware.JWTMiddleware(config.JWTPublicKey))
+	subjectHandler.Register(subjectGroup, evidenceGuard.Read())
+
 	// Evidence→risk lookups return risk register data, so they need auth and the risk
 	// read guard rather than joining the intentionally anonymous evidence read routes.
 	evidenceRiskGroup := server.API().Group("/evidence")

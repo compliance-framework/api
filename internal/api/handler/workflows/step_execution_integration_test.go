@@ -47,7 +47,12 @@ func setupStepExecutionTestHandler(t *testing.T) (*StepExecutionHandler, *gorm.D
 	assignmentService := workflow.NewAssignmentService(roleAssignmentService, stepExecService, db, zap.NewNop().Sugar(), nil)
 	privateKey, _, err := config.GenerateKeyPair(2048)
 	require.NoError(t, err)
-	evidenceService := evidencesvc.NewEvidenceService(db, logger, &config.Config{JWTPrivateKey: privateKey}, nil)
+	// The manual subject requirement is on: step evidence is signed by the user completing
+	// the step, but follows workflow rules, so completing a step must still create evidence.
+	evidenceService := evidencesvc.NewEvidenceService(db, logger, &config.Config{
+		JWTPrivateKey:    privateKey,
+		EvidenceSubjects: &config.EvidenceSubjectConfig{ManualRequireSubject: true},
+	}, nil)
 
 	// Create executor for step transition coordination
 	stdLogger := log.Default()

@@ -369,6 +369,14 @@ definitions:
         type: string
       status:
         $ref: '#/definitions/oscalTypes_1_1_3.ObjectiveStatus'
+      subject-references:
+        description: |-
+          SubjectReferences are the evidence's subjects in display order. Present (possibly
+          empty) on responses that load them, so clients can tell "no subjects" from "not
+          supported"; omitted otherwise.
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.SubjectReference'
+        type: array
       subjects:
         items:
           $ref: '#/definitions/oscalTypes_1_1_3.AssessmentSubject'
@@ -762,6 +770,8 @@ definitions:
       description:
         type: string
       identifier:
+        description: Identifier is the legacy way to name a subject, used when SubjectUUID
+          isn't set.
         type: string
       links:
         items:
@@ -772,6 +782,11 @@ definitions:
           $ref: '#/definitions/oscalTypes_1_1_3.Property'
         type: array
       remarks:
+        type: string
+      subject-uuid:
+        description: |-
+          SubjectUUID names an existing subject: a defined component, SSP system component, party
+          or user (see GET /subjects). Its type and title come from that subject.
         type: string
       type:
         description: |-
@@ -1687,6 +1702,13 @@ definitions:
       data:
         allOf:
         - $ref: '#/definitions/handler.configuredSystemDestinationResponse'
+        description: Wrapped response data
+    type: object
+  handler.GenericDataResponse-handler_evidenceConfigResponse:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/handler.evidenceConfigResponse'
         description: Wrapped response data
     type: object
   handler.GenericDataResponse-handler_groupResponse:
@@ -2742,6 +2764,14 @@ definitions:
         type: string
       status:
         $ref: '#/definitions/oscalTypes_1_1_3.ObjectiveStatus'
+      subject-references:
+        description: |-
+          SubjectReferences are the evidence's subjects in display order. Present (possibly
+          empty) on responses that load them, so clients can tell "no subjects" from "not
+          supported"; omitted otherwise.
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.SubjectReference'
+        type: array
       subjects:
         items:
           $ref: '#/definitions/oscalTypes_1_1_3.AssessmentSubject'
@@ -3337,6 +3367,13 @@ definitions:
       viaGroup:
         description: the granting group's name, when inherited
         type: string
+    type: object
+  handler.evidenceConfigResponse:
+    properties:
+      manual-subject-required:
+        description: ManualSubjectRequired is true when evidence submitted by a user
+          must name a subject.
+        type: boolean
     type: object
   handler.evidenceLinkResponse:
     properties:
@@ -9242,6 +9279,13 @@ definitions:
         allOf:
         - $ref: '#/definitions/datatypes.JSONType-oscalTypes_1_1_3_ObjectiveStatus'
         description: Did we satisfy what was being tested for, or did we fail ?
+      subject-references:
+        description: |-
+          SubjectReferences are the evidence's subjects as OSCAL subject references: derived from
+          subject templates, declared, or legacy plugin identifiers.
+        items:
+          $ref: '#/definitions/relational.EvidenceSubjectReference'
+        type: array
       subjects:
         description: Who or What are we providing evidence for. What's under test.
         items:
@@ -9308,6 +9352,46 @@ definitions:
       name:
         type: string
       type:
+        type: string
+    type: object
+  relational.EvidenceSubjectReference:
+    properties:
+      evidenceId:
+        description: |-
+          EvidenceID is indexed on its own so an evidence's subjects load without the
+          (subject_uuid, evidence_id) index, which serves lookups by subject.
+        type: string
+      group:
+        type: string
+      id:
+        type: string
+      links:
+        items:
+          $ref: '#/definitions/relational.Link'
+        type: array
+      priority:
+        description: 'Priority is the template''s display priority: higher subjects
+          are shown first.'
+        type: integer
+      props:
+        items:
+          $ref: '#/definitions/relational.Prop'
+        type: array
+      remarks:
+        type: string
+      source:
+        description: Source is one of the EvidenceSubjectSource* values.
+        type: string
+      subjectUuid:
+        type: string
+      templateId:
+        description: TemplateID is the subject template a template-derived subject
+          came from.
+        type: string
+      title:
+        type: string
+      type:
+        description: Type is the OSCAL subject type, e.g. component.
         type: string
     type: object
   relational.Export:
@@ -11121,6 +11205,21 @@ definitions:
       totalPages:
         type: integer
     type: object
+  service.ListResponse-subjects_Summary:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/subjects.Summary'
+        type: array
+      limit:
+        type: integer
+      page:
+        type: integer
+      total:
+        type: integer
+      totalPages:
+        type: integer
+    type: object
   service.ListResponse-templates_riskTemplateResponse:
     properties:
       data:
@@ -11165,6 +11264,65 @@ definitions:
         type: integer
       totalPages:
         type: integer
+    type: object
+  subjects.IdentityLabel:
+    properties:
+      key:
+        type: string
+      value:
+        type: string
+    type: object
+  subjects.Kind:
+    enum:
+    - defined-component
+    - system-component
+    - party
+    - user
+    type: string
+    x-enum-varnames:
+    - KindDefinedComponent
+    - KindSystemComponent
+    - KindParty
+    - KindUser
+  subjects.LinkedSSP:
+    properties:
+      component-id:
+        type: string
+      component-title:
+        type: string
+      ssp-id:
+        type: string
+      ssp-title:
+        type: string
+    type: object
+  subjects.Summary:
+    properties:
+      context:
+        description: |-
+          Context is what the subject belongs to: a defined component's component definition, or
+          a system component's SSP.
+        type: string
+      identity:
+        description: 'Identity is a defined component''s identity labels: the evidence
+          labels that identify it.'
+        items:
+          $ref: '#/definitions/subjects.IdentityLabel'
+        type: array
+      kind:
+        $ref: '#/definitions/subjects.Kind'
+      linked-ssps:
+        description: LinkedSSPs are the SSP system components a defined component
+          is linked to.
+        items:
+          $ref: '#/definitions/subjects.LinkedSSP'
+        type: array
+      subject-uuid:
+        type: string
+      title:
+        type: string
+      type:
+        description: 'Type is the OSCAL subject type: component, party or user.'
+        type: string
     type: object
   suggestions.DashboardSuggestion:
     properties:
@@ -11339,8 +11497,12 @@ definitions:
     type: object
   templates.batchSubjectTemplateItem:
     properties:
+      component-type:
+        type: string
       description-template:
         type: string
+      display-priority:
+        type: integer
       id:
         type: string
       identity-label-keys:
@@ -11431,6 +11593,13 @@ definitions:
       updated:
         items:
           $ref: '#/definitions/templates.subjectTemplateResponse'
+        type: array
+      warnings:
+        description: |-
+          Warnings lists non-component templates, which are accepted but produce no evidence
+          subjects.
+        items:
+          type: string
         type: array
     type: object
   templates.batchUpsertSubjectTemplatesRequest:
@@ -11572,10 +11741,14 @@ definitions:
     type: object
   templates.subjectTemplateResponse:
     properties:
+      component-type:
+        type: string
       createdAt:
         type: string
       description-template:
         type: string
+      display-priority:
+        type: integer
       id:
         type: string
       identity-label-keys:
@@ -11688,8 +11861,12 @@ definitions:
     type: object
   templates.upsertSubjectTemplateRequest:
     properties:
+      component-type:
+        type: string
       description-template:
         type: string
+      display-priority:
+        type: integer
       identity-label-keys:
         items:
           type: string
@@ -15830,6 +16007,20 @@ paths:
       summary: Get compliance status counts by filter/dashboard ID
       tags:
       - Evidence
+  /evidence/config:
+    get:
+      description: Reports whether evidence submitted by a user must name a subject
+        (CCF_MANUAL_EVIDENCE_REQUIRE_SUBJECT).
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-handler_evidenceConfigResponse'
+      summary: Get evidence submission config
+      tags:
+      - Evidence
   /evidence/for-control/{id}:
     get:
       description: Retrieves Evidence records associated with a specific Control ID,
@@ -15970,6 +16161,10 @@ paths:
       - description: Case-insensitive evidence name search
         in: query
         name: name
+        type: string
+      - description: Only evidence with this subject
+        in: query
+        name: subjectUuid
         type: string
       produces:
       - application/json
@@ -33753,6 +33948,61 @@ paths:
       summary: Get risk score timeseries
       tags:
       - Risks
+  /subjects:
+    get:
+      description: 'Lists the entities evidence can name as its subject: defined components,
+        SSP system components, parties and users. Used to pick and filter evidence
+        subjects.'
+      parameters:
+      - description: Case-insensitive title search
+        in: query
+        name: search
+        type: string
+      - description: 'Comma-separated kinds: defined-component, system-component,
+          party, user'
+        in: query
+        name: kind
+        type: string
+      - description: Only system components of this SSP
+        in: query
+        name: ssp
+        type: string
+      - description: Comma-separated subject UUIDs to look up (at most 100)
+        in: query
+        name: ids
+        type: string
+      - description: Page number
+        in: query
+        name: page
+        type: integer
+      - description: Page size
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/service.ListResponse-subjects_Summary'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: List subjects
+      tags:
+      - Subjects
   /users/{id}:
     get:
       description: Get minimal user details by user ID

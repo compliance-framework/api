@@ -107,6 +107,15 @@ type Component struct {
 }
 
 type Subject struct {
+	// SubjectUUID names an existing subject: a defined component, SSP system component, party
+	// or user (GET /api/subjects). The API takes the subject's type and title from it, and
+	// ignores Identifier.
+	SubjectUUID *uuid.UUID `json:"subject-uuid,omitempty"`
+	// Title is the subject's display title. The API doesn't use it yet: a SubjectUUID
+	// subject takes its title from the subject named.
+	Title string `json:"title,omitempty"`
+
+	// Identifier is the legacy way to name a subject, used when SubjectUUID isn't set.
 	Identifier string `json:"identifier,omitempty"`
 
 	// InventoryItem
@@ -221,19 +230,25 @@ type SubjectProp = Property
 type SubjectLink = Link
 
 type SubjectTemplate struct {
-	ID                  string                         `json:"id"`
-	Name                string                         `json:"name"`
-	Type                string                         `json:"type"`
-	TitleTemplate       *string                        `json:"title-template,omitempty"`
-	DescriptionTemplate *string                        `json:"description-template,omitempty"`
-	PurposeTemplate     *string                        `json:"purpose-template,omitempty"`
-	RemarksTemplate     *string                        `json:"remarks-template,omitempty"`
-	IdentityLabelKeys   []string                       `json:"identity-label-keys"`
-	Props               []SubjectProp                  `json:"props"`
-	Links               []SubjectLink                  `json:"links"`
-	SourceMode          string                         `json:"source-mode"`
-	SelectorLabels      []SubjectTemplateSelectorLabel `json:"selector-labels"`
-	LabelSchema         []SubjectTemplateLabelSchema   `json:"label-schema"`
+	ID                  string        `json:"id"`
+	Name                string        `json:"name"`
+	Type                string        `json:"type"`
+	TitleTemplate       *string       `json:"title-template,omitempty"`
+	DescriptionTemplate *string       `json:"description-template,omitempty"`
+	PurposeTemplate     *string       `json:"purpose-template,omitempty"`
+	RemarksTemplate     *string       `json:"remarks-template,omitempty"`
+	IdentityLabelKeys   []string      `json:"identity-label-keys"`
+	Props               []SubjectProp `json:"props"`
+	Links               []SubjectLink `json:"links"`
+	SourceMode          string        `json:"source-mode"`
+	// DisplayPriority orders the subjects this template produces on evidence: higher first,
+	// ties by template name. Unset means 0.
+	DisplayPriority int `json:"display-priority,omitempty"`
+	// ComponentType is the OSCAL component type of the components this template creates
+	// (e.g. software, service). Unset means service.
+	ComponentType  string                         `json:"component-type,omitempty"`
+	SelectorLabels []SubjectTemplateSelectorLabel `json:"selector-labels"`
+	LabelSchema    []SubjectTemplateLabelSchema   `json:"label-schema"`
 }
 
 // Heartbeat is the body of POST /api/agent/heartbeat.
