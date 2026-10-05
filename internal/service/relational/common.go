@@ -19,6 +19,10 @@ func (u *UUIDModel) BeforeCreate(tx *gorm.DB) (err error) {
 	return
 }
 
+// CCFOSCALNamespace is the namespace of CCF props that carry what OSCAL has no slot for
+// (abbreviated "ccf:" in the design), such as a derived subject's identity labels.
+const CCFOSCALNamespace = "https://compliance-framework.github.io/ns/oscal"
+
 type Prop oscaltypes113.Property
 
 func (p *Prop) UnmarshalOscal(data oscaltypes113.Property) *Prop {

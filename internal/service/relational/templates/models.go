@@ -111,6 +111,13 @@ type SubjectTemplate struct {
 
 	SourceMode string `json:"sourceMode" gorm:"type:text;not null;index"`
 
+	// DisplayPriority orders the subjects this template produces on evidence: higher
+	// first, ties by template name.
+	DisplayPriority int `json:"displayPriority" gorm:"not null;default:0"`
+	// ComponentType is the OSCAL component type written to the DefinedComponents this
+	// template materialises. Nil means the default (service).
+	ComponentType *string `json:"componentType" gorm:"type:text"`
+
 	SelectorLabels []SubjectTemplateSelectorLabel    `json:"selectorLabels,omitempty" gorm:"foreignKey:SubjectTemplateID;constraint:OnDelete:CASCADE"`
 	LabelSchema    []SubjectTemplateLabelSchemaField `json:"labelSchema,omitempty" gorm:"foreignKey:SubjectTemplateID;constraint:OnDelete:CASCADE"`
 }
@@ -143,10 +150,15 @@ func (SubjectTemplateLabelSchemaField) TableName() string {
 	return "subject_template_label_schema_fields"
 }
 
+// ComponentDefinitionIdentity maps a template identity to the DefinedComponent it
+// materialised. It is keyed per component definition (one per plugin), so two plugins
+// reporting the same identity labels each get their own DefinedComponent.
+// Existing databases are moved to this key by the raw SQL in service.MigrateUpWithConfig,
+// because AutoMigrate never changes an existing primary key.
 type ComponentDefinitionIdentity struct {
 	EntityType            string    `json:"entityType" gorm:"column:entity_type;type:text;primaryKey"`
+	ComponentDefinitionID uuid.UUID `json:"componentDefinitionId" gorm:"column:component_definition_id;type:uuid;primaryKey;index"`
 	IdentityHash          string    `json:"identityHash" gorm:"column:identity_hash;type:char(64);primaryKey"`
-	ComponentDefinitionID uuid.UUID `json:"componentDefinitionId" gorm:"column:component_definition_id;type:uuid;not null;index"`
 	DefinedComponentID    uuid.UUID `json:"definedComponentId" gorm:"column:defined_component_id;type:uuid;not null;index"`
 }
 

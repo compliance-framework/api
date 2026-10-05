@@ -377,6 +377,8 @@ func (s *StepTransitionService) storeStepEvidence(
 		Evidence: evidence,
 		Labels:   labels,
 		Signer:   signer,
+		// Signed by the user completing the step, but workflow evidence follows workflow rules.
+		Origin: evidencesvc.OriginWorkflow,
 	}); err != nil {
 		return fmt.Errorf("failed to create step evidence: %w", err)
 	}

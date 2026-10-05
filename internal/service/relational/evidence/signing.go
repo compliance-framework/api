@@ -212,9 +212,11 @@ type canonicalEvidence struct {
 	InventoryItems []oscalTypes_1_1_3.InventoryItem     `json:"inventory_items,omitempty"`
 	Components     []oscalTypes_1_1_3.SystemComponent   `json:"components,omitempty"`
 	Subjects       []oscalTypes_1_1_3.AssessmentSubject `json:"subjects,omitempty"`
-	Status         oscalTypes_1_1_3.ObjectiveStatus     `json:"status"`
-	BackMatter     *oscalTypes_1_1_3.BackMatter         `json:"back_matter,omitempty"`
-	Labels         []canonicalLabel                     `json:"labels,omitempty"`
+	// SubjectReferences is omitted when empty, so evidence signed before it existed still verifies.
+	SubjectReferences []oscalTypes_1_1_3.SubjectReference `json:"subject_references,omitempty"`
+	Status            oscalTypes_1_1_3.ObjectiveStatus    `json:"status"`
+	BackMatter        *oscalTypes_1_1_3.BackMatter        `json:"back_matter,omitempty"`
+	Labels            []canonicalLabel                    `json:"labels,omitempty"`
 }
 
 type canonicalLabel struct {
@@ -280,6 +282,11 @@ func canonicalizeEvidence(params CreateEvidenceParams) (*canonicalEvidence, erro
 		subjects = append(subjects, *osc)
 	}
 
+	subjectReferences := make([]oscalTypes_1_1_3.SubjectReference, 0, len(evidence.SubjectReferences))
+	for _, ref := range evidence.SubjectReferences {
+		subjectReferences = append(subjectReferences, ref.MarshalOscal())
+	}
+
 	origins := make([]oscalTypes_1_1_3.Origin, 0, len(evidence.Origins))
 	for _, origin := range evidence.Origins {
 		osc := oscalTypes_1_1_3.Origin(origin)
@@ -325,23 +332,24 @@ func canonicalizeEvidence(params CreateEvidenceParams) (*canonicalEvidence, erro
 
 	status := evidence.Status.Data()
 	canonical := &canonicalEvidence{
-		UUID:           evidence.UUID.String(),
-		Title:          evidence.Title,
-		Description:    evidence.Description,
-		Remarks:        evidence.Remarks,
-		Start:          formatTime(evidence.Start),
-		End:            formatTime(evidence.End),
-		Expires:        formatTimePtr(evidence.Expires),
-		Props:          sortByJSONValue(derefSlice(relational.ConvertPropsToOscal(evidence.Props))),
-		Links:          sortByJSONValue(derefSlice(relational.ConvertLinksToOscal(evidence.Links))),
-		Origins:        sortByJSONValue(origins),
-		Activities:     sortByJSONValue(activities),
-		InventoryItems: sortByJSONValue(inventoryItems),
-		Components:     sortByJSONValue(components),
-		Subjects:       sortByJSONValue(subjects),
-		Status:         normalizeObjectiveStatus(status),
-		BackMatter:     backMatter,
-		Labels:         sortByJSONValue(labels),
+		UUID:              evidence.UUID.String(),
+		Title:             evidence.Title,
+		Description:       evidence.Description,
+		Remarks:           evidence.Remarks,
+		Start:             formatTime(evidence.Start),
+		End:               formatTime(evidence.End),
+		Expires:           formatTimePtr(evidence.Expires),
+		Props:             sortByJSONValue(derefSlice(relational.ConvertPropsToOscal(evidence.Props))),
+		Links:             sortByJSONValue(derefSlice(relational.ConvertLinksToOscal(evidence.Links))),
+		Origins:           sortByJSONValue(origins),
+		Activities:        sortByJSONValue(activities),
+		InventoryItems:    sortByJSONValue(inventoryItems),
+		Components:        sortByJSONValue(components),
+		Subjects:          sortByJSONValue(subjects),
+		SubjectReferences: sortByJSONValue(subjectReferences),
+		Status:            normalizeObjectiveStatus(status),
+		BackMatter:        backMatter,
+		Labels:            sortByJSONValue(labels),
 	}
 	return canonical, nil
 }

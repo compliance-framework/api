@@ -48,6 +48,7 @@ type Config struct {
 	Authz                             *AuthzConfig
 	Playback                          *PlaybackConfig
 	Artifact                          *ArtifactConfig
+	EvidenceSubjects                  *EvidenceSubjectConfig
 }
 
 func NewConfig(logger *zap.SugaredLogger) *Config {
@@ -177,6 +178,11 @@ func NewConfig(logger *zap.SugaredLogger) *Config {
 		evidenceDefaultExpiryMonths = 1
 	}
 
+	evidenceSubjectConfig, err := LoadEvidenceSubjectConfig()
+	if err != nil {
+		logger.Fatalw("Invalid evidence subject config", "error", err)
+	}
+
 	// Digest configuration
 	digestEnabled := viper.GetBool("digest_enabled")
 	digestSchedule := viper.GetString("digest_schedule")
@@ -266,6 +272,7 @@ func NewConfig(logger *zap.SugaredLogger) *Config {
 		Slack:                             slackConfig,
 		Worker:                            workerConfig,
 		EvidenceDefaultExpiryMonths:       evidenceDefaultExpiryMonths,
+		EvidenceSubjects:                  evidenceSubjectConfig,
 		DigestEnabled:                     digestEnabled,
 		DigestSchedule:                    digestSchedule,
 		Workflow:                          workflowConfig,
