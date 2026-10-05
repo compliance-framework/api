@@ -49,6 +49,10 @@ type Client struct {
 
 	Playback *playbackClient
 
+	// AgentConfig fetches the remote configuration overlay and submits instance config reports.
+	// Both routes require agent credentials (Config.AgentAuth).
+	AgentConfig *agentConfigClient
+
 	Artifact *artifactClient
 }
 
@@ -70,6 +74,7 @@ func NewClient(client *http.Client, config *Config) *Client {
 	c.SubjectTemplate = &subjectTemplateClient{client: c}
 	c.Heartbeat = &heartbeatClient{client: c}
 	c.Playback = &playbackClient{client: c}
+	c.AgentConfig = &agentConfigClient{client: c}
 	c.Artifact = &artifactClient{client: c}
 
 	return c
@@ -100,8 +105,10 @@ func (c *Client) doRequest(ctx context.Context, method string, path string, body
 	return c.doRequestWithHeaders(ctx, method, path, body, nil)
 }
 
-// doRequestWithHeaders is doRequest with extra request headers, which override the default
-// Content-Type.
+// doRequestWithHeaders behaves like doRequest but also sends the given extra headers, which
+// override the default Content-Type. The same headers are re-sent on the single 401
+// token-refresh retry. Authorization is managed by the client; an Authorization entry in
+// headers is ignored.
 func (c *Client) doRequestWithHeaders(ctx context.Context, method string, path string, body []byte, headers http.Header) (*http.Response, error) {
 	if !c.hasAgentAuth() {
 		return c.executeRequest(ctx, method, path, body, "", headers)
@@ -170,6 +177,9 @@ func (c *Client) executeRequest(ctx context.Context, method string, path string,
 	return c.executeStreamingRequest(ctx, method, path, bytes.NewReader(body), authorization, headers)
 }
 
+// executeStreamingRequest sends a single request. Extra headers are applied after Content-Type
+// (so a caller may override it) but Authorization is always owned by the client: any
+// Authorization entry in headers is dropped.
 func (c *Client) executeStreamingRequest(ctx context.Context, method string, path string, body io.Reader, authorization string, headers http.Header) (*http.Response, error) {
 	path = strings.TrimPrefix(path, "/")
 	url := strings.TrimSuffix(c.config.BaseURL, "/")
@@ -179,7 +189,13 @@ func (c *Client) executeStreamingRequest(ctx context.Context, method string, pat
 	}
 	req.Header.Set("Content-Type", "application/json")
 	for name, values := range headers {
-		req.Header[http.CanonicalHeaderKey(name)] = values
+		if http.CanonicalHeaderKey(name) == "Authorization" {
+			continue
+		}
+		req.Header.Del(name)
+		for _, v := range values {
+			req.Header.Add(name, v)
+		}
 	}
 	if authorization != "" {
 		req.Header.Set("Authorization", authorization)
