@@ -136,4 +136,10 @@ const (
 	ActionTrigger   = "trigger"
 	ActionExport    = "export"
 	ActionSubscribe = "subscribe"
+
+	// Agent remote configuration (resource agent). ActionConfigure writes an agent's
+	// configuration overlay; ActionSync is the agent fetching its overlay and reporting.
+	ActionRegister  = "register"
+	ActionConfigure = "configure"
+	ActionSync      = "sync"
 )

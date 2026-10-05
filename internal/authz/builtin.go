@@ -21,8 +21,9 @@ func init() {
 
 // Builtin is the default, in-process PDP. It reproduces CCF's pre-authz access rules with
 // zero behavior change: admin resources require SSO admin-group membership (password
-// users are treated as super admins), and every other resource is allowed once the
-// request is authenticated — the authn middleware having already enforced authentication
+// users are treated as super admins), the agent resource requires the same admin check for
+// users (agent service accounts may register, ingest and sync; anonymous is denied; R39), and every other
+// resource is allowed once the request is authenticated — the authn middleware having already enforced authentication
 // and any public-endpoint policy before the PEP runs.
 //
 // In Phase 1 the builtin driver resolves SSO facts itself (it holds db + config), acting
@@ -45,10 +46,27 @@ func NewBuiltin(db *gorm.DB, cfg *config.Config, logger *zap.SugaredLogger) *Bui
 }
 
 // Evaluate implements PDP.
-func (b *Builtin) Evaluate(ctx context.Context, s Subject, _ string, r Resource, _ map[string]any) (Decision, error) {
+func (b *Builtin) Evaluate(ctx context.Context, s Subject, action string, r Resource, _ map[string]any) (Decision, error) {
 	switch r.Type {
 	case ResourceAdmin:
 		return b.evaluateAdmin(ctx, s)
+	case ResourceAgent:
+		// Agent configuration can push plugins and policies to hosts, so under builtin a
+		// user needs the admin check for every agent action (parity with /admin/agents,
+		// R39). Agent service accounts may only register, ingest and sync (parity with
+		// Cedar's agent role); anonymous subjects are denied.
+		switch s.Type {
+		case "agent":
+			switch action {
+			case ActionRegister, ActionIngest, ActionSync:
+				return Decision{Allow: true, Reason: "builtin: agent service account"}, nil
+			}
+			return Decision{Allow: false, Reason: "builtin: agent service accounts may only register, ingest and sync on the agent resource"}, nil
+		case "user":
+			return b.evaluateAdmin(ctx, s)
+		default:
+			return Decision{Allow: false, Reason: "builtin: anonymous access to agent resource"}, nil
+		}
 	default:
 		// Phase 1: authenticated = allowed. The authn middleware already enforced
 		// authentication (and any public-endpoint policy) before the PEP runs, so any
@@ -60,7 +78,8 @@ func (b *Builtin) Evaluate(ctx context.Context, s Subject, _ string, r Resource,
 }
 
 // Evaluations implements PDP by evaluating each request independently, in order. Admin
-// decisions are memoized per subject for the batch: evaluateAdmin ignores the action and
+// decisions (resource admin, and resource agent for users) are memoized per subject for the
+// batch: evaluateAdmin ignores the action and
 // keys only on the subject, so a batch enumerating several admin.* actions (e.g.
 // /me/permissions) would otherwise repeat the same user + SSO-link DB lookups once per
 // action. The memo keeps the facts inside the builtin driver and preserves both ordering
@@ -71,7 +90,8 @@ func (b *Builtin) Evaluations(ctx context.Context, reqs []EvalRequest) ([]Decisi
 
 	out := make([]Decision, len(reqs))
 	for i, req := range reqs {
-		if req.Resource.Type == ResourceAdmin {
+		// Agent-resource requests from users resolve through the same admin check.
+		if req.Resource.Type == ResourceAdmin || (req.Resource.Type == ResourceAgent && req.Subject.Type == "user") {
 			key := adminKey{req.Subject.Type, req.Subject.ID}
 			if d, ok := adminMemo[key]; ok {
 				out[i] = d

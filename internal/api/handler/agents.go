@@ -72,16 +72,18 @@ func NewAgentHandler(sugar *zap.SugaredLogger, db *gorm.DB) *AgentHandler {
 	return &AgentHandler{sugar: sugar, db: db}
 }
 
-func (h *AgentHandler) Register(api *echo.Group) {
-	api.GET("", h.ListAgents)
-	api.POST("", h.CreateAgent)
-	api.GET("/:id", h.GetAgent)
-	api.PUT("/:id", h.UpdateAgent)
-	api.DELETE("/:id", h.DeleteAgent)
-	api.POST("/:id/keys", h.CreateAgentKey)
-	api.GET("/:id/keys", h.ListAgentKeys)
-	api.GET("/:id/keys/:keyId", h.GetAgentKey)
-	api.DELETE("/:id/keys/:keyId", h.DeleteAgentKey)
+// Register mounts the agent routes with per-route guards (R40): the list and get reads use
+// readGuard (agent:read), while writes and every key route use adminGuard (admin:manage).
+func (h *AgentHandler) Register(api *echo.Group, readGuard, adminGuard echo.MiddlewareFunc) {
+	api.GET("", h.ListAgents, readGuard)
+	api.GET("/:id", h.GetAgent, readGuard)
+	api.POST("", h.CreateAgent, adminGuard)
+	api.PUT("/:id", h.UpdateAgent, adminGuard)
+	api.DELETE("/:id", h.DeleteAgent, adminGuard)
+	api.POST("/:id/keys", h.CreateAgentKey, adminGuard)
+	api.GET("/:id/keys", h.ListAgentKeys, adminGuard)
+	api.GET("/:id/keys/:keyId", h.GetAgentKey, adminGuard)
+	api.DELETE("/:id/keys/:keyId", h.DeleteAgentKey, adminGuard)
 }
 
 func (h *AgentHandler) ListAgents(ctx echo.Context) error {

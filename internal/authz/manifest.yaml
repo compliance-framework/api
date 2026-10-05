@@ -26,7 +26,9 @@
 # or a BYO PDP. This file declares everything and ships the C0 role set, but does not wire
 # any of it into an engine on its own. The default `builtin` driver does NOT consume these
 # roles — it allows every authenticated non-admin request and only gates `admin` via SSO
-# groups (zero behavior change). The embedded Cedar engine (BCH-1316) DOES honor this C0 role
+# groups (zero behavior change), except the `agent` resource: users need the same admin
+# check there, agent service accounts may only register, ingest and sync, and anonymous is
+# denied (R39). The embedded Cedar engine (BCH-1316) DOES honor this C0 role
 # set; select it with `authz.driver: cedar` (see docs/authz-oss-cedar.md). C1/C2 stay
 # Enterprise/BYO.
 schemaVersion: 1
@@ -258,7 +260,9 @@ resources:
       is_active: bool
       is_locked: bool
   agent:
-    actions: [read, create, update, delete, register, ingest]
+    # configure gates writes of the agent's remote-configuration overlay; sync is the agent
+    # service account fetching its overlay and reporting its effective config.
+    actions: [read, create, update, delete, register, ingest, configure, sync]
     attributes:
       is_active: bool
   notification:
@@ -289,6 +293,11 @@ resources:
 # does not consume these roles; the cedar driver does. Operators may override or extend them
 # in their PAP. "*" means all resources / all actions.
 roles:
+  # viewer/auditor/contributor read agent configurations through "*": [read]. This is
+  # intended (R40/RA-21). Operators can narrow it with a Cedar `forbid`. Instance base/effective reports are redacted, and overlays are returned
+  # verbatim only to callers that also hold agent:configure; other agent:read holders get
+  # them redacted. Secrets still belong in ${env:NAME} placeholders, not literal overlay values.
+  #
   # Full access.
   admin:
     "*": ["*"]
@@ -356,7 +365,7 @@ roles:
   agent:
     evidence: [create]
     heartbeat: [ingest]
-    agent: [register, ingest]
+    agent: [register, ingest, sync]
     risk-template: [update]
     subject-template: [update]
     playback: [execute]
