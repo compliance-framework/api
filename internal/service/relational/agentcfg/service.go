@@ -796,6 +796,13 @@ func instancesWithKey(members []validationMember, key string) []uuid.UUID {
 	return ids
 }
 
+// validationRows loads the given columns of the ValidationBases set (findValidationSet).
+func (s *Service) validationRows(ctx context.Context, agentID uuid.UUID, columns []string) ([]relational.AgentInstance, error) {
+	var rows []relational.AgentInstance
+	err := s.findValidationSet(s.db.WithContext(ctx), agentID, s.now(), columns, &rows)
+	return rows, err
+}
+
 // Preview bounds (R14): a preview shows at most PreviewMaxInstances instances and decodes
 // at most PreviewMaxConfigBytes of reported base+effective config, so one agent credential
 // cannot make a single preview cost minutes of CPU by reporting many large instances.
@@ -806,8 +813,9 @@ const (
 
 // PreviewSet is what a preview works on.
 type PreviewSet struct {
-	// Validation is ValidationBases: the set a save validates against (R48), in full.
-	Validation []InstanceBase
+	// Validated is the size of the ValidationBases set, the instances a save validates
+	// against (R48). Their configs are not loaded: preview only shows them.
+	Validated int
 	// Instances are the instances the preview shows, each marked Validated when it is in
 	// Validation: the validated ones first, then the others, newest first, within
 	// PreviewMaxInstances and PreviewMaxConfigBytes.
@@ -816,17 +824,18 @@ type PreviewSet struct {
 	Omitted int64
 }
 
-// PreviewBases returns the validation set and the bounded list of instances with a
-// reported base (fresh and stale, flagged) a preview shows. Only the selected instances'
-// configs are loaded.
+// PreviewBases returns the size of the validation set and the bounded list of instances with
+// a reported base (fresh and stale, flagged) a preview shows. Only the selected instances'
+// configs are loaded; the validation set is read as instance ids only, so the cost stays
+// within PreviewMaxInstances and PreviewMaxConfigBytes however many instances validate.
 func (s *Service) PreviewBases(ctx context.Context, agentID uuid.UUID) (PreviewSet, error) {
-	validation, _, err := s.ValidationBases(ctx, agentID)
+	validation, err := s.validationRows(ctx, agentID, []string{"instance_id"})
 	if err != nil {
 		return PreviewSet{}, err
 	}
-	validated := map[uuid.UUID]bool{}
-	for _, b := range validation {
-		validated[b.Instance.InstanceID] = true
+	validated := make(map[uuid.UUID]bool, len(validation))
+	for _, row := range validation {
+		validated[row.InstanceID] = true
 	}
 
 	type candidate struct {
@@ -864,7 +873,7 @@ func (s *Service) PreviewBases(ctx context.Context, agentID uuid.UUID) (PreviewS
 		picked = append(picked, c.InstanceID)
 		budget -= c.ConfigSize
 	}
-	set := PreviewSet{Validation: validation, Omitted: int64(len(candidates) - len(picked))}
+	set := PreviewSet{Validated: len(validation), Omitted: int64(len(candidates) - len(picked))}
 	if len(picked) == 0 {
 		return set, nil
 	}

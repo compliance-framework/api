@@ -381,9 +381,11 @@ func (h *AgentConfigHandler) Preview(ctx echo.Context) error {
 		return h.internalError(ctx, "load instances", err)
 	}
 	// The validation set is what a save validates against (R48); none means standalone.
-	standalone := len(set.Validation) == 0
+	standalone := set.Validated == 0
 
-	result := validateCandidate(req.Overlay, set.Validation)
+	// Only the overlay is validated here: each previewed instance gets its own errors from
+	// previewInstance, so the validation set's bases are never loaded (preview bounds, R14).
+	result := validateCandidate(req.Overlay, nil)
 	resp := configPreviewResponse{
 		DesiredRevision:  desired,
 		Standalone:       standalone,

@@ -911,7 +911,7 @@ func (s *AgentCfgServiceIntegrationSuite) TestPreviewBases() {
 	set, err := s.svc.PreviewBases(s.ctx, f.agentID)
 	s.Require().NoError(err)
 	s.Zero(set.Omitted)
-	s.Len(set.Validation, 2)
+	s.Equal(2, set.Validated)
 	m := byInstance(set.Instances)
 	s.Require().Len(m, 4, "every instance with a base; base-less excluded")
 	s.NotContains(m, f.noBase)
@@ -956,13 +956,31 @@ func (s *AgentCfgServiceIntegrationSuite) TestPreviewBasesBounded() {
 
 	set, err := s.svc.PreviewBases(s.ctx, agentID)
 	s.Require().NoError(err)
-	s.Len(set.Validation, 1)
+	s.Equal(1, set.Validated)
 	s.Require().Len(set.Instances, agentcfg.PreviewMaxInstances)
 	s.EqualValues(6, set.Omitted)
 	s.Equal(validated, set.Instances[0].Instance.InstanceID, "validated instances first")
 	s.True(set.Instances[0].Validated)
 	s.Equal(others[0], set.Instances[1].Instance.InstanceID, "then newest first")
 	s.False(set.Instances[1].Validated)
+}
+
+// More validated (fresh apply-mode) instances than the preview bound: only the bound is
+// shown, every one still counts as validated, and the rest are omitted.
+func (s *AgentCfgServiceIntegrationSuite) TestPreviewBasesBoundsValidatedInstances() {
+	agentID := s.newAgent("preview-bounded-validated")
+	for i := range agentcfg.PreviewMaxInstances + 5 {
+		s.Require().NoError(s.reportAt(s.svc, s.now.Add(-time.Duration(i+1)*time.Second), agentID, uuid.New(), applyReport(agentconfig.ModeApplySafe, baseConfig)))
+	}
+
+	set, err := s.svc.PreviewBases(s.ctx, agentID)
+	s.Require().NoError(err)
+	s.Equal(agentcfg.PreviewMaxInstances+5, set.Validated)
+	s.Require().Len(set.Instances, agentcfg.PreviewMaxInstances)
+	s.EqualValues(5, set.Omitted)
+	for _, b := range set.Instances {
+		s.True(b.Validated)
+	}
 }
 
 func (s *AgentCfgServiceIntegrationSuite) TestDeleteInstancesForAgentKeepsRevisions() {
