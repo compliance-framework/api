@@ -21,6 +21,240 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
+        "/admin/agents/{id}/config": {
+            "get": {
+                "description": "Returns the current configuration revision (overlay as an RFC 7396 merge patch, snake_case). Revision 0 means no overlay. The ETag is the plain revision number; send it as If-Match when saving. The overlay is verbatim for callers that also hold agent:configure; for every other caller it is redacted like an instance report (secret-like keys and values become ••••), and it is redacted whenever that check cannot be evaluated. Prefer ${env:NAME} placeholders to literal secrets.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agent Configuration"
+                ],
+                "summary": "Get an agent's configuration overlay",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Agent ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-handler_agentConfigRevisionResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            },
+            "put": {
+                "description": "Creates the next configuration revision. Requires If-Match with the current revision (\"0\" for the first save): missing is 428, stale is 409 with current-revision. A semantically unchanged overlay returns 200 with the current revision and creates nothing. The overlay is validated on its own, and the merged config is validated against every fresh apply-mode instance's reported base (or the latest reported one); only errors the overlay introduces block (errors already present in the instance's own file are ignored, R59). Errors are a 422 with overlay and instances (errors plus non-blocking warnings) lists. Needs agent:configure.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agent Configuration"
+                ],
+                "summary": "Save an agent's configuration overlay",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Agent ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Current revision, e.g. \\",
+                        "name": "If-Match",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "description": "Overlay and optional comment",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.agentConfigPutRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-handler_agentConfigRevisionResponse"
+                        }
+                    },
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-handler_agentConfigRevisionResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "413": {
+                        "description": "Request Entity Too Large",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "415": {
+                        "description": "Unsupported Media Type",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "428": {
+                        "description": "Precondition Required",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/admin/agents/{id}/config/revisions/{rev}": {
+            "get": {
+                "description": "The overlay is verbatim for callers that also hold agent:configure and redacted (secret-like keys and values become ••••) for every other caller, as on GET config.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agent Configuration"
+                ],
+                "summary": "Get one configuration revision",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Agent ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Revision number",
+                        "name": "rev",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-handler_agentConfigRevisionResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
         "/admin/ai-diagnostics/runs": {
             "get": {
                 "description": "Lists dashboard suggestion runs across all SSPs, newest first, with optional status and SSP filters.",
@@ -36829,6 +37063,19 @@ const docTemplate = `{
                 }
             }
         },
+        "handler.GenericDataResponse-handler_agentConfigRevisionResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Wrapped response data",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/handler.agentConfigRevisionResponse"
+                        }
+                    ]
+                }
+            }
+        },
         "handler.GenericDataResponse-handler_bulkControlLinkResponse": {
             "type": "object",
             "properties": {
@@ -38820,6 +39067,47 @@ const docTemplate = `{
             "properties": {
                 "subject-id": {
                     "type": "string"
+                }
+            }
+        },
+        "handler.agentConfigPutRequest": {
+            "type": "object",
+            "properties": {
+                "comment": {
+                    "type": "string"
+                },
+                "overlay": {
+                    "type": "object"
+                }
+            }
+        },
+        "handler.agentConfigRevisionResponse": {
+            "type": "object",
+            "properties": {
+                "agent-id": {
+                    "type": "string"
+                },
+                "comment": {
+                    "type": "string"
+                },
+                "created-at": {
+                    "type": "string"
+                },
+                "created-by": {
+                    "type": "string"
+                },
+                "overlay": {
+                    "description": "omitted in lists",
+                    "type": "object"
+                },
+                "overlay-size": {
+                    "type": "integer"
+                },
+                "revert-of": {
+                    "type": "integer"
+                },
+                "revision": {
+                    "type": "integer"
                 }
             }
         },

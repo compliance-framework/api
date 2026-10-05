@@ -225,6 +225,13 @@ func RegisterHandlers(server *api.Server, logger *zap.SugaredLogger, db *gorm.DB
 	agentsGroup.Use(middleware.JWTMiddleware(config.JWTPublicKey))
 	agentHandler.Register(agentsGroup, agentGuard.Read(), pep.Authorize(authz.ResourceAdmin, authz.ActionManage))
 
+	// Admin agent-configuration routes, on their own group object so they inherit no group
+	// guard (same prefix; precedent /admin/users).
+	agentConfigHandler := NewAgentConfigHandler(logger, db, agentCfgSvc, pdp)
+	agentConfigGroup := server.API().Group("/admin/agents")
+	agentConfigGroup.Use(middleware.JWTMiddleware(config.JWTPublicKey))
+	agentConfigHandler.Register(agentConfigGroup, agentGuard)
+
 	// Agent-facing configuration sync: agent JWT only (strict — it ignores
 	// StrictDisablePublicAgentEndpoints) and agent:sync.
 	agentConfigSyncHandler := NewAgentConfigSyncHandler(logger, agentCfgSvc)
