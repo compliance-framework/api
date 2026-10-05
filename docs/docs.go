@@ -192,7 +192,7 @@ const docTemplate = `{
         },
         "/admin/agents/{id}/config/preview": {
             "post": {
-                "description": "Validates a candidate overlay without saving it and shows, per reporting instance (fresh and stale), the redacted effective config, its diff against the instance's current effective config, the classified changes and whether the agent would apply it. validated marks the instances a save validates against; only their errors block a save. errors are the problems the overlay introduces; warnings are problems already in the instance's own file (present in Merge(base, {})), which never block a save or force invalid-config (R59). Validation problems are returned in the 200 body; when the overlay itself is invalid (overlay-errors), instances is empty. Needs agent:configure.",
+                "description": "Validates a candidate overlay without saving it and shows, per reporting instance (fresh and stale), the redacted effective config, its diff against the instance's current effective config, the classified changes and whether the agent would apply it. validated marks the instances a save validates against; only their errors block a save. errors are the problems the overlay introduces; warnings are problems already in the instance's own file (present in Merge(base, {})), which never block a save or force invalid-config (R59). Validation problems are returned in the 200 body; when the overlay itself is invalid (overlay-errors), instances is empty. At most 50 instances and 16 MiB of reported config are previewed (validated instances first, then newest first); omitted-instances counts the rest. A save still validates against every validated instance. Needs agent:configure.",
                 "consumes": [
                     "application/json"
                 ],
@@ -3331,7 +3331,7 @@ const docTemplate = `{
         },
         "/agent/instances/{instanceId}/config-report": {
             "put": {
-                "description": "Stores the authenticated agent instance's config report: mode, applied/attempted revision, status (applied, rejected, failed or not-applicable; the server derives pending and unknown), the redacted base and effective configs (snake_case), the effective digest, plugins (with their agent-library version), unsafe changes, warnings and the normalized local remote_config block. The server re-redacts base and effective as a best effort, replaces error, warning messages, plugin sources and remote-config strings that contain a secret with ••••, and stores effective-digest as sent. Long warning messages and unsafe lists are truncated (truncated=true). A NUL character anywhere is a 400. Body limit 4 MiB. A 409 means the per-agent instance cap is reached; back off.",
+                "description": "Stores the authenticated agent instance's config report: mode, applied/attempted revision, status (applied, rejected, failed or not-applicable; the server derives pending and unknown), the redacted base and effective configs (snake_case), the effective digest, plugins (with their agent-library version), unsafe changes, warnings and the normalized local remote_config block. The server re-redacts base and effective as a best effort, replaces error, warning messages, plugin sources, unsafe change values and remote-config strings that contain a secret with ••••, and stores effective-digest as sent. Long warning messages and unsafe lists are truncated (truncated=true). A NUL character anywhere is a 400. Body limit 4 MiB. A 409 means the per-agent instance cap is reached; back off.",
                 "consumes": [
                     "application/json"
                 ],
@@ -39795,6 +39795,10 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/handler.instancePreview"
                     }
+                },
+                "omitted-instances": {
+                    "description": "OmittedInstances counts the instances with a reported base the preview bounds left\nout (at most agentcfg.PreviewMaxInstances instances and PreviewMaxConfigBytes of\nreported config; validated instances first, then newest first).",
+                    "type": "integer"
                 },
                 "overlay-errors": {
                     "type": "array",

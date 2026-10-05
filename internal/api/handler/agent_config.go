@@ -141,6 +141,10 @@ type configPreviewResponse struct {
 	Standalone      bool                     `json:"standalone"`
 	OverlayErrors   []agentconfig.FieldError `json:"overlay-errors"`
 	Instances       []instancePreview        `json:"instances"`
+	// OmittedInstances counts the instances with a reported base the preview bounds left
+	// out (at most agentcfg.PreviewMaxInstances instances and PreviewMaxConfigBytes of
+	// reported config; validated instances first, then newest first).
+	OmittedInstances int64 `json:"omitted-instances"`
 }
 
 type instancePreview struct {
@@ -394,7 +398,7 @@ func (h *AgentConfigHandler) save(ctx echo.Context, agent *relational.Agent, exp
 // Preview godoc
 //
 //	@Summary		Preview an agent configuration overlay
-//	@Description	Validates a candidate overlay without saving it and shows, per reporting instance (fresh and stale), the redacted effective config, its diff against the instance's current effective config, the classified changes and whether the agent would apply it. validated marks the instances a save validates against; only their errors block a save. errors are the problems the overlay introduces; warnings are problems already in the instance's own file (present in Merge(base, {})), which never block a save or force invalid-config (R59). Validation problems are returned in the 200 body; when the overlay itself is invalid (overlay-errors), instances is empty. Needs agent:configure.
+//	@Description	Validates a candidate overlay without saving it and shows, per reporting instance (fresh and stale), the redacted effective config, its diff against the instance's current effective config, the classified changes and whether the agent would apply it. validated marks the instances a save validates against; only their errors block a save. errors are the problems the overlay introduces; warnings are problems already in the instance's own file (present in Merge(base, {})), which never block a save or force invalid-config (R59). Validation problems are returned in the 200 body; when the overlay itself is invalid (overlay-errors), instances is empty. At most 50 instances and 16 MiB of reported config are previewed (validated instances first, then newest first); omitted-instances counts the rest. A save still validates against every validated instance. Needs agent:configure.
 //	@Tags			Agent Configuration
 //	@Accept			json
 //	@Produce		json
@@ -432,34 +436,28 @@ func (h *AgentConfigHandler) Preview(ctx echo.Context) error {
 	if err != nil {
 		return h.internalError(ctx, "load agent configuration", err)
 	}
-	previewBases, err := h.svc.PreviewBases(reqCtx, agentID)
+	set, err := h.svc.PreviewBases(reqCtx, agentID)
 	if err != nil {
 		return h.internalError(ctx, "load instances", err)
 	}
-	// PreviewBases marks the ValidationBases members; they are the set a save validates
-	// against (R48), and none means standalone.
-	var validation []agentcfg.InstanceBase
-	for _, b := range previewBases {
-		if b.Validated {
-			validation = append(validation, b)
-		}
-	}
-	standalone := len(validation) == 0
+	// The validation set is what a save validates against (R48); none means standalone.
+	standalone := len(set.Validation) == 0
 
-	result := validateCandidate(req.Overlay, validation)
+	result := validateCandidate(req.Overlay, set.Validation)
 	resp := configPreviewResponse{
-		DesiredRevision: desired,
-		Standalone:      standalone,
-		OverlayErrors:   nonNil(result.overlay),
-		Instances:       []instancePreview{},
+		DesiredRevision:  desired,
+		Standalone:       standalone,
+		OverlayErrors:    nonNil(result.overlay),
+		Instances:        []instancePreview{},
+		OmittedInstances: set.Omitted,
 	}
 	// An overlay that is invalid on its own (including over MaxOverlayBytes) is not
 	// previewed per instance: it cannot be saved, and the per-instance work is costly.
 	if len(result.overlay) > 0 {
 		return ctx.JSON(http.StatusOK, GenericDataResponse[configPreviewResponse]{Data: resp})
 	}
-	resp.Instances = make([]instancePreview, 0, len(previewBases))
-	for _, b := range previewBases {
+	resp.Instances = make([]instancePreview, 0, len(set.Instances))
+	for _, b := range set.Instances {
 		resp.Instances = append(resp.Instances, previewInstance(b, req.Overlay))
 	}
 	return ctx.JSON(http.StatusOK, GenericDataResponse[configPreviewResponse]{Data: resp})

@@ -200,8 +200,14 @@ func TestScrubReportText(t *testing.T) {
 		Mode:           agentconfig.ModeApplySafe,
 		TrustedSources: []string{"https://u:p@registry.example.com/*", "ghcr.io/compliance-framework/*"},
 	}
+	r.Unsafe = []agentconfig.Change{
+		{Path: "/plugins/a/source", Safety: agentconfig.Unsafe, Reason: agentconfig.ChangeReasonUntrustedSource, Value: "oci://u:hunter2@reg/x"},
+		{Path: "/plugins/b/source", Safety: agentconfig.Unsafe, Reason: agentconfig.ChangeReasonUntrustedSource, Value: "ghcr.io/evil/plugin:v1"},
+	}
 
 	assert.True(t, scrubReportText(&r))
+	assert.Equal(t, agentconfig.MaskedValue, r.Unsafe[0].Value)
+	assert.Equal(t, "ghcr.io/evil/plugin:v1", r.Unsafe[1].Value)
 	assert.Equal(t, agentconfig.MaskedValue, *r.Error)
 	assert.Equal(t, agentconfig.MaskedValue, r.Warnings[0].Message)
 	assert.Equal(t, "bad cron", r.Warnings[1].Message)

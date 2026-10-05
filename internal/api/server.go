@@ -48,6 +48,8 @@ func NewServer(ctx context.Context, s *zap.SugaredLogger, config *config.Config,
 			return nil
 		},
 	}))
+	// A handler panic becomes a 500 (logged above) instead of a dropped connection.
+	e.Use(middleware.Recover())
 	e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
 		AllowOrigins:     config.APIAllowedOrigins,
 		AllowHeaders:     []string{echo.HeaderOrigin, echo.HeaderContentType, echo.HeaderAccept, echo.HeaderAuthorization, "If-Match", "If-None-Match"},

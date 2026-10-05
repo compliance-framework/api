@@ -133,8 +133,11 @@ func TestClassify(t *testing.T) {
 		{name: "source trusted", overlay: `{"plugins":{"local-ssh":{"source":"` + srcSSHv2 + `"}}}`, rc: safe, want: []Change{{Path: "/plugins/local-ssh/source", Safety: Safe, Reason: ChangeReasonTrustedSource, Value: srcSSHv2}}},
 		{name: "source untrusted", overlay: `{"plugins":{"local-ssh":{"source":"` + srcUntrusted + `"}}}`, rc: safe, want: []Change{{Path: "/plugins/local-ssh/source", Safety: Unsafe, Reason: ChangeReasonUntrustedSource, Value: srcUntrusted}}},
 		{name: "source trust does not cross /", overlay: `{"plugins":{"local-ssh":{"source":"ghcr.io/compliance-framework/sub/p:v1"}}}`, rc: safe, want: []Change{{Path: "/plugins/local-ssh/source", Safety: Unsafe, Reason: ChangeReasonUntrustedSource, Value: "ghcr.io/compliance-framework/sub/p:v1"}}},
-		{name: "source already used by a disabled plugin", overlay: `{"plugins":{"local-ssh":{"source":"` + srcDisabled + `"}}}`, rc: safe, want: []Change{{Path: "/plugins/local-ssh/source", Safety: Safe, Reason: ChangeReasonAlreadyUsed, Value: srcDisabled}}},
-		{name: "source already used as a policy", overlay: `{"plugins":{"local-ssh":{"source":"` + srcLocalUsed + `"}}}`, rc: safe, want: []Change{{Path: "/plugins/local-ssh/source", Safety: Safe, Reason: ChangeReasonAlreadyUsed, Value: srcLocalUsed}}},
+		// A disabled plugin's sources are not already used: the host chose not to run them.
+		{name: "source used only by a disabled plugin", overlay: `{"plugins":{"local-ssh":{"source":"` + srcDisabled + `"}}}`, rc: safe, want: []Change{{Path: "/plugins/local-ssh/source", Safety: Unsafe, Reason: ChangeReasonUntrustedSource, Value: srcDisabled}}},
+		{name: "new plugin with a disabled plugin's source", overlay: `{"plugins":{"bad2":{"source":"` + srcDisabled + `"}}}`, rc: safe, want: []Change{{Path: "/plugins/bad2/source", Safety: Unsafe, Reason: ChangeReasonUntrustedSource, Value: srcDisabled}}},
+		{name: "source used only as a disabled plugin's policy", overlay: `{"plugins":{"local-ssh":{"source":"` + srcLocalUsed + `"}}}`, rc: safe, want: []Change{{Path: "/plugins/local-ssh/source", Safety: Forbidden, Reason: ChangeReasonLocalSourceNotAllowed, Value: srcLocalUsed}}},
+		{name: "source already used as a policy", overlay: `{"plugins":{"local-ssh":{"source":"` + srcPolicies + `"}}}`, rc: safe, want: []Change{{Path: "/plugins/local-ssh/source", Safety: Safe, Reason: ChangeReasonAlreadyUsed, Value: srcPolicies}}},
 		{name: "source local in apply_safe", overlay: `{"plugins":{"local-ssh":{"source":"` + srcLocalNew + `"}}}`, rc: testRC(ModeApplySafe, allowLocal), want: []Change{{Path: "/plugins/local-ssh/source", Safety: Forbidden, Reason: ChangeReasonLocalSourceNotAllowed, Value: srcLocalNew}}},
 		{name: "source local in apply_all without allow_local_sources", overlay: `{"plugins":{"local-ssh":{"source":"` + srcLocalNew + `"}}}`, rc: testRC(ModeApplyAll), want: []Change{{Path: "/plugins/local-ssh/source", Safety: Forbidden, Reason: ChangeReasonLocalSourceNotAllowed, Value: srcLocalNew}}},
 		{name: "source local in apply_all with allow_local_sources", overlay: `{"plugins":{"local-ssh":{"source":"` + srcLocalNew + `"}}}`, rc: testRC(ModeApplyAll, allowLocal), want: []Change{{Path: "/plugins/local-ssh/source", Safety: Unsafe, Reason: ChangeReasonNewLocalSource, Value: srcLocalNew}}},
@@ -147,7 +150,7 @@ func TestClassify(t *testing.T) {
 			overlay: `{"plugins":{"local-ssh":{"policies":["` + srcUntrusted + `","ghcr.io/compliance-framework/extra:v1","` + srcLocalUsed + `"]}}}`,
 			rc:      safe,
 			want: []Change{
-				{Path: "/plugins/local-ssh/policies", Safety: Safe, Reason: ChangeReasonAlreadyUsed, Value: srcLocalUsed},
+				{Path: "/plugins/local-ssh/policies", Safety: Forbidden, Reason: ChangeReasonLocalSourceNotAllowed, Value: srcLocalUsed},
 				{Path: "/plugins/local-ssh/policies", Safety: Safe, Reason: ChangeReasonTrustedSource, Value: "ghcr.io/compliance-framework/extra:v1"},
 				{Path: "/plugins/local-ssh/policies", Safety: Unsafe, Reason: ChangeReasonUntrustedSource, Value: srcUntrusted},
 			},

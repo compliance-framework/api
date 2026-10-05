@@ -454,6 +454,9 @@ func (s *AgentConfigSyncIntegrationSuite) TestPutReportScrubsFreeText() {
 		"mode":            agentconfig.ModeApplySafe,
 		"trusted_sources": []string{"https://u:hunter2@registry.example.com/*"},
 	}
+	body["unsafe"] = []map[string]any{
+		{"path": "/plugins/x/source", "safety": "unsafe", "reason": agentconfig.ChangeReasonUntrustedSource, "value": "oci://u:hunter2@reg/x"},
+	}
 
 	rec := s.putReport(s.server, a.token, instanceID.String(), body, nil)
 	s.Require().Equal(http.StatusNoContent, rec.Code, rec.Body.String())
@@ -462,7 +465,7 @@ func (s *AgentConfigSyncIntegrationSuite) TestPutReportScrubsFreeText() {
 	s.Require().True(ok)
 	s.Require().NotNil(row.ApplyError)
 	s.Equal(agentconfig.MaskedValue, *row.ApplyError)
-	for name, raw := range map[string][]byte{"warnings": row.Warnings, "plugins": row.Plugins, "remote-config": row.RemoteConfig} {
+	for name, raw := range map[string][]byte{"warnings": row.Warnings, "plugins": row.Plugins, "remote-config": row.RemoteConfig, "unsafe": row.UnsafeChanges} {
 		s.NotContains(string(raw), "hunter2", name)
 	}
 	var warnings []agentconfig.FieldError

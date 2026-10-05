@@ -129,7 +129,7 @@ func (h *AgentConfigSyncHandler) GetConfig(ctx echo.Context) error {
 // PutReport godoc
 //
 //	@Summary		Report this instance's effective configuration
-//	@Description	Stores the authenticated agent instance's config report: mode, applied/attempted revision, status (applied, rejected, failed or not-applicable; the server derives pending and unknown), the redacted base and effective configs (snake_case), the effective digest, plugins (with their agent-library version), unsafe changes, warnings and the normalized local remote_config block. The server re-redacts base and effective as a best effort, replaces error, warning messages, plugin sources and remote-config strings that contain a secret with ••••, and stores effective-digest as sent. Long warning messages and unsafe lists are truncated (truncated=true). A NUL character anywhere is a 400. Body limit 4 MiB. A 409 means the per-agent instance cap is reached; back off.
+//	@Description	Stores the authenticated agent instance's config report: mode, applied/attempted revision, status (applied, rejected, failed or not-applicable; the server derives pending and unknown), the redacted base and effective configs (snake_case), the effective digest, plugins (with their agent-library version), unsafe changes, warnings and the normalized local remote_config block. The server re-redacts base and effective as a best effort, replaces error, warning messages, plugin sources, unsafe change values and remote-config strings that contain a secret with ••••, and stores effective-digest as sent. Long warning messages and unsafe lists are truncated (truncated=true). A NUL character anywhere is a 400. Body limit 4 MiB. A 409 means the per-agent instance cap is reached; back off.
 //	@Tags			Agents
 //	@Accept			json
 //	@Param			instanceId	path	string				true	"Agent instance ID (UUID)"
@@ -204,8 +204,9 @@ func (h *AgentConfigSyncHandler) PutReport(ctx echo.Context) error {
 }
 
 // scrubReportText masks the free-text fields of a report that contain a secret by content
-// (agentconfig.ScrubSecretText): error, warning messages, plugin sources and the strings of
-// remote-config. It reports whether anything was masked.
+// (agentconfig.ScrubSecretText): error, warning messages, plugin sources, unsafe change
+// values (a source or env name) and the strings of remote-config. It reports whether
+// anything was masked.
 func scrubReportText(r *agentconfig.Report) bool {
 	scrubbed := false
 	scrub := func(s *string) {
@@ -222,6 +223,9 @@ func scrubReportText(r *agentconfig.Report) bool {
 	}
 	for i := range r.Plugins {
 		scrub(&r.Plugins[i].Source)
+	}
+	for i := range r.Unsafe {
+		scrub(&r.Unsafe[i].Value)
 	}
 	if rc := r.RemoteConfig; rc != nil {
 		scrub(&rc.Mode)

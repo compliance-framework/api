@@ -682,7 +682,7 @@ func (s *AgentConfigAdminIntegrationSuite) TestPreviewWillApply() {
 func (s *AgentConfigAdminIntegrationSuite) TestPreviewStandaloneAndSlices() {
 	rec := s.call(http.MethodPost, s.path("/config/preview"), acaPutBody(`{"verbosity":1}`))
 	s.Require().Equal(http.StatusOK, rec.Code, rec.Body.String())
-	s.JSONEq(`{"data":{"desired-revision":0,"standalone":true,"overlay-errors":[],"instances":[]}}`, rec.Body.String())
+	s.JSONEq(`{"data":{"desired-revision":0,"standalone":true,"overlay-errors":[],"instances":[],"omitted-instances":0}}`, rec.Body.String())
 
 	// An unchanged overlay on a fresh instance: every slice is [] rather than null.
 	s.report(*s.agent.ID, agentconfig.ModeApplySafe, nil)

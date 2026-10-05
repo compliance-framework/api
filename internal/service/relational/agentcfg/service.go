@@ -604,30 +604,98 @@ func (s *Service) ValidationBases(ctx context.Context, agentID uuid.UUID) ([]Ins
 	return bases, len(bases) == 0, nil
 }
 
-// PreviewBases returns every instance with a reported base (fresh and stale, flagged), each
-// marked Validated when it is in ValidationBases.
-func (s *Service) PreviewBases(ctx context.Context, agentID uuid.UUID) ([]InstanceBase, error) {
+// Preview bounds (R14): a preview shows at most PreviewMaxInstances instances and decodes
+// at most PreviewMaxConfigBytes of reported base+effective config, so one agent credential
+// cannot make a single preview cost minutes of CPU by reporting many large instances.
+const (
+	PreviewMaxInstances   = 50
+	PreviewMaxConfigBytes = 16 << 20
+)
+
+// PreviewSet is what a preview works on.
+type PreviewSet struct {
+	// Validation is ValidationBases: the set a save validates against (R48), in full.
+	Validation []InstanceBase
+	// Instances are the instances the preview shows, each marked Validated when it is in
+	// Validation: the validated ones first, then the others, newest first, within
+	// PreviewMaxInstances and PreviewMaxConfigBytes.
+	Instances []InstanceBase
+	// Omitted counts the instances with a reported base the bounds left out.
+	Omitted int64
+}
+
+// PreviewBases returns the validation set and the bounded list of instances with a
+// reported base (fresh and stale, flagged) a preview shows. Only the selected instances'
+// configs are loaded.
+func (s *Service) PreviewBases(ctx context.Context, agentID uuid.UUID) (PreviewSet, error) {
 	validation, _, err := s.ValidationBases(ctx, agentID)
 	if err != nil {
-		return nil, err
+		return PreviewSet{}, err
 	}
 	validated := map[uuid.UUID]bool{}
 	for _, b := range validation {
 		validated[b.Instance.InstanceID] = true
 	}
+
+	type candidate struct {
+		InstanceID uuid.UUID
+		ConfigSize int64
+	}
+	var candidates []candidate
+	if err := s.db.WithContext(ctx).
+		Model(&relational.AgentInstance{}).
+		Select("instance_id, octet_length(base_config::text) + COALESCE(octet_length(effective_config::text), 0) AS config_size").
+		Where("agent_id = ? AND base_config IS NOT NULL", agentID).
+		Order("last_seen_at DESC, instance_id").
+		Scan(&candidates).Error; err != nil {
+		return PreviewSet{}, err
+	}
+	// Validated instances first (their errors block a save), keeping newest-first order.
+	slices.SortStableFunc(candidates, func(a, b candidate) int {
+		switch {
+		case validated[a.InstanceID] == validated[b.InstanceID]:
+			return 0
+		case validated[a.InstanceID]:
+			return -1
+		default:
+			return 1
+		}
+	})
+	var (
+		picked []uuid.UUID
+		budget int64 = PreviewMaxConfigBytes
+	)
+	for _, c := range candidates {
+		if len(picked) == PreviewMaxInstances || (len(picked) > 0 && c.ConfigSize > budget) {
+			break
+		}
+		picked = append(picked, c.InstanceID)
+		budget -= c.ConfigSize
+	}
+	set := PreviewSet{Validation: validation, Omitted: int64(len(candidates) - len(picked))}
+	if len(picked) == 0 {
+		return set, nil
+	}
+
 	var rows []relational.AgentInstance
 	if err := s.db.WithContext(ctx).
 		Select(append(append([]string{}, baseColumns...), "effective_config")).
-		Where("agent_id = ? AND base_config IS NOT NULL", agentID).
-		Order("last_seen_at DESC, instance_id").
+		Where("agent_id = ? AND instance_id IN ?", agentID, picked).
 		Find(&rows).Error; err != nil {
-		return nil, err
+		return PreviewSet{}, err
 	}
-	bases := s.toBases(rows, s.now(), false)
-	for i := range bases {
-		bases[i].Validated = validated[bases[i].Instance.InstanceID]
+	order := make(map[uuid.UUID]int, len(picked))
+	for i, id := range picked {
+		order[id] = i
 	}
-	return bases, nil
+	slices.SortFunc(rows, func(a, b relational.AgentInstance) int {
+		return order[a.InstanceID] - order[b.InstanceID]
+	})
+	set.Instances = s.toBases(rows, s.now(), false)
+	for i := range set.Instances {
+		set.Instances[i].Validated = validated[set.Instances[i].Instance.InstanceID]
+	}
+	return set, nil
 }
 
 func (s *Service) toBases(rows []relational.AgentInstance, now time.Time, validated bool) []InstanceBase {

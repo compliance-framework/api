@@ -761,9 +761,11 @@ func (s *AgentCfgServiceIntegrationSuite) TestValidationBasesFallbackAndStandalo
 func (s *AgentCfgServiceIntegrationSuite) TestPreviewBases() {
 	f := s.seedValidationFixture()
 
-	bases, err := s.svc.PreviewBases(s.ctx, f.agentID)
+	set, err := s.svc.PreviewBases(s.ctx, f.agentID)
 	s.Require().NoError(err)
-	m := byInstance(bases)
+	s.Zero(set.Omitted)
+	s.Len(set.Validation, 2)
+	m := byInstance(set.Instances)
 	s.Require().Len(m, 4, "every instance with a base; base-less excluded")
 	s.NotContains(m, f.noBase)
 
@@ -781,14 +783,39 @@ func (s *AgentCfgServiceIntegrationSuite) TestPreviewBases() {
 	older, newer := uuid.New(), uuid.New()
 	s.Require().NoError(s.reportAt(s.svc, s.now.Add(-3*time.Hour), agentID, older, applyReport(agentconfig.ModeApplySafe, baseConfig)))
 	s.Require().NoError(s.reportAt(s.svc, s.now.Add(-2*time.Hour), agentID, newer, applyReport(agentconfig.ModeApplySafe, baseConfig)))
-	bases, err = s.svc.PreviewBases(s.ctx, agentID)
+	set, err = s.svc.PreviewBases(s.ctx, agentID)
 	s.Require().NoError(err)
+	bases := set.Instances
 	s.Require().Len(bases, 2)
 	s.Equal(newer, bases[0].Instance.InstanceID)
 	s.True(bases[0].Stale)
 	s.True(bases[0].Validated)
 	s.True(bases[1].Stale)
 	s.False(bases[1].Validated)
+}
+
+func (s *AgentCfgServiceIntegrationSuite) TestPreviewBasesBounded() {
+	agentID := s.newAgent("preview-bounded")
+	// The validated instance is older than every report-mode one, which are not validated
+	// and outnumber the preview bound.
+	validated := uuid.New()
+	s.Require().NoError(s.reportAt(s.svc, s.now.Add(-5*time.Minute), agentID, validated, applyReport(agentconfig.ModeApplySafe, baseConfig)))
+	var others []uuid.UUID
+	for i := range agentcfg.PreviewMaxInstances + 5 {
+		id := uuid.New()
+		others = append(others, id)
+		s.Require().NoError(s.reportAt(s.svc, s.now.Add(-time.Duration(i+1)*time.Second), agentID, id, applyReport(agentconfig.ModeReport, baseConfig)))
+	}
+
+	set, err := s.svc.PreviewBases(s.ctx, agentID)
+	s.Require().NoError(err)
+	s.Len(set.Validation, 1)
+	s.Require().Len(set.Instances, agentcfg.PreviewMaxInstances)
+	s.EqualValues(6, set.Omitted)
+	s.Equal(validated, set.Instances[0].Instance.InstanceID, "validated instances first")
+	s.True(set.Instances[0].Validated)
+	s.Equal(others[0], set.Instances[1].Instance.InstanceID, "then newest first")
+	s.False(set.Instances[1].Validated)
 }
 
 func (s *AgentCfgServiceIntegrationSuite) TestDeleteInstancesForAgentKeepsRevisions() {

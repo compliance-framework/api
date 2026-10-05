@@ -131,12 +131,13 @@ type classifier struct {
 	used map[string]bool
 }
 
-// usedSources is every plugin source and policy entry in the base, disabled plugins
-// included.
+// usedSources is every plugin source and policy entry of the base's enabled plugins. A
+// disabled plugin's sources do not count: the host chose not to run them, so pointing
+// another plugin at one is a new source, not an already-used one.
 func usedSources(base Config) map[string]bool {
 	used := map[string]bool{}
 	for _, p := range base.Plugins {
-		if p == nil {
+		if p == nil || !p.IsEnabled() {
 			continue
 		}
 		if p.Source != "" {
