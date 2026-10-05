@@ -2701,6 +2701,88 @@ const docTemplate = `{
                 }
             }
         },
+        "/agent/instances/{instanceId}/config-report": {
+            "put": {
+                "description": "Stores the authenticated agent instance's config report: mode, applied/attempted revision, status (applied, rejected, failed or not-applicable; the server derives pending and unknown), the redacted base and effective configs (snake_case), the effective digest, plugins (with their agent-library version), unsafe changes, warnings and the normalized local remote_config block. The server re-redacts base and effective as a best effort, replaces error, warning messages, plugin sources, unsafe change values and remote-config strings that contain a secret with ••••, and stores effective-digest as sent. Long warning messages and unsafe lists are truncated (truncated=true). A NUL character anywhere is a 400. Body limit 4 MiB. A 409 means the per-agent instance cap is reached; back off.",
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "Report this instance's effective configuration",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Agent instance ID (UUID)",
+                        "name": "instanceId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Config report",
+                        "name": "report",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/agentconfig.Report"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "413": {
+                        "description": "Request Entity Too Large",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "415": {
+                        "description": "Unsupported Media Type",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
         "/agent/risk-templates/batch": {
             "post": {
                 "description": "Reconcile the full set of risk templates for a (plugin-id, policy-package) scope.\nCreates, updates, and deletes templates atomically. Templates not present in the payload are always deleted.",
@@ -34384,6 +34466,42 @@ const docTemplate = `{
         }
     },
     "definitions": {
+        "agentconfig.Change": {
+            "type": "object",
+            "properties": {
+                "path": {
+                    "description": "RFC 6901 pointer",
+                    "type": "string"
+                },
+                "reason": {
+                    "type": "string"
+                },
+                "safety": {
+                    "$ref": "#/definitions/agentconfig.Safety"
+                },
+                "value": {
+                    "description": "the source / env name that triggered the class",
+                    "type": "string"
+                }
+            }
+        },
+        "agentconfig.FieldError": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "description": "stable machine code (R43), one of FieldCode*",
+                    "type": "string"
+                },
+                "message": {
+                    "description": "human text",
+                    "type": "string"
+                },
+                "path": {
+                    "description": "RFC 6901 pointer into the snake_case config (\"\" = root)",
+                    "type": "string"
+                }
+            }
+        },
         "agentconfig.OverlayDocument": {
             "type": "object",
             "properties": {
@@ -34398,6 +34516,143 @@ const docTemplate = `{
                     "type": "integer"
                 }
             }
+        },
+        "agentconfig.PluginReport": {
+            "type": "object",
+            "properties": {
+                "lib-version": {
+                    "description": "LibVersion is the version of github.com/compliance-framework/agent the plugin binary\nwas built with, from its Go build info. Empty when unknown: no build info, or a\nreplace or devel build.",
+                    "type": "string"
+                },
+                "name": {
+                    "description": "the plugin's key under plugins in the config",
+                    "type": "string"
+                },
+                "source": {
+                    "description": "the configured source",
+                    "type": "string"
+                }
+            }
+        },
+        "agentconfig.RemoteConfig": {
+            "type": "object",
+            "properties": {
+                "allow_local_sources": {
+                    "description": "default false",
+                    "type": "boolean"
+                },
+                "mode": {
+                    "description": "Mode is off, report, apply_safe or apply_all. Unset means report for an agent with\ncredentials (it reports but never applies), off without (see Normalize).",
+                    "type": "string"
+                },
+                "overridable_config_flags": {
+                    "description": "default []",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "poll_interval": {
+                    "type": "string"
+                },
+                "trusted_sources": {
+                    "description": "default []",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "agentconfig.Report": {
+            "type": "object",
+            "properties": {
+                "agent-version": {
+                    "description": "\u003c= 64",
+                    "type": "string"
+                },
+                "applied-revision": {
+                    "type": "integer"
+                },
+                "attempted-revision": {
+                    "type": "integer"
+                },
+                "base": {
+                    "type": "object"
+                },
+                "daemon": {
+                    "description": "false = one-shot run; pruned after 24h (R10, R37)",
+                    "type": "boolean"
+                },
+                "effective": {
+                    "type": "object"
+                },
+                "effective-digest": {
+                    "type": "string"
+                },
+                "error": {
+                    "description": "\u003c= 8 KiB, truncated server-side",
+                    "type": "string"
+                },
+                "hostname": {
+                    "description": "\u003c= 255",
+                    "type": "string"
+                },
+                "mode": {
+                    "type": "string"
+                },
+                "plugins": {
+                    "description": "Plugins are the instance's plugins and the agent library each was built with (R76),\nso the UI can show policy compatibility before a save. Older agents omit it.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/agentconfig.PluginReport"
+                    }
+                },
+                "reason": {
+                    "type": "string"
+                },
+                "remote-config": {
+                    "description": "normalized; snake_case inside",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/agentconfig.RemoteConfig"
+                        }
+                    ]
+                },
+                "status": {
+                    "type": "string"
+                },
+                "truncated": {
+                    "description": "agent dropped/trimmed parts to fit MaxReportBytes (R10)",
+                    "type": "boolean"
+                },
+                "unsafe": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/agentconfig.Change"
+                    }
+                },
+                "warnings": {
+                    "description": "R41: tolerated file-origin problems",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/agentconfig.FieldError"
+                    }
+                }
+            }
+        },
+        "agentconfig.Safety": {
+            "type": "string",
+            "enum": [
+                "safe",
+                "unsafe",
+                "forbidden"
+            ],
+            "x-enum-varnames": [
+                "Safe",
+                "Unsafe",
+                "Forbidden"
+            ]
         },
         "api.Error": {
             "type": "object",
