@@ -10,6 +10,7 @@ import (
 
 	"github.com/compliance-framework/api/internal/api"
 	"github.com/compliance-framework/api/internal/service/relational"
+	"github.com/compliance-framework/api/internal/service/relational/agentcfg"
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 	"go.uber.org/zap"
@@ -202,6 +203,14 @@ func (h *AgentHandler) DeleteAgent(ctx echo.Context) error {
 		if err := tx.Model(&relational.AgentServiceAccountKey{}).
 			Where("agent_id = ? AND revoked_at IS NULL", *agent.ID).
 			Update("revoked_at", now).Error; err != nil {
+			return err
+		}
+
+		if err := agentcfg.DeleteInstancesForAgent(tx, *agent.ID); err != nil {
+			return err
+		}
+
+		if err := agentcfg.DeleteRevisionsForAgent(tx, *agent.ID); err != nil {
 			return err
 		}
 
