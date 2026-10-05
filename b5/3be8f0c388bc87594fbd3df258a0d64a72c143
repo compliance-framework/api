@@ -1,0 +1,4 @@
+lisa-design:
+- Owner decision 2026-10-05 (supersedes R57 "overlays returned verbatim to agent:read"): GET /admin/agents/:id/config and GET …/config/revisions/:rev return the overlay redacted (agentconfig.RedactDocument rules) for callers WITHOUT agent:configure; callers with agent:configure (editors) still get it verbatim so the UI can edit. Deleting an agent also deletes its config revisions (purge path for leaked secrets).
+- Owner decision 2026-10-05 (apply_safe classification): re-enabling a plugin (disabled in the base, enabled in the effective config) is Unsafe unless its source is trusted (MatchTrustedSource). policy_data, policy_behavior, labels, schedule and plugin removal stay Safe under apply_safe by design (owner wants policy_data overlays to apply under apply_safe); documented.
+- Owner decision 2026-10-05: preview requires agent:configure (the UI only previews for editors) and skips per-instance work when the overlay itself is invalid.
