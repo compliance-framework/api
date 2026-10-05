@@ -2,6 +2,7 @@ package agentconfig
 
 import (
 	"bytes"
+	"cmp"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -363,4 +364,24 @@ func deepCopyAny(v any) any {
 	default:
 		return v
 	}
+}
+
+// jsonEqual reports whether two decoded JSON values are equal (by canonical encoding).
+func jsonEqual(a, b any) bool {
+	ea, errA := encodeCanonical(a)
+	eb, errB := encodeCanonical(b)
+	if errA != nil || errB != nil {
+		return false
+	}
+	return bytes.Equal(ea, eb)
+}
+
+// sortedKeys returns the keys of m in ascending order.
+func sortedKeys[K cmp.Ordered, V any](m map[K]V) []K {
+	keys := make([]K, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	slices.Sort(keys)
+	return keys
 }

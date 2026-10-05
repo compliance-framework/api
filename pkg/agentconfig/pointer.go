@@ -44,3 +44,8 @@ func SplitPointer(ptr string) []string {
 	}
 	return parts
 }
+
+// appendPointer appends one unescaped segment to an existing pointer.
+func appendPointer(ptr string, segment string) string {
+	return ptr + "/" + EscapePointerToken(segment)
+}
