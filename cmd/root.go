@@ -99,6 +99,12 @@ func bindEnvironmentVariables() {
 	viper.MustBindEnv("playback_timeout")
 	viper.MustBindEnv("playback_max_bytes")
 	viper.MustBindEnv("playback_max_concurrent")
+	viper.MustBindEnv("agent_instance_stale_after")
+	viper.MustBindEnv("agent_instance_retention")
+	viper.MustBindEnv("agent_instance_oneshot_retention")
+	viper.MustBindEnv("agent_instance_prune_enabled")
+	viper.MustBindEnv("agent_instance_prune_schedule")
+	viper.MustBindEnv("agent_max_instances")
 	viper.MustBindEnv("artifact_max_bytes")
 	viper.MustBindEnv("artifact_max_concurrent")
 }
