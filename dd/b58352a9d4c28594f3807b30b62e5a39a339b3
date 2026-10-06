@@ -1,0 +1,2 @@
+lisa-addressed:
+- PR #475 CORE-DUP-001: removed agentcfg Default* constants; Settings.WithDefaults reads config.DefaultAgentsConfig() (single source). Prune schedule fallback follows on #477.
