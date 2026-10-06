@@ -1,0 +1,2 @@
+lisa-addressed:
+fp 2f73ca415c2b (should-fix, docs part on #483): added docs/agent-remote-config.md (routes + status codes, CCF_AGENT_* table from internal/config/agents.go, modes/classification, host remote_config settings, instance cap/pruning/report bounds, ETag flows, redaction visibility), describing the code after this round's fixes.
