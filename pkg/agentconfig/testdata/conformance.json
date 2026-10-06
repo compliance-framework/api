@@ -1,0 +1,432 @@
+{
+  "_comment": "Expected results of the pkg/agentconfig rules that clients re-implement (the UI's glob.ts, cron5.ts, field-access.ts, validation.ts). Generated from the API's own test tables (remoteconfig_test.go, sources_test.go incl. TestNamePatterns, cron_test.go, classify_test.go), every expected value computed by the real functions. Do not edit: regenerate with go test ./pkg/agentconfig -run TestConformanceGolden -update.",
+  "_source": "compliance-framework/api pkg/agentconfig/testdata/conformance.json",
+  "trustedSources": {
+    "patterns": [
+      "ghcr.io/compliance-framework/*",
+      "docker.io/acme/plugin-?:v1",
+      "[bad"
+    ],
+    "cases": [
+      [
+        "ghcr.io/compliance-framework/plugin-local-ssh:v1.0.0",
+        true
+      ],
+      [
+        "ghcr.io/compliance-framework/sub/plugin:v1",
+        false
+      ],
+      [
+        "ghcr.io/Compliance-Framework/plugin:v1",
+        false
+      ],
+      [
+        "ghcr.io/compliance-framework",
+        false
+      ],
+      [
+        "ghcr.io/other/plugin:v1",
+        false
+      ],
+      [
+        "docker.io/acme/plugin-a:v1",
+        true
+      ],
+      [
+        "docker.io/acme/plugin-ab:v1",
+        false
+      ],
+      [
+        "",
+        false
+      ]
+    ],
+    "extra": [
+      {
+        "patterns": [],
+        "source": "ghcr.io/x/y:v1",
+        "want": false
+      },
+      {
+        "patterns": [
+          "*/*/*"
+        ],
+        "source": "ghcr.io/x/y:v1",
+        "want": true
+      }
+    ]
+  },
+  "overridableConfigFlags": [
+    {
+      "name": "default empty",
+      "flags": [],
+      "plugin": "local-ssh",
+      "key": "port",
+      "want": false
+    },
+    {
+      "name": "star",
+      "flags": [
+        "*"
+      ],
+      "plugin": "local-ssh",
+      "key": "port",
+      "want": true
+    },
+    {
+      "name": "star any plugin",
+      "flags": [
+        "*"
+      ],
+      "plugin": "other",
+      "key": "anything",
+      "want": true
+    },
+    {
+      "name": "scoped match",
+      "flags": [
+        "local-ssh:port"
+      ],
+      "plugin": "local-ssh",
+      "key": "port",
+      "want": true
+    },
+    {
+      "name": "scoped other key",
+      "flags": [
+        "local-ssh:port"
+      ],
+      "plugin": "local-ssh",
+      "key": "host",
+      "want": false
+    },
+    {
+      "name": "scoped other plugin",
+      "flags": [
+        "local-ssh:port"
+      ],
+      "plugin": "remote-ssh",
+      "key": "port",
+      "want": false
+    },
+    {
+      "name": "unscoped key any plugin",
+      "flags": [
+        "port"
+      ],
+      "plugin": "remote-ssh",
+      "key": "port",
+      "want": true
+    },
+    {
+      "name": "plugin glob",
+      "flags": [
+        "*-ssh:port"
+      ],
+      "plugin": "remote-ssh",
+      "key": "port",
+      "want": true
+    },
+    {
+      "name": "key glob",
+      "flags": [
+        "local-ssh:tls_*"
+      ],
+      "plugin": "local-ssh",
+      "key": "tls_verify",
+      "want": true
+    },
+    {
+      "name": "case-sensitive",
+      "flags": [
+        "local-ssh:Port"
+      ],
+      "plugin": "local-ssh",
+      "key": "port",
+      "want": false
+    },
+    {
+      "name": "split at first colon",
+      "flags": [
+        "p*:a:b"
+      ],
+      "plugin": "p1",
+      "key": "a:b",
+      "want": true
+    },
+    {
+      "name": "split at first colon, plugin side",
+      "flags": [
+        "p*:a:b"
+      ],
+      "plugin": "p1:a",
+      "key": "b",
+      "want": false
+    },
+    {
+      "name": "bad glob skipped",
+      "flags": [
+        "[x:port",
+        "local-ssh:[",
+        "local-ssh:port"
+      ],
+      "plugin": "local-ssh",
+      "key": "port",
+      "want": true
+    },
+    {
+      "name": "only bad globs",
+      "flags": [
+        "[x:port",
+        "local-ssh:["
+      ],
+      "plugin": "local-ssh",
+      "key": "port",
+      "want": false
+    }
+  ],
+  "sourceKinds": [
+    [
+      "ghcr.io/compliance-framework/plugin-local-ssh:v1.0.0",
+      "oci"
+    ],
+    [
+      "ghcr.io/compliance-framework/plugin-local-ssh-policies:latest",
+      "oci"
+    ],
+    [
+      "docker.io/library/alpine:3.20",
+      "oci"
+    ],
+    [
+      "localhost:5000/plugin:v1",
+      "oci"
+    ],
+    [
+      "registry.example.com:5000/a/b/c:1.2.3",
+      "oci"
+    ],
+    [
+      "ghcr.io/x/y",
+      "local"
+    ],
+    [
+      "ghcr.io/X/Y:v1",
+      "local"
+    ],
+    [
+      "ghcr.io/x/y:",
+      "local"
+    ],
+    [
+      "./plugins/foo",
+      "local"
+    ],
+    [
+      "/opt/plugin",
+      "local"
+    ],
+    [
+      "plugin",
+      "local"
+    ],
+    [
+      "",
+      "local"
+    ],
+    [
+      "inline:ssh",
+      "local"
+    ],
+    [
+      "foo%.com/acme/plugin:v1",
+      "local"
+    ],
+    [
+      "foo%41.com/acme/plugin:v1",
+      "local"
+    ]
+  ],
+  "schedules": {
+    "valid": [
+      "TZ=UTC 0 * * * *",
+      "CRON_TZ=Europe/London 0 * * * *",
+      "*/5 * * * *",
+      "@hourly"
+    ],
+    "invalid": [
+      "TZ=UTC",
+      "CRON_TZ=UTC",
+      "TZ=",
+      "CRON_TZ="
+    ]
+  },
+  "applySafe": {
+    "_comment": "classify_test.go applySafeCases: whether an apply_safe host applies a change at `path` (Classify + WillApply over the case's probe overlays), for the field-level prediction of field-access.ts. `state` is fieldAccess over that one host: editable (every probe applies), restricted (some do), readonly (none do).",
+    "cases": [
+      {
+        "name": "re-enable, untrusted source",
+        "trusted": [],
+        "file": {
+          "x": {
+            "enabled": false,
+            "source": "ghcr.io/other/plugin-disabled:v1"
+          }
+        },
+        "overlay": null,
+        "path": "/plugins/x/enabled",
+        "state": "readonly"
+      },
+      {
+        "name": "re-enable, trusted source",
+        "trusted": [
+          "ghcr.io/trusted/*"
+        ],
+        "file": {
+          "x": {
+            "enabled": false,
+            "source": "ghcr.io/trusted/p:v1"
+          }
+        },
+        "overlay": null,
+        "path": "/plugins/x/enabled",
+        "state": "editable"
+      },
+      {
+        "name": "re-enable keeps untrusted and local policies (TestClassifyReenableKeptParts)",
+        "trusted": [
+          "ghcr.io/trusted/*"
+        ],
+        "file": {
+          "x": {
+            "enabled": false,
+            "source": "ghcr.io/trusted/p:v1",
+            "policies": [
+              "ghcr.io/evil/pol:v9",
+              "/tmp/local-policy"
+            ]
+          }
+        },
+        "overlay": null,
+        "path": "/plugins/x/enabled",
+        "state": "readonly"
+      },
+      {
+        "name": "re-enable keeps ${env:} references (TestClassifyReenableKeptParts)",
+        "trusted": [
+          "ghcr.io/trusted/*"
+        ],
+        "file": {
+          "x": {
+            "enabled": false,
+            "source": "ghcr.io/trusted/p:v1",
+            "config": {
+              "token": "${env:DB_TOKEN}"
+            }
+          }
+        },
+        "overlay": null,
+        "path": "/plugins/x/enabled",
+        "state": "readonly"
+      },
+      {
+        "name": "re-enable keeps a local plugin source (fp 2db275ed2d26)",
+        "trusted": [
+          "ghcr.io/trusted/*"
+        ],
+        "file": {
+          "x": {
+            "enabled": false,
+            "source": "./bin/local-plugin"
+          }
+        },
+        "overlay": null,
+        "path": "/plugins/x/enabled",
+        "state": "readonly"
+      },
+      {
+        "name": "disabling is data-only",
+        "trusted": [],
+        "file": {
+          "x": {
+            "source": "ghcr.io/other/p:v1"
+          }
+        },
+        "overlay": null,
+        "path": "/plugins/x/enabled",
+        "state": "editable"
+      },
+      {
+        "name": "a new source needs trusted_sources, but reusing one is already-used",
+        "trusted": [],
+        "file": {
+          "x": {
+            "source": "ghcr.io/a/x:v1"
+          },
+          "y": {
+            "source": "ghcr.io/a/y:v1"
+          }
+        },
+        "overlay": null,
+        "path": "/plugins/x/source",
+        "state": "restricted"
+      },
+      {
+        "name": "a disabled plugin's sources are not already used",
+        "trusted": [],
+        "file": {
+          "x": {
+            "enabled": false,
+            "source": "ghcr.io/a/x:v1"
+          }
+        },
+        "overlay": null,
+        "path": "/plugins/x/source",
+        "state": "readonly"
+      },
+      {
+        "name": "config key needs an overridable_config_flags entry",
+        "trusted": [],
+        "file": {
+          "local-ssh": {
+            "source": "s"
+          }
+        },
+        "overlay": null,
+        "path": "/plugins/local-ssh/config/host",
+        "state": "readonly"
+      },
+      {
+        "name": "data-only fields",
+        "trusted": [],
+        "file": {
+          "local-ssh": {
+            "source": "s"
+          }
+        },
+        "overlay": null,
+        "path": "/plugins/local-ssh/policy_data/threshold",
+        "state": "editable"
+      }
+    ]
+  },
+  "pluginNames": {
+    "valid": [
+      "a",
+      "0",
+      "local-ssh",
+      "ssh_tuned",
+      "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijk"
+    ],
+    "invalid": [
+      "",
+      "GitHub",
+      "Ssh.Tuned",
+      "-a",
+      "_a",
+      "a.b",
+      "a b",
+      "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijkl"
+    ]
+  }
+}
