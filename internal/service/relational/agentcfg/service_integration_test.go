@@ -1055,3 +1055,19 @@ func (s *AgentCfgServiceIntegrationSuite) TestPruneInstances() {
 	s.Require().NoError(err)
 	s.Equal(int64(0), deleted, "idempotent")
 }
+
+func (s *AgentCfgServiceIntegrationSuite) TestCurrentHead() {
+	agentID := s.newAgent("current-head")
+	head, err := s.svc.CurrentHead(s.ctx, agentID)
+	s.Require().NoError(err)
+	s.Nil(head, "no revision yet")
+
+	s.createRevision(agentID, 0, `{"verbosity":1}`)
+	second := s.createRevision(agentID, 1, `{"verbosity":2}`)
+	head, err = s.svc.CurrentHead(s.ctx, agentID)
+	s.Require().NoError(err)
+	s.Require().NotNil(head)
+	s.Equal(*second.ID, head.ID)
+	s.Equal(int64(2), head.Revision)
+	s.True(second.CreatedAt.Equal(head.CreatedAt))
+}

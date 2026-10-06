@@ -77,8 +77,29 @@ func (h *AgentConfigSyncHandler) GetConfig(ctx echo.Context) error {
 		return ctx.JSON(http.StatusUnauthorized, api.NewError(errors.New("agent authentication required")))
 	}
 	agentID := *auth.Agent.ID
+	reqCtx := ctx.Request().Context()
+	ifNoneMatch := ctx.Request().Header.Get("If-None-Match")
 
-	cur, err := h.svc.Current(ctx.Request().Context(), agentID)
+	// Nearly every poll ends in 304: check the agent's ETag against the revision head first,
+	// and load the overlay only when the agent's copy is stale.
+	if ifNoneMatch != "" {
+		head, err := h.svc.CurrentHead(reqCtx, agentID)
+		if err != nil {
+			h.sugar.Errorw("Failed to load agent configuration", "agentID", agentID, "error", err)
+			return ctx.JSON(http.StatusInternalServerError, api.InternalServerError())
+		}
+		rev, rowID := int64(0), uuid.Nil
+		if head != nil {
+			rev, rowID = head.Revision, head.ID
+		}
+		if etag := agentconfig.ETagForRevision(rev, rowID, agentID); agentconfig.MatchIfNoneMatch(ifNoneMatch, etag) {
+			setRemoteConfigHeaders(ctx)
+			ctx.Response().Header().Set(headerETag, etag)
+			return ctx.NoContent(http.StatusNotModified)
+		}
+	}
+
+	cur, err := h.svc.Current(reqCtx, agentID)
 	if err != nil {
 		h.sugar.Errorw("Failed to load agent configuration", "agentID", agentID, "error", err)
 		return ctx.JSON(http.StatusInternalServerError, api.InternalServerError())
@@ -96,7 +117,7 @@ func (h *AgentConfigSyncHandler) GetConfig(ctx echo.Context) error {
 
 	setRemoteConfigHeaders(ctx)
 	ctx.Response().Header().Set(headerETag, etag)
-	if agentconfig.MatchIfNoneMatch(ctx.Request().Header.Get("If-None-Match"), etag) {
+	if agentconfig.MatchIfNoneMatch(ifNoneMatch, etag) {
 		return ctx.NoContent(http.StatusNotModified)
 	}
 	return ctx.JSON(http.StatusOK, GenericDataResponse[agentconfig.OverlayDocument]{Data: doc})
