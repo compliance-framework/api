@@ -4,6 +4,7 @@ package agentcfg
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -640,9 +641,29 @@ type InstanceBase struct {
 	Remote    agentconfig.RemoteConfig // reported remote-config, or the base's block normalized with hasAuth=true
 	Stale     bool
 	Validated bool // member of ValidationBases (R48)
+	// BaseKey identifies the content of the reported base (set by ValidationBases only):
+	// instances with the same BaseKey share one decoded Base, so a caller validates it once.
+	// Base is shared, not copied: treat it as read-only.
+	BaseKey string
 }
 
 var applyModes = []string{agentconfig.ModeApplySafe, agentconfig.ModeApplyAll}
+
+// baseKeyExpr is the content key of a reported base: the SHA-256 of its jsonb text, which
+// Postgres normalizes (key order, whitespace), so instances that report the same base get
+// the same key.
+const baseKeyExpr = "encode(sha256(convert_to(base_config::text, 'UTF8')), 'hex') AS base_key"
+
+// validationMemberColumns are baseColumns without the base itself, plus its content key.
+var validationMemberColumns = append(slices.DeleteFunc(slices.Clone(baseColumns), func(c string) bool {
+	return c == "base_config"
+}), baseKeyExpr)
+
+// validationMember is one instance of the validation set, without its base.
+type validationMember struct {
+	relational.AgentInstance
+	BaseKey string
+}
 
 // ValidationBases is exactly the set PUT and revert validate against (R14, R48):
 //  1. all fresh instances (seen within InstanceStaleAfter) with a reported base and an
@@ -653,33 +674,101 @@ var applyModes = []string{agentconfig.ModeApplySafe, agentconfig.ModeApplyAll}
 //
 // Report-mode instances and instances without a base are never validated against. A base
 // that no longer decodes is skipped with a warning.
+//
+// The cost follows the distinct bases, not the instance count: the set is grouped by base
+// content in SQL (BaseKey), and each distinct base is loaded and decoded once and shared by
+// every instance of its group (instances of one fleet usually report the same base). Both
+// reads run in one read-only repeatable-read transaction, so the groups and the loaded bases
+// are one snapshot.
 func (s *Service) ValidationBases(ctx context.Context, agentID uuid.UUID) ([]InstanceBase, bool, error) {
 	now := s.now()
-	var fresh []relational.AgentInstance
-	err := s.db.WithContext(ctx).
-		Select(baseColumns).
-		Where("agent_id = ? AND base_config IS NOT NULL AND mode IN ? AND last_seen_at >= ?", agentID, applyModes, now.Add(-s.settings.InstanceStaleAfter)).
-		Order("last_seen_at DESC, instance_id").
-		Find(&fresh).Error
+	var bases []InstanceBase
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var members []validationMember
+		if err := s.findValidationSet(tx, agentID, now, validationMemberColumns, &members); err != nil {
+			return err
+		}
+		if len(members) == 0 {
+			return nil
+		}
+		// One representative instance per distinct base.
+		keyOf := map[uuid.UUID]string{}
+		seen := map[string]bool{}
+		var repIDs []uuid.UUID
+		for _, m := range members {
+			if m.ID == nil || seen[m.BaseKey] {
+				continue
+			}
+			seen[m.BaseKey] = true
+			keyOf[*m.ID] = m.BaseKey
+			repIDs = append(repIDs, *m.ID)
+		}
+		var reps []relational.AgentInstance
+		if err := tx.Select("id", "base_config").Where("id IN ?", repIDs).Find(&reps).Error; err != nil {
+			return err
+		}
+		decoded := make(map[string]agentconfig.Config, len(reps))
+		for _, row := range reps {
+			key := keyOf[*row.ID]
+			base, err := agentconfig.DecodeConfig(row.BaseConfig)
+			if err != nil {
+				s.logger.Warnw("Skipping agent instances with an undecodable reported base",
+					"agentID", agentID, "instanceIDs", instancesWithKey(members, key), "error", err)
+				continue
+			}
+			decoded[key] = base
+		}
+		for _, m := range members {
+			base, ok := decoded[m.BaseKey]
+			if !ok {
+				continue
+			}
+			bases = append(bases, InstanceBase{
+				Instance:  m.AgentInstance,
+				Base:      base,
+				Remote:    reportedRemote(m.AgentInstance, base),
+				Stale:     IsStale(m.AgentInstance, now, s.settings),
+				Validated: true,
+				BaseKey:   m.BaseKey,
+			})
+		}
+		return nil
+	}, &sql.TxOptions{Isolation: sql.LevelRepeatableRead, ReadOnly: true})
 	if err != nil {
 		return nil, false, err
 	}
-	rows := fresh
-	if len(rows) == 0 {
-		var latest []relational.AgentInstance
-		err := s.db.WithContext(ctx).
-			Select(baseColumns).
-			Where("agent_id = ? AND base_config IS NOT NULL AND mode IN ? AND reported_at IS NOT NULL", agentID, applyModes).
-			Order("reported_at DESC, instance_id").
-			Limit(1).
-			Find(&latest).Error
-		if err != nil {
-			return nil, false, err
-		}
-		rows = latest
-	}
-	bases := s.toBases(rows, now, true)
 	return bases, len(bases) == 0, nil
+}
+
+// findValidationSet finds the given columns of the ValidationBases set into dest (a pointer
+// to a slice of rows): the fresh apply-mode instances with a reported base, newest first,
+// else the most recently reported one.
+func (s *Service) findValidationSet(db *gorm.DB, agentID uuid.UUID, now time.Time, columns []string, dest any) error {
+	res := db.Model(&relational.AgentInstance{}).
+		Select(strings.Join(columns, ", ")).
+		Where("agent_id = ? AND base_config IS NOT NULL AND mode IN ? AND last_seen_at >= ?", agentID, applyModes, now.Add(-s.settings.InstanceStaleAfter)).
+		Order("last_seen_at DESC, instance_id").
+		Find(dest)
+	if res.Error != nil || res.RowsAffected > 0 {
+		return res.Error
+	}
+	return db.Model(&relational.AgentInstance{}).
+		Select(strings.Join(columns, ", ")).
+		Where("agent_id = ? AND base_config IS NOT NULL AND mode IN ? AND reported_at IS NOT NULL", agentID, applyModes).
+		Order("reported_at DESC, instance_id").
+		Limit(1).
+		Find(dest).Error
+}
+
+// instancesWithKey lists the instance ids of the members that report the base with key.
+func instancesWithKey(members []validationMember, key string) []uuid.UUID {
+	var ids []uuid.UUID
+	for _, m := range members {
+		if m.BaseKey == key {
+			ids = append(ids, m.InstanceID)
+		}
+	}
+	return ids
 }
 
 // Preview bounds (R14): a preview shows at most PreviewMaxInstances instances and decodes

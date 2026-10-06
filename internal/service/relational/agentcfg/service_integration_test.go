@@ -855,6 +855,56 @@ func (s *AgentCfgServiceIntegrationSuite) TestValidationBasesFallbackAndStandalo
 	s.Empty(bases)
 }
 
+// Instances that report the same base (whatever its key order or whitespace) share one
+// BaseKey and one decoded base; each keeps its own instance fields and remote-config.
+func (s *AgentCfgServiceIntegrationSuite) TestValidationBasesGroupsByBaseContent() {
+	agentID := s.newAgent("grouped-bases")
+	a, b, c := uuid.New(), uuid.New(), uuid.New()
+	reordered := `{ "verbosity":0, "plugins":{"p1":{"policies":["ghcr.io/x/pol:v1"],"source":"ghcr.io/x/p1:v1"}}, "api":{"auth":{"client_id":"cid"},"url":"http://api:8080"}, "daemon":true }`
+	other := `{"daemon":true,"verbosity":1,"plugins":{}}`
+	for _, in := range []struct {
+		id       uuid.UUID
+		base     string
+		host     string
+		at       time.Duration
+		trusted  []string
+		instMode string
+	}{
+		{a, baseConfig, "host-a", 0, []string{"ghcr.io/a/*"}, agentconfig.ModeApplySafe},
+		{b, reordered, "host-b", -time.Minute, []string{"ghcr.io/b/*"}, agentconfig.ModeApplyAll},
+		{c, other, "host-c", -2 * time.Minute, nil, agentconfig.ModeApplySafe},
+	} {
+		r := applyReport(in.instMode, in.base)
+		r.Hostname = in.host
+		r.RemoteConfig = &agentconfig.RemoteConfig{Mode: in.instMode, TrustedSources: in.trusted}
+		s.Require().NoError(s.reportAt(s.svc, s.now.Add(in.at), agentID, in.id, r))
+	}
+
+	bases, standalone, err := s.svc.ValidationBases(s.ctx, agentID)
+	s.Require().NoError(err)
+	s.False(standalone)
+	s.Require().Len(bases, 3, "every instance of the validation set is still listed")
+	s.Equal([]uuid.UUID{a, b, c}, []uuid.UUID{bases[0].Instance.InstanceID, bases[1].Instance.InstanceID, bases[2].Instance.InstanceID})
+
+	m := byInstance(bases)
+	s.NotEmpty(m[a].BaseKey)
+	s.Equal(m[a].BaseKey, m[b].BaseKey, "same base content, same key")
+	s.NotEqual(m[a].BaseKey, m[c].BaseKey)
+	s.Equal(m[a].Base, m[b].Base)
+	s.Equal(int32(1), m[c].Base.Verbosity)
+	s.Nil(m[a].Instance.BaseConfig, "the base is loaded once per group, not per instance")
+
+	s.Equal("host-a", *m[a].Instance.Hostname)
+	s.Equal("host-b", *m[b].Instance.Hostname)
+	s.Equal([]string{"ghcr.io/a/*"}, m[a].Remote.TrustedSources)
+	s.Equal([]string{"ghcr.io/b/*"}, m[b].Remote.TrustedSources)
+	s.Equal(agentconfig.ModeApplyAll, m[b].Remote.Mode)
+	for _, base := range bases {
+		s.True(base.Validated)
+		s.False(base.Stale)
+	}
+}
+
 func (s *AgentCfgServiceIntegrationSuite) TestPreviewBases() {
 	f := s.seedValidationFixture()
 
