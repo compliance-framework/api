@@ -258,7 +258,9 @@ func (r candidateResult) errorBody() api.Error {
 //  2. when (1) passed: Merge(base, overlay).ValidateEditable() for every validation base,
 //     grouped by instance. Only errors the overlay introduces are kept (R59, see
 //     splitIntroduced); an instance is listed only when it has at least one. With no bases
-//     (standalone) only (1) runs.
+//     (standalone) only (1) runs. Instances that share a BaseKey (the same reported base)
+//     are validated once and the result is attributed to each of them, so the cost follows
+//     the distinct bases, not the instance count.
 func validateCandidate(overlay json.RawMessage, bases []agentcfg.InstanceBase) candidateResult {
 	var r candidateResult
 	if err := agentconfig.ValidateOverlay(overlay); err != nil {
@@ -272,13 +274,22 @@ func validateCandidate(overlay json.RawMessage, bases []agentcfg.InstanceBase) c
 	if len(r.overlay) > 0 {
 		return r
 	}
+	type outcome struct{ introduced, fileOrigin []agentconfig.FieldError }
+	byBase := map[string]outcome{}
 	for _, b := range bases {
-		if _, introduced, fileOrigin := splitIntroduced(b.Base, overlay); len(introduced) > 0 {
+		o, done := byBase[b.BaseKey]
+		if !done || b.BaseKey == "" {
+			_, o.introduced, o.fileOrigin = splitIntroduced(b.Base, overlay)
+			if b.BaseKey != "" {
+				byBase[b.BaseKey] = o
+			}
+		}
+		if len(o.introduced) > 0 {
 			r.instances = append(r.instances, instanceValidationErrors{
 				InstanceID: b.Instance.InstanceID.String(),
 				Hostname:   b.Instance.Hostname,
-				Errors:     introduced,
-				Warnings:   nonNil(fileOrigin),
+				Errors:     o.introduced,
+				Warnings:   nonNil(o.fileOrigin),
 			})
 		}
 	}

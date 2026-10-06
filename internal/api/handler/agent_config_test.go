@@ -4,7 +4,10 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/compliance-framework/api/internal/service/relational"
+	"github.com/compliance-framework/api/internal/service/relational/agentcfg"
 	"github.com/compliance-framework/api/pkg/agentconfig"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -71,4 +74,34 @@ func fieldPaths(errs []agentconfig.FieldError) []string {
 		out = append(out, e.Path)
 	}
 	return out
+}
+
+// Instances that share a BaseKey are validated once, and every one of them is still listed
+// with the errors the overlay introduces on that base.
+func TestValidateCandidateAttributesSharedBaseErrors(t *testing.T) {
+	shared := badCronBase()
+	good := agentconfig.Config{Plugins: map[string]*agentconfig.Plugin{
+		"z": {Source: testPluginSource, Schedule: strPtrT("@hourly")},
+	}}
+	ids := []uuid.UUID{uuid.New(), uuid.New(), uuid.New(), uuid.New()}
+	bases := []agentcfg.InstanceBase{
+		{Instance: relational.AgentInstance{InstanceID: ids[0], Hostname: strPtrT("a")}, Base: shared, BaseKey: "k1"},
+		{Instance: relational.AgentInstance{InstanceID: ids[1], Hostname: strPtrT("b")}, Base: shared, BaseKey: "k1"},
+		{Instance: relational.AgentInstance{InstanceID: ids[2], Hostname: strPtrT("c")}, Base: good, BaseKey: "k2"},
+		{Instance: relational.AgentInstance{InstanceID: ids[3], Hostname: strPtrT("d")}, Base: shared}, // no key: validated on its own
+	}
+	// Plugin z has a source only in the k2 base: elsewhere the overlay adds it without one.
+	r := validateCandidate(json.RawMessage(`{"plugins":{"z":{"schedule":"* * * * *"}}}`), bases)
+	require.Empty(t, r.overlay)
+	require.Len(t, r.instances, 3, "the k2 base already has plugin z")
+	for i, want := range []struct {
+		id   uuid.UUID
+		host string
+	}{{ids[0], "a"}, {ids[1], "b"}, {ids[3], "d"}} {
+		got := r.instances[i]
+		assert.Equal(t, want.id.String(), got.InstanceID)
+		assert.Equal(t, want.host, *got.Hostname)
+		assert.Equal(t, []string{"/plugins/z/source"}, fieldPaths(got.Errors))
+		assert.Equal(t, []string{"/plugins/x/schedule"}, fieldPaths(got.Warnings), "file-origin")
+	}
 }
