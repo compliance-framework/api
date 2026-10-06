@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -492,7 +493,8 @@ func decodeStrict(body []byte, dst any) error {
 	if err := dec.Decode(dst); err != nil {
 		return fmt.Errorf("invalid request body: %w", err)
 	}
-	if dec.More() {
+	// Token, not More: More reports false for a stray '}' or ']', so it accepted them.
+	if _, err := dec.Token(); !errors.Is(err, io.EOF) {
 		return errors.New("invalid request body: unexpected data after the JSON object")
 	}
 	return nil
