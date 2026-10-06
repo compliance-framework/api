@@ -910,6 +910,15 @@ definitions:
         type: array
       meta: {}
     type: object
+  handler.GenericDataListResponse-handler_agentInstanceSummary:
+    properties:
+      data:
+        description: Items from the list response
+        items:
+          $ref: '#/definitions/handler.agentInstanceSummary'
+        type: array
+      meta: {}
+    type: object
   handler.GenericDataListResponse-handler_availableNotificationProviderResponse:
     properties:
       data:
@@ -2982,15 +2991,6 @@ definitions:
         items:
           $ref: '#/definitions/agentconfig.FieldError'
         type: array
-    type: object
-  handler.agentInstanceListResponse:
-    properties:
-      data:
-        items:
-          $ref: '#/definitions/handler.agentInstanceSummary'
-        type: array
-      meta:
-        $ref: '#/definitions/handler.agentInstancesMeta'
     type: object
   handler.agentInstanceSummary:
     properties:
@@ -13269,7 +13269,12 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/handler.agentInstanceListResponse'
+            allOf:
+            - $ref: '#/definitions/handler.GenericDataListResponse-handler_agentInstanceSummary'
+            - properties:
+                meta:
+                  $ref: '#/definitions/handler.agentInstancesMeta'
+              type: object
         "400":
           description: Bad Request
           schema:

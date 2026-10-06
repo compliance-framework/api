@@ -838,7 +838,10 @@ func (s *AgentConfigAdminIntegrationSuite) TestInstances() {
 
 	rec := s.call(http.MethodGet, s.path("/instances"), nil)
 	s.Require().Equal(http.StatusOK, rec.Code, rec.Body.String())
-	var list agentInstanceListResponse
+	var list struct {
+		Data []agentInstanceSummary `json:"data"`
+		Meta agentInstancesMeta     `json:"meta"`
+	}
 	s.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &list))
 	s.Equal(int64(1), list.Meta.DesiredRevision)
 	s.Equal(agentInstanceCounts{

@@ -129,11 +129,6 @@ type agentInstancesMeta struct {
 	Counts          agentInstanceCounts `json:"counts"`
 }
 
-type agentInstanceListResponse struct {
-	Data []agentInstanceSummary `json:"data"`
-	Meta agentInstancesMeta     `json:"meta"`
-}
-
 type configPreviewResponse struct {
 	DesiredRevision int64                    `json:"desired-revision"`
 	Standalone      bool                     `json:"standalone"`
@@ -698,7 +693,7 @@ func (h *AgentConfigHandler) GetRevision(ctx echo.Context) error {
 //	@Tags			Agent Configuration
 //	@Produce		json
 //	@Param			id	path		string	true	"Agent ID"
-//	@Success		200	{object}	handler.agentInstanceListResponse
+//	@Success		200	{object}	handler.GenericDataListResponse[handler.agentInstanceSummary]{meta=handler.agentInstancesMeta}
 //	@Failure		400	{object}	api.Error
 //	@Failure		403	{object}	api.Error
 //	@Failure		404	{object}	api.Error
@@ -720,14 +715,12 @@ func (h *AgentConfigHandler) ListInstances(ctx echo.Context) error {
 		return h.internalError(ctx, "list instances", err)
 	}
 	now := h.svc.Now()
-	resp := agentInstanceListResponse{
-		Data: make([]agentInstanceSummary, 0, len(instances)),
-		Meta: agentInstancesMeta{DesiredRevision: desired},
-	}
-	counts := &resp.Meta.Counts
+	data := make([]agentInstanceSummary, 0, len(instances))
+	meta := agentInstancesMeta{DesiredRevision: desired}
+	counts := &meta.Counts
 	for _, inst := range instances {
 		s := h.instanceSummary(inst, desired, now)
-		resp.Data = append(resp.Data, s)
+		data = append(data, s)
 		counts.Total++
 		if s.Stale {
 			counts.Stale++
@@ -751,7 +744,7 @@ func (h *AgentConfigHandler) ListInstances(ctx echo.Context) error {
 			counts.Unknown++
 		}
 	}
-	return ctx.JSON(http.StatusOK, resp)
+	return ctx.JSON(http.StatusOK, GenericDataListResponse[agentInstanceSummary]{Data: data, Meta: meta})
 }
 
 // GetInstance godoc

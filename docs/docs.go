@@ -549,7 +549,19 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/handler.agentInstanceListResponse"
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/handler.GenericDataListResponse-handler_agentInstanceSummary"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "meta": {
+                                            "$ref": "#/definitions/handler.agentInstancesMeta"
+                                        }
+                                    }
+                                }
+                            ]
                         }
                     },
                     "400": {
@@ -36361,6 +36373,19 @@ const docTemplate = `{
                 "meta": {}
             }
         },
+        "handler.GenericDataListResponse-handler_agentInstanceSummary": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handler.agentInstanceSummary"
+                    }
+                },
+                "meta": {}
+            }
+        },
         "handler.GenericDataListResponse-handler_availableNotificationProviderResponse": {
             "type": "object",
             "properties": {
@@ -39688,20 +39713,6 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/agentconfig.FieldError"
                     }
-                }
-            }
-        },
-        "handler.agentInstanceListResponse": {
-            "type": "object",
-            "properties": {
-                "data": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/handler.agentInstanceSummary"
-                    }
-                },
-                "meta": {
-                    "$ref": "#/definitions/handler.agentInstancesMeta"
                 }
             }
         },
