@@ -528,7 +528,7 @@ const docTemplate = `{
         },
         "/admin/agents/{id}/instances": {
             "get": {
-                "description": "Summaries of the instances that reported or heartbeated with a config digest, with the derived status (pending and unknown are server-derived), sync status, staleness and counts. Base/effective configs are on the instance detail route.",
+                "description": "One page of summaries of the instances that reported or heartbeated with a config digest, most recently seen first, with the derived status (pending and unknown are server-derived), sync status and staleness. meta.counts and meta.desired-revision cover all of the agent's instances, not just the page; meta.page, meta.limit, meta.total and meta.total-pages describe the page. A limit above 25 is capped at 25, since one instance's summary can reach about 3 MiB. Base/effective configs are on the instance detail route.",
                 "produces": [
                     "application/json"
                 ],
@@ -543,6 +543,18 @@ const docTemplate = `{
                         "name": "id",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page (default 1)",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page size (default 25, max 25)",
+                        "name": "limit",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -39811,6 +39823,18 @@ const docTemplate = `{
                     "$ref": "#/definitions/handler.agentInstanceCounts"
                 },
                 "desired-revision": {
+                    "type": "integer"
+                },
+                "limit": {
+                    "type": "integer"
+                },
+                "page": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
+                },
+                "total-pages": {
                     "type": "integer"
                 }
             }

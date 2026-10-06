@@ -112,6 +112,7 @@ type agentInstanceDetail struct {
 	Effective json.RawMessage `json:"effective" swaggertype:"object"`
 }
 
+// agentInstanceCounts is agentcfg.InstanceCounts with JSON names (converted directly).
 type agentInstanceCounts struct {
 	Total     int `json:"total"`
 	Fresh     int `json:"fresh"`
@@ -124,9 +125,15 @@ type agentInstanceCounts struct {
 	Unknown   int `json:"unknown"`
 }
 
+// agentInstancesMeta is the meta of the instance list: the desired revision and the counts
+// cover all of the agent's instances; page, limit, total and total-pages describe the page.
 type agentInstancesMeta struct {
 	DesiredRevision int64               `json:"desired-revision"`
 	Counts          agentInstanceCounts `json:"counts"`
+	Page            int                 `json:"page"`
+	Limit           int                 `json:"limit"`
+	Total           int64               `json:"total"`
+	TotalPages      int                 `json:"total-pages"`
 }
 
 type configPreviewResponse struct {
@@ -689,15 +696,17 @@ func (h *AgentConfigHandler) GetRevision(ctx echo.Context) error {
 // ListInstances godoc
 //
 //	@Summary		List an agent's instances
-//	@Description	Summaries of the instances that reported or heartbeated with a config digest, with the derived status (pending and unknown are server-derived), sync status, staleness and counts. Base/effective configs are on the instance detail route.
+//	@Description	One page of summaries of the instances that reported or heartbeated with a config digest, most recently seen first, with the derived status (pending and unknown are server-derived), sync status and staleness. meta.counts and meta.desired-revision cover all of the agent's instances, not just the page; meta.page, meta.limit, meta.total and meta.total-pages describe the page. A limit above 25 is capped at 25, since one instance's summary can reach about 3 MiB. Base/effective configs are on the instance detail route.
 //	@Tags			Agent Configuration
 //	@Produce		json
-//	@Param			id	path		string	true	"Agent ID"
-//	@Success		200	{object}	handler.GenericDataListResponse[handler.agentInstanceSummary]{meta=handler.agentInstancesMeta}
-//	@Failure		400	{object}	api.Error
-//	@Failure		403	{object}	api.Error
-//	@Failure		404	{object}	api.Error
-//	@Failure		500	{object}	api.Error
+//	@Param			id		path		string	true	"Agent ID"
+//	@Param			page	query		integer	false	"Page (default 1)"
+//	@Param			limit	query		integer	false	"Page size (default 25, max 25)"
+//	@Success		200		{object}	handler.GenericDataListResponse[handler.agentInstanceSummary]{meta=handler.agentInstancesMeta}
+//	@Failure		400		{object}	api.Error
+//	@Failure		403		{object}	api.Error
+//	@Failure		404		{object}	api.Error
+//	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/admin/agents/{id}/instances [get]
 func (h *AgentConfigHandler) ListInstances(ctx echo.Context) error {
@@ -705,44 +714,36 @@ func (h *AgentConfigHandler) ListInstances(ctx echo.Context) error {
 	if agent == nil {
 		return errResp
 	}
+	pagination := service.PaginationConfig{DefaultLimit: agentcfg.InstancesPageLimit, MaxLimit: agentcfg.InstancesPageLimit}
+	params, err := pagination.ParseParams(ctx)
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
 	reqCtx := ctx.Request().Context()
 	desired, err := h.svc.CurrentRevisionNumber(reqCtx, *agent.ID)
 	if err != nil {
 		return h.internalError(ctx, "load agent configuration", err)
 	}
-	instances, err := h.svc.ListInstances(reqCtx, *agent.ID)
+	instances, total, err := h.svc.ListInstances(reqCtx, *agent.ID, *params)
 	if err != nil {
 		return h.internalError(ctx, "list instances", err)
 	}
 	now := h.svc.Now()
+	counts, err := h.svc.CountInstances(reqCtx, *agent.ID, desired, now)
+	if err != nil {
+		return h.internalError(ctx, "count instances", err)
+	}
 	data := make([]agentInstanceSummary, 0, len(instances))
-	meta := agentInstancesMeta{DesiredRevision: desired}
-	counts := &meta.Counts
 	for _, inst := range instances {
-		s := h.instanceSummary(inst, desired, now)
-		data = append(data, s)
-		counts.Total++
-		if s.Stale {
-			counts.Stale++
-		} else {
-			counts.Fresh++
-		}
-		switch s.SyncStatus {
-		case agentcfg.SyncInSync:
-			counts.InSync++
-		case agentcfg.SyncOutOfSync:
-			counts.OutOfSync++
-		}
-		switch s.Status {
-		case agentconfig.StatusPending:
-			counts.Pending++
-		case agentconfig.StatusRejected:
-			counts.Rejected++
-		case agentconfig.StatusFailed:
-			counts.Failed++
-		case agentconfig.StatusUnknown:
-			counts.Unknown++
-		}
+		data = append(data, h.instanceSummary(inst, desired, now))
+	}
+	meta := agentInstancesMeta{
+		DesiredRevision: desired,
+		Counts:          agentInstanceCounts(counts),
+		Page:            params.Page,
+		Limit:           params.Limit,
+		Total:           total,
+		TotalPages:      max(1, int((total+int64(params.Limit)-1)/int64(params.Limit))),
 	}
 	return ctx.JSON(http.StatusOK, GenericDataListResponse[agentInstanceSummary]{Data: data, Meta: meta})
 }

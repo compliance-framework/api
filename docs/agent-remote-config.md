@@ -43,7 +43,7 @@ Every admin route returns `400` for a malformed agent ID, `403` without the perm
 | `GET /api/admin/agents/{id}/config/revisions` | `200` revisions newest first, without overlays; `page` (default 1) and `limit` (default 50, max 100). |
 | `GET /api/admin/agents/{id}/config/revisions/{rev}` | `200` one revision; `404` unknown revision. |
 | `POST /api/admin/agents/{id}/config/revisions/{rev}/revert` | Saves revision `rev`'s overlay as the next revision (`revert-of` records it). Same `If-Match`, validation and status codes as `PUT`; the body (`{"comment": ...}`) is optional. |
-| `GET /api/admin/agents/{id}/instances` | `200` every instance's summary with `meta.desired-revision` and `meta.counts`. Not paginated. |
+| `GET /api/admin/agents/{id}/instances` | `200` one page of instance summaries, most recently seen first; `page` (default 1) and `limit` (default 25, max 25; a larger limit is capped). `meta.desired-revision` and `meta.counts` cover all of the agent's instances; `meta.page`, `meta.limit`, `meta.total` and `meta.total-pages` describe the page. `400` invalid `page` or `limit`. |
 | `GET /api/admin/agents/{id}/instances/{instanceId}` | `200` the summary plus the redacted `base` and `effective` configs; `404` unknown instance. |
 
 The CORS configuration allows the `If-Match` and `If-None-Match` request headers and exposes
@@ -164,8 +164,11 @@ Deleting an agent deletes its instances and revisions.
 plugins, warnings and unsafe changes by count, their strings, the error text, hostname and
 version by length, and the reported `remote_config` (at most 100 `trusted_sources` and 100
 `overridable_config_flags`, each at most 256 bytes encoded, dropped rather than cut; about
-64 KiB in all). The instance list returns these summary columns for every instance, without
-the base and effective configs; in the worst case that is about 3 MiB per instance.
+64 KiB in all). The instance list returns these summary columns, without the base and
+effective configs; in the worst case that is about 3 MiB of text per instance. So the list
+is paginated at 25 instances, about 75 MiB at most (text that JSON escapes, such as `<` or
+control characters, encodes up to six times larger), and its counts are computed from the
+instances' status columns alone.
 
 ## Who sees secrets
 

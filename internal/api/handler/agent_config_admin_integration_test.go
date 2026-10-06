@@ -849,6 +849,11 @@ func (s *AgentConfigAdminIntegrationSuite) TestInstances() {
 		InSync: 1, OutOfSync: 2,
 		Pending: 1, Rejected: 1, Failed: 0, Unknown: 1,
 	}, list.Meta.Counts)
+	s.Equal(1, list.Meta.Page)
+	s.Equal(agentcfg.InstancesPageLimit, list.Meta.Limit)
+	s.Equal(int64(5), list.Meta.Total)
+	s.Equal(1, list.Meta.TotalPages)
+	s.Len(list.Data, 5)
 
 	byID := map[string]agentInstanceSummary{}
 	for _, inst := range list.Data {
@@ -931,7 +936,205 @@ func (s *AgentConfigAdminIntegrationSuite) TestInstances() {
 func (s *AgentConfigAdminIntegrationSuite) TestInstancesEmpty() {
 	rec := s.call(http.MethodGet, s.path("/instances"), nil)
 	s.Require().Equal(http.StatusOK, rec.Code, rec.Body.String())
-	s.JSONEq(`{"data":[],"meta":{"desired-revision":0,"counts":{"total":0,"fresh":0,"stale":0,"in-sync":0,"out-of-sync":0,"pending":0,"rejected":0,"failed":0,"unknown":0}}}`, rec.Body.String())
+	s.JSONEq(`{"data":[],"meta":{"desired-revision":0,"counts":{"total":0,"fresh":0,"stale":0,"in-sync":0,"out-of-sync":0,"pending":0,"rejected":0,"failed":0,"unknown":0},"page":1,"limit":25,"total":0,"total-pages":1}}`, rec.Body.String())
+}
+
+type acaInstanceList struct {
+	Data []agentInstanceSummary `json:"data"`
+	Meta agentInstancesMeta     `json:"meta"`
+}
+
+func (s *AgentConfigAdminIntegrationSuite) listInstances(query string) acaInstanceList {
+	rec := s.call(http.MethodGet, s.path("/instances"+query), nil)
+	s.Require().Equal(http.StatusOK, rec.Code, rec.Body.String())
+	var list acaInstanceList
+	s.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &list))
+	return list
+}
+
+// The instance list is paginated (review #476, fp 5d771b4b3d43): at most 25 instances per
+// page, most recently seen first, while meta.counts cover every instance of the agent.
+func (s *AgentConfigAdminIntegrationSuite) TestInstancesPagination() {
+	ctx := context.Background()
+	agentID := *s.agent.ID
+	s.save(`"0"`, `{"verbosity":1}`, 1) // desired revision 1
+
+	// Instance i was last seen i minutes ago, so instances 11 and up are stale. The first page
+	// (0-24) is in sync; the states that differ are all beyond it.
+	const n = 30
+	want := make([]string, n)
+	for i := 0; i < n; i++ {
+		var id uuid.UUID
+		switch i {
+		case 25:
+			id = s.report(agentID, agentconfig.ModeApplySafe, func(r *agentconfig.Report) {
+				r.AttemptedRevision = acaI64(1)
+				r.Status = agentconfig.StatusRejected
+				r.Reason = agentconfig.ReasonUnsafeChanges
+			})
+		case 26:
+			id = s.report(agentID, agentconfig.ModeApplyAll, func(r *agentconfig.Report) {
+				r.AttemptedRevision = acaI64(1)
+				r.Status = agentconfig.StatusFailed
+			})
+		case 27:
+			id = s.report(agentID, agentconfig.ModeReport, nil)
+		case 28:
+			id = uuid.New()
+			digest := acaDigest
+			s.Require().NoError(s.svc.TouchFromHeartbeat(ctx, agentID, nil, id, acaI64(0), &digest))
+		case 29:
+			id = s.report(agentID, agentconfig.ModeApplySafe, nil) // behind, not attempted: pending
+		default:
+			id = s.report(agentID, agentconfig.ModeApplySafe, func(r *agentconfig.Report) { r.AppliedRevision = acaI64(1) })
+		}
+		s.makeStale(id, time.Duration(i)*time.Minute+time.Second)
+		want[i] = id.String()
+	}
+	ids := func(list acaInstanceList) []string {
+		out := make([]string, 0, len(list.Data))
+		for _, inst := range list.Data {
+			out = append(out, inst.InstanceID)
+		}
+		return out
+	}
+	wantCounts := agentInstanceCounts{
+		Total: n, Fresh: 10, Stale: n - 10,
+		InSync: 25, OutOfSync: 3,
+		Pending: 1, Rejected: 1, Failed: 1, Unknown: 1,
+	}
+
+	first := s.listInstances("")
+	s.Equal(want[:25], ids(first), "default page: the 25 most recently seen")
+	s.Equal(agentInstancesMeta{DesiredRevision: 1, Counts: wantCounts, Page: 1, Limit: 25, Total: n, TotalPages: 2}, first.Meta,
+		"counts cover the instances beyond the page")
+
+	second := s.listInstances("?page=2")
+	s.Equal(want[25:], ids(second))
+	s.Equal(agentInstancesMeta{DesiredRevision: 1, Counts: wantCounts, Page: 2, Limit: 25, Total: n, TotalPages: 2}, second.Meta)
+	s.Equal(agentconfig.StatusRejected, second.Data[0].Status)
+	s.Equal(agentconfig.StatusPending, second.Data[4].Status)
+
+	third := s.listInstances("?page=3&limit=10")
+	s.Equal(want[20:30], ids(third))
+	s.Equal(3, third.Meta.TotalPages)
+	s.Equal(wantCounts, third.Meta.Counts)
+
+	capped := s.listInstances("?limit=1000")
+	s.Equal(want[:25], ids(capped), "a limit over the maximum is capped, as ParseParams does")
+	s.Equal(25, capped.Meta.Limit)
+
+	beyond := s.listInstances("?page=9")
+	s.Empty(beyond.Data)
+	s.Equal(9, beyond.Meta.Page)
+	s.Equal(int64(n), beyond.Meta.Total)
+	s.Equal(wantCounts, beyond.Meta.Counts)
+}
+
+// acaInstanceSummaryBound is the documented bound on one listed instance's summary
+// (agentcfg.InstancesPageLimit): about 3 MiB of text at the report caps of normalizeReport.
+const acaInstanceSummaryBound = 3 << 20
+
+// acaWorstCaseReport returns a report over every cap normalizeReport applies to the summary
+// columns (warnings, unsafe changes, plugins, remote-config, error, hostname, version),
+// normalized as the report route stores it. Its text is plain ASCII, which JSON encodes 1:1.
+func (s *AgentConfigAdminIntegrationSuite) acaWorstCaseReport() agentconfig.Report {
+	long := func(c string, n int) string { return strings.Repeat(c, n+16) } // over the cap
+	errText := long("e", maxReportErrorBytes)
+	r := agentconfig.Report{
+		Hostname:        long("h", maxReportHostnameLen),
+		AgentVersion:    long("v", maxReportAgentVersionLen),
+		Mode:            agentconfig.ModeApplySafe,
+		Daemon:          true,
+		AppliedRevision: acaI64(0),
+		Status:          agentconfig.StatusApplied,
+		Error:           &errText,
+		Base:            json.RawMessage(`{}`),
+		Effective:       json.RawMessage(`{}`),
+		EffectiveDigest: acaDigest,
+		RemoteConfig: &agentconfig.RemoteConfig{
+			Mode:         long("m", maxReportRemoteModeLen),
+			PollInterval: long("p", maxReportRemotePollIntervalLen),
+		},
+	}
+	for i := 0; i < maxReportWarnings+1; i++ {
+		r.Warnings = append(r.Warnings, agentconfig.FieldError{
+			Path: long("w", maxReportWarningPathBytes), Code: agentconfig.FieldCodeUnknownField, Message: long("m", maxReportWarningMessageBytes),
+		})
+	}
+	for i := 0; i < maxReportUnsafe+1; i++ {
+		r.Unsafe = append(r.Unsafe, agentconfig.Change{
+			Path: long("u", maxReportChangePathBytes), Safety: agentconfig.Unsafe,
+			Reason: agentconfig.ChangeReasonUntrustedSource, Value: long("c", maxReportChangeValueBytes),
+		})
+	}
+	for i := 0; i < maxReportPlugins+1; i++ {
+		r.Plugins = append(r.Plugins, agentconfig.PluginReport{
+			Name: long("n", maxReportPluginNameLen), Source: long("s", maxReportPluginSourceLen), LibVersion: long("l", maxReportPluginLibVersionLen),
+		})
+	}
+	entry := strings.Repeat("t", maxReportRemoteEntryBytes-2) // at the cap once JSON-encoded
+	for i := 0; i < maxReportRemoteListEntries+1; i++ {
+		r.RemoteConfig.TrustedSources = append(r.RemoteConfig.TrustedSources, entry)
+		r.RemoteConfig.OverridableConfigFlags = append(r.RemoteConfig.OverridableConfigFlags, entry)
+	}
+	scrubbed, err := normalizeReport(&r)
+	s.Require().NoError(err)
+	s.Require().False(scrubbed, "nothing in the report looks like a secret")
+	s.Require().True(r.Truncated)
+	return r
+}
+
+// A page of worst-case instances stays within InstancesPageLimit times the documented
+// per-instance bound (review #476, fp 5d771b4b3d43): an agent credential can no longer
+// inflate the list with its instance count.
+func (s *AgentConfigAdminIntegrationSuite) TestInstancesWorstCasePageSize() {
+	agentID := *s.agent.ID
+	report := s.acaWorstCaseReport()
+	const n = agentcfg.InstancesPageLimit + 1
+	for i := 0; i < n; i++ {
+		s.Require().NoError(s.svc.UpsertReport(context.Background(), agentID, nil, uuid.New(), report))
+	}
+
+	rec := s.call(http.MethodGet, s.path("/instances"), nil)
+	s.Require().Equal(http.StatusOK, rec.Code)
+	size := rec.Body.Len()
+	s.T().Logf("a page of %d worst-case instances: %d bytes", agentcfg.InstancesPageLimit, size)
+	s.LessOrEqual(size, agentcfg.InstancesPageLimit*acaInstanceSummaryBound+64<<10,
+		"a page of %d worst-case instances encodes to %d bytes", agentcfg.InstancesPageLimit, size)
+	s.Greater(size, agentcfg.InstancesPageLimit*(acaInstanceSummaryBound*9/10),
+		"the instances are near the bound, so the check above is meaningful")
+
+	var list acaInstanceList
+	s.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &list))
+	s.Require().Len(list.Data, agentcfg.InstancesPageLimit)
+	s.Equal(int64(n), list.Meta.Total)
+	s.Equal(n, list.Meta.Counts.Total)
+	for _, inst := range list.Data {
+		s.Len(inst.Warnings, maxReportWarnings)
+		s.Len(inst.Unsafe, maxReportUnsafe)
+		s.Len(inst.Plugins, maxReportPlugins)
+		s.True(inst.Truncated)
+	}
+}
+
+// An invalid page or limit is a 400, as on the revision list.
+func (s *AgentConfigAdminIntegrationSuite) TestInstancesBadPagination() {
+	s.report(*s.agent.ID, agentconfig.ModeApplySafe, nil)
+	for q, msg := range map[string]string{
+		"page=0":    "page must be greater than 0",
+		"page=-1":   "page must be greater than 0",
+		"page=x":    "invalid page parameter: x",
+		"page=1.5":  "invalid page parameter: 1.5",
+		"limit=0":   "limit must be greater than 0",
+		"limit=-5":  "limit must be greater than 0",
+		"limit=x":   "invalid limit parameter: x",
+		"limit=1e3": "invalid limit parameter: 1e3",
+	} {
+		rec := s.call(http.MethodGet, s.path("/instances?"+q), nil)
+		s.Require().Equal(http.StatusBadRequest, rec.Code, "%s: %s", q, rec.Body.String())
+		s.Equal(msg, s.errorBody(rec), q)
+	}
 }
 
 // ---- Agent deletion ----
