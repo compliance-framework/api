@@ -11,6 +11,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/compliance-framework/api/internal/api"
 	"github.com/compliance-framework/api/internal/api/middleware"
@@ -266,6 +267,14 @@ func (s *AgentConfigAdminIntegrationSuite) report(agentID uuid.UUID, mode string
 	return instanceID
 }
 
+// makeStale moves an instance's last_seen_at (and reported_at) into the past.
+func (s *AgentConfigAdminIntegrationSuite) makeStale(instanceID uuid.UUID, age time.Duration) {
+	at := time.Now().UTC().Add(-age)
+	s.Require().NoError(s.DB.Exec(
+		"UPDATE ccf_agent_instances SET last_seen_at = ?, reported_at = ? WHERE instance_id = ?", at, at, instanceID,
+	).Error)
+}
+
 // ---- GET /config ----
 
 func (s *AgentConfigAdminIntegrationSuite) TestGetConfigRevisionZero() {
@@ -297,6 +306,29 @@ func (s *AgentConfigAdminIntegrationSuite) TestGetConfigAfterSave() {
 	s.JSONEq(overlay, string(got.Overlay))
 	s.Require().NotNil(got.CreatedBy)
 	s.Equal("dummy@example.com", *got.CreatedBy)
+}
+
+// The PUT response shows the stored revision: the same overlay bytes and size as GET and
+// the revision list.
+func (s *AgentConfigAdminIntegrationSuite) TestPutResponseMatchesReads() {
+	rec := s.put(s.server, s.token, `"0"`, `{"verbosity":1}`)
+	s.Require().Equal(http.StatusCreated, rec.Code, rec.Body.String())
+	put := acaData[agentConfigRevisionResponse](s, rec)
+
+	rec = s.call(http.MethodGet, s.path("/config"), nil)
+	s.Require().Equal(http.StatusOK, rec.Code, rec.Body.String())
+	get := acaData[agentConfigRevisionResponse](s, rec)
+	s.Equal(get.OverlaySize, put.OverlaySize)
+	s.Equal(string(get.Overlay), string(put.Overlay))
+
+	rec = s.call(http.MethodGet, s.path("/config/revisions"), nil)
+	s.Require().Equal(http.StatusOK, rec.Code, rec.Body.String())
+	var list struct {
+		Data []agentConfigRevisionResponse `json:"data"`
+	}
+	s.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &list))
+	s.Require().Len(list.Data, 1)
+	s.Equal(put.OverlaySize, list.Data[0].OverlaySize)
 }
 
 func (s *AgentConfigAdminIntegrationSuite) TestGetConfigBadAndUnknownAgent() {
@@ -401,6 +433,45 @@ func (s *AgentConfigAdminIntegrationSuite) TestPutValidatesAgainstFreshInstances
 	s.Equal(agentconfig.FieldCodeRequired, errs.Instances[0].Errors[0].Code)
 }
 
+func (s *AgentConfigAdminIntegrationSuite) TestPutFallsBackToLatestStaleInstance() {
+	// Only a stale apply-mode instance: it is still validated against (R48), so a plugin
+	// without a source is rejected.
+	older := s.report(*s.agent.ID, agentconfig.ModeApplySafe, nil)
+	s.makeStale(older, 2*time.Hour)
+
+	overlay := `{"plugins":{"other":{"schedule":"*/5 * * * *"}}}`
+	errs := s.unprocessable(s.put(s.server, s.token, `"0"`, overlay))
+	s.Require().Len(errs.Instances, 1)
+	s.Equal(older.String(), errs.Instances[0].InstanceID)
+
+	// A schedule-only patch of a plugin in the stale base is fine.
+	s.save(`"0"`, `{"plugins":{"ssh":{"schedule":"*/10 * * * *"}}}`, 1)
+
+	// A more recently reported (still stale) instance whose base defines "other" becomes the
+	// only validation base, so the same overlay now saves.
+	schedule := "@hourly"
+	newer := s.report(*s.agent.ID, agentconfig.ModeApplyAll, func(r *agentconfig.Report) {
+		base := acaBase(agentconfig.ModeApplyAll, map[string]*agentconfig.Plugin{
+			"other": {Source: "ghcr.io/vendor/other:v1", Schedule: &schedule},
+		})
+		r.Base, r.Effective = base, base
+	})
+	s.makeStale(newer, time.Hour)
+	s.save(`"1"`, overlay, 2)
+
+	// Preview marks only the fallback instance as validated.
+	rec := s.call(http.MethodPost, s.path("/config/preview"), acaPutBody(overlay))
+	s.Require().Equal(http.StatusOK, rec.Code, rec.Body.String())
+	preview := acaData[configPreviewResponse](s, rec)
+	s.False(preview.Standalone)
+	validated := map[string]bool{}
+	for _, inst := range preview.Instances {
+		s.True(inst.Stale, inst.InstanceID)
+		validated[inst.InstanceID] = inst.Validated
+	}
+	s.Equal(map[string]bool{older.String(): false, newer.String(): true}, validated)
+}
+
 func (s *AgentConfigAdminIntegrationSuite) TestPutStandaloneWithoutInstances() {
 	// With no reporting instance only overlay-level checks run, so a plugin without a source
 	// saves (it cannot be merged against anything).
@@ -447,9 +518,286 @@ func (s *AgentConfigAdminIntegrationSuite) TestPutBodyHandling() {
 
 // ---- Revert ----
 
+func (s *AgentConfigAdminIntegrationSuite) TestRevert() {
+	s.save(`"0"`, `{"verbosity":1}`, 1)
+	s.save(`"1"`, `{"verbosity":2}`, 2)
+	revert := s.path("/config/revisions/1/revert")
+
+	// Missing If-Match => 428.
+	rec := s.call(http.MethodPost, revert, nil)
+	s.Require().Equal(http.StatusPreconditionRequired, rec.Code, rec.Body.String())
+
+	// Stale If-Match => 409.
+	rec = s.call(http.MethodPost, revert, nil, "If-Match", `"1"`)
+	s.Require().Equal(http.StatusConflict, rec.Code, rec.Body.String())
+	s.JSONEq(`{"errors":{"body":"configuration revision conflict","current-revision":2}}`, rec.Body.String())
+
+	// Unknown revision => 404; non-numeric => 400.
+	rec = s.call(http.MethodPost, s.path("/config/revisions/99/revert"), nil, "If-Match", `"2"`)
+	s.Equal(http.StatusNotFound, rec.Code, rec.Body.String())
+	rec = s.call(http.MethodPost, s.path("/config/revisions/abc/revert"), nil, "If-Match", `"2"`)
+	s.Equal(http.StatusBadRequest, rec.Code, rec.Body.String())
+
+	// Empty body with the current If-Match => 201, revision 3, revert-of 1.
+	rec = s.call(http.MethodPost, revert, nil, "If-Match", `"2"`)
+	s.Require().Equal(http.StatusCreated, rec.Code, rec.Body.String())
+	s.Equal(`"3"`, rec.Header().Get("ETag"))
+	got := acaData[agentConfigRevisionResponse](s, rec)
+	s.Equal(int64(3), got.Revision)
+	s.Require().NotNil(got.RevertOf)
+	s.Equal(int64(1), *got.RevertOf)
+	s.JSONEq(`{"verbosity":1}`, string(got.Overlay))
+
+	// A revert with a comment body.
+	rec = s.call(http.MethodPost, s.path("/config/revisions/2/revert"), []byte(`{"comment":"back to 2"}`), "If-Match", `"3"`)
+	s.Require().Equal(http.StatusCreated, rec.Code, rec.Body.String())
+	got = acaData[agentConfigRevisionResponse](s, rec)
+	s.Equal(int64(4), got.Revision)
+	s.Require().NotNil(got.Comment)
+	s.Equal("back to 2", *got.Comment)
+
+	// Reverting to an overlay equal to the current one is a no-op (R14) => 200.
+	rec = s.call(http.MethodPost, s.path("/config/revisions/2/revert"), nil, "If-Match", `"4"`)
+	s.Require().Equal(http.StatusOK, rec.Code, rec.Body.String())
+	s.Equal(int64(4), s.revisionCount(*s.agent.ID))
+}
+
 // ---- Revisions ----
 
+func (s *AgentConfigAdminIntegrationSuite) TestRevisions() {
+	s.save(`"0"`, `{"verbosity":1}`, 1)
+	s.save(`"1"`, `{"verbosity":2}`, 2)
+	s.save(`"2"`, `{"verbosity":0}`, 3)
+
+	rec := s.call(http.MethodGet, s.path("/config/revisions"), nil)
+	s.Require().Equal(http.StatusOK, rec.Code, rec.Body.String())
+	var raw map[string]json.RawMessage
+	s.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &raw))
+	for _, k := range []string{"data", "total", "page", "limit", "totalPages"} {
+		s.Contains(raw, k)
+	}
+	var items []map[string]json.RawMessage
+	s.Require().NoError(json.Unmarshal(raw["data"], &items))
+	s.Require().Len(items, 3)
+	for i, item := range items {
+		s.JSONEq(fmt.Sprint(3-i), string(item["revision"]), "newest first")
+		s.NotContains(item, "overlay", "lists omit the overlay (R12)")
+		s.Contains(item, "overlay-size")
+	}
+	s.JSONEq(`3`, string(raw["total"]))
+
+	rec = s.call(http.MethodGet, s.path("/config/revisions?page=2&limit=1"), nil)
+	s.Require().Equal(http.StatusOK, rec.Code, rec.Body.String())
+	var page struct {
+		Data       []agentConfigRevisionResponse `json:"data"`
+		Total      int64                         `json:"total"`
+		Page       int                           `json:"page"`
+		Limit      int                           `json:"limit"`
+		TotalPages int                           `json:"totalPages"`
+	}
+	s.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &page))
+	s.Require().Len(page.Data, 1)
+	s.Equal(int64(2), page.Data[0].Revision)
+	s.Equal(int64(3), page.Total)
+	s.Equal(2, page.Page)
+	s.Equal(1, page.Limit)
+	s.Equal(3, page.TotalPages)
+
+	rec = s.call(http.MethodGet, s.path("/config/revisions?page=0"), nil)
+	s.Equal(http.StatusBadRequest, rec.Code, rec.Body.String())
+
+	// One revision, with its overlay.
+	rec = s.call(http.MethodGet, s.path("/config/revisions/2"), nil)
+	s.Require().Equal(http.StatusOK, rec.Code, rec.Body.String())
+	got := acaData[agentConfigRevisionResponse](s, rec)
+	s.Equal(int64(2), got.Revision)
+	s.JSONEq(`{"verbosity":2}`, string(got.Overlay))
+
+	rec = s.call(http.MethodGet, s.path("/config/revisions/99"), nil)
+	s.Equal(http.StatusNotFound, rec.Code, rec.Body.String())
+	rec = s.call(http.MethodGet, s.path("/config/revisions/abc"), nil)
+	s.Equal(http.StatusBadRequest, rec.Code, rec.Body.String())
+	rec = s.call(http.MethodGet, s.path("/config/revisions/0"), nil)
+	s.Equal(http.StatusBadRequest, rec.Code, rec.Body.String())
+}
+
+func (s *AgentConfigAdminIntegrationSuite) TestRevisionsEmptyList() {
+	rec := s.call(http.MethodGet, s.path("/config/revisions"), nil)
+	s.Require().Equal(http.StatusOK, rec.Code, rec.Body.String())
+	var raw map[string]json.RawMessage
+	s.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &raw))
+	s.JSONEq(`[]`, string(raw["data"]))
+	s.JSONEq(`0`, string(raw["total"]))
+}
+
 // ---- Preview ----
+
+func (s *AgentConfigAdminIntegrationSuite) TestPreviewWillApply() {
+	safe := s.report(*s.agent.ID, agentconfig.ModeApplySafe, nil)
+	all := s.report(*s.agent.ID, agentconfig.ModeApplyAll, nil)
+	reportOnly := s.report(*s.agent.ID, agentconfig.ModeReport, nil)
+	s.save(`"0"`, `{"verbosity":1}`, 1)
+
+	// A new plugin from an untrusted OCI source.
+	overlay := `{"plugins":{"newp":{"source":"ghcr.io/other/newp:v1","schedule":"@hourly"}}}`
+	rec := s.call(http.MethodPost, s.path("/config/preview"), acaPutBody(overlay))
+	s.Require().Equal(http.StatusOK, rec.Code, rec.Body.String())
+	preview := acaData[configPreviewResponse](s, rec)
+	s.Equal(int64(1), preview.DesiredRevision)
+	s.False(preview.Standalone)
+	s.Empty(preview.OverlayErrors)
+
+	byID := map[string]instancePreview{}
+	for _, inst := range preview.Instances {
+		byID[inst.InstanceID] = inst
+	}
+	s.Require().Len(byID, 3)
+
+	p := byID[safe.String()]
+	s.True(p.Validated)
+	s.False(p.WillApply)
+	s.Equal(agentconfig.ReasonUnsafeChanges, p.WillApplyReason)
+	s.NotEmpty(p.Changes)
+	s.NotEmpty(p.DiffVsCurrent)
+	s.NotEmpty(p.Effective)
+
+	p = byID[all.String()]
+	s.True(p.Validated)
+	s.True(p.WillApply)
+	s.Empty(p.WillApplyReason)
+
+	p = byID[reportOnly.String()]
+	s.False(p.Validated, "report-mode instances are not validated against")
+	s.False(p.WillApply)
+	s.Equal(agentconfig.WillApplyReasonModeReport, p.WillApplyReason)
+
+	// Nothing was saved.
+	s.Equal(int64(1), s.revisionCount(*s.agent.ID))
+}
+
+func (s *AgentConfigAdminIntegrationSuite) TestPreviewStandaloneAndSlices() {
+	rec := s.call(http.MethodPost, s.path("/config/preview"), acaPutBody(`{"verbosity":1}`))
+	s.Require().Equal(http.StatusOK, rec.Code, rec.Body.String())
+	s.JSONEq(`{"data":{"desired-revision":0,"standalone":true,"overlay-errors":[],"instances":[],"omitted-instances":0}}`, rec.Body.String())
+
+	// An unchanged overlay on a fresh instance: every slice is [] rather than null.
+	s.report(*s.agent.ID, agentconfig.ModeApplySafe, nil)
+	rec = s.call(http.MethodPost, s.path("/config/preview"), acaPutBody(`{}`))
+	s.Require().Equal(http.StatusOK, rec.Code, rec.Body.String())
+	var body struct {
+		Data struct {
+			Standalone bool                         `json:"standalone"`
+			Instances  []map[string]json.RawMessage `json:"instances"`
+		} `json:"data"`
+	}
+	s.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &body))
+	s.False(body.Data.Standalone)
+	s.Require().Len(body.Data.Instances, 1)
+	inst := body.Data.Instances[0]
+	for _, k := range []string{"diff-vs-current", "errors", "warnings", "changes"} {
+		s.JSONEq(`[]`, string(inst[k]), k)
+	}
+	s.JSONEq(`true`, string(inst["will-apply"]))
+	s.NotContains(inst, "will-apply-reason")
+}
+
+func (s *AgentConfigAdminIntegrationSuite) TestPreviewInvalidOverlay() {
+	s.report(*s.agent.ID, agentconfig.ModeApplySafe, nil)
+	s.report(*s.agent.ID, agentconfig.ModeApplyAll, nil)
+
+	rec := s.call(http.MethodPost, s.path("/config/preview"), acaPutBody(`{"api":{"url":"http://evil"}}`))
+	s.Require().Equal(http.StatusOK, rec.Code, rec.Body.String())
+	preview := acaData[configPreviewResponse](s, rec)
+	s.Require().NotEmpty(preview.OverlayErrors)
+	s.Equal("/api", preview.OverlayErrors[0].Path)
+	s.Equal(agentconfig.FieldCodeLockedKey, preview.OverlayErrors[0].Code)
+	s.NotNil(preview.Instances)
+	s.Empty(preview.Instances, "an invalid overlay is not previewed per instance")
+	s.Contains(rec.Body.String(), `"instances":[]`)
+
+	// Over MaxOverlayBytes (but within the body limit): overlay errors only.
+	big := `{"plugins":{"ssh":{"labels":{"x":"` + strings.Repeat("a", agentconfig.MaxOverlayBytes) + `"}}}}`
+	rec = s.call(http.MethodPost, s.path("/config/preview"), acaPutBody(big))
+	s.Require().Equal(http.StatusOK, rec.Code, rec.Body.String())
+	preview = acaData[configPreviewResponse](s, rec)
+	s.Require().NotEmpty(preview.OverlayErrors)
+	s.Equal(agentconfig.FieldCodeSize, preview.OverlayErrors[0].Code)
+	s.Empty(preview.Instances)
+
+	// Instance-level errors (no source) also force invalid-config, and are listed per instance.
+	rec = s.call(http.MethodPost, s.path("/config/preview"), acaPutBody(`{"plugins":{"newp":{"schedule":"* * * * *"}}}`))
+	s.Require().Equal(http.StatusOK, rec.Code, rec.Body.String())
+	preview = acaData[configPreviewResponse](s, rec)
+	s.Empty(preview.OverlayErrors)
+	for _, inst := range preview.Instances {
+		s.NotEmpty(inst.Errors)
+		s.Equal(agentconfig.ReasonInvalidConfig, inst.WillApplyReason)
+	}
+
+	// Body problems are still 400 / 415.
+	rec = s.call(http.MethodPost, s.path("/config/preview"), []byte(`{"overlay":{},"x":1}`))
+	s.Equal(http.StatusBadRequest, rec.Code, rec.Body.String())
+	rec = s.call(http.MethodPost, s.path("/config/preview"), acaPutBody(`{}`), echo.HeaderContentType, "text/plain")
+	s.Equal(http.StatusUnsupportedMediaType, rec.Code, rec.Body.String())
+}
+
+// R59: errors already present in Merge(base, {}) come from the host file. They are
+// non-blocking warnings; only errors the overlay introduces block a save or force
+// invalid-config.
+func (s *AgentConfigAdminIntegrationSuite) TestFileOriginErrorsDoNotBlock() {
+	badCron := "not a cron"
+	instance := s.report(*s.agent.ID, agentconfig.ModeApplySafe, func(r *agentconfig.Report) {
+		base := acaBase(agentconfig.ModeApplySafe, map[string]*agentconfig.Plugin{
+			"x": {Source: acaVendorPlugin, Schedule: &badCron},
+		})
+		r.Base, r.Effective = base, base
+	})
+
+	// An unrelated overlay saves.
+	s.save(`"0"`, `{"verbosity":1}`, 1)
+
+	// Preview shows the file error as a warning and the instance still applies.
+	rec := s.call(http.MethodPost, s.path("/config/preview"), acaPutBody(`{"verbosity":2}`))
+	s.Require().Equal(http.StatusOK, rec.Code, rec.Body.String())
+	preview := acaData[configPreviewResponse](s, rec)
+	s.Require().Len(preview.Instances, 1)
+	p := preview.Instances[0]
+	s.Equal(instance.String(), p.InstanceID)
+	s.True(p.Validated)
+	s.Empty(p.Errors)
+	s.NotNil(p.Errors)
+	s.Require().Len(p.Warnings, 1)
+	s.Equal("/plugins/x/schedule", p.Warnings[0].Path)
+	s.Equal(agentconfig.FieldCodeCron, p.Warnings[0].Code)
+	s.True(p.WillApply)
+	s.Empty(p.WillApplyReason)
+
+	// A new bad cron in the overlay is still refused (caught on the overlay itself).
+	rec = s.put(s.server, s.token, `"1"`, `{"plugins":{"ssh":{"schedule":"also bad"}}}`)
+	body := s.unprocessable(rec)
+	s.Require().NotEmpty(body.Overlay)
+	s.Equal("/plugins/ssh/schedule", body.Overlay[0].Path)
+
+	// An error that only appears once merged is introduced: 422, listed per instance with
+	// the file-origin error as a warning.
+	rec = s.put(s.server, s.token, `"1"`, `{"plugins":{"newp":{"schedule":"* * * * *"}}}`)
+	body = s.unprocessable(rec)
+	s.Empty(body.Overlay)
+	s.Require().Len(body.Instances, 1)
+	s.Require().NotEmpty(body.Instances[0].Errors)
+	s.Equal("/plugins/newp/source", body.Instances[0].Errors[0].Path)
+	s.Require().Len(body.Instances[0].Warnings, 1)
+	s.Equal("/plugins/x/schedule", body.Instances[0].Warnings[0].Path)
+
+	// Preview agrees: an introduced error forces invalid-config.
+	rec = s.call(http.MethodPost, s.path("/config/preview"), acaPutBody(`{"plugins":{"newp":{"schedule":"* * * * *"}}}`))
+	s.Require().Equal(http.StatusOK, rec.Code, rec.Body.String())
+	preview = acaData[configPreviewResponse](s, rec)
+	s.Require().Len(preview.Instances, 1)
+	s.False(preview.Instances[0].WillApply)
+	s.Equal(agentconfig.ReasonInvalidConfig, preview.Instances[0].WillApplyReason)
+	s.Equal(int64(1), s.revisionCount(*s.agent.ID))
+}
 
 // ---- Instances ----
 

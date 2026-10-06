@@ -15,6 +15,18 @@ definitions:
         description: the source / env name that triggered the class
         type: string
     type: object
+  agentconfig.DiffEntry:
+    properties:
+      from:
+        type: object
+      op:
+        description: add | remove | replace
+        type: string
+      path:
+        type: string
+      to:
+        type: object
+    type: object
   agentconfig.FieldError:
     properties:
       code:
@@ -1671,6 +1683,13 @@ definitions:
         - $ref: '#/definitions/handler.catalogLinkResponse'
         description: Wrapped response data
     type: object
+  handler.GenericDataResponse-handler_configPreviewResponse:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/handler.configPreviewResponse'
+        description: Wrapped response data
+    type: object
   handler.GenericDataResponse-handler_configuredSystemDestinationResponse:
     properties:
       data:
@@ -2833,12 +2852,22 @@ definitions:
       subject-id:
         type: string
     type: object
+  handler.agentConfigPreviewRequest:
+    properties:
+      overlay:
+        type: object
+    type: object
   handler.agentConfigPutRequest:
     properties:
       comment:
         type: string
       overlay:
         type: object
+    type: object
+  handler.agentConfigRevertRequest:
+    properties:
+      comment:
+        type: string
     type: object
   handler.agentConfigRevisionResponse:
     properties:
@@ -2944,6 +2973,27 @@ definitions:
         type: string
       targetControlId:
         type: string
+    type: object
+  handler.configPreviewResponse:
+    properties:
+      desired-revision:
+        type: integer
+      instances:
+        items:
+          $ref: '#/definitions/handler.instancePreview'
+        type: array
+      omitted-instances:
+        description: |-
+          OmittedInstances counts the instances with a reported base the preview bounds left
+          out (at most agentcfg.PreviewMaxInstances instances and PreviewMaxConfigBytes of
+          reported config; validated instances first, then newest first).
+        type: integer
+      overlay-errors:
+        items:
+          $ref: '#/definitions/agentconfig.FieldError'
+        type: array
+      standalone:
+        type: boolean
     type: object
   handler.configuredSystemDestinationResponse:
     properties:
@@ -3218,6 +3268,47 @@ definitions:
           stays manual.
         type: string
       updatedAt:
+        type: string
+    type: object
+  handler.instancePreview:
+    properties:
+      changes:
+        items:
+          $ref: '#/definitions/agentconfig.Change'
+        type: array
+      diff-vs-current:
+        items:
+          $ref: '#/definitions/agentconfig.DiffEntry'
+        type: array
+      effective:
+        type: object
+      errors:
+        description: introduced by the overlay (R59)
+        items:
+          $ref: '#/definitions/agentconfig.FieldError'
+        type: array
+      hostname:
+        type: string
+      instance-id:
+        type: string
+      mode:
+        type: string
+      stale:
+        type: boolean
+      validated:
+        description: 'R48: PUT validates against this instance; its errors block a
+          save'
+        type: boolean
+      warnings:
+        description: 'already in Merge(base, {}): from the host file, non-blocking
+          (R59)'
+        items:
+          $ref: '#/definitions/agentconfig.FieldError'
+        type: array
+      will-apply:
+        type: boolean
+      will-apply-reason:
+        description: mode-off|mode-report|unsafe-changes|forbidden-changes|invalid-config
         type: string
     type: object
   handler.milestoneResponse:
@@ -10792,6 +10883,21 @@ definitions:
       totalPages:
         type: integer
     type: object
+  service.ListResponse-handler_agentConfigRevisionResponse:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/handler.agentConfigRevisionResponse'
+        type: array
+      limit:
+        type: integer
+      page:
+        type: integer
+      total:
+        type: integer
+      totalPages:
+        type: integer
+    type: object
   service.ListResponse-handler_riskResponse:
     properties:
       data:
@@ -12740,6 +12846,115 @@ paths:
       summary: Save an agent's configuration overlay
       tags:
       - Agent Configuration
+  /admin/agents/{id}/config/preview:
+    post:
+      consumes:
+      - application/json
+      description: Validates a candidate overlay without saving it and shows, per
+        reporting instance (fresh and stale), the redacted effective config, its diff
+        against the instance's current effective config, the classified changes and
+        whether the agent would apply it. validated marks the instances a save validates
+        against; only their errors block a save. errors are the problems the overlay
+        introduces; warnings are problems already in the instance's own file (present
+        in Merge(base, {})), which never block a save or force invalid-config (R59).
+        Validation problems are returned in the 200 body; when the overlay itself
+        is invalid (overlay-errors), instances is empty. At most 50 instances and
+        16 MiB of reported config are previewed (validated instances first, then newest
+        first); omitted-instances counts the rest. A save still validates against
+        every validated instance. Needs agent:configure.
+      parameters:
+      - description: Agent ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Candidate overlay
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handler.agentConfigPreviewRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-handler_configPreviewResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "413":
+          description: Request Entity Too Large
+          schema:
+            $ref: '#/definitions/api.Error'
+        "415":
+          description: Unsupported Media Type
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Preview an agent configuration overlay
+      tags:
+      - Agent Configuration
+  /admin/agents/{id}/config/revisions:
+    get:
+      description: Revisions newest first, without overlays.
+      parameters:
+      - description: Agent ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Page (default 1)
+        in: query
+        name: page
+        type: integer
+      - description: Page size (default 50, max 100)
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/service.ListResponse-handler_agentConfigRevisionResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: List an agent's configuration revisions
+      tags:
+      - Agent Configuration
   /admin/agents/{id}/config/revisions/{rev}:
     get:
       description: The overlay is verbatim for callers that also hold agent:configure
@@ -12782,6 +12997,86 @@ paths:
       security:
       - OAuth2Password: []
       summary: Get one configuration revision
+      tags:
+      - Agent Configuration
+  /admin/agents/{id}/config/revisions/{rev}/revert:
+    post:
+      consumes:
+      - application/json
+      description: Creates the next revision with the overlay of revision :rev (revert-of
+        records it). Same If-Match, validation and authorization rules as PUT. The
+        body is optional.
+      parameters:
+      - description: Agent ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Revision to restore
+        in: path
+        name: rev
+        required: true
+        type: integer
+      - description: Current revision, e.g. \
+        in: header
+        name: If-Match
+        required: true
+        type: string
+      - description: Optional comment
+        in: body
+        name: body
+        schema:
+          $ref: '#/definitions/handler.agentConfigRevertRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-handler_agentConfigRevisionResponse'
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-handler_agentConfigRevisionResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/api.Error'
+        "413":
+          description: Request Entity Too Large
+          schema:
+            $ref: '#/definitions/api.Error'
+        "415":
+          description: Unsupported Media Type
+          schema:
+            $ref: '#/definitions/api.Error'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/api.Error'
+        "428":
+          description: Precondition Required
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Revert an agent's configuration to an earlier revision
       tags:
       - Agent Configuration
   /admin/ai-diagnostics/runs:
