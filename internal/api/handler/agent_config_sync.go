@@ -33,9 +33,24 @@ const (
 	// Bounds on the summary columns ListInstances returns for every instance.
 	maxReportWarningMessageBytes = 1 << 10
 	maxReportWarningPathBytes    = 1 << 10
+	maxReportWarningCodeBytes    = 64 // codes are an open set: a newer agent may send ones this API does not know
 	maxReportUnsafe              = 200
 	maxReportChangePathBytes     = 1 << 10
 	maxReportChangeValueBytes    = 2048
+	maxReportChangeSafetyBytes   = 64 // safety and reason are cut, not rejected, for the same reason
+	maxReportChangeReasonBytes   = 64
+
+	// maxReportSummaryEncodedBytes bounds the summary fields of one stored report (hostname,
+	// agent-version, error, warnings, unsafe, plugins, remote-config) as the instance list
+	// encodes them: encoding/json with HTML escaping on, as echo's DefaultJSONSerializer does.
+	// The byte caps above are on raw text, which escaping can grow up to six times (`<`, `&`
+	// and control characters become \u00XX), so normalizeReport also enforces this budget by
+	// dropping trailing list entries (applyReportSummaryBudget). A plain-text report at every
+	// cap encodes to about 2.9 MB, so it is never cut.
+	maxReportSummaryEncodedBytes = 3 << 20
+	// maxReportErrorEncodedBytes is what the error text keeps once the summary budget is
+	// exceeded: maxReportErrorBytes of text without escapes.
+	maxReportErrorEncodedBytes = maxReportErrorBytes + 2
 
 	// R76: plugins.
 	maxReportPlugins             = 500
@@ -325,9 +340,10 @@ func hasJSONNULEscape(raw []byte) bool {
 }
 
 // normalizeReport validates the enums and shapes of a report, applies the count caps, masks
-// the free-text fields that contain a secret (scrubReportText) and then applies the length
-// caps (truncating, not rejecting). Masking runs before truncation so a secret cut at a cap
-// cannot slip past the content checks. scrubbed reports whether anything was masked.
+// the free-text fields that contain a secret (scrubReportText), then applies the length caps
+// and the encoded summary budget (applyReportSummaryBudget), truncating, not rejecting.
+// Masking runs before truncation so a secret cut at a cap cannot slip past the content
+// checks. scrubbed reports whether anything was masked.
 func normalizeReport(r *agentconfig.Report) (scrubbed bool, err error) {
 	if !slices.Contains(agentconfig.Modes, r.Mode) {
 		return false, fmt.Errorf("mode must be one of %s", strings.Join(agentconfig.Modes, ", "))
@@ -398,11 +414,14 @@ func normalizeReport(r *agentconfig.Report) (scrubbed bool, err error) {
 		w := &r.Warnings[i]
 		w.Message = truncateReportField(r, w.Message, maxReportWarningMessageBytes)
 		w.Path = truncateReportField(r, w.Path, maxReportWarningPathBytes)
+		w.Code = truncateReportField(r, w.Code, maxReportWarningCodeBytes)
 	}
 	for i := range r.Unsafe {
 		c := &r.Unsafe[i]
 		c.Path = truncateReportField(r, c.Path, maxReportChangePathBytes)
 		c.Value = truncateReportField(r, c.Value, maxReportChangeValueBytes)
+		c.Safety = agentconfig.Safety(truncateReportField(r, string(c.Safety), maxReportChangeSafetyBytes))
+		c.Reason = truncateReportField(r, c.Reason, maxReportChangeReasonBytes)
 	}
 	if rc := r.RemoteConfig; rc != nil {
 		rc.Mode = truncateReportField(r, rc.Mode, maxReportRemoteModeLen)
@@ -416,7 +435,133 @@ func normalizeReport(r *agentconfig.Report) (scrubbed bool, err error) {
 		msg := truncateUTF8(*r.Error, maxReportErrorBytes)
 		r.Error = &msg
 	}
+	if err := applyReportSummaryBudget(r); err != nil {
+		return false, err
+	}
 	return scrubbed, nil
+}
+
+// encodedLen is the length of v encoded as the instance list encodes it (encoding/json with
+// HTML escaping, which json.Marshal applies).
+func encodedLen(v any) (int, error) {
+	raw, err := json.Marshal(v)
+	return len(raw), err
+}
+
+// encodedEntryLens returns the encoded length of each entry of a list.
+func encodedEntryLens[T any](entries []T) ([]int, error) {
+	lens := make([]int, len(entries))
+	for i := range entries {
+		n, err := encodedLen(entries[i])
+		if err != nil {
+			return nil, err
+		}
+		lens[i] = n
+	}
+	return lens, nil
+}
+
+// applyReportSummaryBudget keeps the encoded summary fields of a normalized report within
+// maxReportSummaryEncodedBytes. Within budget, the report is left unchanged. Over it, the
+// report is marked truncated, the error text is cut to maxReportErrorEncodedBytes encoded,
+// and the last entry of the largest list (warnings, unsafe or plugins) is dropped until the
+// report fits. The other fields are small once capped (remote-config within 64 KiB encoded,
+// the hostname and version within six times their byte caps), so dropping entries always
+// reaches the budget.
+func applyReportSummaryBudget(r *agentconfig.Report) error {
+	fixed := 0
+	for _, v := range []any{r.Hostname, r.AgentVersion, r.RemoteConfig} {
+		n, err := encodedLen(v)
+		if err != nil {
+			return err
+		}
+		fixed += n
+	}
+	errLen := 0
+	if r.Error != nil {
+		n, err := encodedLen(*r.Error)
+		if err != nil {
+			return err
+		}
+		errLen = n
+	}
+	// Per list: the encoded length of each entry, how many are kept, and the kept entries'
+	// encoded length as a JSON array.
+	type list struct {
+		entries []int
+		kept    int
+		size    int
+	}
+	newList := func(entries []int) list {
+		l := list{entries: entries, kept: len(entries), size: 2 + max(0, len(entries)-1)}
+		for _, n := range entries {
+			l.size += n
+		}
+		return l
+	}
+	warnings, err := encodedEntryLens(r.Warnings)
+	if err != nil {
+		return err
+	}
+	unsafe, err := encodedEntryLens(r.Unsafe)
+	if err != nil {
+		return err
+	}
+	plugins, err := encodedEntryLens(r.Plugins)
+	if err != nil {
+		return err
+	}
+	lists := [3]list{newList(warnings), newList(unsafe), newList(plugins)}
+	total := fixed + errLen + lists[0].size + lists[1].size + lists[2].size
+	if total <= maxReportSummaryEncodedBytes {
+		return nil
+	}
+	r.Truncated = true
+	if r.Error != nil && errLen > maxReportErrorEncodedBytes {
+		msg, n, err := truncateEncoded(*r.Error, maxReportErrorEncodedBytes)
+		if err != nil {
+			return err
+		}
+		r.Error = &msg
+		total -= errLen - n
+	}
+	for total > maxReportSummaryEncodedBytes {
+		largest := &lists[0]
+		for i := range lists[1:] {
+			if lists[i+1].size > largest.size {
+				largest = &lists[i+1]
+			}
+		}
+		if largest.kept == 0 {
+			break // unreachable: the fixed fields are far below the budget
+		}
+		largest.kept--
+		dropped := largest.entries[largest.kept]
+		if largest.kept > 0 {
+			dropped++ // its comma
+		}
+		largest.size -= dropped
+		total -= dropped
+	}
+	r.Warnings = r.Warnings[:lists[0].kept]
+	r.Unsafe = r.Unsafe[:lists[1].kept]
+	r.Plugins = r.Plugins[:lists[2].kept]
+	return nil
+}
+
+// truncateEncoded cuts s to a rune-boundary prefix whose JSON encoding is at most limit bytes
+// (at most a few bytes shorter than the longest such prefix) and returns it with its encoded
+// length.
+func truncateEncoded(s string, limit int) (string, int, error) {
+	cut := truncateUTF8(s, limit-2) // quotes included, each byte encodes to at least one byte
+	for {
+		n, err := encodedLen(cut)
+		if err != nil || n <= limit {
+			return cut, n, err
+		}
+		// A byte encodes to at most six, so drop at least a sixth of the overshoot.
+		cut = truncateUTF8(cut, len(cut)-max(1, (n-limit+5)/6))
+	}
 }
 
 // truncateReportField cuts s to n bytes (truncateUTF8) and marks the report truncated when

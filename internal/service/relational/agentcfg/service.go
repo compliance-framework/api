@@ -540,12 +540,13 @@ var summaryColumns = []string{
 }
 
 // InstancesPageLimit is the default and the maximum page size of ListInstances. A listed
-// instance's summary columns are bounded only by the report handler (normalizeReport): about
-// 3 MiB of text per instance in the worst case (warnings ~1 MiB, plugins ~1.2 MiB, unsafe
-// changes ~0.6 MiB, remote-config 64 KiB, error 8 KiB), and never more than one report body
-// (agentconfig.MaxReportBytes, 4 MiB). So a page holds about 75 MiB of summary text at most,
-// whatever the agent's instance count (up to MaxInstancesPerAgent non-prunable instances plus
-// the prune-eligible ones PruneInstances has not deleted yet).
+// instance's summary columns are bounded only by the report handler (normalizeReport): every
+// free-text field has a byte cap, and the summary fields as a whole are cut to 3 MiB once
+// JSON-encoded with HTML escaping, as the instance list encodes them
+// (maxReportSummaryEncodedBytes; a plain-text report at every cap is about 2.9 MB and is never
+// cut). So a page encodes to about 75 MiB at most, whatever the agent's instance count (up to
+// MaxInstancesPerAgent non-prunable instances plus the prune-eligible ones PruneInstances has
+// not deleted yet) and whatever the reports contain.
 const InstancesPageLimit = 25
 
 // ListInstances returns one page of an agent's instances, most recently seen first
