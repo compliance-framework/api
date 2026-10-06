@@ -16,6 +16,7 @@ import (
 	"github.com/compliance-framework/api/internal/service/notification"
 	emailprovider "github.com/compliance-framework/api/internal/service/notification/providers/email"
 	slackprovider "github.com/compliance-framework/api/internal/service/notification/providers/slack"
+	"github.com/compliance-framework/api/internal/service/relational/agentcfg"
 	riskrel "github.com/compliance-framework/api/internal/service/relational/risks"
 	"github.com/compliance-framework/api/internal/service/relational/workflows"
 	slacksvc "github.com/compliance-framework/api/internal/service/slack"
@@ -318,6 +319,10 @@ func NewServiceWithDigest(
 	// POAM digest scheduler worker (BCH-1186 Phase 4)
 	poamOpenDigestSchedulerWorker := NewPoamOpenDigestSchedulerWorker(db, clientProxy, poamCfg.OpenDigestWindow, logger)
 	river.AddWorker(workers, river.WorkFunc(poamOpenDigestSchedulerWorker.Work))
+
+	// Agent instance pruning (R37)
+	agentInstancePruneWorker := NewAgentInstancePruneWorker(db, agentcfg.SettingsFromConfig(digestCfg), logger)
+	river.AddWorker(workers, river.WorkFunc(agentInstancePruneWorker.Work))
 
 	aiEnabled := digestCfg != nil && digestCfg.AI != nil && digestCfg.AI.Enabled
 	if aiEnabled {
@@ -713,6 +718,10 @@ func periodicJobsFromConfig(cfg *config.Config, logger *zap.SugaredLogger) []*ri
 	// POAM digest periodic job (BCH-1186 Phase 4)
 	if cfg.Poam != nil && cfg.Poam.OpenDigestEnabled {
 		periodicJobs = append(periodicJobs, NewPoamOpenDigestPeriodicJob(cfg.Poam.OpenDigestSchedule, logger))
+	}
+	// Agent instance pruning (R37); LoadAgentsConfig enables it by default.
+	if cfg.Agents != nil && cfg.Agents.InstancePruneEnabled {
+		periodicJobs = append(periodicJobs, NewAgentInstancePrunePeriodicJob(cfg.Agents.InstancePruneSchedule, logger))
 	}
 	return periodicJobs
 }

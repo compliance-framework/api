@@ -745,6 +745,248 @@ func (s *AgentCfgServiceIntegrationSuite) TestListInstancesPagesAndCountsAll() {
 	s.Equal(agentcfg.InstanceCounts{}, counts)
 }
 
+// validationFixture seeds an agent with fresh apply-mode instances plus instances that must
+// never be validated against.
+type validationFixture struct {
+	agentID                                uuid.UUID
+	freshSafe, freshAll, reportMode, stale uuid.UUID
+	noBase                                 uuid.UUID
+}
+
+func (s *AgentCfgServiceIntegrationSuite) seedValidationFixture() validationFixture {
+	f := validationFixture{
+		agentID: s.newAgent("validation"), freshSafe: uuid.New(), freshAll: uuid.New(),
+		reportMode: uuid.New(), stale: uuid.New(), noBase: uuid.New(),
+	}
+	safe := applyReport(agentconfig.ModeApplySafe, baseConfig)
+	safe.RemoteConfig = &agentconfig.RemoteConfig{Mode: agentconfig.ModeApplySafe, TrustedSources: []string{"ghcr.io/x/*"}}
+	s.Require().NoError(s.reportAt(s.svc, s.now, f.agentID, f.freshSafe, safe))
+
+	// No reported remote-config: falls back to the base block.
+	withRemote := `{"daemon":true,"verbosity":0,"remote_config":{"mode":"apply_all","poll_interval":"30s"},"plugins":{}}`
+	s.Require().NoError(s.reportAt(s.svc, s.now.Add(-5*time.Minute), f.agentID, f.freshAll, applyReport(agentconfig.ModeApplyAll, withRemote)))
+
+	s.Require().NoError(s.reportAt(s.svc, s.now.Add(-time.Minute), f.agentID, f.reportMode, applyReport(agentconfig.ModeReport, baseConfig)))
+	s.Require().NoError(s.reportAt(s.svc, s.now.Add(-time.Minute), f.agentID, f.noBase, applyReport(agentconfig.ModeApplySafe, "")))
+	s.Require().NoError(s.reportAt(s.svc, s.now.Add(-time.Hour), f.agentID, f.stale, applyReport(agentconfig.ModeApplySafe, baseConfig)))
+	return f
+}
+
+func byInstance(bases []agentcfg.InstanceBase) map[uuid.UUID]agentcfg.InstanceBase {
+	out := map[uuid.UUID]agentcfg.InstanceBase{}
+	for _, b := range bases {
+		out[b.Instance.InstanceID] = b
+	}
+	return out
+}
+
+func (s *AgentCfgServiceIntegrationSuite) TestValidationBasesFreshInstances() {
+	f := s.seedValidationFixture()
+
+	bases, standalone, err := s.svc.ValidationBases(s.ctx, f.agentID)
+	s.Require().NoError(err)
+	s.False(standalone)
+	s.Require().Len(bases, 2)
+	s.Equal(f.freshSafe, bases[0].Instance.InstanceID, "most recently seen first")
+	s.Equal(f.freshAll, bases[1].Instance.InstanceID)
+
+	m := byInstance(bases)
+	for _, b := range bases {
+		s.False(b.Stale)
+		s.True(b.Validated)
+		s.True(b.Base.Daemon, "base decoded")
+	}
+	s.Require().NotNil(m[f.freshSafe].Base.API)
+	s.Equal("http://api:8080", m[f.freshSafe].Base.API.URL)
+
+	// Reported remote-config wins.
+	safeRemote := m[f.freshSafe].Remote
+	s.Equal(agentconfig.ModeApplySafe, safeRemote.Mode)
+	s.Equal([]string{"ghcr.io/x/*"}, safeRemote.TrustedSources)
+	s.Equal("60s", safeRemote.PollInterval)
+
+	// Falls back to the base's remote_config block, normalized with hasAuth=true.
+	allRemote := m[f.freshAll].Remote
+	s.Equal(agentconfig.ModeApplyAll, allRemote.Mode)
+	s.Equal("30s", allRemote.PollInterval)
+	s.Equal([]string{}, allRemote.TrustedSources)
+	s.Equal([]string{}, allRemote.OverridableConfigFlags)
+	s.False(allRemote.AllowLocalSources)
+}
+
+func (s *AgentCfgServiceIntegrationSuite) TestValidationBasesFallbackAndStandalone() {
+	agentID := s.newAgent("fallback")
+	seenRecently, reportedRecently := uuid.New(), uuid.New()
+	// Reported 200h ago but heartbeated 30m ago (stale, but seen more recently).
+	s.Require().NoError(s.reportAt(s.svc, s.now.Add(-200*time.Hour), agentID, seenRecently, applyReport(agentconfig.ModeApplySafe, baseConfig)))
+	saved := s.now
+	s.now = saved.Add(-30 * time.Minute)
+	s.Require().NoError(s.svc.TouchFromHeartbeat(s.ctx, agentID, nil, seenRecently, nil, nil))
+	s.now = saved
+	// Most recently reported apply-mode instance, 100h ago.
+	s.Require().NoError(s.reportAt(s.svc, s.now.Add(-100*time.Hour), agentID, reportedRecently, applyReport(agentconfig.ModeApplyAll, baseConfig)))
+	// Newer, but report mode (and a fresh report-mode one) or without a base.
+	s.Require().NoError(s.reportAt(s.svc, s.now.Add(-2*time.Hour), agentID, uuid.New(), applyReport(agentconfig.ModeReport, baseConfig)))
+	s.Require().NoError(s.reportAt(s.svc, s.now, agentID, uuid.New(), applyReport(agentconfig.ModeReport, baseConfig)))
+	s.Require().NoError(s.reportAt(s.svc, s.now.Add(-time.Hour), agentID, uuid.New(), applyReport(agentconfig.ModeApplySafe, "")))
+
+	bases, standalone, err := s.svc.ValidationBases(s.ctx, agentID)
+	s.Require().NoError(err)
+	s.False(standalone)
+	s.Require().Len(bases, 1)
+	s.Equal(reportedRecently, bases[0].Instance.InstanceID)
+	s.True(bases[0].Stale)
+	s.True(bases[0].Validated)
+	s.Equal(agentconfig.ModeApplyAll, bases[0].Remote.Mode, "no remote block anywhere: the instance mode")
+
+	// Only report-mode / base-less instances: standalone.
+	onlyIneligible := s.newAgent("standalone")
+	s.Require().NoError(s.reportAt(s.svc, s.now, onlyIneligible, uuid.New(), applyReport(agentconfig.ModeReport, baseConfig)))
+	s.Require().NoError(s.reportAt(s.svc, s.now, onlyIneligible, uuid.New(), applyReport(agentconfig.ModeApplyAll, "")))
+	s.Require().NoError(s.svc.TouchFromHeartbeat(s.ctx, onlyIneligible, nil, uuid.New(), ptr(int64(1)), ptr("d")))
+	bases, standalone, err = s.svc.ValidationBases(s.ctx, onlyIneligible)
+	s.Require().NoError(err)
+	s.True(standalone)
+	s.Empty(bases)
+
+	bases, standalone, err = s.svc.ValidationBases(s.ctx, s.newAgent("no-instances"))
+	s.Require().NoError(err)
+	s.True(standalone)
+	s.Empty(bases)
+}
+
+// Instances that report the same base (whatever its key order or whitespace) share one
+// BaseKey and one decoded base; each keeps its own instance fields and remote-config.
+func (s *AgentCfgServiceIntegrationSuite) TestValidationBasesGroupsByBaseContent() {
+	agentID := s.newAgent("grouped-bases")
+	a, b, c := uuid.New(), uuid.New(), uuid.New()
+	reordered := `{ "verbosity":0, "plugins":{"p1":{"policies":["ghcr.io/x/pol:v1"],"source":"ghcr.io/x/p1:v1"}}, "api":{"auth":{"client_id":"cid"},"url":"http://api:8080"}, "daemon":true }`
+	other := `{"daemon":true,"verbosity":1,"plugins":{}}`
+	for _, in := range []struct {
+		id       uuid.UUID
+		base     string
+		host     string
+		at       time.Duration
+		trusted  []string
+		instMode string
+	}{
+		{a, baseConfig, "host-a", 0, []string{"ghcr.io/a/*"}, agentconfig.ModeApplySafe},
+		{b, reordered, "host-b", -time.Minute, []string{"ghcr.io/b/*"}, agentconfig.ModeApplyAll},
+		{c, other, "host-c", -2 * time.Minute, nil, agentconfig.ModeApplySafe},
+	} {
+		r := applyReport(in.instMode, in.base)
+		r.Hostname = in.host
+		r.RemoteConfig = &agentconfig.RemoteConfig{Mode: in.instMode, TrustedSources: in.trusted}
+		s.Require().NoError(s.reportAt(s.svc, s.now.Add(in.at), agentID, in.id, r))
+	}
+
+	bases, standalone, err := s.svc.ValidationBases(s.ctx, agentID)
+	s.Require().NoError(err)
+	s.False(standalone)
+	s.Require().Len(bases, 3, "every instance of the validation set is still listed")
+	s.Equal([]uuid.UUID{a, b, c}, []uuid.UUID{bases[0].Instance.InstanceID, bases[1].Instance.InstanceID, bases[2].Instance.InstanceID})
+
+	m := byInstance(bases)
+	s.NotEmpty(m[a].BaseKey)
+	s.Equal(m[a].BaseKey, m[b].BaseKey, "same base content, same key")
+	s.NotEqual(m[a].BaseKey, m[c].BaseKey)
+	s.Equal(m[a].Base, m[b].Base)
+	s.Equal(int32(1), m[c].Base.Verbosity)
+	s.Nil(m[a].Instance.BaseConfig, "the base is loaded once per group, not per instance")
+
+	s.Equal("host-a", *m[a].Instance.Hostname)
+	s.Equal("host-b", *m[b].Instance.Hostname)
+	s.Equal([]string{"ghcr.io/a/*"}, m[a].Remote.TrustedSources)
+	s.Equal([]string{"ghcr.io/b/*"}, m[b].Remote.TrustedSources)
+	s.Equal(agentconfig.ModeApplyAll, m[b].Remote.Mode)
+	for _, base := range bases {
+		s.True(base.Validated)
+		s.False(base.Stale)
+	}
+}
+
+func (s *AgentCfgServiceIntegrationSuite) TestPreviewBases() {
+	f := s.seedValidationFixture()
+
+	set, err := s.svc.PreviewBases(s.ctx, f.agentID)
+	s.Require().NoError(err)
+	s.Zero(set.Omitted)
+	s.Len(set.Validation, 2)
+	m := byInstance(set.Instances)
+	s.Require().Len(m, 4, "every instance with a base; base-less excluded")
+	s.NotContains(m, f.noBase)
+
+	s.True(m[f.freshSafe].Validated)
+	s.True(m[f.freshAll].Validated)
+	s.False(m[f.reportMode].Validated)
+	s.False(m[f.stale].Validated)
+	s.False(m[f.freshSafe].Stale)
+	s.False(m[f.reportMode].Stale)
+	s.True(m[f.stale].Stale)
+	s.Equal(agentconfig.ModeReport, m[f.reportMode].Remote.Mode)
+
+	// Fallback: only the most recently reported stale instance is validated.
+	agentID := s.newAgent("preview-fallback")
+	older, newer := uuid.New(), uuid.New()
+	s.Require().NoError(s.reportAt(s.svc, s.now.Add(-3*time.Hour), agentID, older, applyReport(agentconfig.ModeApplySafe, baseConfig)))
+	s.Require().NoError(s.reportAt(s.svc, s.now.Add(-2*time.Hour), agentID, newer, applyReport(agentconfig.ModeApplySafe, baseConfig)))
+	set, err = s.svc.PreviewBases(s.ctx, agentID)
+	s.Require().NoError(err)
+	bases := set.Instances
+	s.Require().Len(bases, 2)
+	s.Equal(newer, bases[0].Instance.InstanceID)
+	s.True(bases[0].Stale)
+	s.True(bases[0].Validated)
+	s.True(bases[1].Stale)
+	s.False(bases[1].Validated)
+}
+
+func (s *AgentCfgServiceIntegrationSuite) TestPreviewBasesBounded() {
+	agentID := s.newAgent("preview-bounded")
+	// The validated instance is older than every report-mode one, which are not validated
+	// and outnumber the preview bound.
+	validated := uuid.New()
+	s.Require().NoError(s.reportAt(s.svc, s.now.Add(-5*time.Minute), agentID, validated, applyReport(agentconfig.ModeApplySafe, baseConfig)))
+	var others []uuid.UUID
+	for i := range agentcfg.PreviewMaxInstances + 5 {
+		id := uuid.New()
+		others = append(others, id)
+		s.Require().NoError(s.reportAt(s.svc, s.now.Add(-time.Duration(i+1)*time.Second), agentID, id, applyReport(agentconfig.ModeReport, baseConfig)))
+	}
+
+	set, err := s.svc.PreviewBases(s.ctx, agentID)
+	s.Require().NoError(err)
+	s.Len(set.Validation, 1)
+	s.Require().Len(set.Instances, agentcfg.PreviewMaxInstances)
+	s.EqualValues(6, set.Omitted)
+	s.Equal(validated, set.Instances[0].Instance.InstanceID, "validated instances first")
+	s.True(set.Instances[0].Validated)
+	s.Equal(others[0], set.Instances[1].Instance.InstanceID, "then newest first")
+	s.False(set.Instances[1].Validated)
+}
+
+func (s *AgentCfgServiceIntegrationSuite) TestDeleteInstancesForAgentKeepsRevisions() {
+	agentA := s.newAgent("delete-a")
+	agentB := s.newAgent("delete-b")
+	s.createRevision(agentA, 0, `{"verbosity":1}`)
+	s.createRevision(agentA, 1, `{"verbosity":2}`)
+	report := applyReport(agentconfig.ModeApplySafe, baseConfig)
+	s.Require().NoError(s.svc.UpsertReport(s.ctx, agentA, nil, uuid.New(), report))
+	s.Require().NoError(s.svc.UpsertReport(s.ctx, agentA, nil, uuid.New(), report))
+	keep := uuid.New()
+	s.Require().NoError(s.svc.UpsertReport(s.ctx, agentB, nil, keep, report))
+
+	s.Require().NoError(agentcfg.DeleteInstancesForAgent(s.DB, agentA))
+
+	s.Equal(int64(0), s.countInstances(agentA))
+	s.Equal(int64(1), s.countInstances(agentB))
+	_, err := s.svc.GetInstance(s.ctx, agentB, keep)
+	s.NoError(err)
+	n, err := s.svc.CurrentRevisionNumber(s.ctx, agentA)
+	s.Require().NoError(err)
+	s.Equal(int64(2), n, "revisions are kept")
+}
+
 func (s *AgentCfgServiceIntegrationSuite) TestDeleteRevisionsForAgent() {
 	agentA := s.newAgent("purge-a")
 	agentB := s.newAgent("purge-b")
@@ -780,4 +1022,36 @@ func (s *AgentCfgServiceIntegrationSuite) TestCreateRevisionReturnsTheStoredRow(
 	s.Require().NoError(err)
 	s.Require().Len(metas, 1)
 	s.Equal(len(rev.Overlay), metas[0].OverlaySize)
+}
+
+func (s *AgentCfgServiceIntegrationSuite) TestPruneInstances() {
+	agentID := s.newAgent("prune")
+	now := s.now
+	oneShotOld := s.insertInstance(agentID, ptr(false), now.Add(-25*time.Hour))
+	oneShotRecent := s.insertInstance(agentID, ptr(false), now.Add(-23*time.Hour))
+	daemon25h := s.insertInstance(agentID, ptr(true), now.Add(-25*time.Hour))
+	daemonOld := s.insertInstance(agentID, ptr(true), now.Add(-721*time.Hour))
+	null25h := s.insertInstance(agentID, nil, now.Add(-25*time.Hour))
+	nullOld := s.insertInstance(agentID, nil, now.Add(-721*time.Hour))
+
+	deleted, err := agentcfg.PruneInstances(s.ctx, s.DB, agentcfg.Settings{}, now)
+	s.Require().NoError(err)
+	s.Equal(int64(3), deleted)
+
+	remaining := map[uuid.UUID]bool{}
+	list, _, err := s.svc.ListInstances(s.ctx, agentID, service.PaginationParams{Page: 1, Limit: agentcfg.InstancesPageLimit})
+	s.Require().NoError(err)
+	for _, i := range list {
+		remaining[i.InstanceID] = true
+	}
+	s.False(remaining[oneShotOld], "daemon=false pruned after 24h")
+	s.True(remaining[oneShotRecent])
+	s.True(remaining[daemon25h], "daemon=true kept at 25h")
+	s.False(remaining[daemonOld], "daemon=true pruned after 720h")
+	s.True(remaining[null25h], "daemon NULL treated like a daemon")
+	s.False(remaining[nullOld])
+
+	deleted, err = agentcfg.PruneInstances(s.ctx, s.DB, agentcfg.Settings{}, now)
+	s.Require().NoError(err)
+	s.Equal(int64(0), deleted, "idempotent")
 }

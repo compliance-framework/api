@@ -4,6 +4,7 @@ package agentcfg
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -625,6 +626,285 @@ func (s *Service) GetInstance(ctx context.Context, agentID, instanceID uuid.UUID
 	return &out, nil
 }
 
+// baseColumns are the instance columns validation and preview need (no report payloads
+// besides the base), so loading every instance of a large fleet stays cheap.
+var baseColumns = []string{
+	"id", "agent_id", "instance_id", "hostname", "mode", "daemon", "first_seen_at", "last_seen_at",
+	"reported_at", "applied_revision", "attempted_revision", "reported_status",
+	"base_config", "remote_config",
+}
+
+// InstanceBase is a reported base an overlay is validated or previewed against.
+type InstanceBase struct {
+	Instance  relational.AgentInstance
+	Base      agentconfig.Config
+	Remote    agentconfig.RemoteConfig // reported remote-config, or the base's block normalized with hasAuth=true
+	Stale     bool
+	Validated bool // member of ValidationBases (R48)
+	// BaseKey identifies the content of the reported base (set by ValidationBases only):
+	// instances with the same BaseKey share one decoded Base, so a caller validates it once.
+	// Base is shared, not copied: treat it as read-only.
+	BaseKey string
+}
+
+var applyModes = []string{agentconfig.ModeApplySafe, agentconfig.ModeApplyAll}
+
+// baseKeyExpr is the content key of a reported base: the SHA-256 of its jsonb text, which
+// Postgres normalizes (key order, whitespace), so instances that report the same base get
+// the same key.
+const baseKeyExpr = "encode(sha256(convert_to(base_config::text, 'UTF8')), 'hex') AS base_key"
+
+// validationMemberColumns are baseColumns without the base itself, plus its content key.
+var validationMemberColumns = append(slices.DeleteFunc(slices.Clone(baseColumns), func(c string) bool {
+	return c == "base_config"
+}), baseKeyExpr)
+
+// validationMember is one instance of the validation set, without its base.
+type validationMember struct {
+	relational.AgentInstance
+	BaseKey string
+}
+
+// ValidationBases is exactly the set PUT and revert validate against (R14, R48):
+//  1. all fresh instances (seen within InstanceStaleAfter) with a reported base and an
+//     apply mode;
+//  2. else the single most recently reported instance with a base and an apply mode,
+//     whatever its age;
+//  3. else none, and standalone=true (overlay-level checks only).
+//
+// Report-mode instances and instances without a base are never validated against. A base
+// that no longer decodes is skipped with a warning.
+//
+// The cost follows the distinct bases, not the instance count: the set is grouped by base
+// content in SQL (BaseKey), and each distinct base is loaded and decoded once and shared by
+// every instance of its group (instances of one fleet usually report the same base). Both
+// reads run in one read-only repeatable-read transaction, so the groups and the loaded bases
+// are one snapshot.
+func (s *Service) ValidationBases(ctx context.Context, agentID uuid.UUID) ([]InstanceBase, bool, error) {
+	now := s.now()
+	var bases []InstanceBase
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var members []validationMember
+		if err := s.findValidationSet(tx, agentID, now, validationMemberColumns, &members); err != nil {
+			return err
+		}
+		if len(members) == 0 {
+			return nil
+		}
+		// One representative instance per distinct base.
+		keyOf := map[uuid.UUID]string{}
+		seen := map[string]bool{}
+		var repIDs []uuid.UUID
+		for _, m := range members {
+			if m.ID == nil || seen[m.BaseKey] {
+				continue
+			}
+			seen[m.BaseKey] = true
+			keyOf[*m.ID] = m.BaseKey
+			repIDs = append(repIDs, *m.ID)
+		}
+		var reps []relational.AgentInstance
+		if err := tx.Select("id", "base_config").Where("id IN ?", repIDs).Find(&reps).Error; err != nil {
+			return err
+		}
+		decoded := make(map[string]agentconfig.Config, len(reps))
+		for _, row := range reps {
+			key := keyOf[*row.ID]
+			base, err := agentconfig.DecodeConfig(row.BaseConfig)
+			if err != nil {
+				s.logger.Warnw("Skipping agent instances with an undecodable reported base",
+					"agentID", agentID, "instanceIDs", instancesWithKey(members, key), "error", err)
+				continue
+			}
+			decoded[key] = base
+		}
+		for _, m := range members {
+			base, ok := decoded[m.BaseKey]
+			if !ok {
+				continue
+			}
+			bases = append(bases, InstanceBase{
+				Instance:  m.AgentInstance,
+				Base:      base,
+				Remote:    reportedRemote(m.AgentInstance, base),
+				Stale:     IsStale(m.AgentInstance, now, s.settings),
+				Validated: true,
+				BaseKey:   m.BaseKey,
+			})
+		}
+		return nil
+	}, &sql.TxOptions{Isolation: sql.LevelRepeatableRead, ReadOnly: true})
+	if err != nil {
+		return nil, false, err
+	}
+	return bases, len(bases) == 0, nil
+}
+
+// findValidationSet finds the given columns of the ValidationBases set into dest (a pointer
+// to a slice of rows): the fresh apply-mode instances with a reported base, newest first,
+// else the most recently reported one.
+func (s *Service) findValidationSet(db *gorm.DB, agentID uuid.UUID, now time.Time, columns []string, dest any) error {
+	res := db.Model(&relational.AgentInstance{}).
+		Select(strings.Join(columns, ", ")).
+		Where("agent_id = ? AND base_config IS NOT NULL AND mode IN ? AND last_seen_at >= ?", agentID, applyModes, now.Add(-s.settings.InstanceStaleAfter)).
+		Order("last_seen_at DESC, instance_id").
+		Find(dest)
+	if res.Error != nil || res.RowsAffected > 0 {
+		return res.Error
+	}
+	return db.Model(&relational.AgentInstance{}).
+		Select(strings.Join(columns, ", ")).
+		Where("agent_id = ? AND base_config IS NOT NULL AND mode IN ? AND reported_at IS NOT NULL", agentID, applyModes).
+		Order("reported_at DESC, instance_id").
+		Limit(1).
+		Find(dest).Error
+}
+
+// instancesWithKey lists the instance ids of the members that report the base with key.
+func instancesWithKey(members []validationMember, key string) []uuid.UUID {
+	var ids []uuid.UUID
+	for _, m := range members {
+		if m.BaseKey == key {
+			ids = append(ids, m.InstanceID)
+		}
+	}
+	return ids
+}
+
+// Preview bounds (R14): a preview shows at most PreviewMaxInstances instances and decodes
+// at most PreviewMaxConfigBytes of reported base+effective config, so one agent credential
+// cannot make a single preview cost minutes of CPU by reporting many large instances.
+const (
+	PreviewMaxInstances   = 50
+	PreviewMaxConfigBytes = 16 << 20
+)
+
+// PreviewSet is what a preview works on.
+type PreviewSet struct {
+	// Validation is ValidationBases: the set a save validates against (R48), in full.
+	Validation []InstanceBase
+	// Instances are the instances the preview shows, each marked Validated when it is in
+	// Validation: the validated ones first, then the others, newest first, within
+	// PreviewMaxInstances and PreviewMaxConfigBytes.
+	Instances []InstanceBase
+	// Omitted counts the instances with a reported base the bounds left out.
+	Omitted int64
+}
+
+// PreviewBases returns the validation set and the bounded list of instances with a
+// reported base (fresh and stale, flagged) a preview shows. Only the selected instances'
+// configs are loaded.
+func (s *Service) PreviewBases(ctx context.Context, agentID uuid.UUID) (PreviewSet, error) {
+	validation, _, err := s.ValidationBases(ctx, agentID)
+	if err != nil {
+		return PreviewSet{}, err
+	}
+	validated := map[uuid.UUID]bool{}
+	for _, b := range validation {
+		validated[b.Instance.InstanceID] = true
+	}
+
+	type candidate struct {
+		InstanceID uuid.UUID
+		ConfigSize int64
+	}
+	var candidates []candidate
+	if err := s.db.WithContext(ctx).
+		Model(&relational.AgentInstance{}).
+		Select("instance_id, octet_length(base_config::text) + COALESCE(octet_length(effective_config::text), 0) AS config_size").
+		Where("agent_id = ? AND base_config IS NOT NULL", agentID).
+		Order("last_seen_at DESC, instance_id").
+		Scan(&candidates).Error; err != nil {
+		return PreviewSet{}, err
+	}
+	// Validated instances first (their errors block a save), keeping newest-first order.
+	slices.SortStableFunc(candidates, func(a, b candidate) int {
+		switch {
+		case validated[a.InstanceID] == validated[b.InstanceID]:
+			return 0
+		case validated[a.InstanceID]:
+			return -1
+		default:
+			return 1
+		}
+	})
+	var (
+		picked []uuid.UUID
+		budget int64 = PreviewMaxConfigBytes
+	)
+	for _, c := range candidates {
+		if len(picked) == PreviewMaxInstances || (len(picked) > 0 && c.ConfigSize > budget) {
+			break
+		}
+		picked = append(picked, c.InstanceID)
+		budget -= c.ConfigSize
+	}
+	set := PreviewSet{Validation: validation, Omitted: int64(len(candidates) - len(picked))}
+	if len(picked) == 0 {
+		return set, nil
+	}
+
+	var rows []relational.AgentInstance
+	if err := s.db.WithContext(ctx).
+		Select(append(append([]string{}, baseColumns...), "effective_config")).
+		Where("agent_id = ? AND instance_id IN ?", agentID, picked).
+		Find(&rows).Error; err != nil {
+		return PreviewSet{}, err
+	}
+	order := make(map[uuid.UUID]int, len(picked))
+	for i, id := range picked {
+		order[id] = i
+	}
+	slices.SortFunc(rows, func(a, b relational.AgentInstance) int {
+		return order[a.InstanceID] - order[b.InstanceID]
+	})
+	set.Instances = s.toBases(rows, s.now(), false)
+	for i := range set.Instances {
+		set.Instances[i].Validated = validated[set.Instances[i].Instance.InstanceID]
+	}
+	return set, nil
+}
+
+func (s *Service) toBases(rows []relational.AgentInstance, now time.Time, validated bool) []InstanceBase {
+	out := make([]InstanceBase, 0, len(rows))
+	for _, row := range rows {
+		base, err := agentconfig.DecodeConfig(row.BaseConfig)
+		if err != nil {
+			s.logger.Warnw("Skipping agent instance with an undecodable reported base",
+				"agentID", row.AgentID, "instanceID", row.InstanceID, "error", err)
+			continue
+		}
+		out = append(out, InstanceBase{
+			Instance:  row,
+			Base:      base,
+			Remote:    reportedRemote(row, base),
+			Stale:     IsStale(row, now, s.settings),
+			Validated: validated,
+		})
+	}
+	return out
+}
+
+// reportedRemote returns the instance's reported remote-config block, or the base's block,
+// normalized with hasAuth=true (the base is redacted, so it has no client secret). The mode
+// always comes from the report's validated top-level mode (row.Mode), which ValidationBases
+// also selects on; the block's own mode is not validated, so it is ignored.
+func reportedRemote(row relational.AgentInstance, base agentconfig.Config) agentconfig.RemoteConfig {
+	var rc agentconfig.RemoteConfig
+	decoded := len(row.RemoteConfig) > 0 && string(row.RemoteConfig) != "null" &&
+		json.Unmarshal(row.RemoteConfig, &rc) == nil
+	if !decoded && base.RemoteConfig != nil {
+		rc = *base.RemoteConfig
+	}
+	rc.Mode = row.Mode
+	return rc.Normalize(true)
+}
+
+// DeleteInstancesForAgent removes every instance of an agent (agent deletion).
+func DeleteInstancesForAgent(tx *gorm.DB, agentID uuid.UUID) error {
+	return tx.Where("agent_id = ?", agentID).Delete(&relational.AgentInstance{}).Error
+}
+
 // DeleteRevisionsForAgent removes every configuration revision of an agent (agent deletion).
 // It is the purge path for an overlay that held a secret, so it bypasses the append-only
 // BeforeDelete hook, which still blocks every other delete of a revision.
@@ -632,6 +912,17 @@ func DeleteRevisionsForAgent(tx *gorm.DB, agentID uuid.UUID) error {
 	return tx.Session(&gorm.Session{SkipHooks: true}).
 		Where("agent_id = ?", agentID).
 		Delete(&relational.AgentConfigRevision{}).Error
+}
+
+// PruneInstances deletes one-shot instances (daemon=false) not seen for
+// OneShotInstanceRetention and any instance not seen for InstanceRetention (R37).
+func PruneInstances(ctx context.Context, db *gorm.DB, s Settings, now time.Time) (int64, error) {
+	s = s.WithDefaults()
+	res := db.WithContext(ctx).
+		Where("(daemon = false AND last_seen_at < ?) OR last_seen_at < ?",
+			now.Add(-s.OneShotInstanceRetention), now.Add(-s.InstanceRetention)).
+		Delete(&relational.AgentInstance{})
+	return res.RowsAffected, res.Error
 }
 
 // ---- Derived state ----
