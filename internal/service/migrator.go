@@ -184,6 +184,7 @@ func MigrateUpWithConfig(db *gorm.DB, cfg *config.Config) error {
 		&relational.Agent{},
 		&relational.AgentServiceAccountKey{},
 		&relational.AgentAuthEvent{},
+		&relational.AgentConfigRevision{},
 		&relational.UserNotificationSubscription{},
 		&relational.SystemNotificationDestination{},
 		&Heartbeat{},
@@ -1159,6 +1160,7 @@ func MigrateDown(db *gorm.DB) error {
 		&poamrel.PoamItemMilestone{},
 		&poamrel.PoamItem{},
 
+		&relational.AgentConfigRevision{},
 		&relational.AgentAuthEvent{},
 		&relational.AgentServiceAccountKey{},
 		&relational.Agent{},
