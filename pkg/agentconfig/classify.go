@@ -67,8 +67,10 @@ type Change struct {
 //
 // Re-enabling a plugin the base disables is Unsafe (reenables-plugin) unless its source is
 // trusted (trusted-source). Its other parts are classified as if the plugin were new, since a
-// disabled plugin's sources are not already used: every policy entry it keeps goes through
-// the source rules, and every ${env:} reference in its config is a new reference. By design, apply_safe accepts the rest of a plugin's data
+// disabled plugin's sources are not already used: a local plugin source goes through the
+// source rules (Forbidden unless apply_all with allow_local_sources, as for a new plugin),
+// every policy entry it keeps goes through the source rules, and every ${env:} reference in
+// its config is a new reference. By design, apply_safe accepts the rest of a plugin's data
 // without a host opt-in: schedule, labels, policy_data, policy_behavior, protocol_version and
 // disabling a plugin are Safe (data-only), and removing a plugin or policy entries is Safe
 // (reduces-scope). So a remote editor can change the policy inputs that decide pass/fail,
@@ -214,6 +216,12 @@ func (cl classifier) classifyPlugin(ptr, name string, bp, ep *Plugin) []Change {
 			out = append(out, Change{Path: ptr + "/enabled", Safety: Safe, Reason: ChangeReasonTrustedSource, Value: ep.Source})
 		} else {
 			out = append(out, Change{Path: ptr + "/enabled", Safety: Unsafe, Reason: ChangeReasonReenablePlugin, Value: ep.Source})
+		}
+		// A kept local source is not already used either: classify it like a new plugin's, so
+		// allow_local_sources cannot be bypassed by re-enabling. A changed source is classified
+		// below.
+		if bp.Source == ep.Source && KindOf(ep.Source) == SourceKindLocal {
+			out = append(out, cl.sourceClass(ptr+"/source", ep.Source))
 		}
 		// Its policies are not already used (usedSources skips disabled plugins), so the
 		// entries it keeps are classified like new ones; added entries are classified below.
