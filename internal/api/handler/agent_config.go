@@ -61,6 +61,8 @@ func (h *AgentConfigHandler) Register(g *echo.Group, guard middleware.ResourceGu
 	g.GET("/:id/config/revisions", h.ListRevisions, guard.Read())
 	g.GET("/:id/config/revisions/:rev", h.GetRevision, guard.Read())
 	g.POST("/:id/config/revisions/:rev/revert", h.Revert, write)
+	g.GET("/:id/instances", h.ListInstances, guard.Read())
+	g.GET("/:id/instances/:instanceId", h.GetInstance, guard.Read())
 }
 
 // ---- DTOs (A4.4) ----
@@ -74,6 +76,64 @@ type agentConfigRevisionResponse struct {
 	CreatedBy   *string         `json:"created-by"`
 	CreatedAt   *time.Time      `json:"created-at"`
 	RevertOf    *int64          `json:"revert-of"`
+}
+
+type agentInstanceSummary struct {
+	InstanceID              string                   `json:"instance-id"`
+	Hostname                *string                  `json:"hostname"`
+	AgentVersion            *string                  `json:"agent-version"`
+	Mode                    string                   `json:"mode"`
+	Daemon                  *bool                    `json:"daemon"`
+	FirstSeenAt             time.Time                `json:"first-seen-at"`
+	LastSeenAt              time.Time                `json:"last-seen-at"`
+	ReportedAt              *time.Time               `json:"reported-at"`
+	Stale                   bool                     `json:"stale"`
+	AppliedRevision         *int64                   `json:"applied-revision"`
+	AttemptedRevision       *int64                   `json:"attempted-revision"`
+	Status                  string                   `json:"status"` // applied|rejected|failed|not-applicable|pending|unknown
+	Reason                  *string                  `json:"reason"`
+	Error                   *string                  `json:"error"`
+	Truncated               bool                     `json:"truncated"`
+	SyncStatus              string                   `json:"sync-status"` // in-sync|out-of-sync|not-applicable|unknown
+	EffectiveDigest         *string                  `json:"effective-digest"`
+	HeartbeatConfigRevision *int64                   `json:"heartbeat-config-revision"`
+	ReportStale             bool                     `json:"report-stale"` // heartbeat digest != reported digest
+	RemoteConfig            json.RawMessage          `json:"remote-config,omitempty" swaggertype:"object"`
+	Unsafe                  []agentconfig.Change     `json:"unsafe"`
+	Warnings                []agentconfig.FieldError `json:"warnings"` // R41
+	// Plugins are the reported plugins and the agent library each was built with (R76).
+	// Empty until an agent that reports them does.
+	Plugins []agentconfig.PluginReport `json:"plugins"`
+}
+
+type agentInstanceDetail struct {
+	agentInstanceSummary
+	Base      json.RawMessage `json:"base" swaggertype:"object"`
+	Effective json.RawMessage `json:"effective" swaggertype:"object"`
+}
+
+// agentInstanceCounts is agentcfg.InstanceCounts with JSON names (converted directly).
+type agentInstanceCounts struct {
+	Total     int `json:"total"`
+	Fresh     int `json:"fresh"`
+	Stale     int `json:"stale"`
+	InSync    int `json:"in-sync"`
+	OutOfSync int `json:"out-of-sync"`
+	Pending   int `json:"pending"`
+	Rejected  int `json:"rejected"`
+	Failed    int `json:"failed"`
+	Unknown   int `json:"unknown"`
+}
+
+// agentInstancesMeta is the meta of the instance list: the desired revision and the counts
+// cover all of the agent's instances; page, limit, total and total-pages describe the page.
+type agentInstancesMeta struct {
+	DesiredRevision int64               `json:"desired-revision"`
+	Counts          agentInstanceCounts `json:"counts"`
+	Page            int                 `json:"page"`
+	Limit           int                 `json:"limit"`
+	Total           int64               `json:"total"`
+	TotalPages      int                 `json:"total-pages"`
 }
 
 type configPreviewResponse struct {
@@ -633,7 +693,152 @@ func (h *AgentConfigHandler) GetRevision(ctx echo.Context) error {
 	return ctx.JSON(http.StatusOK, GenericDataResponse[agentConfigRevisionResponse]{Data: resp})
 }
 
+// ListInstances godoc
+//
+//	@Summary		List an agent's instances
+//	@Description	One page of summaries of the instances that reported or heartbeated with a config digest, most recently seen first, with the derived status (pending and unknown are server-derived), sync status and staleness. meta.counts and meta.desired-revision cover all of the agent's instances, not just the page; meta.page, meta.limit, meta.total and meta.total-pages describe the page. A limit above 25 is capped at 25, since one instance's summary can reach about 3 MiB once encoded. Base/effective configs are on the instance detail route.
+//	@Tags			Agent Configuration
+//	@Produce		json
+//	@Param			id		path		string	true	"Agent ID"
+//	@Param			page	query		integer	false	"Page (default 1)"
+//	@Param			limit	query		integer	false	"Page size (default 25, max 25)"
+//	@Success		200		{object}	handler.GenericDataListResponse[handler.agentInstanceSummary]{meta=handler.agentInstancesMeta}
+//	@Failure		400		{object}	api.Error
+//	@Failure		403		{object}	api.Error
+//	@Failure		404		{object}	api.Error
+//	@Failure		500		{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/admin/agents/{id}/instances [get]
+func (h *AgentConfigHandler) ListInstances(ctx echo.Context) error {
+	agent, errResp := h.resolveAgent(ctx)
+	if agent == nil {
+		return errResp
+	}
+	pagination := service.PaginationConfig{DefaultLimit: agentcfg.InstancesPageLimit, MaxLimit: agentcfg.InstancesPageLimit}
+	params, err := pagination.ParseParams(ctx)
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	reqCtx := ctx.Request().Context()
+	desired, err := h.svc.CurrentRevisionNumber(reqCtx, *agent.ID)
+	if err != nil {
+		return h.internalError(ctx, "load agent configuration", err)
+	}
+	instances, total, err := h.svc.ListInstances(reqCtx, *agent.ID, *params)
+	if err != nil {
+		return h.internalError(ctx, "list instances", err)
+	}
+	now := h.svc.Now()
+	counts, err := h.svc.CountInstances(reqCtx, *agent.ID, desired, now)
+	if err != nil {
+		return h.internalError(ctx, "count instances", err)
+	}
+	data := make([]agentInstanceSummary, 0, len(instances))
+	for _, inst := range instances {
+		data = append(data, h.instanceSummary(inst, desired, now))
+	}
+	meta := agentInstancesMeta{
+		DesiredRevision: desired,
+		Counts:          agentInstanceCounts(counts),
+		Page:            params.Page,
+		Limit:           params.Limit,
+		Total:           total,
+		TotalPages:      max(1, int((total+int64(params.Limit)-1)/int64(params.Limit))),
+	}
+	return ctx.JSON(http.StatusOK, GenericDataListResponse[agentInstanceSummary]{Data: data, Meta: meta})
+}
+
+// GetInstance godoc
+//
+//	@Summary		Get one agent instance
+//	@Description	The instance's summary plus its redacted base and effective configs (snake_case). instanceId is the agent-side instance UUID.
+//	@Tags			Agent Configuration
+//	@Produce		json
+//	@Param			id			path		string	true	"Agent ID"
+//	@Param			instanceId	path		string	true	"Instance ID"
+//	@Success		200			{object}	handler.GenericDataResponse[handler.agentInstanceDetail]
+//	@Failure		400			{object}	api.Error
+//	@Failure		403			{object}	api.Error
+//	@Failure		404			{object}	api.Error
+//	@Failure		500			{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/admin/agents/{id}/instances/{instanceId} [get]
+func (h *AgentConfigHandler) GetInstance(ctx echo.Context) error {
+	agent, errResp := h.resolveAgent(ctx)
+	if agent == nil {
+		return errResp
+	}
+	instanceID, err := uuid.Parse(ctx.Param("instanceId"))
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.InvalidUUID())
+	}
+	reqCtx := ctx.Request().Context()
+	inst, err := h.svc.GetInstance(reqCtx, *agent.ID, instanceID)
+	if errors.Is(err, agentcfg.ErrNotFound) {
+		return ctx.JSON(http.StatusNotFound, api.NotFoundCustomMsg("instance not found"))
+	}
+	if err != nil {
+		return h.internalError(ctx, "load instance", err)
+	}
+	desired, err := h.svc.CurrentRevisionNumber(reqCtx, *agent.ID)
+	if err != nil {
+		return h.internalError(ctx, "load agent configuration", err)
+	}
+	detail := agentInstanceDetail{
+		agentInstanceSummary: h.instanceSummary(*inst, desired, h.svc.Now()),
+		Base:                 rawOrNull(inst.BaseConfig),
+		Effective:            rawOrNull(inst.EffectiveConfig),
+	}
+	return ctx.JSON(http.StatusOK, GenericDataResponse[agentInstanceDetail]{Data: detail})
+}
+
 // ---- helpers ----
+
+func (h *AgentConfigHandler) instanceSummary(inst relational.AgentInstance, desired int64, now time.Time) agentInstanceSummary {
+	s := agentInstanceSummary{
+		InstanceID:              inst.InstanceID.String(),
+		Hostname:                inst.Hostname,
+		AgentVersion:            inst.AgentVersion,
+		Mode:                    inst.Mode,
+		Daemon:                  inst.Daemon,
+		FirstSeenAt:             inst.FirstSeenAt.UTC(),
+		LastSeenAt:              inst.LastSeenAt.UTC(),
+		ReportedAt:              inst.ReportedAt,
+		Stale:                   agentcfg.IsStale(inst, now, h.svc.Settings()),
+		AppliedRevision:         inst.AppliedRevision,
+		AttemptedRevision:       inst.AttemptedRevision,
+		Status:                  agentcfg.DeriveStatus(inst, desired),
+		Reason:                  inst.ApplyReason,
+		Error:                   inst.ApplyError,
+		Truncated:               inst.Truncated,
+		SyncStatus:              agentcfg.DeriveSyncStatus(inst, desired),
+		EffectiveDigest:         inst.EffectiveDigest,
+		HeartbeatConfigRevision: inst.HeartbeatConfigRevision,
+		ReportStale: inst.HeartbeatConfigDigest != nil && inst.EffectiveDigest != nil &&
+			*inst.HeartbeatConfigDigest != *inst.EffectiveDigest,
+		Unsafe:   []agentconfig.Change{},
+		Warnings: []agentconfig.FieldError{},
+		Plugins:  []agentconfig.PluginReport{},
+	}
+	if len(inst.RemoteConfig) > 0 && string(inst.RemoteConfig) != "null" {
+		s.RemoteConfig = json.RawMessage(inst.RemoteConfig)
+	}
+	h.decodeColumn(&inst, "unsafe_changes", inst.UnsafeChanges, &s.Unsafe)
+	h.decodeColumn(&inst, "warnings", inst.Warnings, &s.Warnings)
+	h.decodeColumn(&inst, "plugins", inst.Plugins, &s.Plugins)
+	return s
+}
+
+// decodeColumn decodes a stored JSON column into dst, leaving dst untouched when the column
+// is empty or does not decode (logged).
+func (h *AgentConfigHandler) decodeColumn(inst *relational.AgentInstance, column string, raw []byte, dst any) {
+	if len(raw) == 0 || string(raw) == "null" {
+		return
+	}
+	if err := json.Unmarshal(raw, dst); err != nil {
+		h.sugar.Warnw("Failed to decode agent instance column", "instanceID", inst.InstanceID, "column", column, "error", err)
+	}
+}
 
 // resolveAgent loads :id. On failure it returns nil and the already-written error response.
 func (h *AgentConfigHandler) resolveAgent(ctx echo.Context) (*relational.Agent, error) {
@@ -794,6 +999,13 @@ func compactJSON(raw json.RawMessage) (json.RawMessage, error) {
 		return nil, fmt.Errorf("overlay is not valid JSON: %w", err)
 	}
 	return buf.Bytes(), nil
+}
+
+func rawOrNull(raw []byte) json.RawMessage {
+	if len(raw) == 0 {
+		return json.RawMessage("null")
+	}
+	return json.RawMessage(raw)
 }
 
 // nonNil returns an empty (non-nil) slice for nil, so JSON renders [] rather than null.

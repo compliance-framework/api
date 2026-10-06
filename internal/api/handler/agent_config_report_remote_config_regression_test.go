@@ -12,7 +12,7 @@ import (
 )
 
 // maxStoredRemoteConfigBytes is the most remote-config JSON a stored report may keep. The
-// block is a summary column returned for every instance by the unpaginated instance list.
+// block is a summary column returned for every instance on a page of the instance list.
 const maxStoredRemoteConfigBytes = 64 << 10
 
 func regressionReport(rc *agentconfig.RemoteConfig) agentconfig.Report {
