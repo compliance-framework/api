@@ -146,6 +146,30 @@ func (s *Service) Current(ctx context.Context, agentID uuid.UUID) (*relational.A
 	return &rev, nil
 }
 
+// RevisionHead identifies a revision without loading its overlay.
+type RevisionHead struct {
+	ID        uuid.UUID
+	Revision  int64
+	CreatedAt time.Time
+}
+
+// CurrentHead returns the id, revision and creation time of an agent's latest revision, or
+// nil (revision 0) when none exists. It is Current's indexed query without the overlay, so
+// an agent poll can compute its ETag (and answer 304) without reading the overlay.
+func (s *Service) CurrentHead(ctx context.Context, agentID uuid.UUID) (*RevisionHead, error) {
+	var heads []RevisionHead
+	err := s.db.WithContext(ctx).Model(&relational.AgentConfigRevision{}).
+		Select("id, revision, created_at").
+		Where("agent_id = ?", agentID).
+		Order("revision DESC").
+		Limit(1).
+		Find(&heads).Error
+	if err != nil || len(heads) == 0 {
+		return nil, err
+	}
+	return &heads[0], nil
+}
+
 // CurrentRevisionNumber returns the latest revision number, 0 when none exists.
 func (s *Service) CurrentRevisionNumber(ctx context.Context, agentID uuid.UUID) (int64, error) {
 	var cur int64

@@ -11,6 +11,7 @@ import (
 	"github.com/compliance-framework/api/internal/config"
 	"github.com/compliance-framework/api/internal/service/digest"
 	"github.com/compliance-framework/api/internal/service/notification"
+	"github.com/compliance-framework/api/internal/service/relational/agentcfg"
 	artifactsvc "github.com/compliance-framework/api/internal/service/relational/artifacts"
 	evidencesvc "github.com/compliance-framework/api/internal/service/relational/evidence"
 	poamsvc "github.com/compliance-framework/api/internal/service/relational/poam"
@@ -94,7 +95,11 @@ func RegisterHandlers(server *api.Server, logger *zap.SugaredLogger, db *gorm.DB
 	lineageGroup.Use(middleware.JWTMiddleware(config.JWTPublicKey))
 	lineageHandler.Register(lineageGroup, pep.For(authz.ResourceLineage))
 
-	heartbeatHandler := NewHeartbeatHandler(logger, db)
+	// Agent remote configuration (overlay revisions + reporting instances).
+	agentCfgSvc := agentcfg.NewService(db, agentcfg.SettingsFromConfig(config), logger)
+	agentGuard := pep.For(authz.ResourceAgent)
+
+	heartbeatHandler := NewHeartbeatHandler(logger, db).WithAgentInstances(agentCfgSvc)
 	heartbeatGuard := pep.For(authz.ResourceHeartbeat)
 	agentIngestMiddleware := middleware.AgentJWTOrPublicMiddleware(db, config.JWTPublicKey, !config.StrictDisablePublicAgentEndpoints)
 	heartbeatHandler.RegisterCreate(server.API().Group("/agent/heartbeat"), agentIngestMiddleware, heartbeatGuard.Do(authz.ActionIngest))
@@ -215,11 +220,19 @@ func RegisterHandlers(server *api.Server, logger *zap.SugaredLogger, db *gorm.DB
 
 	// Agent routes are guarded per route (R40): list/get need agent:read, writes and keys stay
 	// admin:manage. The builtin PDP still requires the admin check for users on agent:*.
-	agentGuard := pep.For(authz.ResourceAgent)
 	agentHandler := NewAgentHandler(logger, db)
 	agentsGroup := server.API().Group("/admin/agents")
 	agentsGroup.Use(middleware.JWTMiddleware(config.JWTPublicKey))
 	agentHandler.Register(agentsGroup, agentGuard.Read(), pep.Authorize(authz.ResourceAdmin, authz.ActionManage))
+
+	// Agent-facing configuration sync: agent JWT only (strict — it ignores
+	// StrictDisablePublicAgentEndpoints) and agent:sync.
+	agentConfigSyncHandler := NewAgentConfigSyncHandler(logger, agentCfgSvc)
+	agentConfigSyncHandler.Register(
+		server.API().Group("/agent"),
+		middleware.AgentJWTMiddleware(db, config.JWTPublicKey),
+		agentGuard.Do(authz.ActionSync),
+	)
 
 	userHandler := NewUserHandler(logger, db)
 

@@ -2,6 +2,16 @@ basePath: /api
 consumes:
 - application/json
 definitions:
+  agentconfig.OverlayDocument:
+    properties:
+      created-at:
+        description: omitted for revision 0
+        type: string
+      overlay:
+        type: object
+      revision:
+        type: integer
+    type: object
   api.Error:
     properties:
       errors:
@@ -1418,6 +1428,13 @@ definitions:
         type: array
       meta: {}
     type: object
+  handler.GenericDataResponse-agentconfig_OverlayDocument:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/agentconfig.OverlayDocument'
+        description: Wrapped response data
+    type: object
   handler.GenericDataResponse-array_handler_catalogLinkSummary:
     properties:
       data:
@@ -2237,9 +2254,19 @@ definitions:
     type: object
   handler.HeartbeatCreateRequest:
     properties:
+      config_digest:
+        description: ConfigDigest is agentconfig.Digest of the effective config; sent
+          whenever mode != off.
+        type: string
+      config_revision:
+        description: |-
+          ConfigRevision is the APPLIED configuration revision, 0 when running from the file only
+          (R45). Absent for old agents and mode off.
+        type: integer
       created_at:
         type: string
       uuid:
+        description: UUID is the agent instance id.
         type: string
     required:
     - created_at
@@ -14097,11 +14124,54 @@ paths:
       summary: Upload an artifact
       tags:
       - Artifacts
+  /agent/config:
+    get:
+      description: Returns the authenticated agent's current remote-configuration
+        overlay (an RFC 7396 merge patch over its local config file, snake_case) with
+        an opaque ETag. Send the raw ETag back as If-None-Match to get a 304 when
+        nothing changed; never construct one. Revision 0 means no overlay. Agent JWT
+        only; a 404 means the API predates remote configuration.
+      parameters:
+      - description: ETag of the overlay the agent already has
+        in: header
+        name: If-None-Match
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-agentconfig_OverlayDocument'
+        "304":
+          description: Not Modified
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Get this agent's configuration overlay
+      tags:
+      - Agents
   /agent/heartbeat:
     post:
       consumes:
       - application/json
-      description: Creates a new heartbeat record for monitoring.
+      description: 'Creates a new heartbeat record for monitoring. An authenticated
+        agent heartbeat also refreshes the instance''s last-seen time; with config_digest
+        (new agents, mode != off) it records config_revision/config_digest and registers
+        the instance if needed. That registration is authorized by heartbeat:ingest,
+        not agent:sync: removing sync from an agent''s role stops overlay fetches
+        and config reports, not instance registration by heartbeats.'
       parameters:
       - description: Heartbeat payload
         in: body

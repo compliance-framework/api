@@ -2572,9 +2572,63 @@
                 ]
             }
         },
+        "/agent/config": {
+            "get": {
+                "description": "Returns the authenticated agent's current remote-configuration overlay (an RFC 7396 merge patch over its local config file, snake_case) with an opaque ETag. Send the raw ETag back as If-None-Match to get a 304 when nothing changed; never construct one. Revision 0 means no overlay. Agent JWT only; a 404 means the API predates remote configuration.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "Get this agent's configuration overlay",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ETag of the overlay the agent already has",
+                        "name": "If-None-Match",
+                        "in": "header"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-agentconfig_OverlayDocument"
+                        }
+                    },
+                    "304": {
+                        "description": "Not Modified"
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
         "/agent/heartbeat": {
             "post": {
-                "description": "Creates a new heartbeat record for monitoring.",
+                "description": "Creates a new heartbeat record for monitoring. An authenticated agent heartbeat also refreshes the instance's last-seen time; with config_digest (new agents, mode != off) it records config_revision/config_digest and registers the instance if needed. That registration is authorized by heartbeat:ingest, not agent:sync: removing sync from an agent's role stops overlay fetches and config reports, not instance registration by heartbeats.",
                 "consumes": [
                     "application/json"
                 ],
@@ -34324,6 +34378,21 @@
         }
     },
     "definitions": {
+        "agentconfig.OverlayDocument": {
+            "type": "object",
+            "properties": {
+                "created-at": {
+                    "description": "omitted for revision 0",
+                    "type": "string"
+                },
+                "overlay": {
+                    "type": "object"
+                },
+                "revision": {
+                    "type": "integer"
+                }
+            }
+        },
         "api.Error": {
             "type": "object",
             "properties": {
@@ -36334,6 +36403,19 @@
                 "meta": {}
             }
         },
+        "handler.GenericDataResponse-agentconfig_OverlayDocument": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Wrapped response data",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/agentconfig.OverlayDocument"
+                        }
+                    ]
+                }
+            }
+        },
         "handler.GenericDataResponse-array_handler_catalogLinkSummary": {
             "type": "object",
             "properties": {
@@ -37844,10 +37926,19 @@
                 "uuid"
             ],
             "properties": {
+                "config_digest": {
+                    "description": "ConfigDigest is agentconfig.Digest of the effective config; sent whenever mode != off.",
+                    "type": "string"
+                },
+                "config_revision": {
+                    "description": "ConfigRevision is the APPLIED configuration revision, 0 when running from the file only\n(R45). Absent for old agents and mode off.",
+                    "type": "integer"
+                },
                 "created_at": {
                     "type": "string"
                 },
                 "uuid": {
+                    "description": "UUID is the agent instance id.",
                     "type": "string"
                 }
             }

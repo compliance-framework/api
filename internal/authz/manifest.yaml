@@ -365,6 +365,8 @@ roles:
   agent:
     evidence: [create]
     heartbeat: [ingest]
+    # sync gates the overlay fetch and config reports. A heartbeat carrying config_digest also
+    # registers the instance, under heartbeat:ingest, so removing sync does not stop that.
     agent: [register, ingest, sync]
     risk-template: [update]
     subject-template: [update]
