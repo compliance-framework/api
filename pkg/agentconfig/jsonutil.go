@@ -12,9 +12,20 @@ import (
 
 // decodeAny decodes a single JSON value with UseNumber, so integers round-trip exactly.
 // Empty or whitespace-only input decodes to nil (JSON null). Trailing data is an error.
+//
+// A document nested at most numberValueMaxDepth deep is decoded in place with json.Unmarshal
+// (see numberValue): a json.Decoder copies its input through a buffer it grows by doubling,
+// several times the size of a large document. Deeper documents, and input Unmarshal
+// rejects, go through the Decoder, so the errors stay the Decoder's.
 func decodeAny(data []byte) (any, error) {
 	if len(bytes.TrimSpace(data)) == 0 {
 		return nil, nil
+	}
+	if nestedWithin(data, numberValueMaxDepth) {
+		var nv numberValue
+		if err := json.Unmarshal(data, &nv); err == nil {
+			return nv.v, nil
+		}
 	}
 	dec := json.NewDecoder(bytes.NewReader(data))
 	dec.UseNumber()
@@ -26,6 +37,75 @@ func decodeAny(data []byte) (any, error) {
 		return nil, errors.New("unexpected data after the JSON value")
 	}
 	return v, nil
+}
+
+// numberValueMaxDepth bounds the nesting numberValue decodes. json.Unmarshal re-scans an
+// Unmarshaler's value at every level, so numberValue costs about twice the document size
+// per level of nesting.
+const numberValueMaxDepth = 12
+
+// numberValue decodes a JSON value exactly as a json.Decoder with UseNumber decodes it into
+// an any (objects as map[string]any, arrays as []any, numbers as json.Number), but with
+// json.Unmarshal, which reads the input in place.
+type numberValue struct{ v any }
+
+// nestedWithin reports whether the objects and arrays of data (assumed to be JSON) nest at
+// most limit deep. It skips string contents, so brackets inside strings do not count.
+func nestedWithin(data []byte, limit int) bool {
+	depth := 0
+	inString, escaped := false, false
+	for _, c := range data {
+		switch {
+		case inString:
+			switch {
+			case escaped:
+				escaped = false
+			case c == '\\':
+				escaped = true
+			case c == '"':
+				inString = false
+			}
+		case c == '"':
+			inString = true
+		case c == '{' || c == '[':
+			if depth++; depth > limit {
+				return false
+			}
+		case c == '}' || c == ']':
+			depth--
+		}
+	}
+	return true
+}
+
+func (n *numberValue) UnmarshalJSON(b []byte) error {
+	switch b[0] {
+	case '{':
+		var m map[string]numberValue
+		if err := json.Unmarshal(b, &m); err != nil {
+			return err
+		}
+		out := make(map[string]any, len(m))
+		for k, e := range m {
+			out[k] = e.v
+		}
+		n.v = out
+	case '[':
+		var s []numberValue
+		if err := json.Unmarshal(b, &s); err != nil {
+			return err
+		}
+		out := make([]any, len(s))
+		for i, e := range s {
+			out[i] = e.v
+		}
+		n.v = out
+	case '-', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
+		n.v = json.Number(b)
+	default: // string, true, false, null
+		return json.Unmarshal(b, &n.v)
+	}
+	return nil
 }
 
 // encodeCanonical encodes v without HTML escaping and without a trailing newline. Map keys
@@ -75,6 +155,15 @@ func decodeConfig(data []byte) (Config, error) {
 		if data, err = encodeCanonical(obj); err != nil {
 			return Config{}, err
 		}
+		// json.Unmarshal reads data in place, where a Decoder copies it through a growing
+		// buffer. It decodes like a UseNumber Decoder except for the numbers of policy_data,
+		// the one free-form field, which usePolicyDataNumbers takes from obj. Input it
+		// rejects goes through the Decoder below, so the errors stay the Decoder's.
+		if err := json.Unmarshal(data, &c); err == nil {
+			usePolicyDataNumbers(&c, obj)
+			return c, nil
+		}
+		c = Config{}
 	}
 	dec := json.NewDecoder(bytes.NewReader(data))
 	dec.UseNumber()
@@ -82,6 +171,22 @@ func decodeConfig(data []byte) (Config, error) {
 		return Config{}, err
 	}
 	return c, nil
+}
+
+// usePolicyDataNumbers replaces each decoded plugin's policy_data with its value in obj, the
+// UseNumber decoding of the same document, so its numbers are json.Number as a UseNumber
+// Decoder leaves them (json.Unmarshal makes them float64).
+func usePolicyDataNumbers(c *Config, obj map[string]any) {
+	plugins, _ := obj["plugins"].(map[string]any)
+	for name, p := range c.Plugins {
+		if p == nil || p.PolicyData == nil {
+			continue
+		}
+		raw, _ := plugins[name].(map[string]any)
+		if pd, ok := raw["policy_data"].(map[string]any); ok {
+			p.PolicyData = pd
+		}
+	}
 }
 
 // Schema field names per object level, for dropMiscasedKeys.
