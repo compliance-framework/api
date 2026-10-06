@@ -174,6 +174,7 @@ func (t *TestMigrator) Up() error {
 		&relational.AgentServiceAccountKey{},
 		&relational.AgentAuthEvent{},
 		&relational.AgentConfigRevision{},
+		&relational.AgentInstance{},
 		&relational.SSOUserLink{},
 		&relational.SlackLinkAttempt{},
 		&relational.SlackUserLink{},
@@ -551,6 +552,7 @@ func (t *TestMigrator) Down() error {
 		"poam_findings",
 		"poam_risks",
 
+		&relational.AgentInstance{},
 		&relational.AgentConfigRevision{},
 		&relational.AgentAuthEvent{},
 		&relational.AgentServiceAccountKey{},
