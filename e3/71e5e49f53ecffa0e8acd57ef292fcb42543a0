@@ -1,0 +1,2 @@
+lisa-addressed:
+fp a042387242aa (must-fix, PUT part on #481): normalizeComment rejects strings.ContainsRune(trimmed, 0) with 400 'comment must not contain a NUL character'. Tests: TestNormalizeCommentRejectsNUL (agent_config_comment_regression_test.go), TestRegressionCommentNULIsBadRequest (agent_config_comment_regression_integration_test.go); both split out of the staged #481 files unchanged. Revert regression lands on #482.
