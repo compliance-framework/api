@@ -1,0 +1,2 @@
+lisa-addressed:
+fp f2b689648c35 (must-fix, caller part on #481): validateCandidate memoizes splitIntroduced per InstanceBase.BaseKey (empty key = no memo) and attributes the result to each instance. Regression TestRegressionSaveCostFollowsDistinctBases: PUT for 40 instances sharing a 1 MiB base now allocates ~19.6 MiB (was ~1.5 GiB; ~45 MiB with dedupe alone before the #469 decode change). Regression file split: the NUL-comment test moved to agent_config_comment_regression_integration_test.go (lands with fp a042387242aa).
