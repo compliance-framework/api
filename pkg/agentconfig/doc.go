@@ -13,4 +13,10 @@
 //     null deletes the key from the effective config so the agent's default applies.
 //   - Only ValidateOverlay decodes strictly. Merge, Validate, ValidateEditable, Classify,
 //     Redact and Digest never reject unknown fields or weakly-typed values in a base.
+//
+// Design references: comments across this package, the agentcfg service and the agent config
+// handlers cite design IDs. They are defined in the compliance-framework/local-dev repository:
+//   - docs/agent-remote-config-design.md: D<n> decisions (§2) and R<n> resolutions (§12, §13).
+//   - docs/agent-remote-config-lld-api.md: A<n> work packages and the O<n> overlay validation
+//     rules (A1).
 package agentconfig
