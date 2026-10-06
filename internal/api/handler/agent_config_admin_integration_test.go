@@ -1031,90 +1031,61 @@ func (s *AgentConfigAdminIntegrationSuite) TestInstancesPagination() {
 	s.Equal(wantCounts, beyond.Meta.Counts)
 }
 
-// acaInstanceSummaryBound is the documented bound on one listed instance's summary
-// (agentcfg.InstancesPageLimit): about 3 MiB of text at the report caps of normalizeReport.
-const acaInstanceSummaryBound = 3 << 20
+// acaInstanceFixedBytes bounds what a listed instance's summary holds besides the budgeted
+// report fields (maxReportSummaryEncodedBytes): ids, times, statuses, digests and keys.
+const acaInstanceFixedBytes = 2 << 10
 
-// acaWorstCaseReport returns a report over every cap normalizeReport applies to the summary
-// columns (warnings, unsafe changes, plugins, remote-config, error, hostname, version),
-// normalized as the report route stores it. Its text is plain ASCII, which JSON encodes 1:1.
-func (s *AgentConfigAdminIntegrationSuite) acaWorstCaseReport() agentconfig.Report {
-	long := func(c string, n int) string { return strings.Repeat(c, n+16) } // over the cap
-	errText := long("e", maxReportErrorBytes)
-	r := agentconfig.Report{
-		Hostname:        long("h", maxReportHostnameLen),
-		AgentVersion:    long("v", maxReportAgentVersionLen),
-		Mode:            agentconfig.ModeApplySafe,
-		Daemon:          true,
-		AppliedRevision: acaI64(0),
-		Status:          agentconfig.StatusApplied,
-		Error:           &errText,
-		Base:            json.RawMessage(`{}`),
-		Effective:       json.RawMessage(`{}`),
-		EffectiveDigest: acaDigest,
-		RemoteConfig: &agentconfig.RemoteConfig{
-			Mode:         long("m", maxReportRemoteModeLen),
-			PollInterval: long("p", maxReportRemotePollIntervalLen),
-		},
-	}
-	for i := 0; i < maxReportWarnings+1; i++ {
-		r.Warnings = append(r.Warnings, agentconfig.FieldError{
-			Path: long("w", maxReportWarningPathBytes), Code: agentconfig.FieldCodeUnknownField, Message: long("m", maxReportWarningMessageBytes),
-		})
-	}
-	for i := 0; i < maxReportUnsafe+1; i++ {
-		r.Unsafe = append(r.Unsafe, agentconfig.Change{
-			Path: long("u", maxReportChangePathBytes), Safety: agentconfig.Unsafe,
-			Reason: agentconfig.ChangeReasonUntrustedSource, Value: long("c", maxReportChangeValueBytes),
-		})
-	}
-	for i := 0; i < maxReportPlugins+1; i++ {
-		r.Plugins = append(r.Plugins, agentconfig.PluginReport{
-			Name: long("n", maxReportPluginNameLen), Source: long("s", maxReportPluginSourceLen), LibVersion: long("l", maxReportPluginLibVersionLen),
-		})
-	}
-	entry := strings.Repeat("t", maxReportRemoteEntryBytes-2) // at the cap once JSON-encoded
-	for i := 0; i < maxReportRemoteListEntries+1; i++ {
-		r.RemoteConfig.TrustedSources = append(r.RemoteConfig.TrustedSources, entry)
-		r.RemoteConfig.OverridableConfigFlags = append(r.RemoteConfig.OverridableConfigFlags, entry)
-	}
-	scrubbed, err := normalizeReport(&r)
-	s.Require().NoError(err)
-	s.Require().False(scrubbed, "nothing in the report looks like a secret")
-	s.Require().True(r.Truncated)
-	return r
-}
-
-// A page of worst-case instances stays within InstancesPageLimit times the documented
-// per-instance bound (review #476, fp 5d771b4b3d43): an agent credential can no longer
-// inflate the list with its instance count.
+// A page of worst-case instances stays within InstancesPageLimit times the per-instance
+// budget (review #476/#480, fp 5d771b4b3d43), however many instances the agent has and
+// whatever the reports contain: plain text at every cap, or text that JSON escapes ('<', '&'
+// and control characters encode to six bytes each). The reports go through normalizeReport,
+// as the report route stores them.
 func (s *AgentConfigAdminIntegrationSuite) TestInstancesWorstCasePageSize() {
-	agentID := *s.agent.ID
-	report := s.acaWorstCaseReport()
-	const n = agentcfg.InstancesPageLimit + 1
-	for i := 0; i < n; i++ {
-		s.Require().NoError(s.svc.UpsertReport(context.Background(), agentID, nil, uuid.New(), report))
-	}
+	for _, c := range []struct {
+		name, fill string
+		escaped    bool
+	}{
+		{"plain", "x", false},
+		{"escaped", "<&\x01", true},
+	} {
+		agent, err := s.CreateAgent("worst-case-" + c.name)
+		s.Require().NoError(err)
+		report := capsReport(c.fill, 1) // over every count and byte cap
+		_, err = normalizeReport(&report)
+		s.Require().NoError(err)
+		s.Require().True(report.Truncated)
+		const n = agentcfg.InstancesPageLimit + 1
+		for i := 0; i < n; i++ {
+			s.Require().NoError(s.svc.UpsertReport(context.Background(), *agent.ID, nil, uuid.New(), report))
+		}
 
-	rec := s.call(http.MethodGet, s.path("/instances"), nil)
-	s.Require().Equal(http.StatusOK, rec.Code)
-	size := rec.Body.Len()
-	s.T().Logf("a page of %d worst-case instances: %d bytes", agentcfg.InstancesPageLimit, size)
-	s.LessOrEqual(size, agentcfg.InstancesPageLimit*acaInstanceSummaryBound+64<<10,
-		"a page of %d worst-case instances encodes to %d bytes", agentcfg.InstancesPageLimit, size)
-	s.Greater(size, agentcfg.InstancesPageLimit*(acaInstanceSummaryBound*9/10),
-		"the instances are near the bound, so the check above is meaningful")
+		rec := s.call(http.MethodGet, s.agentPath(*agent.ID, "/instances"), nil)
+		s.Require().Equal(http.StatusOK, rec.Code, c.name)
+		size := rec.Body.Len()
+		s.T().Logf("%s: a page of %d worst-case instances encodes to %d bytes", c.name, agentcfg.InstancesPageLimit, size)
+		s.LessOrEqual(size, agentcfg.InstancesPageLimit*(maxReportSummaryEncodedBytes+acaInstanceFixedBytes)+64<<10, c.name)
+		s.Greater(size, agentcfg.InstancesPageLimit*(maxReportSummaryEncodedBytes*9/10),
+			"%s: the instances are near the budget, so the check above is meaningful", c.name)
 
-	var list acaInstanceList
-	s.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &list))
-	s.Require().Len(list.Data, agentcfg.InstancesPageLimit)
-	s.Equal(int64(n), list.Meta.Total)
-	s.Equal(n, list.Meta.Counts.Total)
-	for _, inst := range list.Data {
-		s.Len(inst.Warnings, maxReportWarnings)
-		s.Len(inst.Unsafe, maxReportUnsafe)
-		s.Len(inst.Plugins, maxReportPlugins)
-		s.True(inst.Truncated)
+		var list acaInstanceList
+		s.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &list))
+		s.Require().Len(list.Data, agentcfg.InstancesPageLimit, c.name)
+		s.Equal(int64(n), list.Meta.Total)
+		s.Equal(n, list.Meta.Counts.Total)
+		for _, inst := range list.Data {
+			s.True(inst.Truncated)
+			if c.escaped {
+				s.NotEmpty(inst.Warnings)
+				s.NotEmpty(inst.Unsafe)
+				s.NotEmpty(inst.Plugins)
+				s.Less(len(inst.Warnings)+len(inst.Unsafe)+len(inst.Plugins), maxReportWarnings+maxReportUnsafe+maxReportPlugins,
+					"escaped text is over the budget, so entries are dropped")
+			} else {
+				s.Len(inst.Warnings, maxReportWarnings, "plain text at the caps fits the budget")
+				s.Len(inst.Unsafe, maxReportUnsafe)
+				s.Len(inst.Plugins, maxReportPlugins)
+			}
+		}
 	}
 }
 

@@ -13267,7 +13267,7 @@ paths:
         meta.desired-revision cover all of the agent's instances, not just the page;
         meta.page, meta.limit, meta.total and meta.total-pages describe the page.
         A limit above 25 is capped at 25, since one instance's summary can reach about
-        3 MiB. Base/effective configs are on the instance detail route.
+        3 MiB once encoded. Base/effective configs are on the instance detail route.
       parameters:
       - description: Agent ID
         in: path

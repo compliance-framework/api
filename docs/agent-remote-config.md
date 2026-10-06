@@ -161,13 +161,18 @@ agent). Existing instances keep reporting.
 Deleting an agent deletes its instances and revisions.
 
 **Report bounds.** The API caps what a report stores and marks the instance `truncated`:
-plugins, warnings and unsafe changes by count, their strings, the error text, hostname and
-version by length, and the reported `remote_config` (at most 100 `trusted_sources` and 100
-`overridable_config_flags`, each at most 256 bytes encoded, dropped rather than cut; about
-64 KiB in all). The instance list returns these summary columns, without the base and
-effective configs; in the worst case that is about 3 MiB of text per instance. So the list
-is paginated at 25 instances, about 75 MiB at most (text that JSON escapes, such as `<` or
-control characters, encodes up to six times larger), and its counts are computed from the
+plugins, warnings and unsafe changes by count, every one of their strings (warning codes and
+change safety and reason included, cut to 64 bytes rather than rejected, so a newer agent's
+values still fit), the error text, hostname and version by length, and the reported
+`remote_config` (at most 100 `trusted_sources` and 100 `overridable_config_flags`, each at
+most 256 bytes encoded, dropped rather than cut; about 64 KiB in all). On top of these caps,
+the summary fields as a whole (hostname, version, error, warnings, unsafe changes, plugins and
+`remote_config`) are kept within 3 MiB as the instance list encodes them, JSON escaping
+included (`<`, `&` and control characters take six bytes each): over that, the API drops the
+last entries of the largest list and cuts the error text until the report fits. A plain-text
+report at every cap is about 2.9 MB and is stored unchanged. The instance list returns these
+summary columns, without the base and effective configs, so with pages of 25 instances a page
+is about 75 MiB at most, whatever the reports contain. Its counts are computed from the
 instances' status columns alone.
 
 ## Who sees secrets

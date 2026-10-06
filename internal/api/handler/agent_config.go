@@ -696,7 +696,7 @@ func (h *AgentConfigHandler) GetRevision(ctx echo.Context) error {
 // ListInstances godoc
 //
 //	@Summary		List an agent's instances
-//	@Description	One page of summaries of the instances that reported or heartbeated with a config digest, most recently seen first, with the derived status (pending and unknown are server-derived), sync status and staleness. meta.counts and meta.desired-revision cover all of the agent's instances, not just the page; meta.page, meta.limit, meta.total and meta.total-pages describe the page. A limit above 25 is capped at 25, since one instance's summary can reach about 3 MiB. Base/effective configs are on the instance detail route.
+//	@Description	One page of summaries of the instances that reported or heartbeated with a config digest, most recently seen first, with the derived status (pending and unknown are server-derived), sync status and staleness. meta.counts and meta.desired-revision cover all of the agent's instances, not just the page; meta.page, meta.limit, meta.total and meta.total-pages describe the page. A limit above 25 is capped at 25, since one instance's summary can reach about 3 MiB once encoded. Base/effective configs are on the instance detail route.
 //	@Tags			Agent Configuration
 //	@Produce		json
 //	@Param			id		path		string	true	"Agent ID"
