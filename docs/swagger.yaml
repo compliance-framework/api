@@ -14351,7 +14351,8 @@ paths:
         server re-redacts base and effective as a best effort, replaces error, warning
         messages, plugin sources, unsafe change values and remote-config strings that
         contain a secret with ••••, and stores effective-digest as sent. Long warning
-        messages and unsafe lists are truncated (truncated=true). A NUL character
+        messages, unsafe lists and remote-config are truncated (truncated=true); a
+        remote-config list entry over the length cap is dropped, not cut. A NUL character
         anywhere is a 400. Body limit 4 MiB. A 409 means the per-agent instance cap
         is reached; back off.'
       parameters:

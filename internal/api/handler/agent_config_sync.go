@@ -42,6 +42,15 @@ const (
 	maxReportPluginNameLen       = 255
 	maxReportPluginSourceLen     = 2048
 	maxReportPluginLibVersionLen = 64
+
+	// remote-config, a summary column too. Its JSON stays within 64 KiB: two lists of at
+	// most maxReportRemoteListEntries entries, each at most maxReportRemoteEntryBytes once
+	// JSON-encoded (2 × 100 × 257 bytes with the commas), plus mode and poll_interval (at
+	// most 6× their byte caps once escaped) and the keys.
+	maxReportRemoteListEntries     = 100
+	maxReportRemoteEntryBytes      = 256 // JSON-encoded, quotes included
+	maxReportRemoteModeLen         = 32
+	maxReportRemotePollIntervalLen = 64
 )
 
 var effectiveDigestPattern = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
@@ -150,7 +159,7 @@ func (h *AgentConfigSyncHandler) GetConfig(ctx echo.Context) error {
 // PutReport godoc
 //
 //	@Summary		Report this instance's effective configuration
-//	@Description	Stores the authenticated agent instance's config report: mode, applied/attempted revision, status (applied, rejected, failed or not-applicable; the server derives pending and unknown), the redacted base and effective configs (snake_case), the effective digest, plugins (with their agent-library version), unsafe changes, warnings and the normalized local remote_config block. The server re-redacts base and effective as a best effort, replaces error, warning messages, plugin sources, unsafe change values and remote-config strings that contain a secret with ••••, and stores effective-digest as sent. Long warning messages and unsafe lists are truncated (truncated=true). A NUL character anywhere is a 400. Body limit 4 MiB. A 409 means the per-agent instance cap is reached; back off.
+//	@Description	Stores the authenticated agent instance's config report: mode, applied/attempted revision, status (applied, rejected, failed or not-applicable; the server derives pending and unknown), the redacted base and effective configs (snake_case), the effective digest, plugins (with their agent-library version), unsafe changes, warnings and the normalized local remote_config block. The server re-redacts base and effective as a best effort, replaces error, warning messages, plugin sources, unsafe change values and remote-config strings that contain a secret with ••••, and stores effective-digest as sent. Long warning messages, unsafe lists and remote-config are truncated (truncated=true); a remote-config list entry over the length cap is dropped, not cut. A NUL character anywhere is a 400. Body limit 4 MiB. A 409 means the per-agent instance cap is reached; back off.
 //	@Tags			Agents
 //	@Accept			json
 //	@Param			instanceId	path	string				true	"Agent instance ID (UUID)"
@@ -366,6 +375,16 @@ func normalizeReport(r *agentconfig.Report) (scrubbed bool, err error) {
 		r.Unsafe = r.Unsafe[:maxReportUnsafe]
 		r.Truncated = true
 	}
+	if rc := r.RemoteConfig; rc != nil {
+		if len(rc.TrustedSources) > maxReportRemoteListEntries {
+			rc.TrustedSources = rc.TrustedSources[:maxReportRemoteListEntries]
+			r.Truncated = true
+		}
+		if len(rc.OverridableConfigFlags) > maxReportRemoteListEntries {
+			rc.OverridableConfigFlags = rc.OverridableConfigFlags[:maxReportRemoteListEntries]
+			r.Truncated = true
+		}
+	}
 
 	scrubbed = scrubReportText(r)
 
@@ -385,6 +404,12 @@ func normalizeReport(r *agentconfig.Report) (scrubbed bool, err error) {
 		c.Path = truncateReportField(r, c.Path, maxReportChangePathBytes)
 		c.Value = truncateReportField(r, c.Value, maxReportChangeValueBytes)
 	}
+	if rc := r.RemoteConfig; rc != nil {
+		rc.Mode = truncateReportField(r, rc.Mode, maxReportRemoteModeLen)
+		rc.PollInterval = truncateReportField(r, rc.PollInterval, maxReportRemotePollIntervalLen)
+		rc.TrustedSources = dropLongRemoteEntries(r, rc.TrustedSources)
+		rc.OverridableConfigFlags = dropLongRemoteEntries(r, rc.OverridableConfigFlags)
+	}
 	r.Hostname = truncateUTF8(strings.TrimSpace(r.Hostname), maxReportHostnameLen)
 	r.AgentVersion = truncateUTF8(strings.TrimSpace(r.AgentVersion), maxReportAgentVersionLen)
 	if r.Error != nil {
@@ -402,6 +427,21 @@ func truncateReportField(r *agentconfig.Report, s string, n int) string {
 	}
 	r.Truncated = true
 	return truncateUTF8(s, n)
+}
+
+// dropLongRemoteEntries removes the trusted_sources or overridable_config_flags entries
+// longer than maxReportRemoteEntryBytes once JSON-encoded, and marks the report truncated
+// when it removed any. An entry is dropped, not cut: these are path.Match patterns, and a
+// cut pattern can match more than the host trusts (".../*/x" cut to ".../*").
+func dropLongRemoteEntries(r *agentconfig.Report, entries []string) []string {
+	return slices.DeleteFunc(entries, func(e string) bool {
+		encoded, err := json.Marshal(e)
+		if err == nil && len(encoded) <= maxReportRemoteEntryBytes {
+			return false
+		}
+		r.Truncated = true
+		return true
+	})
 }
 
 func isJSONObject(raw json.RawMessage) bool {
