@@ -1,0 +1,2 @@
+lisa-addressed:
+fp 8ef552cfc250 (must-fix, CORE-INPUT-001): decodeStrict now requires dec.Token() to return io.EOF after the object (More() accepted a trailing } or ]). Test: TestDecodeStrictRejectsTrailingData in agent_config_body_regression_test.go (the NUL-comment unit test from that file moved to agent_config_comment_regression_test.go).
