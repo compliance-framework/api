@@ -1,0 +1,2 @@
+lisa-addressed:
+fp 770f01081b21 (blocker, CORE-VERIFY-001): TestContainsSecretValueLinear budget is now timeBudget(2s), x10 under -race via raceEnabled (race_enabled_test.go / race_disabled_test.go build tags). go test -race -run TestContainsSecretValueLinear passes (5.6s) and so does the plain run (0.3s).
