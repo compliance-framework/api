@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/compliance-framework/api/internal/config"
 	"github.com/compliance-framework/api/internal/service/relational/agentcfg"
 	"github.com/riverqueue/river"
 	"go.uber.org/zap"
@@ -13,9 +14,6 @@ import (
 
 // JobTypeAgentInstancePrune prunes agent instances that are no longer reporting (R37).
 const JobTypeAgentInstancePrune = "agent_instance_prune"
-
-// defaultAgentInstancePruneSchedule is hourly, River 6-field (seconds first).
-const defaultAgentInstancePruneSchedule = "0 17 * * * *"
 
 // AgentInstancePruneArgs are the (empty) args of the periodic prune job.
 type AgentInstancePruneArgs struct{}
@@ -54,7 +52,7 @@ func (w *AgentInstancePruneWorker) Work(ctx context.Context, _ *river.Job[AgentI
 
 // NewAgentInstancePrunePeriodicJob schedules the prune job on the "scheduler" queue.
 func NewAgentInstancePrunePeriodicJob(schedule string, logger *zap.SugaredLogger) *river.PeriodicJob {
-	sched := parseCronScheduleWithFallback(schedule, defaultAgentInstancePruneSchedule, "agent instance prune", logger)
+	sched := parseCronScheduleWithFallback(schedule, config.DefaultAgentsConfig().InstancePruneSchedule, "agent instance prune", logger)
 	return river.NewPeriodicJob(
 		sched,
 		func() (river.JobArgs, *river.InsertOpts) {
