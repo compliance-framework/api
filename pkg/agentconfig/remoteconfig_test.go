@@ -108,52 +108,70 @@ func TestPluginIsEnabled(t *testing.T) {
 	assert.False(t, (&Plugin{Enabled: boolPtr(false)}).IsEnabled())
 }
 
+// trustedSourcePatterns, trustedSourceCases and trustedSourceExtraCases are the
+// MatchTrustedSource table, shared with the conformance golden file (conformance_test.go).
+var trustedSourcePatterns = []string{"ghcr.io/compliance-framework/*", "docker.io/acme/plugin-?:v1", "[bad"}
+
+var trustedSourceCases = []struct {
+	source string
+	want   bool
+}{
+	{"ghcr.io/compliance-framework/plugin-local-ssh:v1.0.0", true},
+	{"ghcr.io/compliance-framework/sub/plugin:v1", false}, // '*' does not cross '/'
+	{"ghcr.io/Compliance-Framework/plugin:v1", false},     // case-sensitive
+	{"ghcr.io/compliance-framework", false},
+	{"ghcr.io/other/plugin:v1", false},
+	{"docker.io/acme/plugin-a:v1", true},
+	{"docker.io/acme/plugin-ab:v1", false},
+	{"", false},
+}
+
+var trustedSourceExtraCases = []struct {
+	patterns []string
+	source   string
+	want     bool
+}{
+	{patterns: nil, source: "ghcr.io/x/y:v1", want: false}, // default [] trusts nothing
+	{patterns: []string{"*/*/*"}, source: "ghcr.io/x/y:v1", want: true},
+}
+
 func TestMatchTrustedSource(t *testing.T) {
-	rc := RemoteConfig{TrustedSources: []string{"ghcr.io/compliance-framework/*", "docker.io/acme/plugin-?:v1", "[bad"}}
-	tests := []struct {
-		source string
-		want   bool
-	}{
-		{"ghcr.io/compliance-framework/plugin-local-ssh:v1.0.0", true},
-		{"ghcr.io/compliance-framework/sub/plugin:v1", false}, // '*' does not cross '/'
-		{"ghcr.io/Compliance-Framework/plugin:v1", false},     // case-sensitive
-		{"ghcr.io/compliance-framework", false},
-		{"ghcr.io/other/plugin:v1", false},
-		{"docker.io/acme/plugin-a:v1", true},
-		{"docker.io/acme/plugin-ab:v1", false},
-		{"", false},
-	}
-	for _, tt := range tests {
+	rc := RemoteConfig{TrustedSources: trustedSourcePatterns}
+	for _, tt := range trustedSourceCases {
 		assert.Equal(t, tt.want, MatchTrustedSource(rc, tt.source), tt.source)
 	}
-	assert.False(t, MatchTrustedSource(RemoteConfig{}, "ghcr.io/x/y:v1"), "default [] trusts nothing")
-	assert.True(t, MatchTrustedSource(RemoteConfig{TrustedSources: []string{"*/*/*"}}, "ghcr.io/x/y:v1"))
+	for _, tt := range trustedSourceExtraCases {
+		assert.Equal(t, tt.want, MatchTrustedSource(RemoteConfig{TrustedSources: tt.patterns}, tt.source), "%v %s", tt.patterns, tt.source)
+	}
+}
+
+// overridableConfigFlagCases is the MatchOverridableConfigFlag table, shared with the
+// conformance golden file (conformance_test.go).
+var overridableConfigFlagCases = []struct {
+	name   string
+	flags  []string
+	plugin string
+	key    string
+	want   bool
+}{
+	{name: "default empty", flags: nil, plugin: "local-ssh", key: "port", want: false},
+	{name: "star", flags: []string{"*"}, plugin: "local-ssh", key: "port", want: true},
+	{name: "star any plugin", flags: []string{"*"}, plugin: "other", key: "anything", want: true},
+	{name: "scoped match", flags: []string{"local-ssh:port"}, plugin: "local-ssh", key: "port", want: true},
+	{name: "scoped other key", flags: []string{"local-ssh:port"}, plugin: "local-ssh", key: "host", want: false},
+	{name: "scoped other plugin", flags: []string{"local-ssh:port"}, plugin: "remote-ssh", key: "port", want: false},
+	{name: "unscoped key any plugin", flags: []string{"port"}, plugin: "remote-ssh", key: "port", want: true},
+	{name: "plugin glob", flags: []string{"*-ssh:port"}, plugin: "remote-ssh", key: "port", want: true},
+	{name: "key glob", flags: []string{"local-ssh:tls_*"}, plugin: "local-ssh", key: "tls_verify", want: true},
+	{name: "case-sensitive", flags: []string{"local-ssh:Port"}, plugin: "local-ssh", key: "port", want: false},
+	{name: "split at first colon", flags: []string{"p*:a:b"}, plugin: "p1", key: "a:b", want: true},
+	{name: "split at first colon, plugin side", flags: []string{"p*:a:b"}, plugin: "p1:a", key: "b", want: false},
+	{name: "bad glob skipped", flags: []string{"[x:port", "local-ssh:[", "local-ssh:port"}, plugin: "local-ssh", key: "port", want: true},
+	{name: "only bad globs", flags: []string{"[x:port", "local-ssh:["}, plugin: "local-ssh", key: "port", want: false},
 }
 
 func TestMatchOverridableConfigFlag(t *testing.T) {
-	tests := []struct {
-		name   string
-		flags  []string
-		plugin string
-		key    string
-		want   bool
-	}{
-		{name: "default empty", flags: nil, plugin: "local-ssh", key: "port", want: false},
-		{name: "star", flags: []string{"*"}, plugin: "local-ssh", key: "port", want: true},
-		{name: "star any plugin", flags: []string{"*"}, plugin: "other", key: "anything", want: true},
-		{name: "scoped match", flags: []string{"local-ssh:port"}, plugin: "local-ssh", key: "port", want: true},
-		{name: "scoped other key", flags: []string{"local-ssh:port"}, plugin: "local-ssh", key: "host", want: false},
-		{name: "scoped other plugin", flags: []string{"local-ssh:port"}, plugin: "remote-ssh", key: "port", want: false},
-		{name: "unscoped key any plugin", flags: []string{"port"}, plugin: "remote-ssh", key: "port", want: true},
-		{name: "plugin glob", flags: []string{"*-ssh:port"}, plugin: "remote-ssh", key: "port", want: true},
-		{name: "key glob", flags: []string{"local-ssh:tls_*"}, plugin: "local-ssh", key: "tls_verify", want: true},
-		{name: "case-sensitive", flags: []string{"local-ssh:Port"}, plugin: "local-ssh", key: "port", want: false},
-		{name: "split at first colon", flags: []string{"p*:a:b"}, plugin: "p1", key: "a:b", want: true},
-		{name: "split at first colon, plugin side", flags: []string{"p*:a:b"}, plugin: "p1:a", key: "b", want: false},
-		{name: "bad glob skipped", flags: []string{"[x:port", "local-ssh:[", "local-ssh:port"}, plugin: "local-ssh", key: "port", want: true},
-		{name: "only bad globs", flags: []string{"[x:port", "local-ssh:["}, plugin: "local-ssh", key: "port", want: false},
-	}
-	for _, tt := range tests {
+	for _, tt := range overridableConfigFlagCases {
 		t.Run(tt.name, func(t *testing.T) {
 			assert.Equal(t, tt.want, MatchOverridableConfigFlag(RemoteConfig{OverridableConfigFlags: tt.flags}, tt.plugin, tt.key))
 		})

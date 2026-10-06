@@ -2,6 +2,9 @@ package agentconfig
 
 import (
 	"encoding/json"
+	"fmt"
+	"slices"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -331,4 +334,121 @@ func TestClassifyReenableKeptParts(t *testing.T) {
 	changes, err = Classify(base, json.RawMessage(`{"plugins":{"x":{"labels":{"a":"b"}}}}`), rc)
 	require.NoError(t, err)
 	assert.Equal(t, []Change{{Path: "/plugins/x/labels", Safety: Safe, Reason: ChangeReasonDataOnly}}, changes)
+}
+
+// applySafeCases predict, per field, whether one apply_safe host applies a change at path
+// (Classify + WillApply): the field-level rule the UI re-implements (field-access.ts). They
+// are shared with the conformance golden file (conformance_test.go). probes are concrete
+// overlays that change the field; state is "editable" when the host applies every probe,
+// "readonly" when it applies none and "restricted" otherwise.
+var applySafeCases = []struct {
+	name    string
+	trusted []string
+	file    map[string]*Plugin
+	path    string
+	probes  []string
+	state   string
+}{
+	{
+		name: "re-enable, untrusted source",
+		file: map[string]*Plugin{"x": {Enabled: boolPtr(false), Source: srcDisabled}},
+		path: "/plugins/x/enabled", probes: []string{`{"plugins":{"x":{"enabled":true}}}`},
+		state: "readonly",
+	},
+	{
+		name: "re-enable, trusted source", trusted: []string{"ghcr.io/trusted/*"},
+		file: map[string]*Plugin{"x": {Enabled: boolPtr(false), Source: "ghcr.io/trusted/p:v1"}},
+		path: "/plugins/x/enabled", probes: []string{`{"plugins":{"x":{"enabled":true}}}`},
+		state: "editable",
+	},
+	{
+		name: "re-enable keeps untrusted and local policies (TestClassifyReenableKeptParts)", trusted: []string{"ghcr.io/trusted/*"},
+		file: map[string]*Plugin{"x": {Enabled: boolPtr(false), Source: "ghcr.io/trusted/p:v1", Policies: []string{"ghcr.io/evil/pol:v9", "/tmp/local-policy"}}},
+		path: "/plugins/x/enabled", probes: []string{`{"plugins":{"x":{"enabled":true}}}`},
+		state: "readonly",
+	},
+	{
+		name: "re-enable keeps ${env:} references (TestClassifyReenableKeptParts)", trusted: []string{"ghcr.io/trusted/*"},
+		file: map[string]*Plugin{"x": {Enabled: boolPtr(false), Source: "ghcr.io/trusted/p:v1", Config: map[string]string{"token": "${env:DB_TOKEN}"}}},
+		path: "/plugins/x/enabled", probes: []string{`{"plugins":{"x":{"enabled":true}}}`},
+		state: "readonly",
+	},
+	{
+		name: "re-enable keeps a local plugin source (fp 2db275ed2d26)", trusted: []string{"ghcr.io/trusted/*"},
+		file: map[string]*Plugin{"x": {Enabled: boolPtr(false), Source: "./bin/local-plugin"}},
+		path: "/plugins/x/enabled", probes: []string{`{"plugins":{"x":{"enabled":true}}}`},
+		state: "readonly",
+	},
+	{
+		name: "disabling is data-only",
+		file: map[string]*Plugin{"x": {Source: "ghcr.io/other/p:v1"}},
+		path: "/plugins/x/enabled", probes: []string{`{"plugins":{"x":{"enabled":false}}}`},
+		state: "editable",
+	},
+	{
+		name: "a new source needs trusted_sources, but reusing one is already-used",
+		file: map[string]*Plugin{"x": {Source: "ghcr.io/a/x:v1"}, "y": {Source: "ghcr.io/a/y:v1"}},
+		path: "/plugins/x/source",
+		probes: []string{
+			`{"plugins":{"x":{"source":"ghcr.io/a/y:v1"}}}`,
+			`{"plugins":{"x":{"source":"ghcr.io/a/new:v1"}}}`,
+		},
+		state: "restricted",
+	},
+	{
+		name: "a disabled plugin's sources are not already used",
+		file: map[string]*Plugin{"x": {Enabled: boolPtr(false), Source: "ghcr.io/a/x:v1"}},
+		path: "/plugins/x/source", probes: []string{`{"plugins":{"x":{"source":"ghcr.io/a/new:v1"}}}`},
+		state: "readonly",
+	},
+	{
+		name: "config key needs an overridable_config_flags entry",
+		file: map[string]*Plugin{"local-ssh": {Source: "s"}},
+		path: "/plugins/local-ssh/config/host", probes: []string{`{"plugins":{"local-ssh":{"config":{"host":"h"}}}}`},
+		state: "readonly",
+	},
+	{
+		name: "data-only fields",
+		file: map[string]*Plugin{"local-ssh": {Source: "s"}},
+		path: "/plugins/local-ssh/policy_data/threshold", probes: []string{`{"plugins":{"local-ssh":{"policy_data":{"threshold":5}}}}`},
+		state: "editable",
+	},
+}
+
+// applySafeState classifies every probe of a case on an apply_safe host trusting trusted
+// and returns the field state (see applySafeCases). It fails when a probe does not change
+// the field at path.
+func applySafeState(trusted []string, file map[string]*Plugin, path string, probes []string) (string, error) {
+	rc := RemoteConfig{Mode: ModeApplySafe, TrustedSources: trusted}.Normalize(true)
+	applied := 0
+	for _, probe := range probes {
+		changes, err := Classify(Config{Plugins: file}, json.RawMessage(probe), rc)
+		if err != nil {
+			return "", err
+		}
+		if !slices.ContainsFunc(changes, func(c Change) bool { return c.Path == path || strings.HasPrefix(path, c.Path+"/") }) {
+			return "", fmt.Errorf("probe %s does not change %s: %v", probe, path, changes)
+		}
+		if ok, _ := WillApply(rc, changes); ok {
+			applied++
+		}
+	}
+	switch applied {
+	case len(probes):
+		return "editable", nil
+	case 0:
+		return "readonly", nil
+	default:
+		return "restricted", nil
+	}
+}
+
+func TestClassifyApplySafeFields(t *testing.T) {
+	for _, tt := range applySafeCases {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := applySafeState(tt.trusted, tt.file, tt.path, tt.probes)
+			require.NoError(t, err)
+			assert.Equal(t, tt.state, got)
+		})
+	}
 }
