@@ -1039,7 +1039,7 @@ func (s *AgentCfgServiceIntegrationSuite) TestPruneInstances() {
 	s.Equal(int64(3), deleted)
 
 	remaining := map[uuid.UUID]bool{}
-	list, err := s.svc.ListInstances(s.ctx, agentID)
+	list, _, err := s.svc.ListInstances(s.ctx, agentID, service.PaginationParams{Page: 1, Limit: agentcfg.InstancesPageLimit})
 	s.Require().NoError(err)
 	for _, i := range list {
 		remaining[i.InstanceID] = true
