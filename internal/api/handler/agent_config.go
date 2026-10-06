@@ -19,7 +19,6 @@ import (
 	"github.com/compliance-framework/api/pkg/agentconfig"
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
-	echomiddleware "github.com/labstack/echo/v4/middleware"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
@@ -30,11 +29,9 @@ const (
 	// which can roughly double or triple it, inside an envelope with a comment of up to
 	// maxRevisionCommentLen characters (at most ~12 KiB JSON-escaped). Four times the overlay
 	// limit (1 MiB) leaves room for that, so an overlay is rejected by ValidateOverlay with a
-	// precise 422 rather than by the transport with a 413. agentConfigBodyLimitStr is the
-	// same limit for echo's BodyLimit middleware.
-	agentConfigBodyLimit    = 4 * agentconfig.MaxOverlayBytes
-	agentConfigBodyLimitStr = "1M"
-	maxRevisionCommentLen   = 2000
+	// precise 422 rather than by readJSONBody with a 413.
+	agentConfigBodyLimit  = 4 * agentconfig.MaxOverlayBytes
+	maxRevisionCommentLen = 2000
 )
 
 // AgentConfigHandler serves the admin routes for agent remote configuration: the current
@@ -57,7 +54,7 @@ func NewAgentConfigHandler(sugar *zap.SugaredLogger, db *gorm.DB, svc *agentcfg.
 func (h *AgentConfigHandler) Register(g *echo.Group, guard middleware.ResourceGuard) {
 	write := guard.Do(authz.ActionConfigure)
 	g.GET("/:id/config", h.Get, guard.Read())
-	g.PUT("/:id/config", h.Put, write, echomiddleware.BodyLimit(agentConfigBodyLimitStr))
+	g.PUT("/:id/config", h.Put, write)
 	g.GET("/:id/config/revisions/:rev", h.GetRevision, guard.Read())
 }
 
