@@ -1,0 +1,2 @@
+lisa-addressed:
+fp 2db275ed2d26 (must-fix): classifyPlugin re-enable branch now emits cl.sourceClass(ptr+"/source", ep.Source) for a kept local source, so allow_local_sources cannot be bypassed by re-enabling a disabled local plugin. Classify doc updated. Regression: pkg/agentconfig/classify_reenable_local_regression_test.go.
