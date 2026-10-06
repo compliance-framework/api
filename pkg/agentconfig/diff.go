@@ -87,6 +87,33 @@ func diffValues(path string, a, b any, hasA, hasB bool, out *[]DiffEntry) error 
 	return nil
 }
 
+// leafDiffPaths returns the pointers of every changed leaf between two decoded documents.
+// Unlike DiffJSON, an object present on one side only is expanded into its leaves (the
+// missing side counts as an empty object), so "add plugins.x.policies" reports
+// /plugins/x/policies rather than /plugins. A null or non-object on one side against an
+// object on the other is reported at that path (it is a real type change).
+func leafDiffPaths(path string, a, b any, hasA, hasB bool, out *[]string) {
+	objA, okA := a.(map[string]any)
+	objB, okB := b.(map[string]any)
+	switch {
+	case okA && !hasB:
+		objB, okB = map[string]any{}, true
+	case okB && !hasA:
+		objA, okA = map[string]any{}, true
+	}
+	if okA && okB {
+		for _, k := range unionKeys(objA, objB) {
+			va, inA := objA[k]
+			vb, inB := objB[k]
+			leafDiffPaths(appendPointer(path, k), va, vb, inA, inB, out)
+		}
+		return
+	}
+	if hasA != hasB || !jsonEqual(a, b) {
+		*out = append(*out, path)
+	}
+}
+
 func unionKeys(a, b map[string]any) []string {
 	keys := make([]string, 0, len(a)+len(b))
 	for k := range a {
