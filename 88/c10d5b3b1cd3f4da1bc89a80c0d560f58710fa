@@ -1,0 +1,2 @@
+lisa-addressed:
+- PR #475 CORE-DUP-001 (prune schedule part): dropped worker defaultAgentInstancePruneSchedule; fallback is config.DefaultAgentsConfig().InstancePruneSchedule.
