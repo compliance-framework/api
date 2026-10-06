@@ -213,11 +213,13 @@ func RegisterHandlers(server *api.Server, logger *zap.SugaredLogger, db *gorm.DB
 	agentSubjectTemplateGroup := server.API().Group("/agent/subject-templates")
 	subjectTemplateHandler.RegisterAgent(agentSubjectTemplateGroup, agentIngestMiddleware, pep.For(authz.ResourceSubjectTemplate).Update())
 
+	// Agent routes are guarded per route (R40): list/get need agent:read, writes and keys stay
+	// admin:manage. The builtin PDP still requires the admin check for users on agent:*.
+	agentGuard := pep.For(authz.ResourceAgent)
 	agentHandler := NewAgentHandler(logger, db)
 	agentsGroup := server.API().Group("/admin/agents")
 	agentsGroup.Use(middleware.JWTMiddleware(config.JWTPublicKey))
-	agentsGroup.Use(pep.Authorize(authz.ResourceAdmin, authz.ActionManage))
-	agentHandler.Register(agentsGroup)
+	agentHandler.Register(agentsGroup, agentGuard.Read(), pep.Authorize(authz.ResourceAdmin, authz.ActionManage))
 
 	userHandler := NewUserHandler(logger, db)
 
