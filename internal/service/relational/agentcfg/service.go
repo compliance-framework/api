@@ -515,9 +515,13 @@ var summaryColumns = []string{
 }
 
 // ListInstances returns an agent's instances (most recently seen first) without the heavy
-// base/effective columns. It is deliberately unpaginated: the UI needs every row for its
-// counts, the instance count is capped and pruned, and normalizeReport bounds the summary
-// columns (warnings, unsafe changes, plugins).
+// base/effective columns. It is unpaginated: the UI needs every row for its counts. So its
+// cost is the row count times the summary columns, which only the report handler bounds
+// (normalizeReport): in the worst case about 3 MiB per instance before JSON escaping
+// (warnings ~1 MiB, plugins ~1.2 MiB, unsafe changes ~0.6 MiB, remote-config 64 KiB, error
+// 8 KiB). The row count is at most MaxInstancesPerAgent non-prunable instances (default 500)
+// plus the prune-eligible ones PruneInstances has not deleted yet, so a fleet of worst-case
+// reports makes a response of more than a GiB.
 func (s *Service) ListInstances(ctx context.Context, agentID uuid.UUID) ([]relational.AgentInstance, error) {
 	var out []relational.AgentInstance
 	err := s.db.WithContext(ctx).
