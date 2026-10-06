@@ -175,12 +175,13 @@ func TestContainsSecretValue(t *testing.T) {
 }
 
 // The URL scan is linear: a long value of back-to-back schemes with no terminator used to
-// re-parse the rest of the string for every match.
+// re-parse the rest of the string for every match. The budget only has to tell linear from
+// quadratic, so it scales under the race detector's instrumentation (timeBudget).
 func TestContainsSecretValueLinear(t *testing.T) {
 	adversarial := strings.Repeat("a://", (1<<20)/4)
 	start := time.Now()
 	assert.False(t, containsSecretValue(adversarial))
-	assert.Less(t, time.Since(start), 2*time.Second)
+	assert.Less(t, time.Since(start), timeBudget(2*time.Second))
 
 	// A real URL password within the scanned prefix is still detected.
 	assert.True(t, containsSecretValue(strings.Repeat("a://", 50)+" https://u:pw@h/x"))
