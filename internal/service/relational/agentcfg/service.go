@@ -19,14 +19,6 @@ import (
 	"gorm.io/gorm/clause"
 )
 
-// Defaults for Settings (R37, R14).
-const (
-	DefaultInstanceStaleAfter       = 10 * time.Minute
-	DefaultInstanceRetention        = 720 * time.Hour
-	DefaultOneShotInstanceRetention = 24 * time.Hour
-	DefaultMaxInstancesPerAgent     = 500
-)
-
 // Settings tunes instance freshness, retention and the per-agent instance cap.
 type Settings struct {
 	InstanceStaleAfter       time.Duration // fresh <=> last_seen_at >= now - InstanceStaleAfter
@@ -35,19 +27,21 @@ type Settings struct {
 	MaxInstancesPerAgent     int           // non-prunable instances per agent; the oldest stale one is replaced when full
 }
 
-// WithDefaults fills zero or negative values with the defaults.
+// WithDefaults fills zero or negative values with config.DefaultAgentsConfig (R37, R14), the
+// single source of the defaults.
 func (s Settings) WithDefaults() Settings {
+	d := config.DefaultAgentsConfig()
 	if s.InstanceStaleAfter <= 0 {
-		s.InstanceStaleAfter = DefaultInstanceStaleAfter
+		s.InstanceStaleAfter = d.InstanceStaleAfter
 	}
 	if s.InstanceRetention <= 0 {
-		s.InstanceRetention = DefaultInstanceRetention
+		s.InstanceRetention = d.InstanceRetention
 	}
 	if s.OneShotInstanceRetention <= 0 {
-		s.OneShotInstanceRetention = DefaultOneShotInstanceRetention
+		s.OneShotInstanceRetention = d.OneShotInstanceRetention
 	}
 	if s.MaxInstancesPerAgent <= 0 {
-		s.MaxInstancesPerAgent = DefaultMaxInstancesPerAgent
+		s.MaxInstancesPerAgent = d.MaxInstancesPerAgent
 	}
 	return s
 }
