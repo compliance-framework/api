@@ -6,6 +6,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"slices"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -617,8 +619,9 @@ func (s *AgentCfgServiceIntegrationSuite) TestListAndGetInstances() {
 	s.Require().NoError(s.reportAt(s.svc, s.now, agentID, newer, report))
 	s.Require().NoError(s.svc.UpsertReport(s.ctx, other, nil, uuid.New(), report))
 
-	list, err := s.svc.ListInstances(s.ctx, agentID)
+	list, total, err := s.svc.ListInstances(s.ctx, agentID, service.PaginationParams{Page: 1, Limit: agentcfg.InstancesPageLimit})
 	s.Require().NoError(err)
+	s.Equal(int64(2), total)
 	s.Require().Len(list, 2)
 	s.Equal(newer, list[0].InstanceID, "most recently seen first")
 	s.Equal(older, list[1].InstanceID)
@@ -643,9 +646,103 @@ func (s *AgentCfgServiceIntegrationSuite) TestListAndGetInstances() {
 	_, err = s.svc.GetInstance(s.ctx, agentID, uuid.New())
 	s.ErrorIs(err, agentcfg.ErrNotFound)
 
-	empty, err := s.svc.ListInstances(s.ctx, s.newAgent("no-instances"))
+	empty, total, err := s.svc.ListInstances(s.ctx, s.newAgent("no-instances"), service.PaginationParams{Page: 1, Limit: agentcfg.InstancesPageLimit})
 	s.Require().NoError(err)
+	s.Zero(total)
+	s.NotNil(empty)
 	s.Empty(empty)
+}
+
+// ListInstances returns one page (at most InstancesPageLimit rows, newest first, ties by
+// instance id) and the total; CountInstances counts every instance, not just the page's.
+func (s *AgentCfgServiceIntegrationSuite) TestListInstancesPagesAndCountsAll() {
+	agentID := s.newAgent("paged-instances")
+	other := s.newAgent("paged-instances-other")
+	s.createRevision(agentID, 0, `{"verbosity":1}`) // desired revision 1
+	s.insertInstance(other, nil, s.now)
+
+	const n = 30
+	type seen struct {
+		id uuid.UUID
+		at time.Time
+	}
+	instances := make([]seen, 0, n)
+	for i := 0; i < n; i++ {
+		at := s.now.Add(-time.Duration(i) * time.Minute)
+		if i == n-1 {
+			at = instances[n-2].at // a tie on last_seen_at: instance_id decides
+		}
+		instances = append(instances, seen{s.insertInstance(agentID, ptr(true), at), at})
+	}
+	want := make([]uuid.UUID, 0, n)
+	slices.SortFunc(instances, func(a, b seen) int {
+		if c := b.at.Compare(a.at); c != 0 {
+			return c
+		}
+		return strings.Compare(a.id.String(), b.id.String())
+	})
+	for _, i := range instances {
+		want = append(want, i.id)
+	}
+
+	// States of instances beyond the first page; the rest never reported (unknown).
+	set := func(id uuid.UUID, cols map[string]any) {
+		s.Require().NoError(s.DB.Model(&relational.AgentInstance{}).Where("instance_id = ?", id).Updates(cols).Error)
+	}
+	set(want[25], map[string]any{"reported_status": agentconfig.StatusApplied, "applied_revision": 1})
+	set(want[26], map[string]any{"reported_status": agentconfig.StatusRejected, "attempted_revision": 1})
+	set(want[27], map[string]any{"reported_status": agentconfig.StatusFailed, "attempted_revision": 1})
+	set(want[28], map[string]any{"reported_status": agentconfig.StatusApplied}) // behind, not attempted: pending
+	set(want[29], map[string]any{"mode": agentconfig.ModeReport, "reported_status": agentconfig.StatusNotApplicable})
+
+	ids := func(rows []relational.AgentInstance) []uuid.UUID {
+		out := make([]uuid.UUID, 0, len(rows))
+		for _, r := range rows {
+			s.Nil(r.BaseConfig, "heavy column not loaded")
+			s.Nil(r.EffectiveConfig, "heavy column not loaded")
+			out = append(out, r.InstanceID)
+		}
+		return out
+	}
+
+	page, total, err := s.svc.ListInstances(s.ctx, agentID, service.PaginationParams{Page: 1, Limit: 25})
+	s.Require().NoError(err)
+	s.Equal(int64(n), total)
+	s.Equal(want[:25], ids(page))
+
+	page, total, err = s.svc.ListInstances(s.ctx, agentID, service.PaginationParams{Page: 2, Limit: 25, Offset: 25})
+	s.Require().NoError(err)
+	s.Equal(int64(n), total)
+	s.Equal(want[25:], ids(page))
+
+	page, _, err = s.svc.ListInstances(s.ctx, agentID, service.PaginationParams{Page: 2, Limit: 10, Offset: 10})
+	s.Require().NoError(err)
+	s.Equal(want[10:20], ids(page))
+
+	for _, limit := range []int{0, -1, 26, 1000} {
+		page, _, err = s.svc.ListInstances(s.ctx, agentID, service.PaginationParams{Page: 1, Limit: limit})
+		s.Require().NoError(err)
+		s.Len(page, agentcfg.InstancesPageLimit, "limit %d is capped at InstancesPageLimit", limit)
+	}
+	for _, offset := range []int{n, 1 << 40, -25} {
+		page, total, err = s.svc.ListInstances(s.ctx, agentID, service.PaginationParams{Page: 2, Limit: 25, Offset: offset})
+		s.Require().NoError(err, "offset %d", offset)
+		s.Equal(int64(n), total)
+		s.NotNil(page)
+		s.Empty(page, "offset %d", offset)
+	}
+
+	counts, err := s.svc.CountInstances(s.ctx, agentID, 1, s.now)
+	s.Require().NoError(err)
+	s.Equal(agentcfg.InstanceCounts{
+		Total: n, Fresh: 11, Stale: n - 11, // stale after 10 minutes by default
+		InSync: 1, OutOfSync: 3,
+		Pending: 1, Rejected: 1, Failed: 1, Unknown: n - 5,
+	}, counts)
+
+	counts, err = s.svc.CountInstances(s.ctx, s.newAgent("paged-instances-empty"), 0, s.now)
+	s.Require().NoError(err)
+	s.Equal(agentcfg.InstanceCounts{}, counts)
 }
 
 func (s *AgentCfgServiceIntegrationSuite) TestDeleteRevisionsForAgent() {

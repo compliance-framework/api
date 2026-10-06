@@ -514,22 +514,102 @@ var summaryColumns = []string{
 	"heartbeat_config_revision", "heartbeat_config_digest",
 }
 
-// ListInstances returns an agent's instances (most recently seen first) without the heavy
-// base/effective columns. It is unpaginated: the UI needs every row for its counts. So its
-// cost is the row count times the summary columns, which only the report handler bounds
-// (normalizeReport): in the worst case about 3 MiB per instance before JSON escaping
-// (warnings ~1 MiB, plugins ~1.2 MiB, unsafe changes ~0.6 MiB, remote-config 64 KiB, error
-// 8 KiB). The row count is at most MaxInstancesPerAgent non-prunable instances (default 500)
-// plus the prune-eligible ones PruneInstances has not deleted yet, so a fleet of worst-case
-// reports makes a response of more than a GiB.
-func (s *Service) ListInstances(ctx context.Context, agentID uuid.UUID) ([]relational.AgentInstance, error) {
-	var out []relational.AgentInstance
-	err := s.db.WithContext(ctx).
+// InstancesPageLimit is the default and the maximum page size of ListInstances. A listed
+// instance's summary columns are bounded only by the report handler (normalizeReport): about
+// 3 MiB of text per instance in the worst case (warnings ~1 MiB, plugins ~1.2 MiB, unsafe
+// changes ~0.6 MiB, remote-config 64 KiB, error 8 KiB), and never more than one report body
+// (agentconfig.MaxReportBytes, 4 MiB). So a page holds about 75 MiB of summary text at most,
+// whatever the agent's instance count (up to MaxInstancesPerAgent non-prunable instances plus
+// the prune-eligible ones PruneInstances has not deleted yet).
+const InstancesPageLimit = 25
+
+// ListInstances returns one page of an agent's instances, most recently seen first
+// (last_seen_at DESC, instance_id), without the heavy base/effective columns, and the total
+// number of the agent's instances. p.Limit is capped at InstancesPageLimit (a zero or
+// negative limit means InstancesPageLimit), so a page's cost is bounded by the per-instance
+// bound above. Fleet-wide counts come from CountInstances, which loads no JSON column.
+func (s *Service) ListInstances(ctx context.Context, agentID uuid.UUID, p service.PaginationParams) ([]relational.AgentInstance, int64, error) {
+	db := s.db.WithContext(ctx)
+	var total int64
+	if err := db.Model(&relational.AgentInstance{}).Where("agent_id = ?", agentID).Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	limit := p.Limit
+	if limit <= 0 || limit > InstancesPageLimit {
+		limit = InstancesPageLimit
+	}
+	out := []relational.AgentInstance{}
+	if p.Offset < 0 || int64(p.Offset) >= total { // a negative offset is an overflowed page number
+		return out, total, nil
+	}
+	err := db.
 		Select(summaryColumns).
 		Where("agent_id = ?", agentID).
 		Order("last_seen_at DESC, instance_id").
+		Limit(limit).
+		Offset(p.Offset).
 		Find(&out).Error
-	return out, err
+	if err != nil {
+		return nil, 0, err
+	}
+	return out, total, nil
+}
+
+// stateColumns are the scalar columns IsStale, DeriveStatus and DeriveSyncStatus read.
+var stateColumns = []string{"mode", "reported_status", "applied_revision", "attempted_revision", "last_seen_at"}
+
+// InstanceCounts are the counts of an agent's instances by derived state.
+type InstanceCounts struct {
+	Total     int
+	Fresh     int
+	Stale     int
+	InSync    int
+	OutOfSync int
+	Pending   int
+	Rejected  int
+	Failed    int
+	Unknown   int
+}
+
+// CountInstances counts all of an agent's instances by freshness (IsStale at now), sync
+// status (DeriveSyncStatus) and status (DeriveStatus) against the desired revision. It loads
+// only the scalar columns those read (no JSON column), so its cost does not depend on what
+// the instances reported, and the counts cover every instance, not one ListInstances page.
+func (s *Service) CountInstances(ctx context.Context, agentID uuid.UUID, desired int64, now time.Time) (InstanceCounts, error) {
+	var rows []relational.AgentInstance
+	err := s.db.WithContext(ctx).
+		Select(stateColumns).
+		Where("agent_id = ?", agentID).
+		Find(&rows).Error
+	if err != nil {
+		return InstanceCounts{}, err
+	}
+	var c InstanceCounts
+	for _, row := range rows {
+		c.Total++
+		if IsStale(row, now, s.settings) {
+			c.Stale++
+		} else {
+			c.Fresh++
+		}
+		switch DeriveSyncStatus(row, desired) {
+		case SyncInSync:
+			c.InSync++
+		case SyncOutOfSync:
+			c.OutOfSync++
+		}
+		switch DeriveStatus(row, desired) {
+		case agentconfig.StatusPending:
+			c.Pending++
+		case agentconfig.StatusRejected:
+			c.Rejected++
+		case agentconfig.StatusFailed:
+			c.Failed++
+		case agentconfig.StatusUnknown:
+			c.Unknown++
+		}
+	}
+	return c, nil
 }
 
 // GetInstance returns one instance of an agent (all columns) or ErrNotFound.
