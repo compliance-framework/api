@@ -1,0 +1,2 @@
+lisa-addressed:
+fp 72f95c2fcf2d (must-fix, doc part on #476): ListInstances doc comment now states the real bound (~3 MiB per instance worst case incl. remote-config 64 KiB once #480 caps it; MaxInstancesPerAgent non-prunable rows plus not-yet-pruned rows; >1 GiB worst case). Pagination deliberately not changed (UI consumes the shape); follow-up.
