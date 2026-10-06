@@ -511,6 +511,10 @@ func normalizeComment(c *string) (*string, error) {
 	if len([]rune(trimmed)) > maxRevisionCommentLen {
 		return nil, fmt.Errorf("comment must be at most %d characters", maxRevisionCommentLen)
 	}
+	// Postgres cannot store a NUL in a text column: the insert would fail with a 500.
+	if strings.ContainsRune(trimmed, 0) {
+		return nil, errors.New("comment must not contain a NUL character")
+	}
 	return &trimmed, nil
 }
 
