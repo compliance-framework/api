@@ -1,0 +1,3 @@
+lisa-addressed:
+- ci / go (go test -race, new with the shared CI) failed on #487 with a data race in TestCronScheduler_StartStop: mockJob.Execute (scheduler_test.go) wrote executed/execCount from overlapping robfig/cron goroutines while the test read them. Fixed in test code only: the fields are atomic.Bool / atomic.Int32 and readers use Load(); cron.go is unchanged. Reproduced locally without the fix (1 race in 20 runs), clean with it (go test -race -count=20 ./internal/service/scheduler/...).
+- A sweep of the other test doubles found none mutated from goroutines started by the code under test (river workers are called synchronously, the concurrent dashboard worker double is mutex-guarded); httptest handler captures are ordered by the HTTP round-trip.
