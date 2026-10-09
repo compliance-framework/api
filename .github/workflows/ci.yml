@@ -1,157 +1,41 @@
-name: CI
+# Shared go-service CI from compliance-framework/workflows, pinned to a release commit that
+# ccf-bump moves. The status check to require is `ci / required`.
+name: ci
 
 on:
+  pull_request:
+    # closed: notify marks the PR's needs-human card handled and closes its CI incident.
+    types: [opened, edited, synchronize, reopened, labeled, unlabeled, closed]
   push:
-    branches:
-      - main
-      - release-*
-  pull_request: {}
+    branches: [main]
 
-env:
-  # Common versions
-  GOLANGCI_VERSION: 'v2.11.4'
+permissions: {}
 
 jobs:
-  lint:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v5
+  ci:
+    uses: compliance-framework/workflows/.github/workflows/ci-go-service.yml@899dbe5d7dac02de5fd60a92d764b189259e03dd # v1.5.0
+    with:
+      # Regenerate the Swagger docs (docs/) from the handler annotations before vet, the tests
+      # and the make targets, as the old CI did before its tests.
+      prepare-command: make swag
+      # test-integration starts postgres through testcontainers (Docker is on the runner);
+      # check-diff reruns swag and fails when the tree is dirty (stale committed docs).
+      make-targets: test-integration check-diff
+      # api's lint has needed up to 30 minutes (the old CI ran it with --timeout=30m).
+      lint-timeout-minutes: 30
+    permissions:
+      actions: read
+      contents: read
+      pull-requests: read
+      security-events: write
+    secrets: inherit
 
-      - name: Setup Go
-        uses: actions/setup-go@v4
-        with:
-          go-version-file: "go.mod"
-
-      - name: Find the Go Cache
-        id: go
-        run: |
-          echo "build-cache=$(go env GOCACHE)" >> $GITHUB_OUTPUT
-          echo "mod-cache=$(go env GOMODCACHE)" >> $GITHUB_OUTPUT
-
-      - name: Cache the Go Build Cache
-        uses: actions/cache@v3
-        with:
-          path: ${{ steps.go.outputs.build-cache }}
-          key: ${{ runner.os }}-build-${{ github.sha }}-${{ hashFiles('**/go.sum') }}
-
-      - name: Cache Go Dependencies
-        uses: actions/cache@v3
-        with:
-          path: ${{ steps.go.outputs.mod-cache }}
-          key: ${{ runner.os }}-mod-${{ github.sha }}-${{ hashFiles('**/go.sum') }}
-
-      - name: Lint
-        uses: golangci/golangci-lint-action@v7
-        with:
-          version: ${{ env.GOLANGCI_VERSION }}
-          skip-cache: true
-          skip-save-cache: true
-          args: --timeout=30m
-
-  check-diff:
-    runs-on: ubuntu-latest
-    if: github.ref != 'refs/heads/main'
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v5
-
-      - name: Setup Go
-        uses: actions/setup-go@v4
-        id: setup-go
-        with:
-          go-version-file: "go.mod"
-
-      - name: Download Go modules
-        if: ${{ steps.setup-go.outputs.cache-hit != 'true' }}
-        run: go mod download
-
-      - name: Configure Git
-        run: |
-          git config user.name "$GITHUB_ACTOR"
-          git config user.email "$GITHUB_ACTOR@users.noreply.github.com"
-
-      - name: Check Diff
-        run: |
-          make check-diff
-
-  unit-tests:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v5
-
-      - name: Fetch History
-        run: git fetch --prune --unshallow
-
-      - name: Setup Go
-        uses: actions/setup-go@v4
-        with:
-          go-version-file: "go.mod"
-
-      - name: Find the Go Cache
-        id: go
-        run: |
-          echo "build-cache=$(go env GOCACHE)" >> $GITHUB_OUTPUT
-          echo "mod-cache=$(go env GOMODCACHE)" >> $GITHUB_OUTPUT
-
-      - name: Cache the Go Build Cache
-        uses: actions/cache@v3
-        with:
-          path: ${{ steps.go.outputs.build-cache }}
-          key: ${{ runner.os }}-build-${{ github.sha }}-${{ hashFiles('**/go.sum') }}
-
-      - name: Cache Go Dependencies
-        uses: actions/cache@v3
-        with:
-          path: ${{ steps.go.outputs.mod-cache }}
-          key: ${{ runner.os }}-mod-${{ github.sha }}-${{ hashFiles('**/go.sum') }}
-
-      - name: Generate Swagger Docs
-        run: |
-          make swag
-
-      - name: Run Unit Tests
-        run: |
-          make test
-
-  integration-tests:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v5
-
-      - name: Fetch History
-        run: git fetch --prune --unshallow
-
-      - name: Setup Go
-        uses: actions/setup-go@v4
-        with:
-          go-version-file: "go.mod"
-
-      - name: Find the Go Cache
-        id: go
-        run: |
-          echo "build-cache=$(go env GOCACHE)" >> $GITHUB_OUTPUT
-          echo "mod-cache=$(go env GOMODCACHE)" >> $GITHUB_OUTPUT
-
-      - name: Cache the Go Build Cache
-        uses: actions/cache@v3
-        with:
-          path: ${{ steps.go.outputs.build-cache }}
-          key: ${{ runner.os }}-build-${{ github.sha }}-${{ hashFiles('**/go.sum') }}
-
-      - name: Cache Go Dependencies
-        uses: actions/cache@v3
-        with:
-          path: ${{ steps.go.outputs.mod-cache }}
-          key: ${{ runner.os }}-mod-${{ github.sha }}-${{ hashFiles('**/go.sum') }}
-
-      - name: Generate Swagger Docs
-        run: |
-          make swag
-
-      - name: Run Unit Tests
-        run: |
-          make test-integration
+  notify:
+    needs: [ci]
+    if: always()
+    uses: compliance-framework/workflows/.github/workflows/notify-failure.yml@899dbe5d7dac02de5fd60a92d764b189259e03dd # v1.5.0
+    with:
+      needs: ${{ toJSON(needs) }}
+    permissions:
+      contents: read
+    secrets: inherit
