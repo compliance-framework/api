@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	"context"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -10,10 +11,12 @@ import (
 	"go.uber.org/zap"
 )
 
+// mockJob is safe for concurrent use: cron runs Execute on its own goroutines, and those
+// runs can overlap each other and the test's reads.
 type mockJob struct {
 	name      string
-	executed  bool
-	execCount int
+	executed  atomic.Bool
+	execCount atomic.Int32
 }
 
 func (j *mockJob) Name() string {
@@ -21,8 +24,8 @@ func (j *mockJob) Name() string {
 }
 
 func (j *mockJob) Execute(ctx context.Context) error {
-	j.executed = true
-	j.execCount++
+	j.executed.Store(true)
+	j.execCount.Add(1)
 	return nil
 }
 
@@ -67,8 +70,8 @@ func TestCronScheduler_RunNow(t *testing.T) {
 	err = sched.RunNow(ctx, "test-job")
 	require.NoError(t, err)
 
-	assert.True(t, job.executed)
-	assert.Equal(t, 1, job.execCount)
+	assert.True(t, job.executed.Load())
+	assert.Equal(t, int32(1), job.execCount.Load())
 }
 
 func TestCronScheduler_RunNow_NotFound(t *testing.T) {
@@ -98,8 +101,8 @@ func TestCronScheduler_StartStop(t *testing.T) {
 	<-ctx.Done()
 
 	// Job should have executed at least once
-	assert.True(t, job.executed)
-	assert.GreaterOrEqual(t, job.execCount, 1)
+	assert.True(t, job.executed.Load())
+	assert.GreaterOrEqual(t, job.execCount.Load(), int32(1))
 }
 
 func TestScheduleConstants(t *testing.T) {
