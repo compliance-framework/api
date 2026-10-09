@@ -1,0 +1,13 @@
+# Cuts the next release candidate (vX.Y.Z-rcN) of the version the open release-please PR
+# proposes, as ccf-release-bot; release.yml then publishes :X.Y.Z-rcN. Run it by hand.
+name: cut-prerelease
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  cut:
+    uses: compliance-framework/workflows/.github/workflows/cut-prerelease.yml@899dbe5d7dac02de5fd60a92d764b189259e03dd # v1.5.0
+    permissions:
+      contents: read
+    secrets: inherit
