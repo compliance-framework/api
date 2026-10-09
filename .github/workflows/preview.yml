@@ -1,0 +1,28 @@
+# Publishes preview images of ghcr.io/compliance-framework/api: :main and :sha-<7> on pushes to
+# main, and :pr-<number> on PRs labelled `preview`. It never moves :latest (release.yml does).
+name: preview
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    types: [opened, synchronize, reopened, labeled]
+
+permissions:
+  contents: read
+
+concurrency:
+  # A merged PR's events carry the base branch as github.ref, so key PR runs by number.
+  group: preview-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  preview:
+    uses: compliance-framework/workflows/.github/workflows/preview.yml@899dbe5d7dac02de5fd60a92d764b189259e03dd # v1.5.0
+    with:
+      kind: image
+      on-main: true
+      images: '[{"name":"api","dockerfile":"Dockerfile","context":"."}]'
+    permissions:
+      contents: read
+      packages: write

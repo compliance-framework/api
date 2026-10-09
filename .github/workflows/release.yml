@@ -1,0 +1,21 @@
+# Publishes ghcr.io/compliance-framework/api when a release is published: for vX.Y.Z the tags
+# X.Y.Z, X.Y, X and latest; for an rc (vX.Y.Z-rcN, from cut-prerelease) only X.Y.Z-rcN.
+# Built for linux/amd64 and linux/arm64 with the build arg VERSION=X.Y.Z[-rcN].
+name: release
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    uses: compliance-framework/workflows/.github/workflows/release-go-image.yml@899dbe5d7dac02de5fd60a92d764b189259e03dd # v1.5.0
+    with:
+      images: '[{"name":"api","dockerfile":"Dockerfile","context":"."}]'
+    permissions:
+      contents: read
+      packages: write
+    secrets: inherit
