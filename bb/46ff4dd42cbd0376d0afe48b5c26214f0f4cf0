@@ -1,0 +1,5 @@
+lisa-design:
+- Manifest seeded at 0.21.0 (the latest release, v0.21.0, which is also current main 0b0cefc); bootstrap-sha is set to that main commit, as the plan asks.
+- release-please-config.json copies workflows release-please/defaults.json at v1.5.0 verbatim (no drift warning) plus bootstrap-sha and packages "." release-type go; release-please reads its config from the default branch, so the defaults can't be merged at runtime.
+- No commits sit between v0.21.0 and main, so after the stack merges release-please sees only the onboarding commits (ci/chore, hidden types) and opens no release PR until the next feat (-> 0.22.0, bump-minor-pre-major) or fix (-> 0.21.1).
+- release-checks is added to ci.yml here (skipped on non-release PRs); api's go.mod has no compliance-framework dependencies, so its final-deps check has nothing to flag.
