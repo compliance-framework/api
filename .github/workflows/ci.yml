@@ -1,5 +1,6 @@
 # Shared go-service CI from compliance-framework/workflows, pinned to a release commit that
-# ccf-bump moves. The status check to require is `ci / required`.
+# ccf-bump moves. The status checks to require are `ci / required` and
+# `release-checks / release-checks` (skipped, so passing, on non-release PRs).
 name: ci
 
 on:
@@ -30,8 +31,13 @@ jobs:
       security-events: write
     secrets: inherit
 
+  release-checks:
+    uses: compliance-framework/workflows/.github/workflows/release-checks.yml@899dbe5d7dac02de5fd60a92d764b189259e03dd # v1.5.0
+    permissions:
+      contents: read
+
   notify:
-    needs: [ci]
+    needs: [ci, release-checks]
     if: always()
     uses: compliance-framework/workflows/.github/workflows/notify-failure.yml@899dbe5d7dac02de5fd60a92d764b189259e03dd # v1.5.0
     with:
