@@ -1,0 +1,21 @@
+# Opens and updates the release PR from the conventional commits on main, and creates the
+# vX.Y.Z tag and GitHub release when that PR merges, as ccf-release-bot. The config is
+# release-please-config.json (the shared defaults) and .release-please-manifest.json.
+name: release-please
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-please
+
+jobs:
+  release-please:
+    uses: compliance-framework/workflows/.github/workflows/release-please.yml@899dbe5d7dac02de5fd60a92d764b189259e03dd # v1.5.0
+    permissions:
+      contents: read
+    secrets: inherit
