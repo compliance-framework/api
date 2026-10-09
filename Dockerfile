@@ -32,6 +32,15 @@ RUN GOOS=linux go build -o /api
 
 FROM gcr.io/distroless/base-debian12 AS production
 
+# The release and preview workflows pass VERSION (X.Y.Z, X.Y.Z-rcN, main-<sha7> or
+# pr-<number>-<sha7>) and set the source and revision labels themselves.
+ARG VERSION=dev
+LABEL org.opencontainers.image.title="api" \
+	org.opencontainers.image.description="Service responsible for storing and retrieving OSCAL configuration" \
+	org.opencontainers.image.url="https://github.com/compliance-framework/api" \
+	org.opencontainers.image.licenses="AGPL-3.0" \
+	org.opencontainers.image.version="${VERSION}"
+
 COPY --from=builder /api /api
 # Open port 8080 to traffic
 EXPOSE 8080

@@ -19,8 +19,10 @@ Versions are coupled:
 - plugins pin the agent;
 - the UI depends on our JSON shapes.
 
-Releases are tags (`vX.Y.Z`, or `vX.Y.Z-rcN` for release candidates). CI publishes
-`ghcr.io/compliance-framework/api`; the publish workflow takes about 20 minutes. A
+Releases are tags (`vX.Y.Z`, or `vX.Y.Z-rcN` for release candidates), created by release-please
+when its release PR merges and by the `cut-prerelease` workflow for an rc; nobody pushes them by
+hand. Each published release runs `release.yml`, which publishes `ghcr.io/compliance-framework/api`;
+`preview.yml` publishes `:main`, `:sha-<7>` and, on PRs labelled `preview`, `:pr-<number>`. A
 mixed-version rollout must keep working: a new API must accept evidence from older agents.
 
 ## Commands
