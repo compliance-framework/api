@@ -133,4 +133,4 @@ make check-diff           # CI's gate on PRs: runs swag, then fails if the tree 
 - Add a `replace` directive or `go.work` for local cross-repo work to a commit.
 - Remove or lower the `toolchain` line in `go.mod`, or `ENV GOTOOLCHAIN=auto` in the Dockerfile's
   golang stages. Renovate ships Go security fixes by bumping that line, and CI, releases and the
-  image build with it. The `go` line is only the minimum language version.
+  image build with at least that Go. The `go` line is only the minimum language version.
