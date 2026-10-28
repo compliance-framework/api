@@ -1,0 +1,4 @@
+lisa-design:
+- toolchain go1.26.10 = newest stable 1.26 patch on go.dev; the go line (1.26.1) is left as the minimum language version, not raised.
+- ENV GOTOOLCHAIN=auto goes in every golang stage (local and builder), not only builder: the official image sets GOTOOLCHAIN=local, so a Renovate security PR that bumps only go.mod would otherwise fail `go mod download` / `make swag` / `go build` in any stage whose image is older. FROM lines are left to Renovate/ccf-bump.
+- Commit type is fix(deps) on purpose so release-please cuts a release built with the patched Go.
