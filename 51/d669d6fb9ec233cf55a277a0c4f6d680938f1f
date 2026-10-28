@@ -1,0 +1,8 @@
+lisa-design:
+- The scope is applied once, in planDashboardSuggestions (shared by preview and generate): effective filter = request label-filter AND scope when the SSP has entries. Generate stores that effective filter on the run (run.LabelFilter), so the worker's GatherCellInput sees the same scoped label sets without a worker change.
+- SuggestionService.GatherLabelKeys and SearchLabelValues take a *labelfilter.Filter (nil = all evidence); gatherAllLabelSets, GatherLabelKeys and SearchLabelValues share latestEvidence(filter), built on GetEvidenceSearchByFilterQuery.
+- ignoreScope is only accepted on label-keys and label-values (the design's "both with ignoreScope"); label-sets always follows the scope. ignoreScope=true never reads the scope, so it keeps today's behaviour exactly (including no SSP existence check). An unparsable ignoreScope is 400.
+- The label pickers, preview and generate now return 404 for an SSP that does not exist (they read its scope); before, the pickers ignored the SSP id.
+
+lisa-selfreview:
+- pass 1: no findings (approve). Question for reviewers: generated runs now store the effective label filter (request filter AND scope) in run.label-filter.

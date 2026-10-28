@@ -1,0 +1,13 @@
+lisa-design:
+- Models live in relational/ssp_scope.go; normalization, hashing, limits and the service in relational/sspscope (Normalize is the single entry point for labels).
+- Normalize also rejects keys containing "=" and keys/values containing control characters: MatchHash joins "key=value" pairs with "\n", so those characters would let two different entries share a hash. Small addition to the design's validation rules.
+- Length limits count characters (runes), not bytes.
+- Scope FKs (ON DELETE CASCADE to system_security_plans) are added by relational.EnsureSSPScopeConstraints, called from both migrators: AutoMigrate runs with DisableForeignKeyConstraintWhenMigrating, so the gorm constraint tags alone are not enforced.
+- ToFilter collapses single-element levels (1 label -> condition, 1 entry -> that entry) and orders entries by MatchHash so the same scope always yields the same filter (A4 rewrites stored filters from it).
+- afterChange runs only when the entry set changes (AddEntry, AddException that removed an entry, Learn that added entries); DeleteException does not change the scope.
+- Learn fails the whole call with ErrLimitExceeded when the new entries would pass MaxEntries, rather than silently truncating; invalid labels fail the call too.
+- Every write checks the SSP exists (ErrSSPNotFound) inside the locked transaction.
+
+lisa-selfreview:
+- pass 1 [should-fix] learn-requires-transaction internal/service/relational/sspscope/service.go:170 — Learn silently loses its lock guarantee if called outside a transaction
+- pass 1 [question] learn-limit-all-or-nothing internal/service/relational/sspscope/service.go:215 — Learn fails the whole template run when the entry limit would be passed

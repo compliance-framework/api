@@ -1,0 +1,9 @@
+lisa-design:
+- The _policy key is relational.EvidencePolicyLabel; the handler's evidencePolicyLabel now aliases it. The design asked for the constant next to evidencePolicyLabel (handler package), but sspscope cannot import handler (handler imports sspscope), so the single definition moved to relational.
+- Policies are compared case-insensitively (label values match case-insensitively): the first spelling found (ascending order) names the filter; a recorded policy in any case is never recreated. Blank values are ignored.
+- ssp_scope_policy_filters.filter_id has an explicit ON DELETE SET NULL FK to filters (and ssp_id cascades), added by EnsureSSPScopeConstraints like the other scope FKs.
+- Reconcile is part of Service.afterChange (after the following-filter rewrite) and of SetAutoFilters(true), inside the locked write transaction. ReconcileAllAutoFilters (periodic job) reconciles each SSP in its own locked transaction, skips SSPs deleted meanwhile, and joins errors so one SSP does not block the others.
+- Periodic job: worker ssp_scope_auto_filters on the scheduler queue, modelled on evidence_batch_prune (same cron fallback, hourly unique period). Default schedule "0 23 * * * *" (hourly, offset from the batch prune at :47).
+
+lisa-selfreview:
+- pass 1: no findings (approve).

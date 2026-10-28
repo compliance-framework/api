@@ -1,0 +1,2 @@
+lisa-addressed:
+- PR #481 CORE-DUP-001: removed agentConfigBodyLimitStr and echo BodyLimit middleware on PUT/preview/revert; readJSONBody(ctx, agentConfigBodyLimit) is the only limit (413).

@@ -1,0 +1,2 @@
+lisa-addressed:
+fp 935fac26ca05 (nit): new agentcfg.Service.CurrentHead (id, revision, created_at only); GetConfig checks If-None-Match against it first and only calls Current (overlay) on a miss or without If-None-Match. Response bytes unchanged. Tests: agent_config_sync_poll_regression_integration_test.go (TestRegressionNotModifiedPollSkipsOverlay), TestCurrentHead.

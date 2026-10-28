@@ -1,0 +1,3 @@
+lisa-design:
+- Reviewer decision (2026-10-15, supersedes the builtin special case): builtin is being deprecated, so evidence:inspect is enforced by Cedar only (admin role by default). Under builtin it is allowed for any authenticated caller, like every other non-admin verb.
+- GET /evidence/batches/{id} stays guarded by evidence:create (submitters always hold it); evidence:inspect only widens which batches a caller sees. A read-only troubleshooting role needs both create and inspect, or an any-of guard.

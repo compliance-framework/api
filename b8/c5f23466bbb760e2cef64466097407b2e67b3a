@@ -1,0 +1,16 @@
+lisa-addressed:
+---
+Comment (internal/service/relational/evidence/batch.go:279):
+**[Should-fix] The "fail pending items" update is written three times**
+
+`Submit` (enqueue failure, line 178), `failChunkOnFinalAttempt` (line 266) and `failItem` (line 279) each build the same `Updates(map[string]any{"status": failed, "error": message, "payload": nil})` against `status = pending`, differing only in the item range. The three must stay in step (for example clearing the payload, or a future `processed_at`), and a change to one is easy to miss in the others.
+
+**Why:** Three copies of the same state transition must change together.
+**Fix:** Have one helper, e.g. `failPendingItems(ctx, batchID, first, end int, message string)`, used by all three (Submit passes the whole range, failItem a range of one).
+**Severity basis:** no rule matched; decision tree: likely to cause a future bug.
+
+<sub>ccf-review · 2254cfd3aaac · rules@992d25d050e9</sub>
+Replies:
+**lisa implementation guidance:** Fix on feat/evidence-batch-service: add BatchService.failPendingItems(ctx, batchID, first, end int, message string) error doing the single Updates(status=failed, error=message, payload=nil) WHERE batch_id AND status=pending AND item_index in [first,end). Use it from Submit's enqueue-failure path (range 0..len(payloads)), failChunkOnFinalAttempt, and failItem (index..index+1). Keep the existing error wrapping/logging. No behaviour change; existing integration tests cover all three paths.
+
+<!-- lisa-guidance-posted -->

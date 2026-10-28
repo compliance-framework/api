@@ -1,0 +1,33 @@
+lisa-addressed:
+---
+Comment (internal/api/handler/lineage_cache.go:94):
+**[Must-fix] refresh=true can return data from a build that started before the user's change**
+
+A refresh shares the scope's singleflight key with ordinary misses. When a miss started building just before the user saved a change, a Refresh that arrives during that build joins it and gets the engine loaded before the change. The user presses Refresh and still doesn't see their edit. The comment above `c.flight.Do` says that build "started after the refresh was asked for or moments before, so its data is current". The "moments before" case is exactly the stale one. The window is one build (~150 ms at 10k streams), longer at scale.
+
+**Why:** Refresh is the user's only way to get current data within the TTL. It should never answer with data loaded before it was asked for.
+**Fix:** Give refresh builds their own flight key, e.g. `key.String()+"|refresh"`, so a refresh always starts a build after it arrives; concurrent refreshes still share one. In `store`, only replace an entry with one whose `builtAt` is not older, so a slower ordinary build can't overwrite a newer refresh. Add a unit test: refresh during an in-flight miss triggers a second build and ends up cached.
+**Severity basis:** no rule matched; decision tree: wrong behaviour or missing companion change.
+
+<sub>ccf-review · d486a69dc7b3 · rules@992d25d050e9</sub>
+---
+Comment (internal/api/server.go:27):
+**[Nit] CORE-STYLE-001 · Readability nit**
+
+The constant was inserted between `// NewServer initializes the echo server...` and `func NewServer`. godoc now attaches both comment paragraphs to `LineageGeneratedAtHeader`, and `NewServer` has no doc comment.
+
+**Why:** Small clarity issues add up, but do not affect behaviour.
+**Fix:** Move the constant (with its own comment) above the NewServer comment, or into its own `const` block near `Server`, leaving the NewServer comment directly on the func.
+
+<sub>ccf-review · d15e3ee213e2 · rules@992d25d050e9</sub>
+---
+Comment (internal/api/handler/lineage_cache.go:113):
+**[Must-fix] Release expired engines on read and lower the default max entries to 8**
+
+Reviewer decision on the cache memory budget: "Release + lower max". Expired entries must be dropped when they are found expired, not only when another scope is stored, and the default `CCF_LINEAGE_CACHE_MAX_ENTRIES` drops from 32 to 8. Today an expired engine (~14 MB per 10k streams, linear in streams) stays in memory until a different scope is stored.
+
+**Why:** Expired engines are never served again, so holding them only costs memory. At scale, 32 engines can reach several GB per pod.
+**Fix:** In `get`, when the entry exists but is expired, delete it under the lock before building. Set `DefaultLineageCacheMaxEntries = 8` in `internal/config/lineage.go` and `CCF_LINEAGE_CACHE_MAX_ENTRIES=8` in `.env.example`. Add a unit test: an expired entry is gone from `c.entries` after the next `get` for that scope (and on a failed rebuild).
+**Severity basis:** no rule matched; decision tree: wrong behaviour or missing companion change.
+
+<sub>ccf-review · b34922454170 · rules@992d25d050e9</sub>

@@ -1,0 +1,5 @@
+lisa-design:
+- The benchmark is an opt-in integration test (skipped unless CCF_BENCH_EVIDENCE_INGEST is set) so `make test-integration` and CI never pay for it.
+- Same environment for both modes: one Postgres container with Docker CPU/memory limits, one in-process API with GOMAXPROCS and pool limits, the real worker service; the database is refreshed and background (risk) jobs drained between modes.
+- The API runs in-process, so the client shares the GOMAXPROCS budget; latency is simulated client-side (CCF_BENCH_LATENCY_MS) because loopback hides the per-request round trip that dominates single ingest in real deployments.
+- Batch time is measured until every batch reports completed (all evidence stored), not until the 202s.

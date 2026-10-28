@@ -1,0 +1,2 @@
+lisa-addressed:
+fp 2f73ca415c2b (should-fix, docs): pkg/agentconfig/doc.go now says the D-/R-/A-/O- design IDs cited across the code are defined in compliance-framework/local-dev docs/agent-remote-config-design.md and docs/agent-remote-config-lld-api.md. Operator doc lands on #483.

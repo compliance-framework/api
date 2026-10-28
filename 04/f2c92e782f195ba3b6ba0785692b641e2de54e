@@ -1,0 +1,2 @@
+lisa-addressed:
+- Unit test for EnqueueSSPTemplateDiscovery with the worker disabled (self-review pass 1).

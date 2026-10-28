@@ -1,0 +1,14 @@
+lisa-addressed:
+pass 1 fixes:
+- 7567d5b37989 CORE-DUP-001: LineageGeneratedAtHeader moved to internal/api (server.go); handler and CORS ExposeHeaders use it.
+- b89b43bc807e: TestLineageEngineCacheSharesConcurrentBuilds uses refresh=false callers only, so late callers hit the cache; no timing dependence.
+
+lisa-selfreview:
+pass 2 (strict): approve. Pass 1 fixes verified (build, vet -tags integration, -race unit tests, lineage integration tests, swag clean). Lint: only pre-existing SA1019 in internal/api/metrics.go. Open question 1224ddfc6dc8 goes to the PR body.
+
+lisa-design:
+- CountStatusesForFilterSets keeps its (streams, sets) signature and builds the label index itself, lazily on the first scoped filter: one index per stream set, no index when no set is scoped, and no churn for its callers and tests.
+- The JSON scope memo in matchingStreams is kept: at 1,000 filters x 10k streams with ~50% shared filters, dropping it was ~8% faster (16.2 vs 17.6 ms) but doubled memory (19.2 vs 9.3 MB/op), and duplicate scopes are common in real profiles.
+- GetEvidenceStatusCountsByFilters (no callers today) now delegates to CountStatusesForFilterSets with one single-filter set per id instead of its own loop. A single filter has identical semantics there (nil scope = every stream); rows come back sorted by status, which was map order before.
+- relational.NewLatestStreamIndex is the one place that turns latest streams into a labelfilter.Index; lineage loadCompliance uses it too.
+- Accepted difference from MatchLabels: an unknown query operator always errors, even behind a short-circuit (documented on labelfilter.Index).

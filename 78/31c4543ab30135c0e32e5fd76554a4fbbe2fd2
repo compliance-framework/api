@@ -1,0 +1,2 @@
+lisa-addressed:
+CI failure in ci / make: docker/docker v28.5.2 pkg/archive referenced archive.Compression removed in moby/go-archive v0.3.0, breaking integration builds. Fixed by bumping testcontainers-go (+postgres module) v0.37.0 -> v0.44.0, which no longer depends on docker/docker.

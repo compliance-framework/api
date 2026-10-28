@@ -1,0 +1,15 @@
+lisa-addressed:
+---
+Comment (internal/api/handler/evidence_query_budget_integration_test.go:33):
+**[Should-fix] Pinning the SQL statement count makes legitimate changes fail the test**
+
+Reviewer decision: a ceiling of 36 statements fails as soon as Create legitimately does more (a new association, an audit row), so the test would be edited for reasons unrelated to performance. Performance is what matters and the ingest benchmark already measures it; correctness is covered by regression tests. Remove the statement pin.
+
+**Why:** A test that fails on growth rather than on breakage gets edited or deleted instead of informing anyone.
+**Fix:** Drop the statement counter and the budget constant. Keep the behaviour the change needs covered: creating agent-shaped evidence twice (second time with every related row already stored) returns every linked entity and a verifiable signature. Point to make bench-evidence-ingest for performance, and stop claiming in docs/evidence-batches.md that a test pins 36 statements.
+**Severity basis:** no rule matched; decision tree: likely to cause a future bug.
+
+<sub>ccf-review · c5bade385f1b · rules@992d25d050e9</sub>
+
+lisa-design:
+- Reviewer decision (2026-10-15): no SQL statement-count pin; Create's performance is tracked by make bench-evidence-ingest, its behaviour by TestEvidenceCreateLinks.

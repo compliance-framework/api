@@ -1,0 +1,2 @@
+lisa-addressed:
+fp f2b689648c35 (supporting perf change on #469): decodeAny/decodeConfig decode in place with json.Unmarshal (numberValue; Decoder fallback for nesting > 12 or rejected input, keeping errors), cutting ~20 MiB of Decoder buffer growth per 1 MiB base. Needed for TestRegressionSaveCostFollowsDistinctBases (<= 32 MiB): with only the dedupe, one 1 MiB base still cost ~45 MiB per save. Equivalence tests in pkg/agentconfig/jsonutil_test.go.

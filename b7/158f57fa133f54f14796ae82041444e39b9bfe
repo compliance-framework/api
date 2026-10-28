@@ -1,0 +1,5 @@
+lisa-design:
+- SSP creation and profile attachment live in internal/service/relational/sspservice. Services may not import internal/api (the oscal handler package imports internal/api/handler), so profile control resolution, which stays in the oscal handler (cache, pivot table, full resolution), is injected as a ControlResolver func. B4's worker gets the same resolver injected from where the worker is built, rather than moving control resolution out of the handler package in this PR.
+- Each method takes the *gorm.DB to run on. AttachProfile wraps its writes in db.Transaction, which is a savepoint when db is already a transaction, so the handler (plain db) keeps its exact behaviour and discovery can run it inside its own transaction.
+- Pure refactor: the SSP/profile loads stay outside the write transaction, the error texts are unchanged (SSP not found, profile not found, no controls were resolved from the selected profile, the 409 text), and SSP input validation stays in the handler (callers validate before Create).
+- A duplicate binding now returns ErrProfileAlreadyBound after the (empty) transaction commits, the same as the old duplicateBinding flag.

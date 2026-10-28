@@ -1,0 +1,16 @@
+lisa-addressed:
+---
+Comment (internal/service/worker/evidence_batch_prune.go:45):
+**[Should-fix] The prune job's cutoff is not tested**
+
+`Work` turns the retention into a cutoff (`w.now().Add(-w.retention)`) and hands it to `PruneBatches`. `PruneBatches` is tested with explicit cutoffs, and the unit tests only check the retention defaulting, so nothing exercises `Work` itself: a sign slip (`Add(w.retention)`) would prune every batch on the next hourly run, including ones being processed, and every test would still pass.
+
+**Why:** The only computation the job adds over PruneBatches has no test, and getting it wrong deletes live batches.
+**Fix:** Add an integration test in the worker package (it has a Postgres suite for the risk workers) or in the evidence suite that runs `EvidenceBatchPruneWorker.Work` with a fixed `now` and a retention, and checks a batch accepted just before the cutoff is pruned and one just after is kept.
+**Severity basis:** no rule matched; decision tree: likely to cause a future bug.
+
+<sub>ccf-review · 936e4a71294d · rules@992d25d050e9</sub>
+Replies:
+**lisa implementation guidance:** Fix on feat/evidence-batch-retention: add internal/service/worker/evidence_batch_prune_integration_test.go following agent_instance_prune_integration_test.go. Insert evidence_batches rows (with an item each) accepted at now-retention-1m and now-retention+1m, run NewEvidenceBatchPruneWorker(db, retention, nil) with w.now fixed, call Work, and assert the older batch and its item are gone while the newer one remains.
+
+<!-- lisa-guidance-posted -->

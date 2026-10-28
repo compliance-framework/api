@@ -1,0 +1,2 @@
+lisa-addressed:
+- review #517 (PRRT_kwDOKJpq1c6t77MP): sspscope.And treats a scope with neither condition nor query as no scope; TestSSPScopedEvidence posts {"filter":{"scope":{}}} to both scoped routes

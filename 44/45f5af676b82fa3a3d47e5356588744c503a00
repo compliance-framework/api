@@ -1,0 +1,6 @@
+lisa-design:
+- Batches are processed by River (durable, retried, survives restarts and multiple API replicas) rather than an in-process goroutine pool, which would lose accepted work on restart and need its own locking across replicas.
+- One River job per chunk of a batch (CCF_EVIDENCE_BATCH_CHUNK_SIZE items), so a 1000-item batch runs on up to CCF_EVIDENCE_BATCH_WORKERS workers in parallel and each job stays short.
+- The worker package defines EvidenceBatchProcessor; the API registers the implementation via Service.SetEvidenceBatchProcessor (the request->evidence conversion lives in the handler package, which the worker package must not import). Jobs that run before registration snooze 10s instead of failing.
+- finalAttempt (job.Attempt >= MaxAttempts) is passed to the processor so items that keep failing are failed on the last attempt instead of staying pending forever.
+- A disabled worker service makes EvidenceBatchesAvailable return ErrEvidenceBatchWorkerDisabled; the endpoint answers 503 rather than accepting work nothing will process.

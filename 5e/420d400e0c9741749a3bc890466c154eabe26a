@@ -1,0 +1,18 @@
+lisa-addressed:
+---
+Comment (internal/api/handler/agent_config.go:388):
+**[Must-fix] Preview still validates against every validation base, so its size limit doesn't hold**
+
+`PreviewBases` starts with `s.ValidationBases(ctx, agentID)` (`service.go:631`). That loads and decodes `base_config` for **every** fresh apply-mode instance, up to the 500-instance cap at up to 4 MiB each. This line then runs `validateCandidate` over that whole set, which merges and validates each base up to twice through `splitIntroduced`. Preview reads only `result.overlay` and discards `result.instances`.
+
+So the limit added for Ian's finding 4 (50 instances / 16 MiB) only covers which instances are **shown**. One agent key can still report 500 fresh `apply_safe` instances with ~4 MiB bases, and every preview (the UI's edit loop) then loads about 2 GiB and does 500–1000 merge+validate passes. `TestPreviewBasesBounded` doesn't catch this because its extra instances are report-mode, so none of them is validated.
+
+**Why:** The route description and the limit constants promise a bounded preview, but the cost still grows with every validated instance.
+**Fix:** In `Preview`, run only `agentconfig.ValidateOverlay` (or `validateCandidate(req.Overlay, nil)`): the per-instance results come from `previewInstance`. In `PreviewBases`, get the validated set as instance IDs only (the same `ValidationBases` WHERE clause, selecting `instance_id`) instead of loading and decoding every base, and keep `PreviewSet.Validation` only if something still needs it. Add a test with more than `PreviewMaxInstances` fresh apply-mode instances that checks preview loads at most the limit.
+**Severity basis:** no rule matched; decision tree: wrong behaviour or missing companion change.
+
+<sub>ccf-review · 99e7afe5bb5e · rules@6be9e11b8bc6</sub>
+Replies:
+**lisa implementation guidance:** **lisa implementation guidance:** (1) internal/service/relational/agentcfg/service.go: extract the two ValidationBases queries into `validationRows(ctx, agentID, columns []string)` (fresh apply-mode instances with a base, else the latest reported one). ValidationBases calls it with baseColumns and decodes as today. PreviewBases calls it with `[]string{"instance_id"}` only, so it no longer loads or decodes any base for the validated set. Replace `PreviewSet.Validation []InstanceBase` with `Validated int` (the size of the validation set) and keep marking `Instances[i].Validated`. (2) internal/api/handler/agent_config.go Preview: `standalone := set.Validated == 0` and `result := validateCandidate(req.Overlay, nil)`, since only the overlay errors are used and per-instance errors come from previewInstance. Update the description if needed. (3) Tests: update TestPreviewBases/TestPreviewBasesBounded for the new field, and add a case with PreviewMaxInstances+5 fresh apply-mode instances: Instances is capped at PreviewMaxInstances, all marked validated, Validated counts every one, and Omitted is 5.
+
+<!-- lisa-guidance-posted -->

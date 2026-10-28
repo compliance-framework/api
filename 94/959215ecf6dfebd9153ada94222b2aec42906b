@@ -1,0 +1,17 @@
+lisa-design:
+- Reviewer decision (2026-10-15): batches are readable by their submitter and by evidence:inspect holders; submitter-only reads blocked human troubleshooting without protecting anything the evidence read routes don't already expose.
+- evidence:inspect is a new verb, not admin:manage, so Cedar operators can grant batch troubleshooting to a role without making it admin; builtin special-cases it to the admin check because builtin otherwise allows every authenticated caller every non-admin verb.
+- The handler tries the submitter read first and only then asks the PDP (fail closed), so normal polling costs no extra decision.
+
+lisa-addressed:
+---
+Comment (internal/api/handler/evidence_batch.go:231):
+**[Must-fix] Humans troubleshooting automation can't read its batches**
+
+Reviewer decision: batches are submitted by automation, but the person troubleshooting them is usually a human (an admin), and today anyone but the submitter gets 404 with no way around it. The submitter-only rule has no strong reason behind it: the stored evidence is already readable through the evidence read routes. Add a dedicated authz verb that lets its holders read any submitter's batch, admin-only by default.
+
+**Why:** Operators need to troubleshoot automation's batches; submitter-only reads block them without protecting anything the evidence routes don't already expose.
+**Fix:** Add evidence:inspect (pdp.go constant + manifest.yaml), grant it to admins only under builtin (users through the admin check, agents/anonymous denied; Cedar admin gets it via "*"), and in GetBatch fall back to reading any batch when the caller isn't the submitter but holds evidence:inspect (fail closed). Expose submitted-by so the human sees whose batch it is. Test the verb under Cedar and builtin, and the bypass end to end.
+**Severity basis:** no rule matched; decision tree: wrong behaviour or missing companion change.
+
+<sub>ccf-review · 228b54d192b9 · rules@992d25d050e9</sub>

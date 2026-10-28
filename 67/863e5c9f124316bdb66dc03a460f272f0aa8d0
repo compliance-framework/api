@@ -1,0 +1,7 @@
+lisa-design:
+- Additive endpoint: POST /api/evidence keeps its contract and behaviour (same responses, same order of checks); Create and batch items share storeEvidence so both store evidence identically.
+- Batch routes use OptionalUserOrAgentJWTMiddleware(db, key, false) on their own group: never public, even with StrictDisablePublicAgentEndpoints=false, because batches are signed as and readable only by their submitter.
+- Cheap checks (decode, validator, reserved props, future times) run on submit and reject the whole request with errors keyed "evidence[i]", so clients fix obvious mistakes immediately and nothing half-valid is stored; DB-dependent checks (policy artifacts, subjects) run per item in the background and fail only that item.
+- Future-time checks for background items use the batch's acceptance time, not processing time, so an item valid when accepted stays valid.
+- Body limit 64M on POST only (default 1000 items of a few KB each); GET returns every item's outcome, bounded by MaxItems.
+- The 500 path of the moved single Create still returns api.NewError(err) as before (unchanged behaviour); new batch 5xx paths use api.InternalServerError().

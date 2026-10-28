@@ -1,0 +1,16 @@
+lisa-addressed:
+---
+Comment (internal/service/relational/agentcfg/service.go:723):
+**[Should-fix] reportedRemote prefers the unchecked remote-config.mode over the checked top-level mode**
+
+`PutReport` checks the report's top-level `mode` against `agentconfig.Modes` and stores it in the row. `remote-config.mode` is only scrubbed, never checked. When the stored `remote_config` decodes with a non-empty mode, `reportedRemote` uses that one, so `Remote.Mode` (used by preview's `Classify`/`WillApply`) can differ from `row.Mode` (used by `ValidationBases`), or be a value outside the vocabulary. For example, a report with `mode: apply_safe` and `remote-config.mode: apply_all` is validated as apply-mode but previewed with `apply_all` rules, and an unknown mode previews as `mode-off`.
+
+**Why:** Two copies of the same fact, one checked and one not, will drift. The checked one should win.
+**Fix:** In `reportedRemote`, always set `rc.Mode = row.Mode` (the checked value) before `Normalize`, whatever the reported block says, and say so in the doc comment. A unit test with a mismatched `remote-config.mode` would pin it.
+**Severity basis:** no rule matched; decision tree: likely to cause a future bug.
+
+<sub>ccf-review · 16f2fe7c51eb · rules@6be9e11b8bc6</sub>
+Replies:
+**lisa implementation guidance:** **lisa implementation guidance:** In `reportedRemote` (internal/service/relational/agentcfg/service.go), always use the validated row mode: after decoding the reported `remote_config` (or falling back to the base's block), set `rc.Mode = row.Mode` unconditionally, then `Normalize(true)`. Drop the two `if rc.Mode == ""` branches. Update the doc comment to say the mode always comes from the report's validated top-level mode. Add a unit test in derive_test.go (same package) with a row whose `Mode` is apply_safe and whose `RemoteConfig` JSON says `"mode":"apply_all"` (and one with an unknown mode), asserting `Remote.Mode` is apply_safe.
+
+<!-- lisa-guidance-posted -->

@@ -1,0 +1,5 @@
+lisa-addressed:
+- Creating a disabled template stored it enabled (gorm writes a column default over a zero bool on create, even with Select("*")); the enabled column has no default now (found while testing B4).
+
+lisa-design:
+- The enabled column has no database default (design: default:true): gorm writes a column default over a false Enabled on create. Build always sets Enabled (nil means true).

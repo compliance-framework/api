@@ -1,0 +1,2 @@
+lisa-addressed:
+- Service.Update reads the template FOR UPDATE inside its transaction (self-review CORE-CONC-001 28445fabdca9).

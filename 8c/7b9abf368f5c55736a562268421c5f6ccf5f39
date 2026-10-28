@@ -1,0 +1,16 @@
+lisa-addressed:
+---
+Comment (internal/bench/evidence_ingest_benchmark_integration_test.go:214):
+**[Must-fix] One failed POST hangs the benchmark until the 60-minute timeout**
+
+Each sender goroutine returns after its first `Create` error, but the producer loop keeps writing every remaining item to the unbuffered `work` channel. With the default single sender (or once every sender has failed) nobody reads `work` any more, so `work <- item` blocks forever and the test only ends when `go test -timeout 60m` kills it, without reporting the error that caused it.
+
+**Why:** A reachable failure (any rejected POST) turns into a silent hour-long hang.
+**Fix:** Stop producing on the first error: e.g. give the senders a cancellable context (or use errgroup.WithContext) and select on ctx.Done() when sending to work, or have a failing sender keep draining work instead of returning; then report the joined errors.
+**Severity basis:** no rule matched; decision tree: wrong behaviour or missing companion change.
+
+<sub>ccf-review · bcdb110eb610 · rules@992d25d050e9</sub>
+Replies:
+**lisa implementation guidance:** Fix on test/evidence-ingest-benchmark: in sendOneByOne use a cancellable context: ctx, cancel := context.WithCancel(ctx); a sender that gets an error records it and calls cancel(); the producer loop selects on ctx.Done() vs work <- item and stops producing when cancelled; senders also stop when ctx is done. Then close(work), wg.Wait(), and require.NoError on the joined errors. Keep it dependency-free (no errgroup needed). Add a small unit-free check is not needed; just make sure go vet -tags integration passes.
+
+<!-- lisa-guidance-posted -->

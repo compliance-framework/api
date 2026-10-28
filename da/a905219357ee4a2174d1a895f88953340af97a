@@ -1,0 +1,17 @@
+lisa-design:
+- The design's B4 is split in two PRs to stay under 1000 lines: B4 (this) is discovery (ssptemplates.Discovery, worker, periodic job, config); B5 (feat/ssp-templates-5-routes) adds the run route, the instances list (stale, key-hash, skipped-entries) and forget routes.
+- Discovery lives in ssptemplates (Discovery.Run / RunAll) and the worker only adapts it. RunAll loads the latest evidence once for all templates.
+- Each group is applied in its own transaction holding the template's xact advisory lock (lockTemplate, pattern of suggestions.lockAcceptFilterHash): the instance is re-read inside it, so a concurrent run updates instead of creating twice; the SSP id is deterministic (uuid.NewSHA1(namespace, templateID||keyHash)) as a second guard.
+- Profiles are attached after the SSP's transaction commits, so a failed attach does not undo the SSP. A new instance column ProfilesPending marks that some profiles failed; only then does the next run retry them (ignoring already-bound). Retrying every run would re-attach profiles a user removed from the SSP, and a template never edits an SSP after creating it.
+- LastError holds the last failure of either kind (attach, or a group's apply such as the scope entry limit); a successful apply with no pending profiles clears it.
+- Skipped entries: instance columns SkippedEntries (count) and SkippedSample (up to 5) record the planner's invalid entries plus Learn's LearnResult.Skipped from the last run. plan.InvalidEntry is now an alias of relational.SkippedScopeEntry.
+- The worker's resolver is the existing worker.ProfileControlResolver injected from cmd/run.go (the oscal handler's pivot-table + full-resolution logic), adapted to sspservice.ControlResolver with case-insensitive de-duplication; no cmd change was needed.
+- The template prop uses the existing relational.CCFOSCALNamespace (https://compliance-framework.github.io/ns/oscal) rather than the design's .../ns, matching every other CCF prop. Prop values that render empty are dropped (OSCAL props need a value); an empty rendered description falls back to the title.
+- LastRunAt is set when a run of the template finishes, including when some groups failed.
+- An existing SSP whose group is under min-streams is not refreshed (last-seen stays), so it can turn stale: min-streams applies to the existing SSPs too.
+- The periodic job is unique by args per hour, like the other scheduler jobs; a manual run (B5) uses the template id as args.
+
+lisa-selfreview:
+pass 1: [should-fix CORE-PERF] RunAll loaded every latest evidence stream once per template (fixed before commit: loaded once).
+pass 1: [should-fix CORE-NAME-001] apply counted a group whose SSP was deleted mid-run as updated (fixed before commit: outcome enum).
+pass 1 (deferred, design note): an existing SSP whose group drops under min-streams is not refreshed and can turn stale.

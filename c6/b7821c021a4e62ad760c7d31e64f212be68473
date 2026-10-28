@@ -1,0 +1,2 @@
+lisa-addressed:
+fp a042387242aa (must-fix, revert part on #482): revert goes through normalizeComment (fixed on #481); regression TestRegressionRevertCommentNULIsBadRequest added unchanged.

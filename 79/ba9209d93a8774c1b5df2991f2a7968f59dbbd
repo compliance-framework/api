@@ -1,0 +1,6 @@
+lisa-design:
+- ci.yml calls ci-go-service.yml at the v1.5.0 release commit (899dbe5) with prepare-command `make swag`, make-targets `test-integration check-diff`, lint-timeout-minutes 30; old ci.yml (lint, unit-tests, integration-tests, check-diff) is replaced, not kept alongside.
+- Coverage map: lint -> ci / golangci-lint (new-from-merge-base, shared base config since api has no .golangci.yml); unit-tests (make test) -> ci / go (go test -race ./..., plus gofmt, vet, mod tidy, build); integration-tests (make test-integration) -> ci / make; check-diff -> ci / make (now also on main pushes, where the old job skipped).
+- Integration tests use testcontainers (postgres:17.5), not workflow services, so the make job's ubuntu-latest runner with Docker covers them; old run took ~8 min, make job timeout is 30.
+- Push trigger narrowed from main + release-* to main: no release-* branches exist and release-please cuts releases from main.
+- release-checks is added in T02 with release-please, as on the gooci pilot.

@@ -1,0 +1,8 @@
+lisa-design:
+- Exactly-once per item: OnCreated runs `UPDATE ... SET status='succeeded' WHERE status='pending'` inside the evidence transaction; 0 rows -> errBatchItemAlreadyProcessed rolls the evidence back. Concurrent duplicate jobs serialize on the item row lock, so no evidence is stored twice.
+- Batch progress (pending/processing/completed and counts) is derived from item rows on read, not stored counters, so it can't drift.
+- ChunkSize is stored on the batch so chunk ranges stay stable if CCF_EVIDENCE_BATCH_CHUNK_SIZE changes while jobs are queued.
+- The signer is persisted as the subset signing reads (claims, agent id/name, key id) — no key material or full agent rows — and AcceptedAt dates the signature: verification checks SignedAt against the token's exp, and background processing may run after the token expired.
+- Only an identified user or agent may submit (ErrBatchSubmitterRequired) and only the same identity (user:<email> / agent:<agent id>) may read the batch; others get not-found.
+- Payloads are cleared once an item is processed. Old batches are not pruned yet (follow-up: retention job).
+- Items fail with BatchItemRejectedError's message (submitter-fixable); any other final-attempt failure reports a generic internal error and logs the cause.

@@ -1,0 +1,5 @@
+lisa-selfreview:
+pass 1 (strict):
+- should-fix b89b43bc807e lineage_cache_test.go TestLineageEngineCacheSharesConcurrentBuilds: 50ms sleep readiness; refresh callers arriving late start a second build -> flaky.
+- should-fix 7567d5b37989 CORE-DUP-001 server.go NewServer: X-Lineage-Generated-At literal duplicated vs handler const.
+- question 1224ddfc6dc8 lineage.go riskNodesForControl: risk/risk-evidence leaf nodes read live, counts cached (skew within TTL). For reviewers.

@@ -1,0 +1,16 @@
+lisa-addressed:
+---
+Comment (internal/api/handler/evidence_query_budget_integration_test.go:63):
+**[Nit] Budget callbacks stay registered on the suite's database**
+
+`register` adds `budget:*` callbacks through `db.Callback()`. A `Session(NewDB: true)` shares its parent's callback processor, so the callbacks land on `suite.DB` itself and keep recording every statement of any later test in this suite (and a second `register` call would fail with duplicate names, which is ignored). Harmless with one test today.
+
+**Why:** Test instrumentation outlives the test that installed it.
+**Fix:** Remove the callbacks when the test ends (`suite.T().Cleanup` calling `Callback().Create().Remove("budget:create")` and the others), or open a separate `gorm.DB` on the same DSN for the counted server.
+**Severity basis:** no rule matched; decision tree: none of the tree questions.
+
+<sub>ccf-review · 3db7312324d5 · rules@992d25d050e9</sub>
+Replies:
+**lisa implementation guidance:** Fix on perf/evidence-create-round-trips: in statementCounter.register take a testing.TB and register t.Cleanup that removes every budget:* callback (Callback().Create().Remove("budget:create") etc.), so the instrumentation does not outlive the test.
+
+<!-- lisa-guidance-posted -->

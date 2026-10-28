@@ -1,0 +1,2 @@
+lisa-addressed:
+- pass 1: RegisterSSPScopedRoutes now takes the *sspscope.Service; WithSSPScope removed (scoped-routes-without-service)

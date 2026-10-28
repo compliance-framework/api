@@ -1,0 +1,199 @@
+lisa-addressed:
+---
+Comment (pkg/agentconfig/sensitive.go:174):
+**High** · security/perf
+
+`hasURLPassword` is quadratic. For every `scheme://` match it parses the whole rest of the string (`candidate := s[loc[0]:]`), only cut at whitespace or quotes. A value like `"a://a://a://…"` has no terminator, so the work is (n/4 matches) × n.
+
+Measured with `containsSecretValue`: 8 KiB → 65 ms, 16 KiB → 180 ms, 32 KiB → 710 ms (4× per 2× input). Three paths reach it:
+- `PUT /agent/instances/:id/config-report` → `RedactDocument` (4 MiB body; projected hours of CPU per request, any agent credential);
+- `POST …/config/preview` → `Redact(eff)` per instance (only needs `agent:read`);
+- the agent's own `Redact`/`Digest`, if such a value is saved in an overlay.
+
+Suggested fix: end each candidate at the next scheme match (or cap it at ~2 KiB) before `url.Parse`, and cap the number of candidates / input length that `containsSecretValue` inspects. Add a regression test that runs a 1 MiB `a://` string under a time bound.
+Replies:
+**lisa implementation guidance:** Fix in pkg/agentconfig/sensitive.go hasURLPassword: bound each candidate so total work is linear. For each scheme match at loc[0], end the candidate at the earliest of: the next scheme match start (the next element of the FindAllStringIndex result), the first URL terminator, and loc[0]+2048 bytes. Also cap the number of scheme matches inspected (e.g. 64) and the input length scanned for URL passwords (e.g. first 64 KiB; the token regexes are RE2/linear, keep them on the full string). Regression test: a 1 MiB strings.Repeat("a://", n) completes under a generous bound (e.g. 2s) and a real https://u:pw@h within the cap is still detected. Keep Redact/Digest/RedactDocument rules identical otherwise.
+
+<!-- lisa-guidance-posted -->
+---
+Comment (internal/api/handler/agent_config.go:865):
+**Medium** · security
+
+`revisionResponse` returns `rev.Overlay` verbatim from `GET …/config` and `GET …/config/revisions/{rev}`, both guarded by `agent:read`. Under Cedar, viewer, auditor and contributor all hold read. A literal secret typed into `plugins.*.config` is readable by every viewer, in every revision, forever (revisions can't be deleted; see the thread on `BeforeDelete`).
+
+I know this is documented (R57), but docs won't stop operators pasting a DB password, which is the normal pattern in agent config files. Suggestion, either:
+- reject literal secret-like values at write time in `ValidateOverlay` (reuse `isSecretKey`/`containsSecretValue`) unless the value is placeholder-only, which forces `${env:NAME}`; or
+- return `Redact`-ed overlays to callers without `agent:configure`.
+Replies:
+**lisa implementation guidance:** Owner decision (supersedes R57): redact overlays for readers without agent:configure. In internal/api/handler/agent_config.go Get and GetRevision, decide whether the caller holds agent:configure on this agent by evaluating the PDP for the request subject (inject what you need into AgentConfigHandler from api.go RegisterHandlers, e.g. the *middleware.PEP or the authz PDP; look for an existing in-handler permission-check helper before adding one). If not allowed, or the evaluation errors / PDP unavailable (fail closed), pass the overlay through agentconfig.RedactDocument before returning. Editors keep the verbatim overlay. Update the swag @Description (drop the "returned unredacted to every agent:read holder" wording), docs mentioning R57, and the PR body. Integration tests: an agent:read-only caller gets ••••; a configure holder gets the literal. Do not change PUT/revert.
+
+<!-- lisa-guidance-posted -->
+---
+Comment (internal/api/handler/agent_config.go:452):
+**Medium** · security/perf
+
+Preview runs `previewInstance` for every instance with a base, fresh or stale (up to the 500 cap), even when `ValidateOverlay` already failed, including the size rule O2: `overlayInvalid` only changes `will-apply`. Each instance costs ~6 JSON passes plus `Redact`, `DiffJSON` and `Classify`.
+
+With a 1 MiB overlay (allowed by the transport limit, over the 256 KiB `MaxOverlayBytes`), one instance took ~270 ms and produced ~3.8 MB of response. At 500 instances that's minutes of CPU and GBs of memory per request, and a Cedar viewer can trigger it.
+
+Suggested fix: return overlay errors without per-instance work when `len(result.overlay) > 0`; gate the route on `agent:configure` (the UI only previews for editors) or limit it to validated instances plus a few stale ones.
+Replies:
+**lisa implementation guidance:** Two changes. (1) Guard POST …/config/preview with agent:configure (guard.Do(authz.ActionConfigure)) instead of read; update swag and the authz integration matrices. (2) In Preview: when validateCandidate returns overlay errors (len(result.overlay) > 0), return OverlayErrors with an empty Instances list and skip previewInstance entirely. Tests for both.
+
+<!-- lisa-guidance-posted -->
+---
+Comment (internal/service/relational/agentcfg/service.go:409):
+**Medium** · bug
+
+The cap counts every row that isn't prune-eligible, so a daemon instance that stopped reporting minutes ago still counts for 30 days (`InstanceRetention`). Instance IDs change on restart (e.g. emptyDir state), so a 50-pod DaemonSet restarted 10 times in a month hits 500. New pods then get 409 on report and their heartbeats are silently not registered; a leaked key can also fill the cap on purpose. There's no per-instance delete, only deleting the agent.
+
+Suggested fix: count only fresh (non-stale) instances against the cap, or evict the oldest stale row when inserting a new one. An admin route to delete one instance would also help.
+Replies:
+**lisa implementation guidance:** Count only fresh instances toward the cap. In agentcfg/service.go countActiveInstances, count rows that are NOT stale by the same rule IsStale uses (mirror its threshold and daemon handling in SQL, keep NULL-safe comparisons). Update the doc comment (R37 wording) and any docs/.env.example text about the cap. Service integration test: stale daemon rows do not block a new instance at the cap; fresh rows do. Do not change pruning.
+
+<!-- lisa-guidance-posted -->
+---
+Comment (pkg/agentconfig/classify.go:199):
+**Medium** · security (design question)
+
+`enabled`, `policy_data`, `labels`, `policy_behavior` and `schedule` are all classified `data-only` (Safe), plugin removal is `reduces-scope` (Safe), and `usedSources` includes disabled plugins. So under `apply_safe`:
+- a remote admin can re-enable a plugin the host operator disabled on purpose (including a local binary), and it will run;
+- a remote admin can change the policy inputs that decide pass/fail, or remove the plugin that collects failing evidence, without the host owner opting in.
+
+Is this intended? Suggestion: classify `enabled` false→true as Unsafe (like a new source unless trusted), and consider making `policy_data`, `policy_behavior` and plugin removal Unsafe or opt-in via something like `overridable_config_flags`.
+Replies:
+**lisa implementation guidance:** Owner decision: narrow to re-enabling only. In pkg/agentconfig/classify.go, when a plugin is disabled in the base (bp present and !bp.IsEnabled()) and enabled in eff, emit Change{Path: /plugins/<p>/enabled, Safety: Unsafe, Reason: new ChangeReasonReenablePlugin = "reenables-plugin"} unless MatchTrustedSource(rc, ep.Source), in which case Safe with ChangeReasonTrustedSource. Disabling stays Safe. policy_data/policy_behavior/labels/schedule and plugin removal stay Safe by design: say so in the Classify doc comment and docs. Add the reason wherever reason vocabularies are listed, tests, and regenerate swagger if needed.
+
+<!-- lisa-guidance-posted -->
+---
+Comment (internal/service/relational/agent_config.go:37):
+**Medium** · security
+
+`BeforeDelete` blocks every GORM delete of revisions, and deleting an agent keeps them (`DeleteInstancesForAgent`: "Revisions are kept"). Combined with overlays being returned unredacted, a secret saved by mistake can't be removed through the app, even by deleting the agent, short of manual SQL.
+
+Suggested fix: add a purge path — e.g. delete revisions in the `DeleteAgent` transaction (`Session(&gorm.Session{SkipHooks: true})` or raw SQL) and/or an admin action that redacts a revision's overlay in place.
+Replies:
+**lisa implementation guidance:** Add a purge path: delete the agent config revisions when the agent is deleted. In the DeleteAgent flow (internal/api/handler/agents.go and agentcfg, e.g. a DeleteRevisionsForAgent next to DeleteInstancesForAgent), inside the same transaction, delete ccf_agent_config_revisions rows for the agent bypassing the append-only BeforeDelete hook (tx.Session(&gorm.Session{SkipHooks: true}) or a raw DELETE). Keep BeforeDelete for every other path. Fix the "Revisions are kept" comment and docs. Integration test: deleting an agent removes its revisions. In-place redaction of one revision is a follow-up; mention it in the PR body.
+
+<!-- lisa-guidance-posted -->
+---
+Comment (internal/api/handler/agent_config_sync.go:164):
+**Medium** · security
+
+Only `base` and `effective` go through `RedactDocument`. `error` (up to 8 KiB), `warnings[].message`, `plugins[].source` and `remote-config` are stored and returned verbatim to every `agent:read` holder. Agent errors often embed connection strings or download URLs with tokens (e.g. `dial postgres://app:hunter2@db…`).
+
+Suggested fix: run these free-text fields through the content check and replace a whole string with `MaskedValue` when `containsSecretValue` matches (after fixing the quadratic scan).
+Replies:
+**lisa implementation guidance:** In PutReport (agent_config_sync.go), after normalizeReport, scrub free-text fields with the content check: report.Error, each warnings[].Message, each plugins[].Source -> replaced whole with agentconfig.MaskedValue when they contain a secret value; and the string leaves of report.RemoteConfig. Add an exported helper in pkg/agentconfig (e.g. ScrubSecretText(s string) (string, bool)) built on containsSecretValue (after the quadratic fix) instead of duplicating logic. Warn once per report when something was scrubbed, like the existing re-redaction warning. Unit tests for the helper plus a handler test.
+
+<!-- lisa-guidance-posted -->
+---
+Comment (internal/service/relational/agentcfg/service.go:480):
+**Medium** · perf
+
+`ListInstances` loads every instance (up to 500) with `warnings`, `plugins`, `unsafe_changes` and `remote_config`. `normalizeReport` caps the warning and plugin counts, but not `FieldError.Message` length or the `Unsafe` count, so one report can put several MiB into the summary columns. One agent key can make `GET …/instances` very large (and store a lot per agent).
+
+Suggested fix: cap message lengths and the `Unsafe` count in `normalizeReport`, and paginate with `service.NewPaginationConfig()` like `ListRevisions` does (or drop warnings/plugins/unsafe from the list view).
+Replies:
+**lisa implementation guidance:** Cap sizes in normalizeReport: truncate each warnings[].Message (e.g. 1 KiB with truncateUTF8) and Path, cap len(Unsafe) (e.g. 200) and truncate each change Value/Path, setting Truncated=true when anything is cut. Named constants next to the existing maxReport* ones. Keep ListInstances unpaginated (rows are now bounded, the instance count is capped and the UI needs every row for its counts) and say so in its doc comment. Tests for the caps.
+
+<!-- lisa-guidance-posted -->
+---
+Comment (internal/authz/builtin.go:59):
+**Low** · security (parity)
+
+The builtin PDP allows agent subjects every action on `agent`, including `configure` and `read`. Not reachable today (admin routes use `JWTMiddleware`, which rejects agent tokens), but it's a gap vs Cedar, which grants agents only register/ingest/sync. A future agent-token route behind the agent guard would let one agent configure another.
+
+Suggestion: allow only `ActionRegister`, `ActionIngest` and `ActionSync` when `s.Type == "agent"`.
+Replies:
+**lisa implementation guidance:** In internal/authz/builtin.go, for s.Type == "agent" allow only ActionRegister, ActionIngest and ActionSync on the agent resource (parity with Cedar); deny others with a clear Reason. Make sure the registration/ingest/sync routes still pass (unit + authz integration tests) and add a test that an agent subject is denied configure and read.
+
+<!-- lisa-guidance-posted -->
+---
+Comment (pkg/agentconfig/validate.go:178):
+**Low** · bug
+
+O6 (plugin-name pattern) is applied to every plugin key in the overlay, not only plugins the overlay adds. `ValidateOverlay` has no base, so an overlay touching a file plugin whose name starts with `_`/`-` or is over 63 chars is always rejected, e.g. `{"plugins":{"_legacy":{"enabled":false}}}` → 422.
+
+Suggestion: enforce the pattern only for names not in the base (base-aware step), or document the stricter rule.
+Replies:
+**lisa implementation guidance:** Per the lisa rule (change OR document -> document): keep the check in ValidateOverlay and document the stricter rule: O6 applies to every plugin key in an overlay, so file plugins whose names do not match PluginNamePattern cannot be changed remotely. Update the ValidateOverlay / O6 doc comment, the PUT swag description if it lists rules, and docs describing overlay rules. No behaviour change.
+
+<!-- lisa-guidance-posted -->
+---
+Comment (internal/service/worker/agent_instance_prune.go:66):
+**Low** · bug
+
+`ByPeriod: time.Hour` deduplicates the job per hour, so setting `CCF_AGENT_INSTANCE_PRUNE_SCHEDULE` more often than hourly is silently ignored. Suggestion: derive the period from the schedule, or document "at most hourly".
+Replies:
+**lisa implementation guidance:** Per the lisa rule (change OR document -> document): document that the prune job is deduplicated per hour, so CCF_AGENT_INSTANCE_PRUNE_SCHEDULE runs at most hourly. Put it in the comment at the UniqueOpts, in .env.example next to the variable, and in the internal/config/agents.go field doc. No behaviour change.
+
+<!-- lisa-guidance-posted -->
+---
+Comment (internal/service/relational/agentcfg/service.go:353):
+**Low** · perf
+
+Once the cap is reached, every digest-carrying heartbeat from an unregistered instance runs the UPDATE (0 rows), then `SELECT … FOR UPDATE` on the agent row, a `COUNT(*)` and a Warn log line — every beat, for every such instance. That contends with `CreateRevision` and floods logs. Suggestion: rate-limit the log and cache "cap reached" per agent for a short TTL.
+Replies:
+**lisa implementation guidance:** In agentcfg.Service remember "cap reached" per agent for a short TTL (e.g. 1 minute; map[uuid.UUID]time.Time guarded by a mutex). In TouchFromHeartbeat, when the UPDATE affected no row and the agent is within the TTL, skip the insert path (no FOR UPDATE / COUNT) and return nil. Set the entry when upsert returns ErrInstanceLimit (heartbeat and report paths); clear it when an insert succeeds. Log the Warn at most once per agent per TTL. UpsertReport keeps returning ErrInstanceLimit (409). Tests using the injectable clock (SetClock).
+
+<!-- lisa-guidance-posted -->
+---
+Comment (pkg/agentconfig/sensitive.go:178):
+**Low** · security
+
+Some redaction gaps (checked with a scratch test):
+- `https://user:5678/abc@host` isn't detected: `url.Parse` succeeds (reads `user:5678` as host:port), and the `continue` skips the regex fallback;
+- scheme-less DSNs like `user:hunter2@tcp(db:3306)/app` under a non-secret key aren't detected;
+- `plugins.*.source`, `policies` and `labels` are never content-checked, so `https://u:pw@…` in `source` survives `Redact`/`RedactDocument`.
+
+Suggestion: always try `urlUserinfoPattern` too instead of skipping it when parse succeeds, and run the content check on sources/policies. (Regexes are RE2, so no ReDoS — the cost issue is the quadratic scan above.)
+Replies:
+**lisa implementation guidance:** In sensitive.go hasURLPassword: when url.Parse succeeds but yields no password, still try urlUserinfoPattern on the candidate (do not continue past it), so https://user:5678/abc@host is caught. Add a scheme-less MySQL DSN pattern (user:pass@tcp(host:port)/db). In Redact and RedactDocument, also run the value content check (not the key rule) on plugins.*.source and plugins.*.policies[] strings, masking them when they contain a secret value. Tests for each case; keep regexes RE2/linear.
+
+<!-- lisa-guidance-posted -->
+---
+Comment (internal/api/handler/agent_config_sync.go:197):
+**Low** · bug
+
+Postgres rejects `\^@` in jsonb and NUL bytes in text columns. A NUL in an overlay value, a report base/effective string or a hostname passes validation and then fails on INSERT, giving a 500 instead of a 4xx. Suggestion: reject NUL in `ValidateOverlay` and `normalizeReport`.
+Replies:
+**lisa implementation guidance:** Reject NUL. In ValidateOverlay, walk every string (keys and values) and report FieldCodeInvalidValue at the pointer when it contains a NUL character. In normalizeReport, return a 400 if hostname, agent-version, error, effective-digest, warning messages or plugin fields contain NUL, or if the base/effective/remote-config raw JSON contains the \^@ escape (check the raw bytes for that six-character escape as well as decoded strings). Tests.
+
+<!-- lisa-guidance-posted -->
+---
+Comment (internal/service/relational/agentcfg/service.go:415):
+**Nit** · smell
+
+`columnValue` hand-maps column names to struct fields and panics on a typo, on a request path. GORM already does this: `Model(&AgentInstance{}).Where(...).Select(columns).Updates(row)` writes the selected columns from the struct, zero values included. That removes the switch and the `panic`.
+Replies:
+**lisa implementation guidance:** Replace columnValue: in upsert use db.Model(&relational.AgentInstance{}).Where("agent_id = ? AND instance_id = ?", ...).Select(columns).Updates(row); GORM writes the selected columns from the struct, zero values included. Delete columnValue and its panic. Check that the column names in reportColumns and the heartbeat list match GORM naming and that updated_at behaves the same. Keep the OnConflict insert path. Run the agentcfg integration tests.
+
+<!-- lisa-guidance-posted -->
+---
+Comment (internal/service/relational/agentcfg/service.go:259):
+**Nit** · pattern
+
+`isUniqueViolation` is another copy (also in `users.go`, `groups.go`, `ssp_leverage.go`), and it looks unreachable here: the agent row is locked `FOR UPDATE` and MAX is re-read inside the transaction. A shared helper (or dropping it here) would do. Related: `agentconfig.CanonicalJSON` duplicates `internal/artifact.CanonicalJSON` — keeping them separate is defensible (artifact forms are pinned by golden tests), but worth a comment.
+Replies:
+**lisa implementation guidance:** Remove isUniqueViolation and its branch in CreateRevision: the agent row is locked FOR UPDATE and MAX(revision) re-read in the transaction, so a unique violation cannot happen; return any error as-is (the handler maps it to 500). Also add a one-line comment on agentconfig.CanonicalJSON saying it intentionally duplicates internal/artifact.CanonicalJSON (artifact forms are pinned by golden tests; pkg/agentconfig must not import internal/).
+
+<!-- lisa-guidance-posted -->
+---
+Comment (internal/api/handler/agent_config.go:858):
+**Nit** · bug
+
+After a save, `rev.Overlay` holds the compact bytes, so PUT returns `overlay-size: 15` for `{"verbosity":1}`. GET and the list read the jsonb text back (`{"verbosity": 1}`, size 16, keys possibly reordered). The same revision shows different bytes and sizes. Suggestion: re-read the row after insert, or compute the size from a canonical form everywhere.
+Replies:
+**lisa implementation guidance:** Make the created revision consistent with reads: in agentcfg.Service.CreateRevision, after the insert, re-read the row (same query as GetRevision) and return it, so Overlay bytes and OverlaySize match GET and the list. If ListRevisions computes OverlaySize in SQL, make it match len() of the bytes GET returns. Test: the PUT response overlay-size equals GET for the same revision.
+
+<!-- lisa-guidance-posted -->
+---
+Comment (pkg/agentconfig/sensitive.go:22):
+**Nit** · smell
+
+The substring stems mask non-secrets: `max_tokens`, `token_url`, `secret_name` all count as secret. Because `Digest` hashes the redacted config, changing such a value doesn't change the digest or the preview diff, so ReportStale and DiffVsCurrent miss real changes. Consider a small allowlist (`max_tokens`, `*_name`, `*_url`, `*_file`).
+Replies:
+**lisa implementation guidance:** In sensitive.go add a small allowlist checked before the stem rule: keys whose last word is name/url/uri/file/path/dir/id/count/limit/ttl/size/length/enabled, and keys starting with max_/min_ or matching tokens_per_*, are not secret by key (content checks still apply, so a password URL in token_url is still masked). Update the doc comment that lists examples (max_tokens, secret_name, password_file are no longer masked by key) and tests; note in the PR body that digests change for configs with such keys.
+
+<!-- lisa-guidance-posted -->

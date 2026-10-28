@@ -1,0 +1,6 @@
+lisa-design:
+- publish.yml (push to main/seed/v* tags, docker/metadata-action) is replaced by release.yml (release-go-image on release: published), preview.yml (kind image, on-main) and cut-prerelease.yml, all at workflows v1.5.0 (899dbe5); image list is explicit [{"name":"api","dockerfile":"Dockerfile","context":"."}] as on mock-api.
+- Kept shape: image ghcr.io/compliance-framework/api, linux/amd64+arm64, Dockerfile default (last) stage `production`, final tags X.Y.Z/X.Y/X/latest, rc tag X.Y.Z-rcN, :main and :sha-<7> on main pushes. Intended changes: latest no longer moves on main pushes; no seed trigger; release builds no longer add sha-<7>; PRs labelled preview get :pr-<n>.
+- The old flow passed no build args; v1.5.0 passes VERSION only. The Dockerfile had no ARG VERSION, so the production stage now declares it, only for the org.opencontainers.image.version label.
+- Dockerfile LABELs restore the OCI labels metadata-action used to add (title, description, url, licenses, version); publish-image sets source and revision. `created` is dropped (no build arg carries a timestamp).
+- AGENTS.md's release paragraph is updated, since it described the removed publish workflow.

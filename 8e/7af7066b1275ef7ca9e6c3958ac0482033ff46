@@ -1,0 +1,6 @@
+lisa-design:
+- Recursive CTE skip scan for stream uuids (Postgres 17 has no native skip scan): O(streams * log n) index probes instead of reading the whole uuid index; the lateral pick uses the (uuid, end DESC) index.
+- EndBefore/StreamUUID are applied inside the lateral pick, reproducing the old `.Where(end < ?)` before DISTINCT ON exactly; an equivalence test compares IDs, status counts, search results and LoadLatestEvidenceStreams against the old queries at several points.
+- GetLatestEvidenceStreamsQuery stays for the digest (its WHERE applies before the pick — switching would change which evidence it reports) and EvidenceStatusCountsForFilters (the reference oracle).
+- Tie-breaking among evidence with the same end in one stream stays unspecified, as with DISTINCT ON.
+- Scale test runs a full ANALYZE first: without evidence_labels statistics the planner misjudges the label EXISTS for both queries.

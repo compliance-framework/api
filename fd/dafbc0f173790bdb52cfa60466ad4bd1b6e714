@@ -1,0 +1,2 @@
+lisa-addressed:
+Thread PRRT_kwDOKJpq1c6tRkN6 (evidence.go:303): deleted GetEvidenceStatusCountsByFilters (no callers) and its TestMatchesDistinctOn block, per reviewer decision. LoadLatestEvidenceStreams kept (lineage + EvidenceStatusCountsForFilterSets use it).

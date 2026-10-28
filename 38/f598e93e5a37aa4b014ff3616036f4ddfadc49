@@ -1,0 +1,11 @@
+lisa-design:
+- Templates live in a new package internal/service/relational/ssptemplates (Build = pure validation/normalization, Service = CRUD); B3's planner and B4's discovery go in the same package. The handler sits with the other admin template handlers in internal/api/handler/templates.
+- Key and scope-label validation reuses sspscope.Normalize's key rules (empty, >256 chars, '=', control chars, duplicates) so every key a template accepts can be stored as a scope entry later.
+- An empty filter ({} or {"scope":{}}) is stored as nil: it matches everything. Filter validation: conditions need a label and "=" or "!="; queries are AND/OR with at least one scope.
+- Duplicate scope-label groups (after normalization) are rejected (400) rather than silently merged; duplicate profile ids are de-duplicated.
+- JSON is kebab-case throughout, including created-at/updated-at (the subject-template response's camelCase timestamps are not copied). List is paginated with svc.ListResponse like subject templates.
+- Instance foreign keys (template CASCADE, ssp SET NULL) are added by EnsureSSPTemplateConstraints through a helper extracted from EnsureSSPScopeConstraints (ensureForeignKeys), because AutoMigrate runs with DisableForeignKeyConstraintWhenMigrating.
+- The instance model is exactly the design's; the skipped-entries count/sample the instances route reports is added in B4 with the code that writes it.
+
+lisa-selfreview:
+pass 1: [must-fix CORE-CONC-001 28445fabdca9] ssptemplates.Service.Update reads then saves without a row lock; a concurrent delete makes the save hit 0 rows while answering 200.

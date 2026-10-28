@@ -1,0 +1,5 @@
+lisa-addressed:
+- review #516 (PRRT_kwDOKJpq1c6t72s4): Learn returns LearnResult{Added, Skipped}; entries failing Normalize are skipped with their reason, DB/limit failures still error
+
+lisa-design:
+- (supersedes the earlier Learn note, per review on #516) Learn skips entries that fail Normalize and reports them in LearnResult.Skipped with the reason; only DB and limit failures fail the call.

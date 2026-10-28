@@ -1,0 +1,2 @@
+lisa-addressed:
+- pass 1: documented that Learn's tx must be an open transaction (learn-requires-transaction)

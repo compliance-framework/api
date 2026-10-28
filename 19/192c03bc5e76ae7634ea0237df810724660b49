@@ -1,0 +1,4 @@
+lisa-selfreview:
+pass 1 (strict):
+- nit 0e2d29b78484 CORE-STYLE-001 evidence_filter_sets_test.go BenchmarkCountStatusesForFilterSets: b.ResetTimer redundant with b.Loop.
+- question (intent/uncalled-status-counts-by-filters) evidence.go GetEvidenceStatusCountsByFilters: no callers; keep or delete in a follow-up? For reviewers.

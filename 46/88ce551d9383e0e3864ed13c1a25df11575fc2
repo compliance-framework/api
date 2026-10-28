@@ -1,0 +1,7 @@
+lisa-design:
+- Batched counts reuse LoadLatestEvidenceStreams (loose index scan) + labelfilter.MatchLabels, the same path lineage already uses, instead of a new SQL aggregate: one DB query per request, filters evaluated in memory.
+- CountStatusesForFilterSets replicates EvidenceStatusCountsForFilters exactly: empty set -> no rows; unscoped filters ignored unless none is scoped (then all streams match); a stream matching several filters of a set counts once; rows sorted by status.
+- Each distinct filter (keyed by its scope's JSON) is matched against the streams once and reused across sets, so cost is distinct-filters x streams, not controls x filters x streams.
+- EvidenceStatusCountsForFilters is kept (no prod callers now) as the reference oracle the integration equivalence test compares against; its comment points heavy callers to the batched form.
+- includeControls=false still computes every control (summary needs them); only the response rows are dropped.
+- Not changed: evidence search/status-over-time/compliance-by-* endpoints still use the per-query SQL path; they issue one query per request, not per control.

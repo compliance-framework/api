@@ -1,0 +1,2 @@
+lisa-addressed:
+fp 5d771b4b3d43 (companion on #477): TestPruneInstances calls the paginated ListInstances(ctx, agentID, PaginationParams{Page: 1, Limit: InstancesPageLimit}); the six instances fit in one page.

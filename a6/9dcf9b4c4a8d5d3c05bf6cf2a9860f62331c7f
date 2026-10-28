@@ -1,0 +1,2 @@
+lisa-addressed:
+- PR #483 CORE-DUP-001: removed agentInstanceListResponse; ListInstances returns GenericDataListResponse[agentInstanceSummary]{Meta: agentInstancesMeta}; swagger keeps typed meta via {meta=...}.

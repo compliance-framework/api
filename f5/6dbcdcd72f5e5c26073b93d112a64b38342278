@@ -1,0 +1,4 @@
+lisa-design:
+- SDK-only addition: Evidence.Create keeps sending one request per evidence; nothing in the agent changes. Agents may adopt CreateBatch later (separate agent PR after an rc), per the requester.
+- Non-2xx answers reuse *APIStatusError (as agent-config does) so callers can fall back to Create on 404/405/503.
+- WaitForBatch returns the last batch read together with ctx.Err() on cancellation, so callers see how far it got.

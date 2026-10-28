@@ -1,0 +1,11 @@
+lisa-design:
+- Scope CRUD routes live in handler/oscal (SSPScopeHandler, registered on the SSP group with the SSP guard); the scoped evidence routes live in handler (EvidenceHandler) because they reuse its search/response code, registered on a separate /oscal/system-security-plans group with JWTMiddleware + ssp read per route (no group-level Use).
+- Scope routes respond with DTOs shaped exactly like the design (id, labels, origin, template-id, created-at), not the GORM models.
+- Search and StatusOverTime were split into search/statusOverTime(ctx, restrict); the public routes pass nil, so their behaviour is unchanged. Request validation (body, pagination, sort, intervals) runs before the scope is applied, so an empty scope still rejects bad input.
+- Empty scope: search returns an empty page with total 0; status-over-time returns the requested intervals with empty statuses.
+- sspscope.Service.Filter now checks the SSP exists (ErrSSPNotFound -> 404). sspscope.And(base, scope) combines filters (empty base -> scope alone).
+- The acting user for CreatedBy is resolved from the JWT subject email; an unknown user records nil rather than failing the write.
+- All scope writes (PUT, POST entries/exceptions, DELETE exception) use guard.Update(), as the design says.
+
+lisa-selfreview:
+- pass 1 [should-fix] scoped-routes-without-service internal/api/handler/evidence_ssp_scope.go:20 — Scoped evidence routes can be mounted without the scope service

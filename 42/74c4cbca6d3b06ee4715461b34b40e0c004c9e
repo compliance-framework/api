@@ -1,0 +1,20 @@
+lisa-addressed:
+---
+Comment (internal/api/handler/agent_config_sync.go:186):
+**[Blocker] Report fields are truncated before secrets are masked, so part of a secret can leak**
+
+`normalizeReport` (line 167) cuts `error` to 8 KiB, warning messages and paths to 1 KiB, `unsafe[].value` to 2 KiB and plugin sources to 2 KiB. `scrubReportText` only runs here, afterwards. A secret that straddles the cut no longer matches any pattern, so its prefix is stored and returned to every `agent:read` holder (viewers, under Cedar).
+
+Checked against `containsSecretValue`:
+- `"dial postgres://app:hunter2secretpw@db:5432/x"` is masked;
+- the same string cut to `"dial postgres://app:hunter2se"` is **not** masked.
+
+**Why:** Masking must see the full value. Once it's truncated, the URL/userinfo and token patterns can't recognise it.
+**Fix:** Scrub before truncating: call `scrubReportText(&report)` before `normalizeReport`, or move the scrub into `normalizeReport` ahead of the length caps. A masked value is exactly `••••`, so the caps then only apply to values that aren't secret. Add a unit test with a URL password across the 8 KiB `error` cut and across the 1 KiB warning-message cut.
+**Severity basis:** no rule matched; decision tree: security, data or released-contract risk.
+
+<sub>ccf-review · 043707ae98ba · rules@6be9e11b8bc6</sub>
+Replies:
+**lisa implementation guidance:** **lisa implementation guidance:** In `normalizeReport` (internal/api/handler/agent_config_sync.go), apply the count caps first (plugins, warnings, unsafe), then call `scrubReportText(r)`, then the per-field length caps (plugin name/source/lib-version, warning message/path, unsafe path/value, hostname, agent-version, error). Return `(scrubbed bool, err error)` so `PutReport` keeps its warning log, and drop the later `scrubReportText` call in `PutReport`. Scrubbing after the count caps keeps the work bounded. Tests: update the call sites (a small `normalizeReportErr` helper), and add a case where a URL with a password straddles the 8 KiB `error` cut and the 1 KiB warning-message cut: both must come out exactly `••••` and the report must not be marked truncated for them.
+
+<!-- lisa-guidance-posted -->

@@ -1,0 +1,10 @@
+lisa-design:
+- PUT /filters/:id followSspScope semantics: true = follow (request filter is the new scopeBase); false = stop following and keep the current effective filter (request filter ignored, per design); omitted = keep the filter's current state (a following filter keeps following with the request filter as the new base; a plain filter stays plain). Omitted must not silently stop following, since clients that predate the field send PUTs without it.
+- sspscope.FollowScope(tx, sspID, base) takes the SSP scope lock and computes base AND scope inside the same transaction that writes the filter, so a concurrent scope change waits and then rewrites it. Filter create/update now run their final write in a transaction for this.
+- Rewrite happens in Service.afterChange (rewriteFollowingFilters): only filters with ssp_id = SSP and scope_base IS NOT NULL; only the filter column is updated.
+- ErrScopeWouldEmpty is checked in AddException before deleting the entry (only when it is the last entry and following filters exist), as *ScopeWouldEmptyError carrying the count (409 naming it). rewriteFollowingFilters also refuses an empty scope defensively.
+- Filter-handler errors: missing sspId, empty scope or unknown SSP with followSspScope -> 400.
+- ScopeBase and Origin carry yaml:"-": filter import/export (yaml) is unchanged, as the design says. Origin defaults to manual in the DB; Create sets it explicitly.
+
+lisa-selfreview:
+- pass 1: no findings (approve).

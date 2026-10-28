@@ -1,0 +1,4 @@
+lisa-design:
+- Contract addition from review: template responses (list, get, create, update) return `ssp-count` (instances with a non-null ssp_id, computed by a correlated subquery in the same SELECT) and `last-run-at` (nullable; new SSPTemplate.LastRunAt column, preserved by Update, set by the discovery job in B4).
+- Contract addition from review (B4): `GET /admin/ssp-templates/{id}/ssps` items carry `key-hash`, the id the Forget route takes.
+- The instance foreign keys are added by EnsureSSPConstraints (EnsureSSPScopeConstraints renamed, two keys appended) instead of a separate helper; this supersedes the earlier ensureForeignKeys/EnsureSSPTemplateConstraints note.

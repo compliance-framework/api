@@ -1,0 +1,13 @@
+lisa-design:
+- The planner is ssptemplates.BuildPlan(tmpl, streams, instances, entries, exceptions) (the design's Plan(template, streams, instances, exceptionsBySSP, entriesBySSP); Plan is the result type). It is pure: B4 loads the same inputs (Service.Preview's loading, scopeHashes) and applies the result.
+- Plan types carry the preview's JSON tags and are the API response directly; beyond the design they include key-hash, ssp-id and invalid-entries (learned entries Normalize rejects, which discovery records as skipped).
+- Key values come from LoadLatestEvidenceStreams, which lower-cases label values, so key values, rendered titles and learned entries are lower-case.
+- missing-keys counts streams matching the filter whose key is missing, empty or multi-valued: none of them can be grouped.
+- below-threshold lists groups under min-streams only; scope-label combinations under min-streams are dropped without being listed.
+- A group is invalid (no SSP) when its key values fail sspscope.Normalize or its title fails to render; its reason is the error.
+- An instance with a nil SSPID (SSP deleted) still appears with exists=true and nothing to learn: discovery leaves it alone.
+- Candidate entries repeated within a group (a scope-label group holding a key) are learned once.
+- Preview takes an optional id; a saved template's instances then mark existing groups. An unknown id is 404. Profile ids are not checked by preview.
+
+lisa-selfreview:
+pass 1: [must-fix CORE-INPUT-001] BuildPlan accepted a title that renders empty (a template referencing a non-key field), which discovery would turn into an SSP with an empty title.

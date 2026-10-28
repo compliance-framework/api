@@ -1,0 +1,16 @@
+lisa-addressed:
+---
+Comment (internal/service/relational/evidence_filter_sets.go:46):
+**[Should-fix] Doc claims identical semantics to the SQL path, but label matching now trims whitespace**
+
+The comment says the in-memory evaluation has "the semantics of EvidenceStatusCountsForFilters". The SQL path compares `lower(el.labels_name) = lower(?)` and `lower(el.labels_value) = lower(?)` with no trimming, while `LoadLatestEvidenceStreams` and `labelfilter.MatchLabels` both `TrimSpace` names and values. A label stored as `svc=" ec2"` matched nothing before and now matches `svc=ec2` (and `!=` flips accordingly). The equivalence integration test only uses trimmed values, so it cannot catch this, and a future change relying on the comment could reintroduce a divergence silently.
+
+**Why:** A documented equivalence that is not quite true invites future changes that assume it.
+**Fix:** State the one difference in the comment (names and values are trimmed as well as case-folded, as in lineage) and add a whitespace-padded label to TestComplianceProgressMatchesPerControlCounts asserting the new behaviour explicitly rather than comparing against the old SQL for that case.
+**Severity basis:** no rule matched; decision tree: likely to cause a future bug.
+
+<sub>ccf-review · 9afa69960c81 · rules@992d25d050e9</sub>
+Replies:
+**lisa implementation guidance:** Fix on perf/profile-compliance-batched-counts: reword the CountStatusesForFilterSets doc to say it matches EvidenceStatusCountsForFilters except that label names and values are trimmed as well as case-folded (as in lineage's LoadLatestEvidenceStreams/MatchLabels). Add a stream with a whitespace-padded label value to TestComplianceProgressMatchesPerControlCounts on a dedicated control and assert its counts explicitly (it matches svc=ec2), excluding that control from the SQL-equivalence loop with a comment explaining why.
+
+<!-- lisa-guidance-posted -->

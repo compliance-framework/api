@@ -1,0 +1,5 @@
+lisa-design:
+- Supersedes "key values, titles and learned entries are lower-case": LatestEvidenceStream gains RawLabels (trimmed values with their original casing, index for index with the folded Labels, which other callers keep relying on). BuildPlan filters, checks keys and groups on the folded labels (KeyHash unchanged: Payments and payments are one group), and takes key values, titles and learned entries from the original casing of the group's first stream by UUID; scope-label combinations count case-insensitively and keep the first stream's casing. (Review must-fix on #524.)
+
+lisa-addressed:
+- Plans keep evidence value casing (titles, key values, learned entries) via LatestEvidenceStream.RawLabels; grouping stays case-insensitive (review thread on #524, plan.go:76).

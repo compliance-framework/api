@@ -1,0 +1,5 @@
+lisa-design:
+- Kept the read-back before signing (17 queries): ON CONFLICT DO NOTHING keeps an existing component/inventory item/activity as stored, which can differ from the request, so hashing the in-memory params could sign content the database doesn't hold and break verification.
+- Dropped per-row pre-creates and Association().Append in favour of one multi-row insert per entity kind plus direct join-table inserts with ON CONFLICT DO NOTHING; same rows end up stored, in-memory evidence fields are set from params so responses are unchanged.
+- Did not cache subject templates or agent/key lookups: template edits and key revocation must take effect on the next request; a TTL cache would trade correctness for ~3-5 statements.
+- The query budget test (36) is a ceiling, not an exact count, so harmless reductions don't need test edits.

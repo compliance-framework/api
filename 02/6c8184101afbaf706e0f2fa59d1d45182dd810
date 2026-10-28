@@ -1,0 +1,2 @@
+lisa-addressed:
+Ian's PR comments (2026-10-05, issue comments): 1 TZ= cron panic -> ParseSchedule guard+recover, server Recover middleware; 2 usedSources counts enabled plugins only; 3 scrub unsafe[].value in reports; 4 preview bounded to 50 instances / 16 MiB config, omitted-instances in response, PUT validation still uses every validated instance (follow-up if needed).

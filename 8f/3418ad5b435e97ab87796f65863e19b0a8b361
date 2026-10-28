@@ -1,0 +1,5 @@
+lisa-design:
+- Retention is on acceptance time and prunes pending batches too: nothing polls a week-old batch, and it is the only way a batch stranded by the accepted commit->enqueue window (reviewer decision: accept it, as for risk jobs) is ever cleaned up.
+- The prune job is always registered when the worker service runs (no enable flag): batch tables have no other bound.
+- Registered in NewServiceWithDigest, not periodicJobsFromConfig, so the existing periodic-job count tests keep describing the config-driven jobs.
+- Deletes in rounds of 500 batches per transaction to bound lock time; deleting a batch never touches the evidence it stored.

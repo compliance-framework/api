@@ -1,0 +1,2 @@
+lisa-addressed:
+fp f2b689648c35 (must-fix, service part on #477): ValidationBases groups the validation set by base content in SQL (encode(sha256(convert_to(base_config::text,'UTF8')),'hex')), loads/decodes one base per group in one read-only repeatable-read tx, returns every instance (same R48 set and order) with a shared Base and a new InstanceBase.BaseKey. Caller memoization lands on #481. New test TestValidationBasesGroupsByBaseContent.

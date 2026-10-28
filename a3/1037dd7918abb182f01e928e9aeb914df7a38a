@@ -1,0 +1,11 @@
+lisa-design:
+- B5 is the second half of the design's B4: run, instances list and forget routes, and the stale calculation.
+- Contract addition from review: instance list items carry `key-hash`, the path id of the forget route.
+- The run route checks the template exists (404) and is enabled (409) before queuing; the worker service implements SSPTemplateRunEnqueuer and is wired through APIServices.SSPTemplateRunEnqueuer from cmd/run.go; nil (tests, no worker) answers 503. A disabled worker returns an error (500) rather than silently accepting a run that never happens.
+- Manual runs are unique by args among waiting/running jobs only (ByState without completed/cancelled, like the orphaned risk cleanup job), so a finished run never blocks the next one.
+- stale = the SSP still exists and last-seen-at is older than CCF_SSP_TEMPLATE_STALE_AFTER; a deleted SSP is never stale. Computed at read time in the handler.
+- The instance list is paginated (svc.ListResponse, page/limit) like the template list; items also carry the SSP's current title (null once deleted) and the skipped-entries sample.
+- Forget deletes only an instance whose ssp_id is null (409 otherwise, 404 when unknown), guarded in the DELETE's WHERE clause too.
+
+lisa-selfreview:
+pass 1: [must-fix CORE-TEST-001] EnqueueSSPTemplateDiscovery's disabled-worker branch had no test.

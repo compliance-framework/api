@@ -1,0 +1,2 @@
+lisa-addressed:
+fp 72f95c2fcf2d (must-fix, cap part on #480): normalizeReport caps remote-config: count caps (100 per list) before the scrub, then mode (32 B) / poll_interval (64 B) truncation and dropping list entries >256 B JSON-encoded (drop, not cut: cut path.Match patterns can broaden trust). Worst-case encoded block ~52 KiB <= 64 KiB; Truncated set. Swagger description updated (make swag). Tests: agent_config_report_remote_config_regression_test.go (+ worst-case escaping test).
