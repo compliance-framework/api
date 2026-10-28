@@ -1,0 +1,2 @@
+lisa-addressed:
+- Re-bumped every workflows pin to aafa1649ac6f33c02c581486c50f9cf04cc0eb54 # v1.9.1, which fixes the golangci-lint config verify --schema failure (workflows#166).
