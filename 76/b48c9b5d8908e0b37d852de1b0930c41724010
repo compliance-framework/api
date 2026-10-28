@@ -1,2 +1,5 @@
 lisa-addressed:
 - CORE-DOC-001 AGENTS.md: reworded to 'build with at least that Go' (GOTOOLCHAIN=auto keeps a newer bundled Go).
+
+lisa-selfreview:
+pass 2 (strict): approve, no findings (checked compose local target, golangci-lint lang-version check (minor only), setup-go v7 go-version-file, build/vet/unit tests, docker build).
