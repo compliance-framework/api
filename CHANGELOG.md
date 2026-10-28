@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.22.1](https://github.com/compliance-framework/api/compare/v0.22.0...v0.22.1) (2026-10-28)
+
+
+### Bug Fixes
+
+* **config:** bind CCF_EVIDENCE_BATCH_*, CCF_SSP_SCOPE_* and CCF_SSP_TEMPLATE_* env vars ([#535](https://github.com/compliance-framework/api/issues/535)) ([a6d950e](https://github.com/compliance-framework/api/commit/a6d950e858c1588818babe68d29136116eb225df))
+
 ## [0.22.0](https://github.com/compliance-framework/api/compare/v0.21.1...v0.22.0) (2026-10-28)
 
 
