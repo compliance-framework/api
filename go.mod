@@ -17,22 +17,22 @@ require (
 	github.com/golang-jwt/jwt/v5 v5.3.0
 	github.com/google/go-containerregistry v0.21.2
 	github.com/google/uuid v1.6.0
-	github.com/jackc/pgx/v5 v5.9.2
+	github.com/jackc/pgx/v5 v5.11.0
 	github.com/joho/godotenv v1.5.1
 	github.com/labstack/echo-contrib v0.17.4
 	github.com/labstack/echo/v4 v4.16.1
 	github.com/moby/moby/api v1.55.0
 	github.com/open-policy-agent/opa v1.14.1
 	github.com/prometheus/client_golang v1.23.2
-	github.com/riverqueue/river v0.30.1
-	github.com/riverqueue/river/riverdriver/riverpgxv5 v0.30.1
-	github.com/riverqueue/river/rivertype v0.30.1
+	github.com/riverqueue/river v0.49.0
+	github.com/riverqueue/river/riverdriver/riverpgxv5 v0.49.0
+	github.com/riverqueue/river/rivertype v0.49.0
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/schollz/progressbar/v3 v3.18.0
 	github.com/slack-go/slack v0.23.1
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/viper v1.21.0
-	github.com/stretchr/testify v1.11.1
+	github.com/stretchr/testify v1.12.1
 	github.com/swaggo/echo-swagger v1.4.1
 	github.com/swaggo/swag v1.16.6
 	github.com/testcontainers/testcontainers-go v0.44.0
@@ -83,7 +83,6 @@ require (
 	github.com/cpuguy83/dockercfg v0.3.2 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.7 // indirect
 	github.com/creack/pty v1.1.24 // indirect
-	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.4.0 // indirect
 	github.com/distribution/reference v0.6.0 // indirect
 	github.com/docker/go-connections v0.7.0 // indirect
@@ -154,14 +153,13 @@ require (
 	github.com/pb33f/ordered-map/v2 v2.3.1 // indirect
 	github.com/pelletier/go-toml v1.9.5 // indirect
 	github.com/pelletier/go-toml/v2 v2.3.1 // indirect
-	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/power-devops/perfstat v0.0.0-20240221224432-82ca36839d55 // indirect
 	github.com/prometheus/client_model v0.6.2 // indirect
 	github.com/prometheus/common v0.67.4 // indirect
 	github.com/prometheus/procfs v0.19.2 // indirect
 	github.com/rcrowley/go-metrics v0.0.0-20250401214520-65e299d6c5c9 // indirect
-	github.com/riverqueue/river/riverdriver v0.30.1 // indirect
-	github.com/riverqueue/river/rivershared v0.30.1 // indirect
+	github.com/riverqueue/river/riverdriver v0.49.0 // indirect
+	github.com/riverqueue/river/rivershared v0.49.0 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/sagikazarmark/locafero v0.12.0 // indirect
@@ -179,7 +177,7 @@ require (
 	github.com/tchap/go-patricia/v2 v2.3.3 // indirect
 	github.com/tdewolff/parse/v2 v2.8.12 // indirect
 	github.com/tdewolff/test v1.0.12 // indirect
-	github.com/tidwall/gjson v1.18.0 // indirect
+	github.com/tidwall/gjson v1.19.0 // indirect
 	github.com/tidwall/match v1.2.0 // indirect
 	github.com/tidwall/pretty v1.2.1 // indirect
 	github.com/tidwall/sjson v1.2.5 // indirect
@@ -200,10 +198,9 @@ require (
 	go.opentelemetry.io/otel v1.44.0 // indirect
 	go.opentelemetry.io/otel/metric v1.44.0 // indirect
 	go.opentelemetry.io/otel/trace v1.44.0 // indirect
-	go.uber.org/goleak v1.3.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.3 // indirect
-	go.yaml.in/yaml/v3 v3.0.4 // indirect
+	go.yaml.in/yaml/v3 v3.0.5 // indirect
 	go.yaml.in/yaml/v4 v4.0.0-rc.2 // indirect
 	golang.org/x/exp v0.0.0-20241108190413-2d47ceb2692f // indirect
 	golang.org/x/mod v0.41.0 // indirect
@@ -214,7 +211,6 @@ require (
 	golang.org/x/time v0.15.0 // indirect
 	golang.org/x/tools v0.51.0 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
 	gorm.io/driver/mysql v1.6.0 // indirect
 	sigs.k8s.io/yaml v1.6.0 // indirect
 )
