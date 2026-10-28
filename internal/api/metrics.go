@@ -73,7 +73,21 @@ func (m *PrometheusMetrics) StartMetricsServer(port string) {
 	go func() {
 		metrics := echo.New()
 		metrics.HideBanner = true
-		metrics.Use(middleware.Logger())
+		metrics.Use(middleware.RequestLoggerWithConfig(middleware.RequestLoggerConfig{
+			LogURI:     true,
+			LogStatus:  true,
+			LogMethod:  true,
+			LogLatency: true,
+			LogValuesFunc: func(c echo.Context, v middleware.RequestLoggerValues) error {
+				m.logger.Debugw("metrics request",
+					zap.String("method", v.Method),
+					zap.String("uri", v.URI),
+					zap.Int("status", v.Status),
+					zap.Int64("latency_ms", v.Latency.Milliseconds()),
+				)
+				return nil
+			},
+		}))
 		metrics.GET("/metrics", echoprometheus.NewHandlerWithConfig(echoprometheus.HandlerConfig{
 			Gatherer: m.registry,
 		}))
