@@ -1,6 +1,7 @@
 # Shared go-service CI from compliance-framework/workflows, pinned to a release commit that
 # ccf-bump moves. The status checks to require are `ci / required` and
-# `release-checks / release-checks` (skipped, so passing, on non-release PRs).
+# `release-checks / release-checks` (skipped, so passing, on non-release PRs). The image check
+# (fixable HIGH or CRITICAL vulnerabilities in the built image) runs outside them and gates nothing.
 name: ci
 
 on:
