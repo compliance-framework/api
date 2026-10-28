@@ -1,0 +1,3 @@
+lisa-selfreview:
+pass 1 (strict): request_changes
+- [should-fix] CORE-DOC-001 AGENTS.md:134 (b3e969269668): "CI, releases and the image build with it" overstates GOTOOLCHAIN=auto, which uses the newer of the image's Go and the toolchain line. Fix: "at least that Go".
