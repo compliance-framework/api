@@ -30,7 +30,7 @@ RUN make swag
 # Build it
 RUN GOOS=linux go build -o /api
 
-FROM gcr.io/distroless/base-debian12 AS production
+FROM gcr.io/distroless/base-debian12@sha256:fabbf1c0c357a3d42550111351daed089b20a2c954df13ee2fcff60602515e84 AS production
 
 # The release and preview workflows pass VERSION (X.Y.Z, X.Y.Z-rcN, main-<sha7> or
 # pr-<number>-<sha7>) and set the source and revision labels themselves.
