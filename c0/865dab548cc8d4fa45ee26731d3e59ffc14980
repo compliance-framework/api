@@ -1,0 +1,5 @@
+lisa-selfreview:
+Self-review pass 1 (approve, no blocking findings).
+Deferred / out of scope: cmd/root.go also leaves other global-viper keys unbound that pre-date v0.22.0:
+ai_max_output_tokens, ai_generalizable_label_keys, ai_generalization_min_shared_controls (internal/config/ai.go),
+worker_count, worker_queue, poam_config (internal/config/config.go). Not documented in .env.example; left for a separate decision.
