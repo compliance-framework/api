@@ -1,0 +1,2 @@
+lisa-addressed:
+- CORE-DOC-001 AGENTS.md: reworded to 'build with at least that Go' (GOTOOLCHAIN=auto keeps a newer bundled Go).
