@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-jose/go-jose/v3"
-	"github.com/go-jose/go-jose/v3/jwt"
+	"github.com/go-jose/go-jose/v4"
+	"github.com/go-jose/go-jose/v4/jwt"
 )
 
 // MockOIDCServer provides a minimal OIDC issuer suitable for unit tests.
@@ -119,7 +119,7 @@ func (m *MockOIDCServer) SignIDToken(claims map[string]any) (string, error) {
 		return "", fmt.Errorf("failed to create signer: %w", err)
 	}
 
-	raw, err := jwt.Signed(signer).Claims(claims).CompactSerialize()
+	raw, err := jwt.Signed(signer).Claims(claims).Serialize()
 	if err != nil {
 		return "", fmt.Errorf("failed to serialize jwt: %w", err)
 	}
