@@ -18,7 +18,7 @@ concurrency:
 
 jobs:
   preview:
-    uses: compliance-framework/workflows/.github/workflows/preview.yml@e85d35af2af2ddfcd4b92061d2063e665c1831f6 # v1.7.0
+    uses: compliance-framework/workflows/.github/workflows/preview.yml@1e188815a0e8036da1bea4e637a9973ecdc3ae1c # v1.9.0
     with:
       kind: image
       on-main: true
