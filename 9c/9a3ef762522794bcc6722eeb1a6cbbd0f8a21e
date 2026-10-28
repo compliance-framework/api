@@ -1,3 +1,6 @@
 lisa-design:
 - ci.yml leaves `images` unset: the v1.9.0 default `[{}]` (repo name `api`, Dockerfile, context .) is exactly the list release.yml publishes, so the CI image check scans the released image.
 - No permission changes: ci-image.yml needs only contents: read, which the ci job already grants.
+
+lisa-selfreview:
+- pass 1: approve, no findings (pins are full SHAs of the v1.9.0 tag commit; top-level permissions unchanged; release.yml image list equals the images default; YAML parses; actionlint not installed)
