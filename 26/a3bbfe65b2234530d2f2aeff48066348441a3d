@@ -1,0 +1,2 @@
+lisa-addressed:
+- ccf-review CORE-DOC-001 should-fix (review body): AGENTS.md:34 and Makefile:136 now name golangci-lint v2.15.0, the version ci-go-service.yml runs at v1.9.0. ci.yml header names the non-gating image check.
