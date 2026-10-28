@@ -9,11 +9,14 @@ import (
 )
 
 // nondeterministicAllowed are the non-deterministic builtins the sandbox keeps: they read
-// the clock or a random source, but reach nothing outside the process.
+// the clock or a random source, or can only reach the network through hosts in AllowNet,
+// which SandboxCapabilities empties.
 var nondeterministicAllowed = []string{
 	"io.jwt.decode_verify",
 	"io.jwt.encode_sign",
 	"io.jwt.encode_sign_raw",
+	"json.match_schema",
+	"json.verify_schema",
 	"rand.intn",
 	"time.now_ns",
 	"uuid.rfc4122",
@@ -25,6 +28,8 @@ func TestSandboxCapabilitiesRemovesDeniedBuiltins(t *testing.T) {
 		assert.NotContains(t, DeniedBuiltins, builtin.Name)
 	}
 	assert.Less(t, len(caps.Builtins), len(ast.CapabilitiesForThisVersion().Builtins))
+	assert.NotNil(t, caps.AllowNet, "a nil allowlist permits every host")
+	assert.Empty(t, caps.AllowNet)
 }
 
 // TestSandboxBuiltinAudit fails when an OPA upgrade adds a non-deterministic builtin, which

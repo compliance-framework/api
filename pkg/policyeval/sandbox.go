@@ -14,8 +14,10 @@ var DeniedBuiltins = []string{
 	"opa.runtime",
 }
 
-// SandboxCapabilities returns this OPA version's capabilities with DeniedBuiltins removed.
-// Each call returns a fresh copy that the caller may modify.
+// SandboxCapabilities returns this OPA version's capabilities with DeniedBuiltins removed
+// and an empty network allowlist, so json.match_schema and json.verify_schema cannot fetch
+// remote $refs (a nil allowlist permits every host). Each call returns a fresh copy that
+// the caller may modify.
 func SandboxCapabilities() *ast.Capabilities {
 	caps := ast.CapabilitiesForThisVersion()
 	builtins := make([]*ast.Builtin, 0, len(caps.Builtins))
@@ -26,5 +28,6 @@ func SandboxCapabilities() *ast.Capabilities {
 		builtins = append(builtins, builtin)
 	}
 	caps.Builtins = builtins
+	caps.AllowNet = []string{}
 	return caps
 }

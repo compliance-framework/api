@@ -5,7 +5,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -198,6 +201,32 @@ leak := %s
 			assert.Equal(t, 5, evalErrs.Errors[0].Row)
 		})
 	}
+
+	t.Run("json schema remote $ref is not fetched", func(t *testing.T) {
+		var fetched atomic.Int32
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			fetched.Add(1)
+			_, _ = w.Write([]byte(`{"type": "string"}`))
+		}))
+		defer srv.Close()
+
+		for _, call := range []string{
+			`json.match_schema("x", {"$ref": input.ref})`,
+			`json.verify_schema({"$ref": input.ref})`,
+		} {
+			_, err := Evaluate(context.Background(), EvaluateRequest{
+				Policy: fmt.Sprintf(`package compliance_framework.escape
+
+title := "escape"
+
+leak := %s
+`, call),
+				Input: map[string]any{"ref": srv.URL + "/schema.json"},
+			})
+			require.NoError(t, err, call)
+		}
+		assert.Zero(t, fetched.Load(), "the sandbox must not fetch remote schemas")
+	})
 
 	t.Run("unbounded comprehension hits the time limit", func(t *testing.T) {
 		items := make([]any, 1000)
