@@ -1,0 +1,3 @@
+lisa-design:
+- Production image is distroless/static-debian13 with a CGO_ENABLED=0 build (user's call): no libc/libssl to carry CVEs. prometheus/client_golang's cgo files are optional; nothing else in the binary needs cgo.
+- Empty APIAllowedOrigins => "*" (echo v4's default); config.Load always sets at least one origin, so only tests hit it.
