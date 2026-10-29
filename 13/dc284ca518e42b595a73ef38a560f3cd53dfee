@@ -1,0 +1,2 @@
+lisa-addressed:
+CORE-TEST-001 (e4835ba59973): added TestValidationErrorResponseBody asserting status and body of NewValidationErrorResponse through echo's error handler; mutation-checked (wrong body / wrong status both fail).
