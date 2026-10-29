@@ -21,7 +21,7 @@ services:
       - continuous-compliance
 
   postgres:
-    image: postgres:17.11
+    image: postgres:18.6
     volumes:
       - postgres:/var/lib/postgresql/data
     ports:
