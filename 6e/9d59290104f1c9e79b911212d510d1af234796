@@ -1,0 +1,5 @@
+lisa-design:
+echo v5 migration decisions:
+- CORS AllowCredentials is disabled only when APIAllowedOrigins contains "*": echo v5 panics on "*"+credentials, and browsers already rejected that pair under v4.
+- oscal.NewValidationErrorResponse returns a self-marshalling error (StatusCode+MarshalJSON) so the 400 body stays {"errors": {...}}; echo v5 HTTPError.Message is string-only.
+- Server.Stop removed: unused, and echo v5 has no Shutdown; Start now owns graceful shutdown via signal ctx.
