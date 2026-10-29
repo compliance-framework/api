@@ -1,6 +1,8 @@
 # Use the official Golang image to create a build artifact.
 # This is based on Debian.
 FROM golang:1.26 AS local
+# Build with the go.mod toolchain line (Renovate bumps it for Go security fixes), downloading it when this image's Go is older.
+ENV GOTOOLCHAIN=auto
 
 # Create and change to the app directory.
 WORKDIR /app
@@ -14,6 +16,8 @@ RUN make swag
 CMD ["go", "tool", "air"]
 
 FROM golang:1.26 AS builder
+# Build with the go.mod toolchain line (Renovate bumps it for Go security fixes), downloading it when this image's Go is older.
+ENV GOTOOLCHAIN=auto
 
 # Create and change to the app directory.
 WORKDIR /app
@@ -30,7 +34,7 @@ RUN make swag
 # Build it
 RUN GOOS=linux go build -o /api
 
-FROM gcr.io/distroless/base-debian12 AS production
+FROM gcr.io/distroless/base-debian12@sha256:fabbf1c0c357a3d42550111351daed089b20a2c954df13ee2fcff60602515e84 AS production
 
 # The release and preview workflows pass VERSION (X.Y.Z, X.Y.Z-rcN, main-<sha7> or
 # pr-<number>-<sha7>) and set the source and revision labels themselves.

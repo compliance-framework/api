@@ -133,7 +133,7 @@ lint.check: ## Check install of golanci-lint
 .PHONY: lint.install
 lint.install: ## Install golangci-lint to the go bin dir
 		@$(INFO) "Installing golangci-lint"; \
-		curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/main/install.sh | sh -s -- -b $(GOBIN) v2.11.4
+		curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/main/install.sh | sh -s -- -b $(GOBIN) v2.15.0
 
 .PHONY: lint
 lint: lint.check ## Run golangci-lint

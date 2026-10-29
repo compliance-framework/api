@@ -2,6 +2,8 @@ module github.com/compliance-framework/api
 
 go 1.26.1
 
+toolchain go1.26.10
+
 require (
 	github.com/anthropics/anthropic-sdk-go v1.84.0
 	github.com/aws/aws-sdk-go-v2 v1.47.3
