@@ -56,13 +56,18 @@ func NewServer(ctx context.Context, s *zap.SugaredLogger, config *config.Config,
 	}))
 	// A handler panic becomes a 500 (logged above) instead of a dropped connection.
 	e.Use(middleware.Recover())
+	allowOrigins := config.APIAllowedOrigins
+	if len(allowOrigins) == 0 {
+		// Any origin, as echo v4 defaulted to. Loaded configs always set at least one.
+		allowOrigins = []string{"*"}
+	}
 	e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
-		AllowOrigins:  config.APIAllowedOrigins,
+		AllowOrigins:  allowOrigins,
 		AllowHeaders:  []string{echo.HeaderOrigin, echo.HeaderContentType, echo.HeaderAccept, echo.HeaderAuthorization, "If-Match", "If-None-Match"},
 		ExposeHeaders: []string{"ETag", LineageGeneratedAtHeader},
 		// Echo refuses "*" with credentials (browsers reject that pair anyway), so a
 		// wildcard allows every origin without them instead of failing at startup.
-		AllowCredentials: !slices.Contains(config.APIAllowedOrigins, "*"),
+		AllowCredentials: !slices.Contains(allowOrigins, "*"),
 	}))
 	e.Use(echoprometheus.NewMiddlewareWithConfig(echoprometheus.MiddlewareConfig{
 		Registerer: metrics.Registry(),
