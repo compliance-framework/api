@@ -11,7 +11,7 @@ import (
 	relworkflows "github.com/compliance-framework/api/internal/service/relational/workflows"
 	"github.com/compliance-framework/api/internal/service/sso"
 	"github.com/google/uuid"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
@@ -49,7 +49,7 @@ func NewBaseHandler(sugar *zap.SugaredLogger) *BaseHandler {
 }
 
 // Bind binds a request without validation (used for Update operations with optional fields)
-func (b *BaseHandler) Bind(ctx echo.Context, req interface{}) error {
+func (b *BaseHandler) Bind(ctx *echo.Context, req interface{}) error {
 	if err := ctx.Bind(req); err != nil {
 		b.sugar.Errorw("Failed to bind request", "error", err)
 		err = ctx.JSON(http.StatusBadRequest, api.NewError(err))
@@ -62,7 +62,7 @@ func (b *BaseHandler) Bind(ctx echo.Context, req interface{}) error {
 }
 
 // BindAndValidate binds and validates a request
-func (b *BaseHandler) BindAndValidate(ctx echo.Context, req interface{}) error {
+func (b *BaseHandler) BindAndValidate(ctx *echo.Context, req interface{}) error {
 	if err := ctx.Bind(req); err != nil {
 		b.sugar.Errorw("Failed to bind request", "error", err)
 		err = ctx.JSON(http.StatusBadRequest, api.NewError(err))
@@ -85,7 +85,7 @@ func (b *BaseHandler) BindAndValidate(ctx echo.Context, req interface{}) error {
 }
 
 // ParseUUID parses a UUID from a path parameter
-func (b *BaseHandler) ParseUUID(ctx echo.Context, paramName, entityName string) (*uuid.UUID, error) {
+func (b *BaseHandler) ParseUUID(ctx *echo.Context, paramName, entityName string) (*uuid.UUID, error) {
 	idStr := ctx.Param(paramName)
 	id, err := uuid.Parse(idStr)
 	if err != nil {
@@ -100,7 +100,7 @@ func (b *BaseHandler) ParseUUID(ctx echo.Context, paramName, entityName string) 
 }
 
 // HandleServiceError handles service layer errors with appropriate HTTP status codes
-func (b *BaseHandler) HandleServiceError(ctx echo.Context, err error, operation, entityName string) error {
+func (b *BaseHandler) HandleServiceError(ctx *echo.Context, err error, operation, entityName string) error {
 	if err == gorm.ErrRecordNotFound || isNotFoundError(err) {
 		return ctx.JSON(http.StatusNotFound, api.NewError(err))
 	}
@@ -113,17 +113,17 @@ func (b *BaseHandler) HandleServiceError(ctx echo.Context, err error, operation,
 }
 
 // RespondOK sends a successful JSON response
-func (b *BaseHandler) RespondOK(ctx echo.Context, data interface{}) error {
+func (b *BaseHandler) RespondOK(ctx *echo.Context, data interface{}) error {
 	return ctx.JSON(http.StatusOK, data)
 }
 
 // RespondCreated sends a created JSON response
-func (b *BaseHandler) RespondCreated(ctx echo.Context, data interface{}) error {
+func (b *BaseHandler) RespondCreated(ctx *echo.Context, data interface{}) error {
 	return ctx.JSON(http.StatusCreated, data)
 }
 
 // RespondNoContent sends a no content response
-func (b *BaseHandler) RespondNoContent(ctx echo.Context) error {
+func (b *BaseHandler) RespondNoContent(ctx *echo.Context) error {
 	return ctx.NoContent(http.StatusNoContent)
 }
 
@@ -133,7 +133,7 @@ func isNotFoundError(err error) bool {
 }
 
 // GetActorFromClaims resolves the authenticated actor from JWT claims.
-func (b *BaseHandler) GetActorFromClaims(ctx echo.Context, db *gorm.DB) (*uuid.UUID, string, error) {
+func (b *BaseHandler) GetActorFromClaims(ctx *echo.Context, db *gorm.DB) (*uuid.UUID, string, error) {
 	identity, err := b.GetActorIdentityFromClaims(ctx, db)
 	if err != nil {
 		return nil, "", err
@@ -142,7 +142,7 @@ func (b *BaseHandler) GetActorFromClaims(ctx echo.Context, db *gorm.DB) (*uuid.U
 }
 
 // GetActorIdentityFromClaims resolves the authenticated actor and any known group memberships.
-func (b *BaseHandler) GetActorIdentityFromClaims(ctx echo.Context, db *gorm.DB) (*ActorIdentity, error) {
+func (b *BaseHandler) GetActorIdentityFromClaims(ctx *echo.Context, db *gorm.DB) (*ActorIdentity, error) {
 	userClaims, ok := ctx.Get("user").(*authn.UserClaims)
 	if !ok || userClaims == nil {
 		if err := ctx.JSON(http.StatusUnauthorized, api.NewError(echo.NewHTTPError(http.StatusUnauthorized, "missing authentication claims"))); err != nil {

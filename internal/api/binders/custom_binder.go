@@ -4,7 +4,7 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"gopkg.in/yaml.v2"
 )
 
@@ -15,17 +15,17 @@ const (
 
 type CustomBinder struct{}
 
-func (cb *CustomBinder) Bind(i any, c echo.Context) error {
+func (cb *CustomBinder) Bind(c *echo.Context, i any) error {
 	req := c.Request()
 	contentType := req.Header.Get(echo.HeaderContentType)
 	switch contentType {
 	case MIMEApplicationYAML:
 		if err := yaml.NewDecoder(req.Body).Decode(i); err != nil && err != io.EOF {
-			return echo.NewHTTPError(http.StatusBadRequest, err.Error()).SetInternal(err)
+			return echo.NewHTTPError(http.StatusBadRequest, err.Error()).Wrap(err)
 		}
 	case MIMEApplicationJSON:
 		defaultBinder := new(echo.DefaultBinder)
-		if err := defaultBinder.Bind(i, c); err != nil {
+		if err := defaultBinder.Bind(c, i); err != nil {
 			return err
 		}
 	default:

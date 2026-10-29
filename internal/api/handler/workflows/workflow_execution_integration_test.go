@@ -16,7 +16,7 @@ import (
 	"github.com/compliance-framework/api/internal/service/relational/workflows"
 	"github.com/compliance-framework/api/internal/workflow"
 	"github.com/google/uuid"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/riverqueue/river"
 	"github.com/riverqueue/river/rivertype"
 	"github.com/stretchr/testify/assert"
@@ -219,8 +219,7 @@ func TestWorkflowExecutionHandler_Get(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/workflows/executions/"+execution.ID.String(), nil)
 		rec := httptest.NewRecorder()
 		c := e.NewContext(req, rec)
-		c.SetParamNames("id")
-		c.SetParamValues(execution.ID.String())
+		c.SetPathValues(echo.PathValues{{Name: "id", Value: execution.ID.String()}})
 
 		err := handler.Get(c)
 		require.NoError(t, err)
@@ -238,8 +237,7 @@ func TestWorkflowExecutionHandler_Get(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/workflows/executions/"+nonExistentID.String(), nil)
 		rec := httptest.NewRecorder()
 		c := e.NewContext(req, rec)
-		c.SetParamNames("id")
-		c.SetParamValues(nonExistentID.String())
+		c.SetPathValues(echo.PathValues{{Name: "id", Value: nonExistentID.String()}})
 
 		err := handler.Get(c)
 		require.NoError(t, err)
@@ -337,7 +335,7 @@ func TestWorkflowExecutionHandler_ReassignRole(t *testing.T) {
 	}
 	require.NoError(t, db.Create(otherRoleStep).Error)
 
-	createContext := func(req *http.Request, rec *httptest.ResponseRecorder, executionID string) echo.Context {
+	createContext := func(req *http.Request, rec *httptest.ResponseRecorder, executionID string) *echo.Context {
 		c := e.NewContext(req, rec)
 		c.Set("user", &authn.UserClaims{
 			GivenName:  actor.FirstName,
@@ -345,8 +343,7 @@ func TestWorkflowExecutionHandler_ReassignRole(t *testing.T) {
 		})
 		claims := c.Get("user").(*authn.UserClaims)
 		claims.Subject = actor.Email
-		c.SetParamNames("id")
-		c.SetParamValues(executionID)
+		c.SetPathValues(echo.PathValues{{Name: "id", Value: executionID}})
 		return c
 	}
 
@@ -479,8 +476,7 @@ func TestWorkflowExecutionHandler_GetStatus(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/workflows/executions/"+execution.ID.String()+"/status", nil)
 		rec := httptest.NewRecorder()
 		c := e.NewContext(req, rec)
-		c.SetParamNames("id")
-		c.SetParamValues(execution.ID.String())
+		c.SetPathValues(echo.PathValues{{Name: "id", Value: execution.ID.String()}})
 
 		err := handler.GetStatus(c)
 		require.NoError(t, err)
@@ -525,8 +521,7 @@ func TestWorkflowExecutionHandler_GetMetrics(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/workflows/executions/"+execution.ID.String()+"/metrics", nil)
 		rec := httptest.NewRecorder()
 		c := e.NewContext(req, rec)
-		c.SetParamNames("id")
-		c.SetParamValues(execution.ID.String())
+		c.SetPathValues(echo.PathValues{{Name: "id", Value: execution.ID.String()}})
 
 		err := handler.GetMetrics(c)
 		require.NoError(t, err)
@@ -578,8 +573,7 @@ func TestWorkflowExecutionHandler_Cancel(t *testing.T) {
 		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 		rec := httptest.NewRecorder()
 		c := e.NewContext(req, rec)
-		c.SetParamNames("id")
-		c.SetParamValues(execution.ID.String())
+		c.SetPathValues(echo.PathValues{{Name: "id", Value: execution.ID.String()}})
 
 		err = handler.Cancel(c)
 		require.NoError(t, err)
@@ -622,8 +616,7 @@ func TestWorkflowExecutionHandler_Retry(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPost, "/workflows/executions/"+execution.ID.String()+"/retry", nil)
 		rec := httptest.NewRecorder()
 		c := e.NewContext(req, rec)
-		c.SetParamNames("id")
-		c.SetParamValues(execution.ID.String())
+		c.SetPathValues(echo.PathValues{{Name: "id", Value: execution.ID.String()}})
 
 		err := handler.Retry(c)
 		require.NoError(t, err)

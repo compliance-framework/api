@@ -19,8 +19,8 @@ import (
 	"github.com/compliance-framework/api/internal/service/relational/sspscope"
 	workflowsvc "github.com/compliance-framework/api/internal/service/relational/workflows"
 	"github.com/compliance-framework/api/internal/workflow"
-	"github.com/labstack/echo/v4"
-	echomiddleware "github.com/labstack/echo/v4/middleware"
+	"github.com/labstack/echo/v5"
+	echomiddleware "github.com/labstack/echo/v5/middleware"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )

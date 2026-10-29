@@ -11,7 +11,7 @@ import (
 
 	"github.com/defenseunicorns/go-oscal/src/pkg/versioning"
 	"github.com/google/uuid"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"go.uber.org/zap"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
@@ -42,7 +42,7 @@ func NewPlanOfActionAndMilestonesHandler(sugar *zap.SugaredLogger, db *gorm.DB) 
 }
 
 // verifyPoamExists checks if a POA&M exists by ID and returns appropriate HTTP error if not
-func (h *PlanOfActionAndMilestonesHandler) verifyPoamExists(ctx echo.Context, poamID uuid.UUID) error {
+func (h *PlanOfActionAndMilestonesHandler) verifyPoamExists(ctx *echo.Context, poamID uuid.UUID) error {
 	var poam relational.PlanOfActionAndMilestones
 	if err := h.db.First(&poam, "id = ?", poamID).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -205,7 +205,7 @@ func (h *PlanOfActionAndMilestonesHandler) validatePoamItemInput(item *oscalType
 //	@Failure		400	{object}	api.Error
 //	@Failure		500	{object}	api.Error
 //	@Router			/oscal/plan-of-action-and-milestones [get]
-func (h *PlanOfActionAndMilestonesHandler) List(ctx echo.Context) error {
+func (h *PlanOfActionAndMilestonesHandler) List(ctx *echo.Context) error {
 	var poams []relational.PlanOfActionAndMilestones
 	if err := h.db.Preload("Metadata").Preload("Metadata.Revisions").Find(&poams).Error; err != nil {
 		h.sugar.Errorw("failed to list poams", "error", err)
@@ -231,7 +231,7 @@ func (h *PlanOfActionAndMilestonesHandler) List(ctx echo.Context) error {
 //	@Failure		404	{object}	api.Error
 //	@Failure		500	{object}	api.Error
 //	@Router			/oscal/plan-of-action-and-milestones/{id} [get]
-func (h *PlanOfActionAndMilestonesHandler) Get(ctx echo.Context) error {
+func (h *PlanOfActionAndMilestonesHandler) Get(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -262,7 +262,7 @@ func (h *PlanOfActionAndMilestonesHandler) Get(ctx echo.Context) error {
 //	@Failure		404	{object}	api.Error
 //	@Failure		500	{object}	api.Error
 //	@Router			/oscal/plan-of-action-and-milestones/{id}/full [get]
-func (h *PlanOfActionAndMilestonesHandler) Full(ctx echo.Context) error {
+func (h *PlanOfActionAndMilestonesHandler) Full(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -292,7 +292,7 @@ func (h *PlanOfActionAndMilestonesHandler) Full(ctx echo.Context) error {
 //	@Failure		404	{object}	api.Error
 //	@Failure		500	{object}	api.Error
 //	@Router			/oscal/plan-of-action-and-milestones/{id}/observations [get]
-func (h *PlanOfActionAndMilestonesHandler) GetObservations(ctx echo.Context) error {
+func (h *PlanOfActionAndMilestonesHandler) GetObservations(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -326,7 +326,7 @@ func (h *PlanOfActionAndMilestonesHandler) GetObservations(ctx echo.Context) err
 //	@Failure		404	{object}	api.Error
 //	@Failure		500	{object}	api.Error
 //	@Router			/oscal/plan-of-action-and-milestones/{id}/risks [get]
-func (h *PlanOfActionAndMilestonesHandler) GetRisks(ctx echo.Context) error {
+func (h *PlanOfActionAndMilestonesHandler) GetRisks(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -361,7 +361,7 @@ func (h *PlanOfActionAndMilestonesHandler) GetRisks(ctx echo.Context) error {
 //	@Failure		404	{object}	api.Error
 //	@Failure		500	{object}	api.Error
 //	@Router			/oscal/plan-of-action-and-milestones/{id}/findings [get]
-func (h *PlanOfActionAndMilestonesHandler) GetFindings(ctx echo.Context) error {
+func (h *PlanOfActionAndMilestonesHandler) GetFindings(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -395,7 +395,7 @@ func (h *PlanOfActionAndMilestonesHandler) GetFindings(ctx echo.Context) error {
 //	@Failure		404	{object}	api.Error
 //	@Failure		500	{object}	api.Error
 //	@Router			/oscal/plan-of-action-and-milestones/{id}/poam-items [get]
-func (h *PlanOfActionAndMilestonesHandler) GetPoamItems(ctx echo.Context) error {
+func (h *PlanOfActionAndMilestonesHandler) GetPoamItems(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -429,7 +429,7 @@ func (h *PlanOfActionAndMilestonesHandler) GetPoamItems(ctx echo.Context) error 
 //	@Failure		404	{object}	api.Error
 //	@Failure		500	{object}	api.Error
 //	@Router			/oscal/plan-of-action-and-milestones/{id}/metadata [get]
-func (h *PlanOfActionAndMilestonesHandler) GetMetadata(ctx echo.Context) error {
+func (h *PlanOfActionAndMilestonesHandler) GetMetadata(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -458,7 +458,7 @@ func (h *PlanOfActionAndMilestonesHandler) GetMetadata(ctx echo.Context) error {
 //	@Failure		404			{object}	api.Error
 //	@Failure		500			{object}	api.Error
 //	@Router			/oscal/plan-of-action-and-milestones/{id}/metadata [put]
-func (h *PlanOfActionAndMilestonesHandler) UpdateMetadata(ctx echo.Context) error {
+func (h *PlanOfActionAndMilestonesHandler) UpdateMetadata(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -521,7 +521,7 @@ func (h *PlanOfActionAndMilestonesHandler) UpdateMetadata(ctx echo.Context) erro
 //	@Failure		404	{object}	api.Error
 //	@Failure		500	{object}	api.Error
 //	@Router			/oscal/plan-of-action-and-milestones/{id}/import-ssp [get]
-func (h *PlanOfActionAndMilestonesHandler) GetImportSsp(ctx echo.Context) error {
+func (h *PlanOfActionAndMilestonesHandler) GetImportSsp(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -554,7 +554,7 @@ func (h *PlanOfActionAndMilestonesHandler) GetImportSsp(ctx echo.Context) error 
 //	@Failure		404			{object}	api.Error
 //	@Failure		500			{object}	api.Error
 //	@Router			/oscal/plan-of-action-and-milestones/{id}/import-ssp [post]
-func (h *PlanOfActionAndMilestonesHandler) CreateImportSsp(ctx echo.Context) error {
+func (h *PlanOfActionAndMilestonesHandler) CreateImportSsp(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -614,7 +614,7 @@ func (h *PlanOfActionAndMilestonesHandler) CreateImportSsp(ctx echo.Context) err
 //	@Failure		404			{object}	api.Error
 //	@Failure		500			{object}	api.Error
 //	@Router			/oscal/plan-of-action-and-milestones/{id}/import-ssp [put]
-func (h *PlanOfActionAndMilestonesHandler) UpdateImportSsp(ctx echo.Context) error {
+func (h *PlanOfActionAndMilestonesHandler) UpdateImportSsp(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -672,7 +672,7 @@ func (h *PlanOfActionAndMilestonesHandler) UpdateImportSsp(ctx echo.Context) err
 //	@Failure		404	{object}	api.Error
 //	@Failure		500	{object}	api.Error
 //	@Router			/oscal/plan-of-action-and-milestones/{id}/system-id [get]
-func (h *PlanOfActionAndMilestonesHandler) GetSystemId(ctx echo.Context) error {
+func (h *PlanOfActionAndMilestonesHandler) GetSystemId(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -705,7 +705,7 @@ func (h *PlanOfActionAndMilestonesHandler) GetSystemId(ctx echo.Context) error {
 //	@Failure		404			{object}	api.Error
 //	@Failure		500			{object}	api.Error
 //	@Router			/oscal/plan-of-action-and-milestones/{id}/system-id [post]
-func (h *PlanOfActionAndMilestonesHandler) CreateSystemId(ctx echo.Context) error {
+func (h *PlanOfActionAndMilestonesHandler) CreateSystemId(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -765,7 +765,7 @@ func (h *PlanOfActionAndMilestonesHandler) CreateSystemId(ctx echo.Context) erro
 //	@Failure		404			{object}	api.Error
 //	@Failure		500			{object}	api.Error
 //	@Router			/oscal/plan-of-action-and-milestones/{id}/system-id [put]
-func (h *PlanOfActionAndMilestonesHandler) UpdateSystemId(ctx echo.Context) error {
+func (h *PlanOfActionAndMilestonesHandler) UpdateSystemId(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -823,7 +823,7 @@ func (h *PlanOfActionAndMilestonesHandler) UpdateSystemId(ctx echo.Context) erro
 //	@Failure		404	{object}	api.Error
 //	@Failure		500	{object}	api.Error
 //	@Router			/oscal/plan-of-action-and-milestones/{id}/local-definitions [get]
-func (h *PlanOfActionAndMilestonesHandler) GetLocalDefinitions(ctx echo.Context) error {
+func (h *PlanOfActionAndMilestonesHandler) GetLocalDefinitions(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -860,7 +860,7 @@ func (h *PlanOfActionAndMilestonesHandler) GetLocalDefinitions(ctx echo.Context)
 //	@Failure		404					{object}	api.Error
 //	@Failure		500					{object}	api.Error
 //	@Router			/oscal/plan-of-action-and-milestones/{id}/local-definitions [put]
-func (h *PlanOfActionAndMilestonesHandler) UpdateLocalDefinitions(ctx echo.Context) error {
+func (h *PlanOfActionAndMilestonesHandler) UpdateLocalDefinitions(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -1024,7 +1024,7 @@ func hasAssessmentAssets(assets datatypes.JSONType[oscalTypes_1_1_3.AssessmentAs
 }
 
 // deleteLocalDefinitionsForPOAM handles the deletion of entire local-definitions when empty payload is sent
-func (h *PlanOfActionAndMilestonesHandler) deleteLocalDefinitionsForPOAM(ctx echo.Context, existingPoam relational.PlanOfActionAndMilestones) error {
+func (h *PlanOfActionAndMilestonesHandler) deleteLocalDefinitionsForPOAM(ctx *echo.Context, existingPoam relational.PlanOfActionAndMilestones) error {
 	// Clear the local-definitions field
 	emptyLocalDefs := relational.PlanOfActionAndMilestonesLocalDefinitions{}
 	if err := h.db.Model(&existingPoam).Update("local_definitions", datatypes.NewJSONType(emptyLocalDefs)).Error; err != nil {
@@ -1047,7 +1047,7 @@ func (h *PlanOfActionAndMilestonesHandler) deleteLocalDefinitionsForPOAM(ctx ech
 //	@Failure		404	{object}	api.Error
 //	@Failure		500	{object}	api.Error
 //	@Router			/oscal/plan-of-action-and-milestones/{id}/back-matter [get]
-func (h *PlanOfActionAndMilestonesHandler) GetBackMatter(ctx echo.Context) error {
+func (h *PlanOfActionAndMilestonesHandler) GetBackMatter(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -1079,7 +1079,7 @@ func (h *PlanOfActionAndMilestonesHandler) GetBackMatter(ctx echo.Context) error
 }
 
 // CreateBackMatter creates back-matter for a POA&M
-func (h *PlanOfActionAndMilestonesHandler) CreateBackMatter(ctx echo.Context) error {
+func (h *PlanOfActionAndMilestonesHandler) CreateBackMatter(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -1124,7 +1124,7 @@ func (h *PlanOfActionAndMilestonesHandler) CreateBackMatter(ctx echo.Context) er
 }
 
 // UpdateBackMatter updates back-matter for a POA&M
-func (h *PlanOfActionAndMilestonesHandler) UpdateBackMatter(ctx echo.Context) error {
+func (h *PlanOfActionAndMilestonesHandler) UpdateBackMatter(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -1164,7 +1164,7 @@ func (h *PlanOfActionAndMilestonesHandler) UpdateBackMatter(ctx echo.Context) er
 }
 
 // DeleteBackMatter deletes back-matter for a POA&M
-func (h *PlanOfActionAndMilestonesHandler) DeleteBackMatter(ctx echo.Context) error {
+func (h *PlanOfActionAndMilestonesHandler) DeleteBackMatter(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -1215,7 +1215,7 @@ func (h *PlanOfActionAndMilestonesHandler) DeleteBackMatter(ctx echo.Context) er
 //	@Failure		400		{object}	api.Error
 //	@Failure		500		{object}	api.Error
 //	@Router			/oscal/plan-of-action-and-milestones [post]
-func (h *PlanOfActionAndMilestonesHandler) Create(ctx echo.Context) error {
+func (h *PlanOfActionAndMilestonesHandler) Create(ctx *echo.Context) error {
 	now := time.Now()
 
 	var oscalPoam oscalTypes_1_1_3.PlanOfActionAndMilestones
@@ -1257,7 +1257,7 @@ func (h *PlanOfActionAndMilestonesHandler) Create(ctx echo.Context) error {
 //	@Failure		404			{object}	api.Error
 //	@Failure		500			{object}	api.Error
 //	@Router			/oscal/plan-of-action-and-milestones/{id}/observations [post]
-func (h *PlanOfActionAndMilestonesHandler) CreateObservation(ctx echo.Context) error {
+func (h *PlanOfActionAndMilestonesHandler) CreateObservation(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -1310,7 +1310,7 @@ func (h *PlanOfActionAndMilestonesHandler) CreateObservation(ctx echo.Context) e
 //	@Failure		404		{object}	api.Error
 //	@Failure		500		{object}	api.Error
 //	@Router			/oscal/plan-of-action-and-milestones/{id}/risks [post]
-func (h *PlanOfActionAndMilestonesHandler) CreateRisk(ctx echo.Context) error {
+func (h *PlanOfActionAndMilestonesHandler) CreateRisk(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -1363,7 +1363,7 @@ func (h *PlanOfActionAndMilestonesHandler) CreateRisk(ctx echo.Context) error {
 //	@Failure		404		{object}	api.Error
 //	@Failure		500		{object}	api.Error
 //	@Router			/oscal/plan-of-action-and-milestones/{id}/findings [post]
-func (h *PlanOfActionAndMilestonesHandler) CreateFinding(ctx echo.Context) error {
+func (h *PlanOfActionAndMilestonesHandler) CreateFinding(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -1416,7 +1416,7 @@ func (h *PlanOfActionAndMilestonesHandler) CreateFinding(ctx echo.Context) error
 //	@Failure		404			{object}	api.Error
 //	@Failure		500			{object}	api.Error
 //	@Router			/oscal/plan-of-action-and-milestones/{id}/poam-items [post]
-func (h *PlanOfActionAndMilestonesHandler) CreatePoamItem(ctx echo.Context) error {
+func (h *PlanOfActionAndMilestonesHandler) CreatePoamItem(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -1466,7 +1466,7 @@ func (h *PlanOfActionAndMilestonesHandler) CreatePoamItem(ctx echo.Context) erro
 //	@Failure		404		{object}	api.Error
 //	@Failure		500		{object}	api.Error
 //	@Router			/oscal/plan-of-action-and-milestones/{id} [put]
-func (h *PlanOfActionAndMilestonesHandler) Update(ctx echo.Context) error {
+func (h *PlanOfActionAndMilestonesHandler) Update(ctx *echo.Context) error {
 	// Parse and validate ID parameter
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
@@ -1531,7 +1531,7 @@ func (h *PlanOfActionAndMilestonesHandler) Update(ctx echo.Context) error {
 //	@Failure		404			{object}	api.Error
 //	@Failure		500			{object}	api.Error
 //	@Router			/oscal/plan-of-action-and-milestones/{id}/observations/{obsId} [put]
-func (h *PlanOfActionAndMilestonesHandler) UpdateObservation(ctx echo.Context) error {
+func (h *PlanOfActionAndMilestonesHandler) UpdateObservation(ctx *echo.Context) error {
 	// Parse and validate ID parameters
 	idParam := ctx.Param("id")
 	poamID, err := uuid.Parse(idParam)
@@ -1603,7 +1603,7 @@ func (h *PlanOfActionAndMilestonesHandler) UpdateObservation(ctx echo.Context) e
 //	@Failure		404		{object}	api.Error
 //	@Failure		500		{object}	api.Error
 //	@Router			/oscal/plan-of-action-and-milestones/{id}/risks/{riskId} [put]
-func (h *PlanOfActionAndMilestonesHandler) UpdateRisk(ctx echo.Context) error {
+func (h *PlanOfActionAndMilestonesHandler) UpdateRisk(ctx *echo.Context) error {
 	// Parse and validate ID parameters
 	idParam := ctx.Param("id")
 	poamID, err := uuid.Parse(idParam)
@@ -1675,7 +1675,7 @@ func (h *PlanOfActionAndMilestonesHandler) UpdateRisk(ctx echo.Context) error {
 //	@Failure		404			{object}	api.Error
 //	@Failure		500			{object}	api.Error
 //	@Router			/oscal/plan-of-action-and-milestones/{id}/findings/{findingId} [put]
-func (h *PlanOfActionAndMilestonesHandler) UpdateFinding(ctx echo.Context) error {
+func (h *PlanOfActionAndMilestonesHandler) UpdateFinding(ctx *echo.Context) error {
 	// Parse and validate ID parameters
 	idParam := ctx.Param("id")
 	poamID, err := uuid.Parse(idParam)
@@ -1747,7 +1747,7 @@ func (h *PlanOfActionAndMilestonesHandler) UpdateFinding(ctx echo.Context) error
 //	@Failure		404			{object}	api.Error
 //	@Failure		500			{object}	api.Error
 //	@Router			/oscal/plan-of-action-and-milestones/{id}/poam-items/{itemId} [put]
-func (h *PlanOfActionAndMilestonesHandler) UpdatePoamItem(ctx echo.Context) error {
+func (h *PlanOfActionAndMilestonesHandler) UpdatePoamItem(ctx *echo.Context) error {
 	// Parse and validate ID parameters
 	idParam := ctx.Param("id")
 	poamID, err := uuid.Parse(idParam)
@@ -1856,7 +1856,7 @@ func (h *PlanOfActionAndMilestonesHandler) UpdatePoamItem(ctx echo.Context) erro
 //	@Failure		404	{object}	api.Error
 //	@Failure		500	{object}	api.Error
 //	@Router			/oscal/plan-of-action-and-milestones/{id} [delete]
-func (h *PlanOfActionAndMilestonesHandler) Delete(ctx echo.Context) error {
+func (h *PlanOfActionAndMilestonesHandler) Delete(ctx *echo.Context) error {
 	// Parse and validate ID parameter
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
@@ -1922,7 +1922,7 @@ func (h *PlanOfActionAndMilestonesHandler) Delete(ctx echo.Context) error {
 //	@Failure		404		{object}	api.Error
 //	@Failure		500		{object}	api.Error
 //	@Router			/oscal/plan-of-action-and-milestones/{id}/observations/{obsId} [delete]
-func (h *PlanOfActionAndMilestonesHandler) DeleteObservation(ctx echo.Context) error {
+func (h *PlanOfActionAndMilestonesHandler) DeleteObservation(ctx *echo.Context) error {
 	// Parse and validate ID parameters
 	idParam := ctx.Param("id")
 	poamID, err := uuid.Parse(idParam)
@@ -1972,7 +1972,7 @@ func (h *PlanOfActionAndMilestonesHandler) DeleteObservation(ctx echo.Context) e
 //	@Failure		404		{object}	api.Error
 //	@Failure		500		{object}	api.Error
 //	@Router			/oscal/plan-of-action-and-milestones/{id}/risks/{riskId} [delete]
-func (h *PlanOfActionAndMilestonesHandler) DeleteRisk(ctx echo.Context) error {
+func (h *PlanOfActionAndMilestonesHandler) DeleteRisk(ctx *echo.Context) error {
 	// Parse and validate ID parameters
 	idParam := ctx.Param("id")
 	poamID, err := uuid.Parse(idParam)
@@ -2022,7 +2022,7 @@ func (h *PlanOfActionAndMilestonesHandler) DeleteRisk(ctx echo.Context) error {
 //	@Failure		404			{object}	api.Error
 //	@Failure		500			{object}	api.Error
 //	@Router			/oscal/plan-of-action-and-milestones/{id}/findings/{findingId} [delete]
-func (h *PlanOfActionAndMilestonesHandler) DeleteFinding(ctx echo.Context) error {
+func (h *PlanOfActionAndMilestonesHandler) DeleteFinding(ctx *echo.Context) error {
 	// Parse and validate ID parameters
 	idParam := ctx.Param("id")
 	poamID, err := uuid.Parse(idParam)
@@ -2073,7 +2073,7 @@ func (h *PlanOfActionAndMilestonesHandler) DeleteFinding(ctx echo.Context) error
 //	@Failure		404		{object}	api.Error
 //	@Failure		500		{object}	api.Error
 //	@Router			/oscal/plan-of-action-and-milestones/{id}/poam-items/{itemId} [delete]
-func (h *PlanOfActionAndMilestonesHandler) DeletePoamItem(ctx echo.Context) error {
+func (h *PlanOfActionAndMilestonesHandler) DeletePoamItem(ctx *echo.Context) error {
 	// Parse and validate ID parameters
 	idParam := ctx.Param("id")
 	poamID, err := uuid.Parse(idParam)
@@ -2124,7 +2124,7 @@ func (h *PlanOfActionAndMilestonesHandler) DeletePoamItem(ctx echo.Context) erro
 //	@Failure		404	{object}	api.Error
 //	@Failure		500	{object}	api.Error
 //	@Router			/oscal/plan-of-action-and-milestones/{id}/back-matter/resources [get]
-func (h *PlanOfActionAndMilestonesHandler) GetBackMatterResources(ctx echo.Context) error {
+func (h *PlanOfActionAndMilestonesHandler) GetBackMatterResources(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -2163,7 +2163,7 @@ func (h *PlanOfActionAndMilestonesHandler) GetBackMatterResources(ctx echo.Conte
 //	@Failure		404			{object}	api.Error
 //	@Failure		500			{object}	api.Error
 //	@Router			/oscal/plan-of-action-and-milestones/{id}/back-matter/resources [post]
-func (h *PlanOfActionAndMilestonesHandler) CreateBackMatterResource(ctx echo.Context) error {
+func (h *PlanOfActionAndMilestonesHandler) CreateBackMatterResource(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -2225,7 +2225,7 @@ func (h *PlanOfActionAndMilestonesHandler) CreateBackMatterResource(ctx echo.Con
 //	@Failure		404			{object}	api.Error
 //	@Failure		500			{object}	api.Error
 //	@Router			/oscal/plan-of-action-and-milestones/{id}/back-matter/resources/{resourceId} [put]
-func (h *PlanOfActionAndMilestonesHandler) UpdateBackMatterResource(ctx echo.Context) error {
+func (h *PlanOfActionAndMilestonesHandler) UpdateBackMatterResource(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	poamID, err := uuid.Parse(idParam)
 	if err != nil {
@@ -2292,7 +2292,7 @@ func (h *PlanOfActionAndMilestonesHandler) UpdateBackMatterResource(ctx echo.Con
 //	@Failure		404			{object}	api.Error
 //	@Failure		500			{object}	api.Error
 //	@Router			/oscal/plan-of-action-and-milestones/{id}/back-matter/resources/{resourceId} [delete]
-func (h *PlanOfActionAndMilestonesHandler) DeleteBackMatterResource(ctx echo.Context) error {
+func (h *PlanOfActionAndMilestonesHandler) DeleteBackMatterResource(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	poamID, err := uuid.Parse(idParam)
 	if err != nil {

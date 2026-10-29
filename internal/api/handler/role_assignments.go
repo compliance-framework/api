@@ -10,7 +10,7 @@ import (
 	"github.com/compliance-framework/api/internal/authz"
 	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/google/uuid"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
@@ -84,7 +84,7 @@ type effectiveRole struct {
 //	@Failure		500			{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/admin/role-assignments [post]
-func (h *RoleAssignmentsHandler) Create(ctx echo.Context) error {
+func (h *RoleAssignmentsHandler) Create(ctx *echo.Context) error {
 	var req createRoleAssignmentRequest
 	if err := ctx.Bind(&req); err != nil {
 		h.sugar.Errorw("Failed to bind create role assignment request", "error", err)
@@ -136,7 +136,7 @@ func (h *RoleAssignmentsHandler) Create(ctx echo.Context) error {
 //	@Failure		500				{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/admin/role-assignments [get]
-func (h *RoleAssignmentsHandler) List(ctx echo.Context) error {
+func (h *RoleAssignmentsHandler) List(ctx *echo.Context) error {
 	q := h.db.Model(&relational.CCFRoleAssignment{})
 	if t := strings.ToLower(strings.TrimSpace(ctx.QueryParam("assigneeType"))); t != "" {
 		q = q.Where("assignee_type = ?", t)
@@ -170,7 +170,7 @@ func (h *RoleAssignmentsHandler) List(ctx echo.Context) error {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/admin/role-assignments/{id} [delete]
-func (h *RoleAssignmentsHandler) Delete(ctx echo.Context) error {
+func (h *RoleAssignmentsHandler) Delete(ctx *echo.Context) error {
 	id, err := uuid.Parse(strings.TrimSpace(ctx.Param("id")))
 	if err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(errors.New("invalid role assignment id")))
@@ -212,7 +212,7 @@ func (h *RoleAssignmentsHandler) Delete(ctx echo.Context) error {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/admin/users/{id}/roles [get]
-func (h *RoleAssignmentsHandler) UserRoles(ctx echo.Context) error {
+func (h *RoleAssignmentsHandler) UserRoles(ctx *echo.Context) error {
 	userUUID, err := uuid.Parse(strings.TrimSpace(ctx.Param("id")))
 	if err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(errors.New("invalid user id")))
@@ -292,7 +292,7 @@ func (h *RoleAssignmentsHandler) UserRoles(ctx echo.Context) error {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/admin/groups/{id}/roles [get]
-func (h *RoleAssignmentsHandler) GroupRoles(ctx echo.Context) error {
+func (h *RoleAssignmentsHandler) GroupRoles(ctx *echo.Context) error {
 	groupUUID, err := uuid.Parse(strings.TrimSpace(ctx.Param("id")))
 	if err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(errors.New("invalid group id")))

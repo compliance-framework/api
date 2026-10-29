@@ -15,7 +15,7 @@ import (
 	emailtypes "github.com/compliance-framework/api/internal/service/email/types"
 	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/compliance-framework/api/internal/service/worker"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
@@ -65,7 +65,7 @@ func (h *AuthHandler) Register(api *echo.Group) {
 //	@Failure		401				{object}	handler.GenericDataResponse[auth.AuthHandler.LoginUser.errorResponse]
 //	@Failure		500				{object}	api.Error
 //	@Router			/auth/login [post]
-func (h *AuthHandler) LoginUser(ctx echo.Context) error {
+func (h *AuthHandler) LoginUser(ctx *echo.Context) error {
 	type loginRequest struct {
 		Email    string `json:"email" validate:"required,email"`
 		Password string `json:"password" validate:"required"`
@@ -147,7 +147,7 @@ func isDevelopmentEnvironment(env string) bool {
 //	@Failure		401			{object}	api.Error
 //	@Failure		500			{object}	api.Error
 //	@Router			/auth/token [post]
-func (h *AuthHandler) GetOAuth2Token(ctx echo.Context) error {
+func (h *AuthHandler) GetOAuth2Token(ctx *echo.Context) error {
 	type response struct {
 		AccessToken string `json:"access_token"`
 		TokenType   string `json:"token_type"`
@@ -241,7 +241,7 @@ func (h *AuthHandler) CheckUser(username, password string) (*relational.User, bo
 }
 
 // GetPublicKeyPEM returns a plaintext representation of the JWT public key in PEM format.
-func (h *AuthHandler) GetPublicKeyPEM(ctx echo.Context) error {
+func (h *AuthHandler) GetPublicKeyPEM(ctx *echo.Context) error {
 
 	pubPem, err := authn.PublicKeyToPEM(h.config.JWTPublicKey)
 	if err != nil {
@@ -262,7 +262,7 @@ func (h *AuthHandler) GetPublicKeyPEM(ctx echo.Context) error {
 //	@Success		200	{object}	authn.JWK
 //	@Failure		500	{object}	api.Error
 //	@Router			/auth/publickey [get]
-func (h *AuthHandler) GetJWK(ctx echo.Context) error {
+func (h *AuthHandler) GetJWK(ctx *echo.Context) error {
 	jwk := &authn.JWK{}
 	jwk, err := jwk.UnmarshalPublicKey(h.config.JWTPublicKey)
 	if err != nil {
@@ -285,7 +285,7 @@ func (h *AuthHandler) GetJWK(ctx echo.Context) error {
 //	@Failure		404		{object}	api.Error
 //	@Failure		500		{object}	api.Error
 //	@Router			/auth/forgot-password [post]
-func (h *AuthHandler) ForgotPassword(ctx echo.Context) error {
+func (h *AuthHandler) ForgotPassword(ctx *echo.Context) error {
 	type request struct {
 		Email string `json:"email" validate:"required,email"`
 	}
@@ -400,7 +400,7 @@ func (h *AuthHandler) ForgotPassword(ctx echo.Context) error {
 //	@Failure		401		{object}	api.Error
 //	@Failure		500		{object}	api.Error
 //	@Router			/auth/password-reset [post]
-func (h *AuthHandler) PasswordReset(ctx echo.Context) error {
+func (h *AuthHandler) PasswordReset(ctx *echo.Context) error {
 	type request struct {
 		Token    string `json:"token" validate:"required"`
 		Password string `json:"password" validate:"required,min=8"`

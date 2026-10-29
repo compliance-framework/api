@@ -11,7 +11,6 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
-	"strconv"
 	"testing"
 	"time"
 
@@ -22,8 +21,8 @@ import (
 	"github.com/compliance-framework/api/internal/service/relational"
 	workflowseed "github.com/compliance-framework/api/internal/service/relational/workflows"
 	"github.com/compliance-framework/api/internal/service/sso"
-	"github.com/labstack/echo/v4"
-	echomiddleware "github.com/labstack/echo/v4/middleware"
+	"github.com/labstack/echo/v5"
+	echomiddleware "github.com/labstack/echo/v5/middleware"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
@@ -224,8 +223,7 @@ func TestWorkflowImportRouteRequiresAdminGroup(t *testing.T) {
 
 	token, err := authn.GenerateJWTToken(&user, privateKey)
 	require.NoError(t, err)
-	bodyLimit, err := strconv.ParseInt(WorkflowImportBodyLimit, 10, 64)
-	require.NoError(t, err)
+	bodyLimit := WorkflowImportBodyLimit
 
 	req := httptest.NewRequest(http.MethodPost, "/workflows/import", http.NoBody)
 	req.Header.Set(echo.HeaderAuthorization, "Bearer "+*token)

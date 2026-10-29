@@ -10,7 +10,7 @@ import (
 	svc "github.com/compliance-framework/api/internal/service"
 	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/google/uuid"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -112,7 +112,7 @@ type catalogLinkSummary struct {
 // @Failure		500				{object}	api.Error
 // @Security		OAuth2Password
 // @Router			/control-links [get]
-func (h *ControlLinkHandler) List(ctx echo.Context) error {
+func (h *ControlLinkHandler) List(ctx *echo.Context) error {
 	pagination, err := h.pagination.ParseParams(ctx)
 	if err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
@@ -172,7 +172,7 @@ func (h *ControlLinkHandler) List(ctx echo.Context) error {
 // @Failure		422		{object}	api.Error
 // @Security		OAuth2Password
 // @Router			/control-links [post]
-func (h *ControlLinkHandler) Create(ctx echo.Context) error {
+func (h *ControlLinkHandler) Create(ctx *echo.Context) error {
 	var req createControlLinkRequest
 	if err := ctx.Bind(&req); err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
@@ -236,7 +236,7 @@ func (h *ControlLinkHandler) Create(ctx echo.Context) error {
 // @Failure		422		{object}	api.Error
 // @Security		OAuth2Password
 // @Router			/control-links/bulk [post]
-func (h *ControlLinkHandler) BulkCreate(ctx echo.Context) error {
+func (h *ControlLinkHandler) BulkCreate(ctx *echo.Context) error {
 	var req bulkControlLinkRequest
 	if err := ctx.Bind(&req); err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
@@ -313,7 +313,7 @@ func (h *ControlLinkHandler) BulkCreate(ctx echo.Context) error {
 // @Failure		404	{object}	api.Error
 // @Security		OAuth2Password
 // @Router			/control-links [delete]
-func (h *ControlLinkHandler) Delete(ctx echo.Context) error {
+func (h *ControlLinkHandler) Delete(ctx *echo.Context) error {
 	sourceCatalogID, err := uuid.Parse(ctx.QueryParam("sourceCatalogId"))
 	if err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(errors.New("valid sourceCatalogId is required")))
@@ -356,7 +356,7 @@ func (h *ControlLinkHandler) Delete(ctx echo.Context) error {
 // @Failure		500				{object}	api.Error
 // @Security		OAuth2Password
 // @Router			/control-links/catalog [get]
-func (h *ControlLinkHandler) ListCatalogLinks(ctx echo.Context) error {
+func (h *ControlLinkHandler) ListCatalogLinks(ctx *echo.Context) error {
 	query := h.db.Model(&relational.ControlLink{}).
 		Select("source_catalog_id, target_catalog_id, target_control_id, relationship_type, count(*) AS control_count").
 		Group("source_catalog_id, target_catalog_id, target_control_id, relationship_type").
@@ -396,7 +396,7 @@ func (h *ControlLinkHandler) ListCatalogLinks(ctx echo.Context) error {
 // @Failure		422		{object}	api.Error
 // @Security		OAuth2Password
 // @Router			/control-links/catalog [post]
-func (h *ControlLinkHandler) CreateCatalogLink(ctx echo.Context) error {
+func (h *ControlLinkHandler) CreateCatalogLink(ctx *echo.Context) error {
 	var req catalogLinkRequest
 	if err := ctx.Bind(&req); err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
@@ -429,7 +429,7 @@ func (h *ControlLinkHandler) CreateCatalogLink(ctx echo.Context) error {
 // @Failure		422		{object}	api.Error
 // @Security		OAuth2Password
 // @Router			/control-links/catalog [put]
-func (h *ControlLinkHandler) SyncCatalogLink(ctx echo.Context) error {
+func (h *ControlLinkHandler) SyncCatalogLink(ctx *echo.Context) error {
 	var req catalogLinkRequest
 	if err := ctx.Bind(&req); err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
@@ -481,7 +481,7 @@ func (h *ControlLinkHandler) SyncCatalogLink(ctx echo.Context) error {
 // @Failure		404					{object}	api.Error
 // @Security		OAuth2Password
 // @Router			/control-links/catalog [delete]
-func (h *ControlLinkHandler) DeleteCatalogLink(ctx echo.Context) error {
+func (h *ControlLinkHandler) DeleteCatalogLink(ctx *echo.Context) error {
 	sourceCatalogID, err := uuid.Parse(ctx.QueryParam("sourceCatalogId"))
 	if err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(errors.New("valid sourceCatalogId is required")))
@@ -668,7 +668,7 @@ func (h *ControlLinkHandler) loadEdges() ([]relational.ControlLink, error) {
 
 // actorUserID extracts the authenticated user's primary-key UUID from the JWT
 // claims for CreatedByID attribution; nil when unavailable.
-func actorUserID(ctx echo.Context) *uuid.UUID {
+func actorUserID(ctx *echo.Context) *uuid.UUID {
 	claims, ok := ctx.Get("user").(*authn.UserClaims)
 	if !ok || claims == nil || claims.UserUUID == "" {
 		return nil

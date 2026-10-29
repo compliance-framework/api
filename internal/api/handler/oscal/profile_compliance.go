@@ -14,7 +14,7 @@ import (
 	"github.com/compliance-framework/api/internal/service/leverage"
 	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/google/uuid"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"gorm.io/gorm"
 )
 
@@ -150,7 +150,7 @@ type profileComplianceGroupAccumulator struct {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/profiles/{id}/compliance-progress [get]
-func (h *ProfileHandler) ComplianceProgress(ctx echo.Context) error {
+func (h *ProfileHandler) ComplianceProgress(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {

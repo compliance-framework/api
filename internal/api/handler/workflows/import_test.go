@@ -10,8 +10,8 @@ import (
 	"testing"
 
 	workflowseed "github.com/compliance-framework/api/internal/service/relational/workflows"
-	"github.com/labstack/echo/v4"
-	echomiddleware "github.com/labstack/echo/v4/middleware"
+	"github.com/labstack/echo/v5"
+	echomiddleware "github.com/labstack/echo/v5/middleware"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 )
@@ -75,7 +75,7 @@ func TestWorkflowImportBodyLimitAllowsMaxFilesAtMaxSize(t *testing.T) {
 func TestWorkflowImportPropagatesBodyLimitDuringMultipartParsing(t *testing.T) {
 	e := echo.New()
 	handler := NewWorkflowImportHandler(zap.NewNop().Sugar(), nil)
-	e.POST("/workflows/import", handler.Import, echomiddleware.BodyLimit("1000"))
+	e.POST("/workflows/import", handler.Import, echomiddleware.BodyLimit(1000))
 
 	body, contentType := newMultipartBody(t, 1, bytes.Repeat([]byte("x"), 128*1024))
 	req := httptest.NewRequest(http.MethodPost, "/workflows/import", io.NopCloser(&readerWithoutLen{

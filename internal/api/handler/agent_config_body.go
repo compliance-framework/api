@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/compliance-framework/api/internal/api"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // HTTP header names used by the agent-configuration routes.
@@ -28,7 +28,7 @@ type bodyError struct {
 func (e *bodyError) Error() string { return e.msg }
 
 // respond writes the error as an api.Error body.
-func (e *bodyError) respond(ctx echo.Context) error {
+func (e *bodyError) respond(ctx *echo.Context) error {
 	return ctx.JSON(e.status, api.NewError(errors.New(e.msg)))
 }
 
@@ -36,7 +36,7 @@ func (e *bodyError) respond(ctx echo.Context) error {
 // not use ctx.Bind, because CustomBinder rejects "application/json; charset=utf-8". A missing
 // Content-Type or any application/json media type (with parameters) is accepted; any other
 // type is 415. More than limit bytes is 413. An empty body returns nil.
-func readJSONBody(ctx echo.Context, limit int64) ([]byte, *bodyError) {
+func readJSONBody(ctx *echo.Context, limit int64) ([]byte, *bodyError) {
 	if ct := strings.TrimSpace(ctx.Request().Header.Get(echo.HeaderContentType)); ct != "" {
 		mediaType, _, err := mime.ParseMediaType(ct)
 		if err != nil || !strings.EqualFold(mediaType, echo.MIMEApplicationJSON) {

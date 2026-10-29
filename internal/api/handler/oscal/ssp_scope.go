@@ -12,7 +12,7 @@ import (
 	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/compliance-framework/api/internal/service/relational/sspscope"
 	"github.com/google/uuid"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
@@ -98,7 +98,7 @@ func newSSPScopeExceptionResponse(exception relational.SSPScopeException) sspSco
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/scope [get]
-func (h *SSPScopeHandler) Get(ctx echo.Context) error {
+func (h *SSPScopeHandler) Get(ctx *echo.Context) error {
 	sspID, err := uuid.Parse(ctx.Param("id"))
 	if err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
@@ -122,7 +122,7 @@ func (h *SSPScopeHandler) Get(ctx echo.Context) error {
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/scope [put]
-func (h *SSPScopeHandler) Update(ctx echo.Context) error {
+func (h *SSPScopeHandler) Update(ctx *echo.Context) error {
 	sspID, err := uuid.Parse(ctx.Param("id"))
 	if err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
@@ -157,7 +157,7 @@ func (h *SSPScopeHandler) Update(ctx echo.Context) error {
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/scope/entries [post]
-func (h *SSPScopeHandler) AddEntry(ctx echo.Context) error {
+func (h *SSPScopeHandler) AddEntry(ctx *echo.Context) error {
 	sspID, labels, actor, ok := h.bindLabels(ctx)
 	if !ok {
 		return nil
@@ -186,7 +186,7 @@ func (h *SSPScopeHandler) AddEntry(ctx echo.Context) error {
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/scope/exceptions [post]
-func (h *SSPScopeHandler) AddException(ctx echo.Context) error {
+func (h *SSPScopeHandler) AddException(ctx *echo.Context) error {
 	sspID, labels, actor, ok := h.bindLabels(ctx)
 	if !ok {
 		return nil
@@ -212,7 +212,7 @@ func (h *SSPScopeHandler) AddException(ctx echo.Context) error {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/scope/exceptions/{exceptionId} [delete]
-func (h *SSPScopeHandler) DeleteException(ctx echo.Context) error {
+func (h *SSPScopeHandler) DeleteException(ctx *echo.Context) error {
 	sspID, err := uuid.Parse(ctx.Param("id"))
 	if err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
@@ -227,7 +227,7 @@ func (h *SSPScopeHandler) DeleteException(ctx echo.Context) error {
 	return ctx.NoContent(http.StatusNoContent)
 }
 
-func (h *SSPScopeHandler) respondScope(ctx echo.Context, sspID uuid.UUID) error {
+func (h *SSPScopeHandler) respondScope(ctx *echo.Context, sspID uuid.UUID) error {
 	scope, err := h.scope.Get(sspID)
 	if err != nil {
 		return h.scopeError(ctx, err)
@@ -248,7 +248,7 @@ func (h *SSPScopeHandler) respondScope(ctx echo.Context, sspID uuid.UUID) error 
 
 // bindLabels parses the SSP id, the labels body and the acting user. On failure it has
 // already written the response and returns ok=false.
-func (h *SSPScopeHandler) bindLabels(ctx echo.Context) (uuid.UUID, []relational.ScopeLabel, *uuid.UUID, bool) {
+func (h *SSPScopeHandler) bindLabels(ctx *echo.Context) (uuid.UUID, []relational.ScopeLabel, *uuid.UUID, bool) {
 	sspID, err := uuid.Parse(ctx.Param("id"))
 	if err != nil {
 		_ = ctx.JSON(http.StatusBadRequest, api.NewError(err))
@@ -269,7 +269,7 @@ func (h *SSPScopeHandler) bindLabels(ctx echo.Context) (uuid.UUID, []relational.
 }
 
 // actor returns the id of the calling user, or nil when the caller is not a known user.
-func (h *SSPScopeHandler) actor(ctx echo.Context) (*uuid.UUID, error) {
+func (h *SSPScopeHandler) actor(ctx *echo.Context) (*uuid.UUID, error) {
 	claims, ok := ctx.Get("user").(*authn.UserClaims)
 	if !ok || claims == nil {
 		return nil, nil
@@ -284,7 +284,7 @@ func (h *SSPScopeHandler) actor(ctx echo.Context) (*uuid.UUID, error) {
 	return users[0].ID, nil
 }
 
-func (h *SSPScopeHandler) scopeError(ctx echo.Context, err error) error {
+func (h *SSPScopeHandler) scopeError(ctx *echo.Context, err error) error {
 	switch {
 	case errors.Is(err, sspscope.ErrSSPNotFound), errors.Is(err, sspscope.ErrExceptionNotFound):
 		return ctx.JSON(http.StatusNotFound, api.NewError(err))

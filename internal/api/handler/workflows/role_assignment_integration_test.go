@@ -12,7 +12,7 @@ import (
 	"github.com/compliance-framework/api/internal/api/middleware"
 	"github.com/compliance-framework/api/internal/service/relational/workflows"
 	"github.com/google/uuid"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -177,8 +177,7 @@ func TestRoleAssignmentHandler_Get(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/workflows/role-assignments/"+assignment.ID.String(), nil)
 		rec := httptest.NewRecorder()
 		c := e.NewContext(req, rec)
-		c.SetParamNames("id")
-		c.SetParamValues(assignment.ID.String())
+		c.SetPathValues(echo.PathValues{{Name: "id", Value: assignment.ID.String()}})
 
 		err := handler.Get(c)
 		require.NoError(t, err)
@@ -195,8 +194,7 @@ func TestRoleAssignmentHandler_Get(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/workflows/role-assignments/"+nonExistentID.String(), nil)
 		rec := httptest.NewRecorder()
 		c := e.NewContext(req, rec)
-		c.SetParamNames("id")
-		c.SetParamValues(nonExistentID.String())
+		c.SetPathValues(echo.PathValues{{Name: "id", Value: nonExistentID.String()}})
 
 		err := handler.Get(c)
 		require.NoError(t, err)
@@ -242,8 +240,7 @@ func TestRoleAssignmentHandler_Update(t *testing.T) {
 		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 		rec := httptest.NewRecorder()
 		c := e.NewContext(req, rec)
-		c.SetParamNames("id")
-		c.SetParamValues(assignment.ID.String())
+		c.SetPathValues(echo.PathValues{{Name: "id", Value: assignment.ID.String()}})
 
 		err = handler.Update(c)
 		require.NoError(t, err)
@@ -286,8 +283,7 @@ func TestRoleAssignmentHandler_Delete(t *testing.T) {
 		req := httptest.NewRequest(http.MethodDelete, "/workflows/role-assignments/"+assignment.ID.String(), nil)
 		rec := httptest.NewRecorder()
 		c := e.NewContext(req, rec)
-		c.SetParamNames("id")
-		c.SetParamValues(assignment.ID.String())
+		c.SetPathValues(echo.PathValues{{Name: "id", Value: assignment.ID.String()}})
 
 		err := handler.Delete(c)
 		require.NoError(t, err)
@@ -326,8 +322,7 @@ func TestRoleAssignmentHandler_Activate(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPut, "/workflows/role-assignments/"+assignment.ID.String()+"/activate", nil)
 		rec := httptest.NewRecorder()
 		c := e.NewContext(req, rec)
-		c.SetParamNames("id")
-		c.SetParamValues(assignment.ID.String())
+		c.SetPathValues(echo.PathValues{{Name: "id", Value: assignment.ID.String()}})
 
 		err := handler.Activate(c)
 		require.NoError(t, err)
@@ -371,8 +366,7 @@ func TestRoleAssignmentHandler_Deactivate(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPut, "/workflows/role-assignments/"+assignment.ID.String()+"/deactivate", nil)
 		rec := httptest.NewRecorder()
 		c := e.NewContext(req, rec)
-		c.SetParamNames("id")
-		c.SetParamValues(assignment.ID.String())
+		c.SetPathValues(echo.PathValues{{Name: "id", Value: assignment.ID.String()}})
 
 		err := handler.Deactivate(c)
 		require.NoError(t, err)

@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 	"gorm.io/datatypes"
@@ -32,8 +32,9 @@ func registeredSSPRoutes(t *testing.T) []string {
 	NewSystemSecurityPlanHandler(zap.NewNop().Sugar(), nil, nil, nil).
 		Register(e.Group("/api/oscal/system-security-plans"), pep.For(authz.ResourceSSP))
 
-	routes := make([]string, 0, len(e.Routes()))
-	for _, route := range e.Routes() {
+	registered := e.Router().Routes()
+	routes := make([]string, 0, len(registered))
+	for _, route := range registered {
 		routes = append(routes, route.Method+" "+route.Path)
 	}
 	return routes

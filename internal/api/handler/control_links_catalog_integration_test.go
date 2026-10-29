@@ -13,7 +13,7 @@ import (
 	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/compliance-framework/api/internal/tests"
 	"github.com/google/uuid"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/zap"
 )
@@ -33,7 +33,7 @@ func (suite *CatalogControlLinksSuite) handler() *ControlLinkHandler {
 // call invokes a handler method with an optional JSON body and raw query string,
 // returning the recorder. Mirrors the direct-handler style used by the lineage
 // integration tests (no auth middleware; actorUserID tolerates absent claims).
-func (suite *CatalogControlLinksSuite) call(method, query string, body any, fn func(echo.Context) error) *httptest.ResponseRecorder {
+func (suite *CatalogControlLinksSuite) call(method, query string, body any, fn func(*echo.Context) error) *httptest.ResponseRecorder {
 	var reader *bytes.Reader
 	if body != nil {
 		raw, err := json.Marshal(body)

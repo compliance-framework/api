@@ -15,7 +15,7 @@ import (
 	"github.com/compliance-framework/api/internal/service/relational/workflows"
 	"github.com/compliance-framework/api/internal/workflow"
 	"github.com/google/uuid"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
@@ -116,7 +116,7 @@ type MyAssignmentsResponse struct {
 //	@Failure		500						{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/workflows/step-executions/my [get]
-func (h *StepExecutionHandler) ListMy(ctx echo.Context) error {
+func (h *StepExecutionHandler) ListMy(ctx *echo.Context) error {
 	// Get user from JWT claims
 	userClaims, ok := ctx.Get("user").(*authn.UserClaims)
 	if !ok || userClaims == nil {
@@ -219,7 +219,7 @@ func (h *StepExecutionHandler) ListMy(ctx echo.Context) error {
 //	@Failure		500						{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/workflows/step-executions [get]
-func (h *StepExecutionHandler) List(ctx echo.Context) error {
+func (h *StepExecutionHandler) List(ctx *echo.Context) error {
 	workflowExecIDStr := ctx.QueryParam("workflow_execution_id")
 	if workflowExecIDStr == "" {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(echo.NewHTTPError(http.StatusBadRequest, "workflow_execution_id is required")))
@@ -252,7 +252,7 @@ func (h *StepExecutionHandler) List(ctx echo.Context) error {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/workflows/step-executions/{id} [get]
-func (h *StepExecutionHandler) Get(ctx echo.Context) error {
+func (h *StepExecutionHandler) Get(ctx *echo.Context) error {
 	id, err := h.ParseUUID(ctx, "id", "step execution")
 	if err != nil {
 		return HandleError(err)
@@ -283,7 +283,7 @@ func (h *StepExecutionHandler) Get(ctx echo.Context) error {
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/workflows/step-executions/{id}/transition [put]
-func (h *StepExecutionHandler) TransitionStep(ctx echo.Context) error {
+func (h *StepExecutionHandler) TransitionStep(ctx *echo.Context) error {
 	id, err := h.ParseUUID(ctx, "id", "step execution")
 	if err != nil {
 		return HandleError(err)
@@ -363,7 +363,7 @@ func (h *StepExecutionHandler) TransitionStep(ctx echo.Context) error {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/workflows/step-executions/{id}/evidence-requirements [get]
-func (h *StepExecutionHandler) GetEvidenceRequirements(ctx echo.Context) error {
+func (h *StepExecutionHandler) GetEvidenceRequirements(ctx *echo.Context) error {
 	id, err := h.ParseUUID(ctx, "id", "step execution")
 	if err != nil {
 		return HandleError(err)
@@ -394,7 +394,7 @@ func (h *StepExecutionHandler) GetEvidenceRequirements(ctx echo.Context) error {
 //	@Failure		500			{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/workflows/step-executions/{id}/can-transition [get]
-func (h *StepExecutionHandler) CanTransition(ctx echo.Context) error {
+func (h *StepExecutionHandler) CanTransition(ctx *echo.Context) error {
 	id, err := h.ParseUUID(ctx, "id", "step execution")
 	if err != nil {
 		return HandleError(err)
@@ -437,7 +437,7 @@ func (h *StepExecutionHandler) CanTransition(ctx echo.Context) error {
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/workflows/step-executions/{id}/fail [put]
-func (h *StepExecutionHandler) Fail(ctx echo.Context) error {
+func (h *StepExecutionHandler) Fail(ctx *echo.Context) error {
 	id, err := h.ParseUUID(ctx, "id", "step execution")
 	if err != nil {
 		return HandleError(err)
@@ -477,7 +477,7 @@ func (h *StepExecutionHandler) Fail(ctx echo.Context) error {
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/workflows/step-executions/{id}/reassign [put]
-func (h *StepExecutionHandler) Reassign(ctx echo.Context) error {
+func (h *StepExecutionHandler) Reassign(ctx *echo.Context) error {
 	id, err := h.ParseUUID(ctx, "id", "step execution")
 	if err != nil {
 		return HandleError(err)

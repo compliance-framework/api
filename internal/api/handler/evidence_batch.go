@@ -19,14 +19,14 @@ import (
 	evidencesvc "github.com/compliance-framework/api/internal/service/relational/evidence"
 	"github.com/compliance-framework/api/internal/service/worker"
 	"github.com/google/uuid"
-	"github.com/labstack/echo/v4"
-	echomiddleware "github.com/labstack/echo/v4/middleware"
+	"github.com/labstack/echo/v5"
+	echomiddleware "github.com/labstack/echo/v5/middleware"
 	"gorm.io/gorm"
 )
 
 const (
 	// evidenceBatchBodyLimit bounds a batch request body.
-	evidenceBatchBodyLimit = "64M"
+	evidenceBatchBodyLimit = 64 * echomiddleware.MB
 	// evidenceBatchRouteName names GET /evidence/batches/:id, the Location of a new batch.
 	evidenceBatchRouteName = "evidence-batch"
 )
@@ -99,7 +99,7 @@ func (h *EvidenceHandler) WithBatchService(service *evidencesvc.BatchService, ma
 // canInspectBatches reports whether the caller holds evidence:inspect, evaluated against
 // the PDP like a route guard. It fails closed: no PDP, an unavailable PDP or an evaluation
 // error all count as no.
-func (h *EvidenceHandler) canInspectBatches(ctx echo.Context) bool {
+func (h *EvidenceHandler) canInspectBatches(ctx *echo.Context) bool {
 	if h.batchPDP == nil {
 		return false
 	}
@@ -118,7 +118,15 @@ func (h *EvidenceHandler) canInspectBatches(ctx echo.Context) bool {
 func (h *EvidenceHandler) RegisterBatchRoutes(api *echo.Group, middlewares ...echo.MiddlewareFunc) {
 	createMiddlewares := append([]echo.MiddlewareFunc{echomiddleware.BodyLimit(evidenceBatchBodyLimit)}, middlewares...)
 	api.POST("", h.CreateBatch, createMiddlewares...)
-	api.GET("/:id", h.GetBatch, middlewares...).Name = evidenceBatchRouteName
+	if _, err := api.AddRoute(echo.Route{
+		Method:      http.MethodGet,
+		Path:        "/:id",
+		Name:        evidenceBatchRouteName,
+		Handler:     h.GetBatch,
+		Middlewares: middlewares,
+	}); err != nil {
+		panic(err) // as echo's GET does: a route that can't be registered is a programming error
+	}
 }
 
 // CreateBatch godoc
@@ -137,7 +145,7 @@ func (h *EvidenceHandler) RegisterBatchRoutes(api *echo.Group, middlewares ...ec
 //	@Failure		503		{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/evidence/batches [post]
-func (h *EvidenceHandler) CreateBatch(ctx echo.Context) error {
+func (h *EvidenceHandler) CreateBatch(ctx *echo.Context) error {
 	if h.batchService == nil {
 		return ctx.JSON(http.StatusServiceUnavailable, api.NewError(errors.New("evidence batches are not available")))
 	}
@@ -169,14 +177,16 @@ func (h *EvidenceHandler) CreateBatch(ctx echo.Context) error {
 		return ctx.JSON(http.StatusInternalServerError, api.InternalServerError())
 	}
 
-	ctx.Response().Header().Set(echo.HeaderLocation, ctx.Echo().Reverse(evidenceBatchRouteName, summary.ID.String()))
+	if location, err := ctx.Echo().Router().Routes().Reverse(evidenceBatchRouteName, summary.ID.String()); err == nil {
+		ctx.Response().Header().Set(echo.HeaderLocation, location)
+	}
 	return ctx.JSON(http.StatusAccepted, GenericDataResponse[EvidenceBatchResponse]{Data: newEvidenceBatchResponse(summary)})
 }
 
 // checkBatchItems checks what can be checked without the database: each item decodes,
 // validates, sets no reserved prop and doesn't start or end in the future. Problems are
 // keyed by the item's position, "evidence[i]".
-func (h *EvidenceHandler) checkBatchItems(ctx echo.Context, items []json.RawMessage, now time.Time) api.Error {
+func (h *EvidenceHandler) checkBatchItems(ctx *echo.Context, items []json.RawMessage, now time.Time) api.Error {
 	invalid := api.Error{Errors: map[string]any{}}
 	for i, raw := range items {
 		key := fmt.Sprintf("evidence[%d]", i)
@@ -253,7 +263,7 @@ func (h *EvidenceHandler) storeBatchItem(ctx context.Context, payload json.RawMe
 //	@Failure		503	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/evidence/batches/{id} [get]
-func (h *EvidenceHandler) GetBatch(ctx echo.Context) error {
+func (h *EvidenceHandler) GetBatch(ctx *echo.Context) error {
 	if h.batchService == nil {
 		return ctx.JSON(http.StatusServiceUnavailable, api.NewError(errors.New("evidence batches are not available")))
 	}

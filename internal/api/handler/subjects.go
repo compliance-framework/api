@@ -9,7 +9,7 @@ import (
 	svc "github.com/compliance-framework/api/internal/service"
 	"github.com/compliance-framework/api/internal/service/relational/subjects"
 	"github.com/google/uuid"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
@@ -50,7 +50,7 @@ func (h *SubjectHandler) Register(api *echo.Group, middlewares ...echo.Middlewar
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/subjects [get]
-func (h *SubjectHandler) List(ctx echo.Context) error {
+func (h *SubjectHandler) List(ctx *echo.Context) error {
 	pagination, err := h.pagination.ParseParams(ctx)
 	if err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))

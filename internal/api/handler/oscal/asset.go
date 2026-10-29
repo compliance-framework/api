@@ -5,7 +5,7 @@ import (
 	"net/http"
 
 	"github.com/google/uuid"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 
 	"github.com/compliance-framework/api/internal/api"
 	"github.com/compliance-framework/api/internal/api/handler"
@@ -35,7 +35,7 @@ func (h *AssessmentPlanHandler) validateAssessmentAssetInput(asset *oscalTypes_1
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/assessment-plans/{id}/assessment-assets [get]
-func (h *AssessmentPlanHandler) GetAssessmentAssets(ctx echo.Context) error {
+func (h *AssessmentPlanHandler) GetAssessmentAssets(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -77,7 +77,7 @@ func (h *AssessmentPlanHandler) GetAssessmentAssets(ctx echo.Context) error {
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/assessment-plans/{id}/assessment-assets [post]
-func (h *AssessmentPlanHandler) CreateAssessmentAsset(ctx echo.Context) error {
+func (h *AssessmentPlanHandler) CreateAssessmentAsset(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -140,7 +140,7 @@ func (h *AssessmentPlanHandler) CreateAssessmentAsset(ctx echo.Context) error {
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/assessment-plans/{id}/assessment-assets/{assetId} [put]
-func (h *AssessmentPlanHandler) UpdateAssessmentAsset(ctx echo.Context) error {
+func (h *AssessmentPlanHandler) UpdateAssessmentAsset(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -215,7 +215,7 @@ func (h *AssessmentPlanHandler) UpdateAssessmentAsset(ctx echo.Context) error {
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/assessment-plans/{id}/assessment-assets/{assetId} [delete]
-func (h *AssessmentPlanHandler) DeleteAssessmentAsset(ctx echo.Context) error {
+func (h *AssessmentPlanHandler) DeleteAssessmentAsset(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {

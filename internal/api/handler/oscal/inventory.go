@@ -10,7 +10,7 @@ import (
 	"github.com/compliance-framework/api/internal/service/relational"
 	oscalTypes_1_1_3 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
 	"github.com/google/uuid"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
@@ -101,7 +101,7 @@ type GetAllInventoryItemsRequest struct {
 //	@Failure		500					{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/inventory [get]
-func (h *InventoryHandler) GetAllInventoryItems(ctx echo.Context) error {
+func (h *InventoryHandler) GetAllInventoryItems(ctx *echo.Context) error {
 	// Get query parameters directly
 	req := GetAllInventoryItemsRequest{
 		IncludeSSP:      ctx.QueryParam("include_ssp"),
@@ -382,7 +382,7 @@ func (h *InventoryHandler) applyFilters(items []InventoryItemWithSource, req Get
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/inventory/{id} [get]
-func (h *InventoryHandler) GetInventoryItem(ctx echo.Context) error {
+func (h *InventoryHandler) GetInventoryItem(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -441,7 +441,7 @@ func (h *InventoryHandler) GetInventoryItem(ctx echo.Context) error {
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/inventory [post]
-func (h *InventoryHandler) CreateInventoryItem(ctx echo.Context) error {
+func (h *InventoryHandler) CreateInventoryItem(ctx *echo.Context) error {
 	var req CreateInventoryItemRequest
 	if err := ctx.Bind(&req); err != nil {
 		h.sugar.Warnw("Invalid create inventory item request", "error", err)

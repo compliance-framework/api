@@ -8,7 +8,7 @@ import (
 
 	"github.com/compliance-framework/api/internal/authn"
 	"github.com/compliance-framework/api/internal/authz"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // fakePDP returns a programmed decision/error and records the last subject it saw.
@@ -35,7 +35,7 @@ func (f *fakePDP) Evaluations(_ context.Context, reqs []authz.EvalRequest) ([]au
 	return out, f.err
 }
 
-func runAuthorize(t *testing.T, pdp authz.PDP, failMode authz.FailMode, setup func(c echo.Context)) (int, bool) {
+func runAuthorize(t *testing.T, pdp authz.PDP, failMode authz.FailMode, setup func(c *echo.Context)) (int, bool) {
 	t.Helper()
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodPost, "/evidence", http.NoBody)
@@ -46,7 +46,7 @@ func runAuthorize(t *testing.T, pdp authz.PDP, failMode authz.FailMode, setup fu
 	}
 
 	called := false
-	next := func(c echo.Context) error {
+	next := func(c *echo.Context) error {
 		called = true
 		return c.NoContent(http.StatusOK)
 	}
@@ -54,7 +54,7 @@ func runAuthorize(t *testing.T, pdp authz.PDP, failMode authz.FailMode, setup fu
 	pep := NewPEP(pdp, failMode, nil)
 	h := pep.Authorize(authz.ResourceEvidence, authz.ActionCreate)(next)
 	if err := h(c); err != nil {
-		e.HTTPErrorHandler(err, c)
+		e.HTTPErrorHandler(c, err)
 	}
 	return rec.Code, called
 }
@@ -112,7 +112,7 @@ func TestPEPInternalErrorIs500(t *testing.T) {
 func TestPEPBuildsSubjectFromContext(t *testing.T) {
 	t.Run("user", func(t *testing.T) {
 		pdp := &fakePDP{decision: authz.Decision{Allow: true}}
-		runAuthorize(t, pdp, authz.FailClosed, func(c echo.Context) {
+		runAuthorize(t, pdp, authz.FailClosed, func(c *echo.Context) {
 			c.Set("user", &authn.UserClaims{GivenName: "Al", FamilyName: "Ice"})
 		})
 		if pdp.lastSub.Type != "user" {
@@ -122,7 +122,7 @@ func TestPEPBuildsSubjectFromContext(t *testing.T) {
 
 	t.Run("agent", func(t *testing.T) {
 		pdp := &fakePDP{decision: authz.Decision{Allow: true}}
-		runAuthorize(t, pdp, authz.FailClosed, func(c echo.Context) {
+		runAuthorize(t, pdp, authz.FailClosed, func(c *echo.Context) {
 			c.Set("agent_claims", &authn.AgentClaims{AgentID: "agent-7"})
 		})
 		if pdp.lastSub.Type != "agent" {

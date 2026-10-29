@@ -8,7 +8,7 @@ import (
 	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/compliance-framework/api/internal/service/relational/workflows"
 	"github.com/google/uuid"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
@@ -75,7 +75,7 @@ type ControlRelationshipListResponse struct {
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/workflows/control-relationships [post]
-func (h *ControlRelationshipHandler) Create(ctx echo.Context) error {
+func (h *ControlRelationshipHandler) Create(ctx *echo.Context) error {
 	var req CreateControlRelationshipRequest
 	if err := h.BindAndValidate(ctx, &req); err != nil {
 		return HandleError(err)
@@ -141,7 +141,7 @@ func (h *ControlRelationshipHandler) Create(ctx echo.Context) error {
 //	@Failure		500						{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/workflows/control-relationships [get]
-func (h *ControlRelationshipHandler) List(ctx echo.Context) error {
+func (h *ControlRelationshipHandler) List(ctx *echo.Context) error {
 	workflowDefIDStr := ctx.QueryParam("workflow_definition_id")
 	controlID := ctx.QueryParam("control_id")
 
@@ -182,7 +182,7 @@ func (h *ControlRelationshipHandler) List(ctx echo.Context) error {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/workflows/control-relationships/{id} [get]
-func (h *ControlRelationshipHandler) Get(ctx echo.Context) error {
+func (h *ControlRelationshipHandler) Get(ctx *echo.Context) error {
 	id, err := h.ParseUUID(ctx, "id", "control relationship")
 	if err != nil {
 		return HandleError(err)
@@ -212,7 +212,7 @@ func (h *ControlRelationshipHandler) Get(ctx echo.Context) error {
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/workflows/control-relationships/{id} [put]
-func (h *ControlRelationshipHandler) Update(ctx echo.Context) error {
+func (h *ControlRelationshipHandler) Update(ctx *echo.Context) error {
 	id, err := h.ParseUUID(ctx, "id", "control relationship")
 	if err != nil {
 		return HandleError(err)
@@ -269,7 +269,7 @@ func (h *ControlRelationshipHandler) Update(ctx echo.Context) error {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/workflows/control-relationships/{id} [delete]
-func (h *ControlRelationshipHandler) Delete(ctx echo.Context) error {
+func (h *ControlRelationshipHandler) Delete(ctx *echo.Context) error {
 	id, err := h.ParseUUID(ctx, "id", "control relationship")
 	if err != nil {
 		return HandleError(err)
@@ -308,7 +308,7 @@ func (h *ControlRelationshipHandler) Delete(ctx echo.Context) error {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/workflows/control-relationships/{id}/activate [put]
-func (h *ControlRelationshipHandler) Activate(ctx echo.Context) error {
+func (h *ControlRelationshipHandler) Activate(ctx *echo.Context) error {
 	id, err := h.ParseUUID(ctx, "id", "control relationship")
 	if err != nil {
 		return HandleError(err)
@@ -352,7 +352,7 @@ func (h *ControlRelationshipHandler) Activate(ctx echo.Context) error {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/workflows/control-relationships/{id}/deactivate [put]
-func (h *ControlRelationshipHandler) Deactivate(ctx echo.Context) error {
+func (h *ControlRelationshipHandler) Deactivate(ctx *echo.Context) error {
 	id, err := h.ParseUUID(ctx, "id", "control relationship")
 	if err != nil {
 		return HandleError(err)

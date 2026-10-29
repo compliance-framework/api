@@ -26,7 +26,7 @@ import (
 	"github.com/compliance-framework/api/internal/service/relational/sspservice"
 	oscalTypes_1_1_3 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"go.uber.org/zap"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
@@ -551,7 +551,7 @@ func (h *SystemSecurityPlanHandler) Register(api *echo.Group, guard middleware.R
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans [get]
-func (h *SystemSecurityPlanHandler) List(ctx echo.Context) error {
+func (h *SystemSecurityPlanHandler) List(ctx *echo.Context) error {
 	var ssps []relational.SystemSecurityPlan
 
 	if err := h.db.
@@ -584,7 +584,7 @@ func (h *SystemSecurityPlanHandler) List(ctx echo.Context) error {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id} [get]
-func (h *SystemSecurityPlanHandler) Get(ctx echo.Context) error {
+func (h *SystemSecurityPlanHandler) Get(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -622,7 +622,7 @@ func (h *SystemSecurityPlanHandler) Get(ctx echo.Context) error {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans [post]
-func (h *SystemSecurityPlanHandler) Create(ctx echo.Context) error {
+func (h *SystemSecurityPlanHandler) Create(ctx *echo.Context) error {
 	var oscalSSP oscalTypes_1_1_3.SystemSecurityPlan
 	if err := ctx.Bind(&oscalSSP); err != nil {
 		h.sugar.Warnw("Invalid create SSP request", "error", err)
@@ -658,7 +658,7 @@ func (h *SystemSecurityPlanHandler) Create(ctx echo.Context) error {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/system-characteristics [get]
-func (h *SystemSecurityPlanHandler) GetCharacteristics(ctx echo.Context) error {
+func (h *SystemSecurityPlanHandler) GetCharacteristics(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -694,7 +694,7 @@ func (h *SystemSecurityPlanHandler) GetCharacteristics(ctx echo.Context) error {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/system-characteristics/network-architecture [get]
-func (h *SystemSecurityPlanHandler) GetCharacteristicsNetworkArchitecture(ctx echo.Context) error {
+func (h *SystemSecurityPlanHandler) GetCharacteristicsNetworkArchitecture(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -735,7 +735,7 @@ func (h *SystemSecurityPlanHandler) GetCharacteristicsNetworkArchitecture(ctx ec
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/system-characteristics/network-architecture/diagrams [post]
-func (h *SystemSecurityPlanHandler) CreateCharacteristicsNetworkArchitectureDiagram(ctx echo.Context) error {
+func (h *SystemSecurityPlanHandler) CreateCharacteristicsNetworkArchitectureDiagram(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	sspID, err := uuid.Parse(idParam)
 	if err != nil {
@@ -815,7 +815,7 @@ func (h *SystemSecurityPlanHandler) CreateCharacteristicsNetworkArchitectureDiag
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/system-characteristics/network-architecture/diagrams/{diagram} [put]
-func (h *SystemSecurityPlanHandler) UpdateCharacteristicsNetworkArchitectureDiagram(ctx echo.Context) error {
+func (h *SystemSecurityPlanHandler) UpdateCharacteristicsNetworkArchitectureDiagram(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	planID, err := uuid.Parse(idParam)
 	if err != nil {
@@ -887,7 +887,7 @@ func (h *SystemSecurityPlanHandler) UpdateCharacteristicsNetworkArchitectureDiag
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/system-characteristics/network-architecture/diagrams/{diagram} [delete]
-func (h *SystemSecurityPlanHandler) DeleteCharacteristicsNetworkArchitectureDiagram(ctx echo.Context) error {
+func (h *SystemSecurityPlanHandler) DeleteCharacteristicsNetworkArchitectureDiagram(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	planID, err := uuid.Parse(idParam)
 	if err != nil {
@@ -939,7 +939,7 @@ func (h *SystemSecurityPlanHandler) DeleteCharacteristicsNetworkArchitectureDiag
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/system-characteristics/data-flow [get]
-func (h *SystemSecurityPlanHandler) GetCharacteristicsDataFlow(ctx echo.Context) error {
+func (h *SystemSecurityPlanHandler) GetCharacteristicsDataFlow(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -980,7 +980,7 @@ func (h *SystemSecurityPlanHandler) GetCharacteristicsDataFlow(ctx echo.Context)
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/system-characteristics/data-flow/diagrams [post]
-func (h *SystemSecurityPlanHandler) CreateCharacteristicsDataFlowDiagram(ctx echo.Context) error {
+func (h *SystemSecurityPlanHandler) CreateCharacteristicsDataFlowDiagram(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	sspID, err := uuid.Parse(idParam)
 	if err != nil {
@@ -1056,7 +1056,7 @@ func (h *SystemSecurityPlanHandler) CreateCharacteristicsDataFlowDiagram(ctx ech
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/system-characteristics/data-flow/diagrams/{diagram} [put]
-func (h *SystemSecurityPlanHandler) UpdateCharacteristicsDataFlowDiagram(ctx echo.Context) error {
+func (h *SystemSecurityPlanHandler) UpdateCharacteristicsDataFlowDiagram(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	planID, err := uuid.Parse(idParam)
 	if err != nil {
@@ -1128,7 +1128,7 @@ func (h *SystemSecurityPlanHandler) UpdateCharacteristicsDataFlowDiagram(ctx ech
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/system-characteristics/data-flow/diagrams/{diagram} [delete]
-func (h *SystemSecurityPlanHandler) DeleteCharacteristicsDataFlowDiagram(ctx echo.Context) error {
+func (h *SystemSecurityPlanHandler) DeleteCharacteristicsDataFlowDiagram(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	planID, err := uuid.Parse(idParam)
 	if err != nil {
@@ -1180,7 +1180,7 @@ func (h *SystemSecurityPlanHandler) DeleteCharacteristicsDataFlowDiagram(ctx ech
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/system-characteristics/authorization-boundary [get]
-func (h *SystemSecurityPlanHandler) GetCharacteristicsAuthorizationBoundary(ctx echo.Context) error {
+func (h *SystemSecurityPlanHandler) GetCharacteristicsAuthorizationBoundary(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -1221,7 +1221,7 @@ func (h *SystemSecurityPlanHandler) GetCharacteristicsAuthorizationBoundary(ctx 
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/system-characteristics/authorization-boundary/diagrams [post]
-func (h *SystemSecurityPlanHandler) CreateCharacteristicsAuthorizationBoundaryDiagram(ctx echo.Context) error {
+func (h *SystemSecurityPlanHandler) CreateCharacteristicsAuthorizationBoundaryDiagram(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	sspID, err := uuid.Parse(idParam)
 	if err != nil {
@@ -1297,7 +1297,7 @@ func (h *SystemSecurityPlanHandler) CreateCharacteristicsAuthorizationBoundaryDi
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/system-characteristics/authorization-boundary/diagrams/{diagram} [put]
-func (h *SystemSecurityPlanHandler) UpdateCharacteristicsAuthorizationBoundaryDiagram(ctx echo.Context) error {
+func (h *SystemSecurityPlanHandler) UpdateCharacteristicsAuthorizationBoundaryDiagram(ctx *echo.Context) error {
 
 	// This is ugly for now, but it's safe and it works.
 	idParam := ctx.Param("id")
@@ -1373,7 +1373,7 @@ func (h *SystemSecurityPlanHandler) UpdateCharacteristicsAuthorizationBoundaryDi
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/system-characteristics/authorization-boundary/diagrams/{diagram} [delete]
-func (h *SystemSecurityPlanHandler) DeleteCharacteristicsAuthorizationBoundaryDiagram(ctx echo.Context) error {
+func (h *SystemSecurityPlanHandler) DeleteCharacteristicsAuthorizationBoundaryDiagram(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	planID, err := uuid.Parse(idParam)
 	if err != nil {
@@ -1427,7 +1427,7 @@ func (h *SystemSecurityPlanHandler) DeleteCharacteristicsAuthorizationBoundaryDi
 //	@Failure		500				{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/system-characteristics [put]
-func (h *SystemSecurityPlanHandler) UpdateCharacteristics(ctx echo.Context) error {
+func (h *SystemSecurityPlanHandler) UpdateCharacteristics(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -1479,7 +1479,7 @@ func (h *SystemSecurityPlanHandler) UpdateCharacteristics(ctx echo.Context) erro
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/system-implementation [get]
-func (h *SystemSecurityPlanHandler) GetSystemImplementation(ctx echo.Context) error {
+func (h *SystemSecurityPlanHandler) GetSystemImplementation(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -1532,7 +1532,7 @@ func (h *SystemSecurityPlanHandler) GetSystemImplementation(ctx echo.Context) er
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/system-implementation/users [get]
-func (h *SystemSecurityPlanHandler) GetSystemImplementationUsers(ctx echo.Context) error {
+func (h *SystemSecurityPlanHandler) GetSystemImplementationUsers(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -1570,7 +1570,7 @@ func (h *SystemSecurityPlanHandler) GetSystemImplementationUsers(ctx echo.Contex
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/system-implementation/components [get]
-func (h *SystemSecurityPlanHandler) GetSystemImplementationComponents(ctx echo.Context) error {
+func (h *SystemSecurityPlanHandler) GetSystemImplementationComponents(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -1608,7 +1608,7 @@ func (h *SystemSecurityPlanHandler) GetSystemImplementationComponents(ctx echo.C
 //	@Failure		500			{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/system-implementation/components/{componentId} [get]
-func (h *SystemSecurityPlanHandler) GetSystemImplementationComponent(ctx echo.Context) error {
+func (h *SystemSecurityPlanHandler) GetSystemImplementationComponent(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -1651,7 +1651,7 @@ func (h *SystemSecurityPlanHandler) GetSystemImplementationComponent(ctx echo.Co
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/system-implementation/inventory-items [get]
-func (h *SystemSecurityPlanHandler) GetSystemImplementationInventoryItems(ctx echo.Context) error {
+func (h *SystemSecurityPlanHandler) GetSystemImplementationInventoryItems(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -1694,7 +1694,7 @@ func (h *SystemSecurityPlanHandler) GetSystemImplementationInventoryItems(ctx ec
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/system-implementation/leveraged-authorizations [get]
-func (h *SystemSecurityPlanHandler) GetSystemImplementationLeveragedAuthorizations(ctx echo.Context) error {
+func (h *SystemSecurityPlanHandler) GetSystemImplementationLeveragedAuthorizations(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -1736,7 +1736,7 @@ func (h *SystemSecurityPlanHandler) GetSystemImplementationLeveragedAuthorizatio
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/control-implementation [get]
-func (h *SystemSecurityPlanHandler) GetControlImplementation(ctx echo.Context) error {
+func (h *SystemSecurityPlanHandler) GetControlImplementation(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -1793,7 +1793,7 @@ func (h *SystemSecurityPlanHandler) GetControlImplementation(ctx echo.Context) e
 	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[oscalTypes_1_1_3.ControlImplementation]{Data: ssp.MarshalOscal().ControlImplementation})
 }
 
-func (h *SystemSecurityPlanHandler) Full(ctx echo.Context) error {
+func (h *SystemSecurityPlanHandler) Full(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -1923,7 +1923,7 @@ func (h *SystemSecurityPlanHandler) Full(ctx echo.Context) error {
 //	@Failure		404	{object}	api.Error
 //	@Failure		500	{object}	api.Error
 //	@Router			/oscal/system-security-plans/{id} [put]
-func (h *SystemSecurityPlanHandler) Update(ctx echo.Context) error {
+func (h *SystemSecurityPlanHandler) Update(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -1977,7 +1977,7 @@ func (h *SystemSecurityPlanHandler) Update(ctx echo.Context) error {
 //	@Failure		404	{object}	api.Error
 //	@Failure		500	{object}	api.Error
 //	@Router			/oscal/system-security-plans/{id} [delete]
-func (h *SystemSecurityPlanHandler) Delete(ctx echo.Context) error {
+func (h *SystemSecurityPlanHandler) Delete(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -2014,7 +2014,7 @@ func (h *SystemSecurityPlanHandler) Delete(ctx echo.Context) error {
 //	@Failure		404	{object}	api.Error
 //	@Failure		500	{object}	api.Error
 //	@Router			/oscal/system-security-plans/{id}/metadata [get]
-func (h *SystemSecurityPlanHandler) GetMetadata(ctx echo.Context) error {
+func (h *SystemSecurityPlanHandler) GetMetadata(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -2050,7 +2050,7 @@ func (h *SystemSecurityPlanHandler) GetMetadata(ctx echo.Context) error {
 //	@Failure		404			{object}	api.Error
 //	@Failure		500			{object}	api.Error
 //	@Router			/oscal/system-security-plans/{id}/metadata [put]
-func (h *SystemSecurityPlanHandler) UpdateMetadata(ctx echo.Context) error {
+func (h *SystemSecurityPlanHandler) UpdateMetadata(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -2106,7 +2106,7 @@ func (h *SystemSecurityPlanHandler) UpdateMetadata(ctx echo.Context) error {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/profile [get]
-func (h *SystemSecurityPlanHandler) GetProfile(ctx echo.Context) error {
+func (h *SystemSecurityPlanHandler) GetProfile(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	sspID, err := uuid.Parse(idParam)
 	if err != nil {
@@ -2153,7 +2153,7 @@ func (h *SystemSecurityPlanHandler) GetProfile(ctx echo.Context) error {
 //	@Failure		404		{object}	api.Error
 //	@Failure		500		{object}	api.Error
 //	@Router			/oscal/system-security-plans/{id}/profile [put]
-func (h *SystemSecurityPlanHandler) AttachProfile(ctx echo.Context) error {
+func (h *SystemSecurityPlanHandler) AttachProfile(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	sspID, err := uuid.Parse(idParam)
 	if err != nil {
@@ -2305,7 +2305,7 @@ func (h *SystemSecurityPlanHandler) AttachProfile(ctx echo.Context) error {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/profiles [get]
-func (h *SystemSecurityPlanHandler) ListProfiles(ctx echo.Context) error {
+func (h *SystemSecurityPlanHandler) ListProfiles(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	sspID, err := uuid.Parse(idParam)
 	if err != nil {
@@ -2350,7 +2350,7 @@ func (h *SystemSecurityPlanHandler) ListProfiles(ctx echo.Context) error {
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/profiles [post]
-func (h *SystemSecurityPlanHandler) AddProfile(ctx echo.Context) error {
+func (h *SystemSecurityPlanHandler) AddProfile(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	sspID, err := uuid.Parse(idParam)
 	if err != nil {
@@ -2423,7 +2423,7 @@ func (h *SystemSecurityPlanHandler) AddProfile(ctx echo.Context) error {
 //	@Failure		500			{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/profiles/{profileId} [delete]
-func (h *SystemSecurityPlanHandler) RemoveProfile(ctx echo.Context) error {
+func (h *SystemSecurityPlanHandler) RemoveProfile(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	sspID, err := uuid.Parse(idParam)
 	if err != nil {
@@ -2495,7 +2495,7 @@ func (h *SystemSecurityPlanHandler) RemoveProfile(ctx echo.Context) error {
 //	@Failure		404	{object}	api.Error
 //	@Failure		500	{object}	api.Error
 //	@Router			/oscal/system-security-plans/{id}/import-profile [get]
-func (h *SystemSecurityPlanHandler) GetImportProfile(ctx echo.Context) error {
+func (h *SystemSecurityPlanHandler) GetImportProfile(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -2531,7 +2531,7 @@ func (h *SystemSecurityPlanHandler) GetImportProfile(ctx echo.Context) error {
 //	@Failure		404				{object}	api.Error
 //	@Failure		500				{object}	api.Error
 //	@Router			/oscal/system-security-plans/{id}/import-profile [put]
-func (h *SystemSecurityPlanHandler) UpdateImportProfile(ctx echo.Context) error {
+func (h *SystemSecurityPlanHandler) UpdateImportProfile(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -2594,7 +2594,7 @@ func (h *SystemSecurityPlanHandler) UpdateImportProfile(ctx echo.Context) error 
 //	@Failure		500						{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/system-implementation [put]
-func (h *SystemSecurityPlanHandler) UpdateSystemImplementation(ctx echo.Context) error {
+func (h *SystemSecurityPlanHandler) UpdateSystemImplementation(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -2659,7 +2659,7 @@ func (h *SystemSecurityPlanHandler) UpdateSystemImplementation(ctx echo.Context)
 //	@Failure		404		{object}	api.Error
 //	@Failure		500		{object}	api.Error
 //	@Router			/oscal/system-security-plans/{id}/system-implementation/users [post]
-func (h *SystemSecurityPlanHandler) CreateSystemImplementationUser(ctx echo.Context) error {
+func (h *SystemSecurityPlanHandler) CreateSystemImplementationUser(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -2721,7 +2721,7 @@ func (h *SystemSecurityPlanHandler) CreateSystemImplementationUser(ctx echo.Cont
 //	@Failure		404		{object}	api.Error
 //	@Failure		500		{object}	api.Error
 //	@Router			/oscal/system-security-plans/{id}/system-implementation/users/{userId} [put]
-func (h *SystemSecurityPlanHandler) UpdateSystemImplementationUser(ctx echo.Context) error {
+func (h *SystemSecurityPlanHandler) UpdateSystemImplementationUser(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	sspID, err := uuid.Parse(idParam)
 	if err != nil {
@@ -2792,7 +2792,7 @@ func (h *SystemSecurityPlanHandler) UpdateSystemImplementationUser(ctx echo.Cont
 //	@Failure		404		{object}	api.Error
 //	@Failure		500		{object}	api.Error
 //	@Router			/oscal/system-security-plans/{id}/system-implementation/users/{userId} [delete]
-func (h *SystemSecurityPlanHandler) DeleteSystemImplementationUser(ctx echo.Context) error {
+func (h *SystemSecurityPlanHandler) DeleteSystemImplementationUser(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	sspID, err := uuid.Parse(idParam)
 	if err != nil {
@@ -2850,7 +2850,7 @@ func (h *SystemSecurityPlanHandler) DeleteSystemImplementationUser(ctx echo.Cont
 //	@Failure		404			{object}	api.Error
 //	@Failure		500			{object}	api.Error
 //	@Router			/oscal/system-security-plans/{id}/system-implementation/components [post]
-func (h *SystemSecurityPlanHandler) CreateSystemImplementationComponent(ctx echo.Context) error {
+func (h *SystemSecurityPlanHandler) CreateSystemImplementationComponent(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -2913,7 +2913,7 @@ func (h *SystemSecurityPlanHandler) CreateSystemImplementationComponent(ctx echo
 //	@Failure		404			{object}	api.Error
 //	@Failure		500			{object}	api.Error
 //	@Router			/oscal/system-security-plans/{id}/system-implementation/components/{componentId} [put]
-func (h *SystemSecurityPlanHandler) UpdateSystemImplementationComponent(ctx echo.Context) error {
+func (h *SystemSecurityPlanHandler) UpdateSystemImplementationComponent(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	sspID, err := uuid.Parse(idParam)
 	if err != nil {
@@ -2991,7 +2991,7 @@ func (h *SystemSecurityPlanHandler) UpdateSystemImplementationComponent(ctx echo
 //	@Failure		404			{object}	api.Error
 //	@Failure		500			{object}	api.Error
 //	@Router			/oscal/system-security-plans/{id}/system-implementation/components/{componentId} [delete]
-func (h *SystemSecurityPlanHandler) DeleteSystemImplementationComponent(ctx echo.Context) error {
+func (h *SystemSecurityPlanHandler) DeleteSystemImplementationComponent(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	sspID, err := uuid.Parse(idParam)
 	if err != nil {
@@ -3066,7 +3066,7 @@ func (h *SystemSecurityPlanHandler) DeleteSystemImplementationComponent(ctx echo
 //	@Failure		404		{object}	api.Error
 //	@Failure		500		{object}	api.Error
 //	@Router			/oscal/system-security-plans/{id}/system-implementation/inventory-items [post]
-func (h *SystemSecurityPlanHandler) CreateSystemImplementationInventoryItem(ctx echo.Context) error {
+func (h *SystemSecurityPlanHandler) CreateSystemImplementationInventoryItem(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -3128,7 +3128,7 @@ func (h *SystemSecurityPlanHandler) CreateSystemImplementationInventoryItem(ctx 
 //	@Failure		404		{object}	api.Error
 //	@Failure		500		{object}	api.Error
 //	@Router			/oscal/system-security-plans/{id}/system-implementation/inventory-items/{itemId} [put]
-func (h *SystemSecurityPlanHandler) UpdateSystemImplementationInventoryItem(ctx echo.Context) error {
+func (h *SystemSecurityPlanHandler) UpdateSystemImplementationInventoryItem(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	sspID, err := uuid.Parse(idParam)
 	if err != nil {
@@ -3200,7 +3200,7 @@ func (h *SystemSecurityPlanHandler) UpdateSystemImplementationInventoryItem(ctx 
 //	@Failure		404		{object}	api.Error
 //	@Failure		500		{object}	api.Error
 //	@Router			/oscal/system-security-plans/{id}/system-implementation/inventory-items/{itemId} [delete]
-func (h *SystemSecurityPlanHandler) DeleteSystemImplementationInventoryItem(ctx echo.Context) error {
+func (h *SystemSecurityPlanHandler) DeleteSystemImplementationInventoryItem(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	sspID, err := uuid.Parse(idParam)
 	if err != nil {
@@ -3258,7 +3258,7 @@ func (h *SystemSecurityPlanHandler) DeleteSystemImplementationInventoryItem(ctx 
 //	@Failure		404		{object}	api.Error
 //	@Failure		500		{object}	api.Error
 //	@Router			/oscal/system-security-plans/{id}/system-implementation/leveraged-authorizations [post]
-func (h *SystemSecurityPlanHandler) CreateSystemImplementationLeveragedAuthorization(ctx echo.Context) error {
+func (h *SystemSecurityPlanHandler) CreateSystemImplementationLeveragedAuthorization(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -3315,7 +3315,7 @@ func (h *SystemSecurityPlanHandler) CreateSystemImplementationLeveragedAuthoriza
 //	@Failure		404		{object}	api.Error
 //	@Failure		500		{object}	api.Error
 //	@Router			/oscal/system-security-plans/{id}/system-implementation/leveraged-authorizations/{authId} [put]
-func (h *SystemSecurityPlanHandler) UpdateSystemImplementationLeveragedAuthorization(ctx echo.Context) error {
+func (h *SystemSecurityPlanHandler) UpdateSystemImplementationLeveragedAuthorization(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	sspID, err := uuid.Parse(idParam)
 	if err != nil {
@@ -3386,7 +3386,7 @@ func (h *SystemSecurityPlanHandler) UpdateSystemImplementationLeveragedAuthoriza
 //	@Failure		404		{object}	api.Error
 //	@Failure		500		{object}	api.Error
 //	@Router			/oscal/system-security-plans/{id}/system-implementation/leveraged-authorizations/{authId} [delete]
-func (h *SystemSecurityPlanHandler) DeleteSystemImplementationLeveragedAuthorization(ctx echo.Context) error {
+func (h *SystemSecurityPlanHandler) DeleteSystemImplementationLeveragedAuthorization(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	sspID, err := uuid.Parse(idParam)
 	if err != nil {
@@ -3473,7 +3473,7 @@ func (h *SystemSecurityPlanHandler) DeleteSystemImplementationLeveragedAuthoriza
 //	@Failure		404						{object}	api.Error
 //	@Failure		500						{object}	api.Error
 //	@Router			/oscal/system-security-plans/{id}/control-implementation [put]
-func (h *SystemSecurityPlanHandler) UpdateControlImplementation(ctx echo.Context) error {
+func (h *SystemSecurityPlanHandler) UpdateControlImplementation(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -3521,7 +3521,7 @@ func (h *SystemSecurityPlanHandler) UpdateControlImplementation(ctx echo.Context
 //	@Failure		404	{object}	api.Error
 //	@Failure		500	{object}	api.Error
 //	@Router			/oscal/system-security-plans/{id}/control-implementation/implemented-requirements [get]
-func (h *SystemSecurityPlanHandler) GetImplementedRequirements(ctx echo.Context) error {
+func (h *SystemSecurityPlanHandler) GetImplementedRequirements(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -3579,7 +3579,7 @@ func (h *SystemSecurityPlanHandler) GetImplementedRequirements(ctx echo.Context)
 //	@Failure		404			{object}	api.Error
 //	@Failure		500			{object}	api.Error
 //	@Router			/oscal/system-security-plans/{id}/control-implementation/implemented-requirements [post]
-func (h *SystemSecurityPlanHandler) CreateImplementedRequirement(ctx echo.Context) error {
+func (h *SystemSecurityPlanHandler) CreateImplementedRequirement(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -3642,7 +3642,7 @@ func (h *SystemSecurityPlanHandler) CreateImplementedRequirement(ctx echo.Contex
 //	@Failure		404			{object}	api.Error
 //	@Failure		500			{object}	api.Error
 //	@Router			/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId} [put]
-func (h *SystemSecurityPlanHandler) UpdateImplementedRequirement(ctx echo.Context) error {
+func (h *SystemSecurityPlanHandler) UpdateImplementedRequirement(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	sspID, err := uuid.Parse(idParam)
 	if err != nil {
@@ -3725,7 +3725,7 @@ func (h *SystemSecurityPlanHandler) UpdateImplementedRequirement(ctx echo.Contex
 //	@Deprecated
 //	@Security	OAuth2Password
 //	@Router		/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/by-components/{byComponentId} [put]
-func (h *SystemSecurityPlanHandler) UpdateImplementedRequirementByComponent(ctx echo.Context) error {
+func (h *SystemSecurityPlanHandler) UpdateImplementedRequirementByComponent(ctx *echo.Context) error {
 	bc, ok := h.resolveByComponentForRequirement(ctx)
 	if !ok {
 		return nil
@@ -3749,7 +3749,7 @@ func (h *SystemSecurityPlanHandler) UpdateImplementedRequirementByComponent(ctx 
 //	@Failure		409		{object}	api.Error
 //	@Failure		500		{object}	api.Error
 //	@Router			/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId} [delete]
-func (h *SystemSecurityPlanHandler) DeleteImplementedRequirement(ctx echo.Context) error {
+func (h *SystemSecurityPlanHandler) DeleteImplementedRequirement(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	sspID, err := uuid.Parse(idParam)
 	if err != nil {
@@ -3839,7 +3839,7 @@ func (h *SystemSecurityPlanHandler) DeleteImplementedRequirement(ctx echo.Contex
 //	@Failure		404			{object}	api.Error
 //	@Failure		500			{object}	api.Error
 //	@Router			/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/statements [post]
-func (h *SystemSecurityPlanHandler) CreateImplementedRequirementStatement(ctx echo.Context) error {
+func (h *SystemSecurityPlanHandler) CreateImplementedRequirementStatement(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	sspID, err := uuid.Parse(idParam)
 	if err != nil {
@@ -3902,7 +3902,7 @@ func (h *SystemSecurityPlanHandler) CreateImplementedRequirementStatement(ctx ec
 //	@Failure		404	{object}	api.Error
 //	@Failure		500	{object}	api.Error
 //	@Router			/oscal/system-security-plans/{id}/back-matter [get]
-func (h *SystemSecurityPlanHandler) GetBackMatter(ctx echo.Context) error {
+func (h *SystemSecurityPlanHandler) GetBackMatter(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -3941,7 +3941,7 @@ func (h *SystemSecurityPlanHandler) GetBackMatter(ctx echo.Context) error {
 //	@Failure		404			{object}	api.Error
 //	@Failure		500			{object}	api.Error
 //	@Router			/oscal/system-security-plans/{id}/back-matter [put]
-func (h *SystemSecurityPlanHandler) UpdateBackMatter(ctx echo.Context) error {
+func (h *SystemSecurityPlanHandler) UpdateBackMatter(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -3998,7 +3998,7 @@ func (h *SystemSecurityPlanHandler) UpdateBackMatter(ctx echo.Context) error {
 //	@Failure		404	{object}	api.Error
 //	@Failure		500	{object}	api.Error
 //	@Router			/oscal/system-security-plans/{id}/back-matter/resources [get]
-func (h *SystemSecurityPlanHandler) GetBackMatterResources(ctx echo.Context) error {
+func (h *SystemSecurityPlanHandler) GetBackMatterResources(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -4037,7 +4037,7 @@ func (h *SystemSecurityPlanHandler) GetBackMatterResources(ctx echo.Context) err
 //	@Failure		404			{object}	api.Error
 //	@Failure		500			{object}	api.Error
 //	@Router			/oscal/system-security-plans/{id}/back-matter/resources [post]
-func (h *SystemSecurityPlanHandler) CreateBackMatterResource(ctx echo.Context) error {
+func (h *SystemSecurityPlanHandler) CreateBackMatterResource(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -4093,7 +4093,7 @@ func (h *SystemSecurityPlanHandler) CreateBackMatterResource(ctx echo.Context) e
 //	@Failure		404			{object}	api.Error
 //	@Failure		500			{object}	api.Error
 //	@Router			/oscal/system-security-plans/{id}/back-matter/resources/{resourceId} [put]
-func (h *SystemSecurityPlanHandler) UpdateBackMatterResource(ctx echo.Context) error {
+func (h *SystemSecurityPlanHandler) UpdateBackMatterResource(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	sspID, err := uuid.Parse(idParam)
 	if err != nil {
@@ -4157,7 +4157,7 @@ func (h *SystemSecurityPlanHandler) UpdateBackMatterResource(ctx echo.Context) e
 //	@Failure		404			{object}	api.Error
 //	@Failure		500			{object}	api.Error
 //	@Router			/oscal/system-security-plans/{id}/back-matter/resources/{resourceId} [delete]
-func (h *SystemSecurityPlanHandler) DeleteBackMatterResource(ctx echo.Context) error {
+func (h *SystemSecurityPlanHandler) DeleteBackMatterResource(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	sspID, err := uuid.Parse(idParam)
 	if err != nil {
@@ -4210,7 +4210,7 @@ func (h *SystemSecurityPlanHandler) DeleteBackMatterResource(ctx echo.Context) e
 //	@Failure		404			{object}	api.Error
 //	@Failure		500			{object}	api.Error
 //	@Router			/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/statements/{stmtId} [put]
-func (h *SystemSecurityPlanHandler) UpdateImplementedRequirementStatement(ctx echo.Context) error {
+func (h *SystemSecurityPlanHandler) UpdateImplementedRequirementStatement(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	sspID, err := uuid.Parse(idParam)
 	if err != nil {
@@ -4302,7 +4302,7 @@ func (h *SystemSecurityPlanHandler) UpdateImplementedRequirementStatement(ctx ec
 //	@Failure		500				{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/statements/{stmtId}/by-components/{byComponentId} [put]
-func (h *SystemSecurityPlanHandler) UpdateImplementedRequirementStatementByComponent(ctx echo.Context) error {
+func (h *SystemSecurityPlanHandler) UpdateImplementedRequirementStatementByComponent(ctx *echo.Context) error {
 	bc, ok := h.resolveByComponentForStatement(ctx)
 	if !ok {
 		return nil
@@ -4327,7 +4327,7 @@ func (h *SystemSecurityPlanHandler) UpdateImplementedRequirementStatementByCompo
 // struct cannot distinguish "absent" from "present and empty", and GORM's map-form Updates writes
 // every key it is given unconditionally (the zero-value skipping people expect applies only to
 // struct-form Updates). So the update map is built from the keys the client actually sent.
-func (h *SystemSecurityPlanHandler) updateByComponentMetadata(ctx echo.Context, bc *relational.ByComponent) error {
+func (h *SystemSecurityPlanHandler) updateByComponentMetadata(ctx *echo.Context, bc *relational.ByComponent) error {
 	// Read the body before Bind consumes it, then hand it back for binding.
 	rawBody, err := io.ReadAll(ctx.Request().Body)
 	if err != nil {
@@ -4502,7 +4502,7 @@ func (h *SystemSecurityPlanHandler) reloadByComponent(byComponentID uuid.UUID) (
 //	@Failure		409				{object}	api.Error
 //	@Failure		500				{object}	api.Error
 //	@Router			/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/statements/{stmtId}/by-components/{byComponentId} [delete]
-func (h *SystemSecurityPlanHandler) DeleteImplementedRequirementStatementByComponent(ctx echo.Context) error {
+func (h *SystemSecurityPlanHandler) DeleteImplementedRequirementStatementByComponent(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	sspID, err := uuid.Parse(idParam)
 	if err != nil {
@@ -4600,7 +4600,7 @@ func (h *SystemSecurityPlanHandler) DeleteImplementedRequirementStatementByCompo
 //	@Failure		404				{object}	api.Error
 //	@Failure		500				{object}	api.Error
 //	@Router			/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/statements/{stmtId}/by-components [post]
-func (h *SystemSecurityPlanHandler) CreateImplementedRequirementStatementByComponent(ctx echo.Context) error {
+func (h *SystemSecurityPlanHandler) CreateImplementedRequirementStatementByComponent(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	sspID, err := uuid.Parse(idParam)
 	if err != nil {
@@ -4682,7 +4682,7 @@ func (h *SystemSecurityPlanHandler) CreateImplementedRequirementStatementByCompo
 // directly to an implemented requirement (control-level). On any failure it writes
 // the appropriate JSON error response to ctx and returns ok=false; callers should
 // return nil immediately when ok is false.
-func (h *SystemSecurityPlanHandler) resolveByComponentForRequirement(ctx echo.Context) (bc *relational.ByComponent, ok bool) {
+func (h *SystemSecurityPlanHandler) resolveByComponentForRequirement(ctx *echo.Context) (bc *relational.ByComponent, ok bool) {
 	sspID, reqID, err := parseSSPReqIDs(ctx)
 	if err != nil {
 		h.sugar.Warnw("Invalid by-component path params", "error", err)
@@ -4737,7 +4737,7 @@ func (h *SystemSecurityPlanHandler) resolveByComponentForRequirement(ctx echo.Co
 // resolveByComponentForStatement parses and verifies a by-component that belongs to
 // a statement within an implemented requirement (statement-level). Same contract as
 // resolveByComponentForRequirement.
-func (h *SystemSecurityPlanHandler) resolveByComponentForStatement(ctx echo.Context) (bc *relational.ByComponent, ok bool) {
+func (h *SystemSecurityPlanHandler) resolveByComponentForStatement(ctx *echo.Context) (bc *relational.ByComponent, ok bool) {
 	sspID, reqID, stmtID, err := parseSSPReqStmtIDs(ctx)
 	if err != nil {
 		h.sugar.Warnw("Invalid by-component path params", "error", err)
@@ -4818,7 +4818,7 @@ func (h *SystemSecurityPlanHandler) reloadByComponentExport(byComponentID uuid.U
 }
 
 // getByComponentExport reads the Export sub-resource for an already-resolved by-component.
-func (h *SystemSecurityPlanHandler) getByComponentExport(ctx echo.Context, bc *relational.ByComponent) error {
+func (h *SystemSecurityPlanHandler) getByComponentExport(ctx *echo.Context, bc *relational.ByComponent) error {
 	export, err := h.reloadByComponentExport(*bc.ID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -4831,7 +4831,7 @@ func (h *SystemSecurityPlanHandler) getByComponentExport(ctx echo.Context, bc *r
 
 // createByComponentExport creates the (singleton) Export sub-resource for an
 // already-resolved by-component. A by-component may have at most one Export.
-func (h *SystemSecurityPlanHandler) createByComponentExport(ctx echo.Context, bc *relational.ByComponent) error {
+func (h *SystemSecurityPlanHandler) createByComponentExport(ctx *echo.Context, bc *relational.ByComponent) error {
 	var oscalExport oscalTypes_1_1_3.Export
 	if err := ctx.Bind(&oscalExport); err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
@@ -4922,7 +4922,7 @@ func lockByComponentSubtreeWrite(tx *gorm.DB, byComponentID uuid.UUID) error {
 // updateByComponentExport updates the scalar fields (description, remarks, props,
 // links) of an existing Export. The Provided and Responsibilities entries are managed
 // individually via their own routes and are left untouched here.
-func (h *SystemSecurityPlanHandler) updateByComponentExport(ctx echo.Context, bc *relational.ByComponent) error {
+func (h *SystemSecurityPlanHandler) updateByComponentExport(ctx *echo.Context, bc *relational.ByComponent) error {
 	var existing relational.Export
 	if err := h.db.Where("by_component_id = ?", bc.ID).First(&existing).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -4966,7 +4966,7 @@ func (h *SystemSecurityPlanHandler) updateByComponentExport(ctx echo.Context, bc
 // Responsibilities entries, including their ResponsibleRoles and responsible_role_parties
 // join rows. Children are deleted explicitly rather than relying on a DB-level cascade,
 // since this ticket makes no schema change.
-func (h *SystemSecurityPlanHandler) deleteByComponentExport(ctx echo.Context, bc *relational.ByComponent) error {
+func (h *SystemSecurityPlanHandler) deleteByComponentExport(ctx *echo.Context, bc *relational.ByComponent) error {
 	var existing relational.Export
 	if err := h.db.
 		Preload("Provided.ResponsibleRoles.Parties").
@@ -5138,7 +5138,7 @@ func deleteByComponentCascade(tx *gorm.DB, byComponentID uuid.UUID) error {
 //	@Deprecated
 //	@Security	OAuth2Password
 //	@Router		/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/by-components/{byComponentId}/export [get]
-func (h *SystemSecurityPlanHandler) GetImplementedRequirementByComponentExport(ctx echo.Context) error {
+func (h *SystemSecurityPlanHandler) GetImplementedRequirementByComponentExport(ctx *echo.Context) error {
 	bc, ok := h.resolveByComponentForRequirement(ctx)
 	if !ok {
 		return nil
@@ -5170,7 +5170,7 @@ func (h *SystemSecurityPlanHandler) GetImplementedRequirementByComponentExport(c
 //	@Deprecated
 //	@Security	OAuth2Password
 //	@Router		/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/by-components/{byComponentId}/export [post]
-func (h *SystemSecurityPlanHandler) CreateImplementedRequirementByComponentExport(ctx echo.Context) error {
+func (h *SystemSecurityPlanHandler) CreateImplementedRequirementByComponentExport(ctx *echo.Context) error {
 	bc, ok := h.resolveByComponentForRequirement(ctx)
 	if !ok {
 		return nil
@@ -5201,7 +5201,7 @@ func (h *SystemSecurityPlanHandler) CreateImplementedRequirementByComponentExpor
 //	@Deprecated
 //	@Security	OAuth2Password
 //	@Router		/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/by-components/{byComponentId}/export [put]
-func (h *SystemSecurityPlanHandler) UpdateImplementedRequirementByComponentExport(ctx echo.Context) error {
+func (h *SystemSecurityPlanHandler) UpdateImplementedRequirementByComponentExport(ctx *echo.Context) error {
 	bc, ok := h.resolveByComponentForRequirement(ctx)
 	if !ok {
 		return nil
@@ -5229,7 +5229,7 @@ func (h *SystemSecurityPlanHandler) UpdateImplementedRequirementByComponentExpor
 //	@Deprecated
 //	@Security	OAuth2Password
 //	@Router		/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/by-components/{byComponentId}/export [delete]
-func (h *SystemSecurityPlanHandler) DeleteImplementedRequirementByComponentExport(ctx echo.Context) error {
+func (h *SystemSecurityPlanHandler) DeleteImplementedRequirementByComponentExport(ctx *echo.Context) error {
 	bc, ok := h.resolveByComponentForRequirement(ctx)
 	if !ok {
 		return nil
@@ -5253,7 +5253,7 @@ func (h *SystemSecurityPlanHandler) DeleteImplementedRequirementByComponentExpor
 //	@Failure		500				{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/statements/{stmtId}/by-components/{byComponentId}/export [get]
-func (h *SystemSecurityPlanHandler) GetImplementedRequirementStatementByComponentExport(ctx echo.Context) error {
+func (h *SystemSecurityPlanHandler) GetImplementedRequirementStatementByComponentExport(ctx *echo.Context) error {
 	bc, ok := h.resolveByComponentForStatement(ctx)
 	if !ok {
 		return nil
@@ -5280,7 +5280,7 @@ func (h *SystemSecurityPlanHandler) GetImplementedRequirementStatementByComponen
 //	@Failure		500				{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/statements/{stmtId}/by-components/{byComponentId}/export [post]
-func (h *SystemSecurityPlanHandler) CreateImplementedRequirementStatementByComponentExport(ctx echo.Context) error {
+func (h *SystemSecurityPlanHandler) CreateImplementedRequirementStatementByComponentExport(ctx *echo.Context) error {
 	bc, ok := h.resolveByComponentForStatement(ctx)
 	if !ok {
 		return nil
@@ -5306,7 +5306,7 @@ func (h *SystemSecurityPlanHandler) CreateImplementedRequirementStatementByCompo
 //	@Failure		500				{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/statements/{stmtId}/by-components/{byComponentId}/export [put]
-func (h *SystemSecurityPlanHandler) UpdateImplementedRequirementStatementByComponentExport(ctx echo.Context) error {
+func (h *SystemSecurityPlanHandler) UpdateImplementedRequirementStatementByComponentExport(ctx *echo.Context) error {
 	bc, ok := h.resolveByComponentForStatement(ctx)
 	if !ok {
 		return nil
@@ -5329,7 +5329,7 @@ func (h *SystemSecurityPlanHandler) UpdateImplementedRequirementStatementByCompo
 //	@Failure		500				{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/statements/{stmtId}/by-components/{byComponentId}/export [delete]
-func (h *SystemSecurityPlanHandler) DeleteImplementedRequirementStatementByComponentExport(ctx echo.Context) error {
+func (h *SystemSecurityPlanHandler) DeleteImplementedRequirementStatementByComponentExport(ctx *echo.Context) error {
 	bc, ok := h.resolveByComponentForStatement(ctx)
 	if !ok {
 		return nil
@@ -5339,7 +5339,7 @@ func (h *SystemSecurityPlanHandler) DeleteImplementedRequirementStatementByCompo
 
 // findExportForByComponent looks up the (singleton) Export belonging to an
 // already-resolved by-component, writing a 404 if none exists.
-func (h *SystemSecurityPlanHandler) findExportForByComponent(ctx echo.Context, bc *relational.ByComponent) (*relational.Export, bool) {
+func (h *SystemSecurityPlanHandler) findExportForByComponent(ctx *echo.Context, bc *relational.ByComponent) (*relational.Export, bool) {
 	var export relational.Export
 	if err := h.db.Where("by_component_id = ?", bc.ID).First(&export).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -5354,7 +5354,7 @@ func (h *SystemSecurityPlanHandler) findExportForByComponent(ctx echo.Context, b
 
 // createByComponentExportProvided creates a Provided entry under an already-resolved
 // by-component's Export.
-func (h *SystemSecurityPlanHandler) createByComponentExportProvided(ctx echo.Context, bc *relational.ByComponent) error {
+func (h *SystemSecurityPlanHandler) createByComponentExportProvided(ctx *echo.Context, bc *relational.ByComponent) error {
 	export, ok := h.findExportForByComponent(ctx, bc)
 	if !ok {
 		return nil
@@ -5378,7 +5378,7 @@ func (h *SystemSecurityPlanHandler) createByComponentExportProvided(ctx echo.Con
 
 // updateByComponentExportProvided replaces an existing Provided entry under an
 // already-resolved by-component's Export.
-func (h *SystemSecurityPlanHandler) updateByComponentExportProvided(ctx echo.Context, bc *relational.ByComponent) error {
+func (h *SystemSecurityPlanHandler) updateByComponentExportProvided(ctx *echo.Context, bc *relational.ByComponent) error {
 	export, ok := h.findExportForByComponent(ctx, bc)
 	if !ok {
 		return nil
@@ -5418,7 +5418,7 @@ func (h *SystemSecurityPlanHandler) updateByComponentExportProvided(ctx echo.Con
 
 // deleteByComponentExportProvided deletes an existing Provided entry under an
 // already-resolved by-component's Export.
-func (h *SystemSecurityPlanHandler) deleteByComponentExportProvided(ctx echo.Context, bc *relational.ByComponent) error {
+func (h *SystemSecurityPlanHandler) deleteByComponentExportProvided(ctx *echo.Context, bc *relational.ByComponent) error {
 	export, ok := h.findExportForByComponent(ctx, bc)
 	if !ok {
 		return nil
@@ -5465,7 +5465,7 @@ func (h *SystemSecurityPlanHandler) deleteByComponentExportProvided(ctx echo.Con
 //	@Deprecated
 //	@Security	OAuth2Password
 //	@Router		/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/by-components/{byComponentId}/export/provided [post]
-func (h *SystemSecurityPlanHandler) CreateImplementedRequirementByComponentExportProvided(ctx echo.Context) error {
+func (h *SystemSecurityPlanHandler) CreateImplementedRequirementByComponentExportProvided(ctx *echo.Context) error {
 	bc, ok := h.resolveByComponentForRequirement(ctx)
 	if !ok {
 		return nil
@@ -5497,7 +5497,7 @@ func (h *SystemSecurityPlanHandler) CreateImplementedRequirementByComponentExpor
 //	@Deprecated
 //	@Security	OAuth2Password
 //	@Router		/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/by-components/{byComponentId}/export/provided/{providedId} [put]
-func (h *SystemSecurityPlanHandler) UpdateImplementedRequirementByComponentExportProvided(ctx echo.Context) error {
+func (h *SystemSecurityPlanHandler) UpdateImplementedRequirementByComponentExportProvided(ctx *echo.Context) error {
 	bc, ok := h.resolveByComponentForRequirement(ctx)
 	if !ok {
 		return nil
@@ -5526,7 +5526,7 @@ func (h *SystemSecurityPlanHandler) UpdateImplementedRequirementByComponentExpor
 //	@Deprecated
 //	@Security	OAuth2Password
 //	@Router		/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/by-components/{byComponentId}/export/provided/{providedId} [delete]
-func (h *SystemSecurityPlanHandler) DeleteImplementedRequirementByComponentExportProvided(ctx echo.Context) error {
+func (h *SystemSecurityPlanHandler) DeleteImplementedRequirementByComponentExportProvided(ctx *echo.Context) error {
 	bc, ok := h.resolveByComponentForRequirement(ctx)
 	if !ok {
 		return nil
@@ -5552,7 +5552,7 @@ func (h *SystemSecurityPlanHandler) DeleteImplementedRequirementByComponentExpor
 //	@Failure		500				{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/statements/{stmtId}/by-components/{byComponentId}/export/provided [post]
-func (h *SystemSecurityPlanHandler) CreateImplementedRequirementStatementByComponentExportProvided(ctx echo.Context) error {
+func (h *SystemSecurityPlanHandler) CreateImplementedRequirementStatementByComponentExportProvided(ctx *echo.Context) error {
 	bc, ok := h.resolveByComponentForStatement(ctx)
 	if !ok {
 		return nil
@@ -5579,7 +5579,7 @@ func (h *SystemSecurityPlanHandler) CreateImplementedRequirementStatementByCompo
 //	@Failure		500				{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/statements/{stmtId}/by-components/{byComponentId}/export/provided/{providedId} [put]
-func (h *SystemSecurityPlanHandler) UpdateImplementedRequirementStatementByComponentExportProvided(ctx echo.Context) error {
+func (h *SystemSecurityPlanHandler) UpdateImplementedRequirementStatementByComponentExportProvided(ctx *echo.Context) error {
 	bc, ok := h.resolveByComponentForStatement(ctx)
 	if !ok {
 		return nil
@@ -5603,7 +5603,7 @@ func (h *SystemSecurityPlanHandler) UpdateImplementedRequirementStatementByCompo
 //	@Failure		500				{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/statements/{stmtId}/by-components/{byComponentId}/export/provided/{providedId} [delete]
-func (h *SystemSecurityPlanHandler) DeleteImplementedRequirementStatementByComponentExportProvided(ctx echo.Context) error {
+func (h *SystemSecurityPlanHandler) DeleteImplementedRequirementStatementByComponentExportProvided(ctx *echo.Context) error {
 	bc, ok := h.resolveByComponentForStatement(ctx)
 	if !ok {
 		return nil
@@ -5613,7 +5613,7 @@ func (h *SystemSecurityPlanHandler) DeleteImplementedRequirementStatementByCompo
 
 // createByComponentExportResponsibility creates a Responsibility entry under an
 // already-resolved by-component's Export.
-func (h *SystemSecurityPlanHandler) createByComponentExportResponsibility(ctx echo.Context, bc *relational.ByComponent) error {
+func (h *SystemSecurityPlanHandler) createByComponentExportResponsibility(ctx *echo.Context, bc *relational.ByComponent) error {
 	export, ok := h.findExportForByComponent(ctx, bc)
 	if !ok {
 		return nil
@@ -5637,7 +5637,7 @@ func (h *SystemSecurityPlanHandler) createByComponentExportResponsibility(ctx ec
 
 // updateByComponentExportResponsibility replaces an existing Responsibility entry
 // under an already-resolved by-component's Export.
-func (h *SystemSecurityPlanHandler) updateByComponentExportResponsibility(ctx echo.Context, bc *relational.ByComponent) error {
+func (h *SystemSecurityPlanHandler) updateByComponentExportResponsibility(ctx *echo.Context, bc *relational.ByComponent) error {
 	export, ok := h.findExportForByComponent(ctx, bc)
 	if !ok {
 		return nil
@@ -5677,7 +5677,7 @@ func (h *SystemSecurityPlanHandler) updateByComponentExportResponsibility(ctx ec
 
 // deleteByComponentExportResponsibility deletes an existing Responsibility entry
 // under an already-resolved by-component's Export.
-func (h *SystemSecurityPlanHandler) deleteByComponentExportResponsibility(ctx echo.Context, bc *relational.ByComponent) error {
+func (h *SystemSecurityPlanHandler) deleteByComponentExportResponsibility(ctx *echo.Context, bc *relational.ByComponent) error {
 	export, ok := h.findExportForByComponent(ctx, bc)
 	if !ok {
 		return nil
@@ -5724,7 +5724,7 @@ func (h *SystemSecurityPlanHandler) deleteByComponentExportResponsibility(ctx ec
 //	@Deprecated
 //	@Security	OAuth2Password
 //	@Router		/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/by-components/{byComponentId}/export/responsibilities [post]
-func (h *SystemSecurityPlanHandler) CreateImplementedRequirementByComponentExportResponsibility(ctx echo.Context) error {
+func (h *SystemSecurityPlanHandler) CreateImplementedRequirementByComponentExportResponsibility(ctx *echo.Context) error {
 	bc, ok := h.resolveByComponentForRequirement(ctx)
 	if !ok {
 		return nil
@@ -5756,7 +5756,7 @@ func (h *SystemSecurityPlanHandler) CreateImplementedRequirementByComponentExpor
 //	@Deprecated
 //	@Security	OAuth2Password
 //	@Router		/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/by-components/{byComponentId}/export/responsibilities/{responsibilityId} [put]
-func (h *SystemSecurityPlanHandler) UpdateImplementedRequirementByComponentExportResponsibility(ctx echo.Context) error {
+func (h *SystemSecurityPlanHandler) UpdateImplementedRequirementByComponentExportResponsibility(ctx *echo.Context) error {
 	bc, ok := h.resolveByComponentForRequirement(ctx)
 	if !ok {
 		return nil
@@ -5785,7 +5785,7 @@ func (h *SystemSecurityPlanHandler) UpdateImplementedRequirementByComponentExpor
 //	@Deprecated
 //	@Security	OAuth2Password
 //	@Router		/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/by-components/{byComponentId}/export/responsibilities/{responsibilityId} [delete]
-func (h *SystemSecurityPlanHandler) DeleteImplementedRequirementByComponentExportResponsibility(ctx echo.Context) error {
+func (h *SystemSecurityPlanHandler) DeleteImplementedRequirementByComponentExportResponsibility(ctx *echo.Context) error {
 	bc, ok := h.resolveByComponentForRequirement(ctx)
 	if !ok {
 		return nil
@@ -5811,7 +5811,7 @@ func (h *SystemSecurityPlanHandler) DeleteImplementedRequirementByComponentExpor
 //	@Failure		500				{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/statements/{stmtId}/by-components/{byComponentId}/export/responsibilities [post]
-func (h *SystemSecurityPlanHandler) CreateImplementedRequirementStatementByComponentExportResponsibility(ctx echo.Context) error {
+func (h *SystemSecurityPlanHandler) CreateImplementedRequirementStatementByComponentExportResponsibility(ctx *echo.Context) error {
 	bc, ok := h.resolveByComponentForStatement(ctx)
 	if !ok {
 		return nil
@@ -5838,7 +5838,7 @@ func (h *SystemSecurityPlanHandler) CreateImplementedRequirementStatementByCompo
 //	@Failure		500					{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/statements/{stmtId}/by-components/{byComponentId}/export/responsibilities/{responsibilityId} [put]
-func (h *SystemSecurityPlanHandler) UpdateImplementedRequirementStatementByComponentExportResponsibility(ctx echo.Context) error {
+func (h *SystemSecurityPlanHandler) UpdateImplementedRequirementStatementByComponentExportResponsibility(ctx *echo.Context) error {
 	bc, ok := h.resolveByComponentForStatement(ctx)
 	if !ok {
 		return nil
@@ -5862,7 +5862,7 @@ func (h *SystemSecurityPlanHandler) UpdateImplementedRequirementStatementByCompo
 //	@Failure		500					{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/statements/{stmtId}/by-components/{byComponentId}/export/responsibilities/{responsibilityId} [delete]
-func (h *SystemSecurityPlanHandler) DeleteImplementedRequirementStatementByComponentExportResponsibility(ctx echo.Context) error {
+func (h *SystemSecurityPlanHandler) DeleteImplementedRequirementStatementByComponentExportResponsibility(ctx *echo.Context) error {
 	bc, ok := h.resolveByComponentForStatement(ctx)
 	if !ok {
 		return nil
@@ -5923,7 +5923,7 @@ func (h *SystemSecurityPlanHandler) extractControlIDsFromProfile(profile *relati
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/suggest-components [post]
-func (h *SystemSecurityPlanHandler) SuggestComponents(ctx echo.Context) error {
+func (h *SystemSecurityPlanHandler) SuggestComponents(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	sspID, err := uuid.Parse(idParam)
 	if err != nil {
@@ -5965,7 +5965,7 @@ func (h *SystemSecurityPlanHandler) SuggestComponents(ctx echo.Context) error {
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/statements/{stmtId}/suggest-components [post]
-func (h *SystemSecurityPlanHandler) SuggestComponentsForStatement(ctx echo.Context) error {
+func (h *SystemSecurityPlanHandler) SuggestComponentsForStatement(ctx *echo.Context) error {
 	sspID, reqID, stmtID, err := parseSSPReqStmtIDs(ctx)
 	if err != nil {
 		h.sugar.Warnw("Invalid statement suggestion path params", "error", err)
@@ -5999,7 +5999,7 @@ func (h *SystemSecurityPlanHandler) SuggestComponentsForStatement(ctx echo.Conte
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/apply-suggestion [post]
-func (h *SystemSecurityPlanHandler) ApplySuggestion(ctx echo.Context) error {
+func (h *SystemSecurityPlanHandler) ApplySuggestion(ctx *echo.Context) error {
 	sspID, reqID, err := parseSSPReqIDs(ctx)
 	if err != nil {
 		h.sugar.Warnw("Invalid apply-suggestion path params", "error", err)
@@ -6048,7 +6048,7 @@ func (h *SystemSecurityPlanHandler) ApplySuggestion(ctx echo.Context) error {
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/statements/{stmtId}/apply-suggestion [post]
-func (h *SystemSecurityPlanHandler) ApplySuggestionForStatement(ctx echo.Context) error {
+func (h *SystemSecurityPlanHandler) ApplySuggestionForStatement(ctx *echo.Context) error {
 	sspID, reqID, stmtID, err := parseSSPReqStmtIDs(ctx)
 	if err != nil {
 		h.sugar.Warnw("Invalid statement apply path params", "error", err)
@@ -6096,7 +6096,7 @@ func (h *SystemSecurityPlanHandler) ApplySuggestionForStatement(ctx echo.Context
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/statements/{stmtId}/apply-suggestions [post]
-func (h *SystemSecurityPlanHandler) ApplySuggestionsForStatement(ctx echo.Context) error {
+func (h *SystemSecurityPlanHandler) ApplySuggestionsForStatement(ctx *echo.Context) error {
 	sspID, reqID, stmtID, err := parseSSPReqStmtIDs(ctx)
 	if err != nil {
 		h.sugar.Warnw("Invalid statement apply-suggestions path params", "error", err)
@@ -6136,7 +6136,7 @@ func (h *SystemSecurityPlanHandler) ApplySuggestionsForStatement(ctx echo.Contex
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/bulk-apply-component-suggestions [post]
-func (h *SystemSecurityPlanHandler) BulkApplyComponentSuggestions(ctx echo.Context) error {
+func (h *SystemSecurityPlanHandler) BulkApplyComponentSuggestions(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	sspID, err := uuid.Parse(idParam)
 	if err != nil {
@@ -6155,7 +6155,7 @@ func (h *SystemSecurityPlanHandler) BulkApplyComponentSuggestions(ctx echo.Conte
 	return ctx.NoContent(http.StatusNoContent)
 }
 
-func parseSSPReqStmtIDs(ctx echo.Context) (uuid.UUID, uuid.UUID, uuid.UUID, error) {
+func parseSSPReqStmtIDs(ctx *echo.Context) (uuid.UUID, uuid.UUID, uuid.UUID, error) {
 	sspID, reqID, err := parseSSPReqIDs(ctx)
 	if err != nil {
 		return uuid.Nil, uuid.Nil, uuid.Nil, err
@@ -6167,7 +6167,7 @@ func parseSSPReqStmtIDs(ctx echo.Context) (uuid.UUID, uuid.UUID, uuid.UUID, erro
 	return sspID, reqID, stmtID, nil
 }
 
-func parseSSPReqIDs(ctx echo.Context) (uuid.UUID, uuid.UUID, error) {
+func parseSSPReqIDs(ctx *echo.Context) (uuid.UUID, uuid.UUID, error) {
 	sspID, err := uuid.Parse(ctx.Param("id"))
 	if err != nil {
 		return uuid.Nil, uuid.Nil, err

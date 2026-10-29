@@ -31,10 +31,10 @@ COPY . ./
 # Regenerate the swagger
 RUN make swag
 
-# Build it
-RUN GOOS=linux go build -o /api
+# Build it: a static binary, since the production image has no libc.
+RUN CGO_ENABLED=0 GOOS=linux go build -o /api
 
-FROM gcr.io/distroless/base-debian12@sha256:fabbf1c0c357a3d42550111351daed089b20a2c954df13ee2fcff60602515e84 AS production
+FROM gcr.io/distroless/static-debian13@sha256:15f8637509792e05b97d83451b0b6ccfa4abd548f997e406ac1e72c87fe1fa78 AS production
 
 # The release and preview workflows pass VERSION (X.Y.Z, X.Y.Z-rcN, main-<sha7> or
 # pr-<number>-<sha7>) and set the source and revision labels themselves.

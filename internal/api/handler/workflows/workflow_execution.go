@@ -9,7 +9,7 @@ import (
 	"github.com/compliance-framework/api/internal/service/relational/workflows"
 	"github.com/compliance-framework/api/internal/workflow"
 	"github.com/google/uuid"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
@@ -106,7 +106,7 @@ type BulkReassignRoleResponseData struct {
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/workflows/executions [post]
-func (h *WorkflowExecutionHandler) Start(ctx echo.Context) error {
+func (h *WorkflowExecutionHandler) Start(ctx *echo.Context) error {
 	var req StartWorkflowExecutionRequest
 	if err := h.BindAndValidate(ctx, &req); err != nil {
 		return HandleError(err)
@@ -148,7 +148,7 @@ func (h *WorkflowExecutionHandler) Start(ctx echo.Context) error {
 //	@Failure		500						{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/workflows/executions [get]
-func (h *WorkflowExecutionHandler) List(ctx echo.Context) error {
+func (h *WorkflowExecutionHandler) List(ctx *echo.Context) error {
 	workflowInstanceIDStr := ctx.QueryParam("workflow_instance_id")
 	if workflowInstanceIDStr == "" {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(echo.NewHTTPError(http.StatusBadRequest, "workflow_instance_id is required")))
@@ -197,7 +197,7 @@ func (h *WorkflowExecutionHandler) List(ctx echo.Context) error {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/workflows/executions/{id} [get]
-func (h *WorkflowExecutionHandler) Get(ctx echo.Context) error {
+func (h *WorkflowExecutionHandler) Get(ctx *echo.Context) error {
 	id, err := h.ParseUUID(ctx, "id", "workflow execution")
 	if err != nil {
 		return HandleError(err)
@@ -225,7 +225,7 @@ func (h *WorkflowExecutionHandler) Get(ctx echo.Context) error {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/workflows/executions/{id}/status [get]
-func (h *WorkflowExecutionHandler) GetStatus(ctx echo.Context) error {
+func (h *WorkflowExecutionHandler) GetStatus(ctx *echo.Context) error {
 	id, err := h.ParseUUID(ctx, "id", "workflow execution")
 	if err != nil {
 		return HandleError(err)
@@ -254,7 +254,7 @@ func (h *WorkflowExecutionHandler) GetStatus(ctx echo.Context) error {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/workflows/executions/{id}/metrics [get]
-func (h *WorkflowExecutionHandler) GetMetrics(ctx echo.Context) error {
+func (h *WorkflowExecutionHandler) GetMetrics(ctx *echo.Context) error {
 	id, err := h.ParseUUID(ctx, "id", "workflow execution")
 	if err != nil {
 		return HandleError(err)
@@ -285,7 +285,7 @@ func (h *WorkflowExecutionHandler) GetMetrics(ctx echo.Context) error {
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/workflows/executions/{id}/cancel [put]
-func (h *WorkflowExecutionHandler) Cancel(ctx echo.Context) error {
+func (h *WorkflowExecutionHandler) Cancel(ctx *echo.Context) error {
 	id, err := h.ParseUUID(ctx, "id", "workflow execution")
 	if err != nil {
 		return HandleError(err)
@@ -325,7 +325,7 @@ func (h *WorkflowExecutionHandler) Cancel(ctx echo.Context) error {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/workflows/executions/{id}/retry [post]
-func (h *WorkflowExecutionHandler) Retry(ctx echo.Context) error {
+func (h *WorkflowExecutionHandler) Retry(ctx *echo.Context) error {
 	id, err := h.ParseUUID(ctx, "id", "workflow execution")
 	if err != nil {
 		return HandleError(err)
@@ -357,7 +357,7 @@ func (h *WorkflowExecutionHandler) Retry(ctx echo.Context) error {
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/workflows/executions/{id}/reassign-role [put]
-func (h *WorkflowExecutionHandler) ReassignRole(ctx echo.Context) error {
+func (h *WorkflowExecutionHandler) ReassignRole(ctx *echo.Context) error {
 	id, err := h.ParseUUID(ctx, "id", "workflow execution")
 	if err != nil {
 		return HandleError(err)

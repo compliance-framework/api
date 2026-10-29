@@ -12,7 +12,7 @@ import (
 	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/compliance-framework/api/internal/service/relational/agentcfg"
 	"github.com/google/uuid"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
@@ -86,7 +86,7 @@ func (h *AgentHandler) Register(api *echo.Group, readGuard, adminGuard echo.Midd
 	api.DELETE("/:id/keys/:keyId", h.DeleteAgentKey, adminGuard)
 }
 
-func (h *AgentHandler) ListAgents(ctx echo.Context) error {
+func (h *AgentHandler) ListAgents(ctx *echo.Context) error {
 	var agents []relational.Agent
 	if err := h.db.Order("created_at asc").Find(&agents).Error; err != nil {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
@@ -106,7 +106,7 @@ func (h *AgentHandler) ListAgents(ctx echo.Context) error {
 	return ctx.JSON(http.StatusOK, GenericDataListResponse[agentResponse]{Data: resp})
 }
 
-func (h *AgentHandler) GetAgent(ctx echo.Context) error {
+func (h *AgentHandler) GetAgent(ctx *echo.Context) error {
 	agent, err := h.getAgentByParam(ctx.Param("id"))
 	if err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
@@ -122,7 +122,7 @@ func (h *AgentHandler) GetAgent(ctx echo.Context) error {
 	return ctx.JSON(http.StatusOK, GenericDataResponse[agentResponse]{Data: resp})
 }
 
-func (h *AgentHandler) CreateAgent(ctx echo.Context) error {
+func (h *AgentHandler) CreateAgent(ctx *echo.Context) error {
 	var req createAgentRequest
 	if err := ctx.Bind(&req); err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
@@ -151,7 +151,7 @@ func (h *AgentHandler) CreateAgent(ctx echo.Context) error {
 	return ctx.JSON(http.StatusCreated, GenericDataResponse[agentResponse]{Data: resp})
 }
 
-func (h *AgentHandler) UpdateAgent(ctx echo.Context) error {
+func (h *AgentHandler) UpdateAgent(ctx *echo.Context) error {
 	agent, err := h.getAgentByParam(ctx.Param("id"))
 	if err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
@@ -186,7 +186,7 @@ func (h *AgentHandler) UpdateAgent(ctx echo.Context) error {
 	return ctx.JSON(http.StatusOK, GenericDataResponse[agentResponse]{Data: resp})
 }
 
-func (h *AgentHandler) DeleteAgent(ctx echo.Context) error {
+func (h *AgentHandler) DeleteAgent(ctx *echo.Context) error {
 	agent, err := h.getAgentByParam(ctx.Param("id"))
 	if err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
@@ -227,7 +227,7 @@ func (h *AgentHandler) DeleteAgent(ctx echo.Context) error {
 	return ctx.NoContent(http.StatusNoContent)
 }
 
-func (h *AgentHandler) CreateAgentKey(ctx echo.Context) error {
+func (h *AgentHandler) CreateAgentKey(ctx *echo.Context) error {
 	agent, err := h.getAgentByParam(ctx.Param("id"))
 	if err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
@@ -272,7 +272,7 @@ func (h *AgentHandler) CreateAgentKey(ctx echo.Context) error {
 	})
 }
 
-func (h *AgentHandler) ListAgentKeys(ctx echo.Context) error {
+func (h *AgentHandler) ListAgentKeys(ctx *echo.Context) error {
 	agent, err := h.getAgentByParam(ctx.Param("id"))
 	if err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
@@ -293,7 +293,7 @@ func (h *AgentHandler) ListAgentKeys(ctx echo.Context) error {
 	return ctx.JSON(http.StatusOK, GenericDataListResponse[agentKeyResponse]{Data: resp})
 }
 
-func (h *AgentHandler) GetAgentKey(ctx echo.Context) error {
+func (h *AgentHandler) GetAgentKey(ctx *echo.Context) error {
 	key, status, err := h.getAgentKey(ctx.Param("id"), ctx.Param("keyId"))
 	if err != nil {
 		return ctx.JSON(status, api.NewError(err))
@@ -301,7 +301,7 @@ func (h *AgentHandler) GetAgentKey(ctx echo.Context) error {
 	return ctx.JSON(http.StatusOK, GenericDataResponse[agentKeyResponse]{Data: buildAgentKeyResponse(key)})
 }
 
-func (h *AgentHandler) DeleteAgentKey(ctx echo.Context) error {
+func (h *AgentHandler) DeleteAgentKey(ctx *echo.Context) error {
 	key, status, err := h.getAgentKey(ctx.Param("id"), ctx.Param("keyId"))
 	if err != nil {
 		return ctx.JSON(status, api.NewError(err))

@@ -13,7 +13,7 @@ import (
 	"github.com/compliance-framework/api/internal/service/relational/risks"
 	"github.com/compliance-framework/api/internal/tests"
 	"github.com/google/uuid"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/zap"
 	"gorm.io/datatypes"
@@ -273,8 +273,7 @@ func (suite *LeverageDriftIntegrationSuite) assertProjectionExposesNoUpstreamRis
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	rec := httptest.NewRecorder()
 	ctx := e.NewContext(req, rec)
-	ctx.SetParamNames("id")
-	ctx.SetParamValues(downstreamSSPID.String())
+	ctx.SetPathValues(echo.PathValues{{Name: "id", Value: downstreamSSPID.String()}})
 	suite.Require().NoError(h.LeveragedControls(ctx))
 	suite.Equal(http.StatusOK, rec.Code)
 

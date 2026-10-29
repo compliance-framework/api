@@ -21,7 +21,7 @@ import (
 	"github.com/compliance-framework/api/internal/service/relational/workflows"
 	"github.com/compliance-framework/api/internal/workflow"
 	"github.com/google/uuid"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -190,8 +190,7 @@ func TestStepExecutionHandler_Get(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/workflows/step-executions/"+stepExec.ID.String(), nil)
 		rec := httptest.NewRecorder()
 		c := e.NewContext(req, rec)
-		c.SetParamNames("id")
-		c.SetParamValues(stepExec.ID.String())
+		c.SetPathValues(echo.PathValues{{Name: "id", Value: stepExec.ID.String()}})
 
 		err := handler.Get(c)
 		require.NoError(t, err)
@@ -208,8 +207,7 @@ func TestStepExecutionHandler_Get(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/workflows/step-executions/"+nonExistentID.String(), nil)
 		rec := httptest.NewRecorder()
 		c := e.NewContext(req, rec)
-		c.SetParamNames("id")
-		c.SetParamValues(nonExistentID.String())
+		c.SetPathValues(echo.PathValues{{Name: "id", Value: nonExistentID.String()}})
 
 		err := handler.Get(c)
 		require.NoError(t, err)
@@ -293,8 +291,7 @@ func TestStepExecutionHandler_TransitionStep(t *testing.T) {
 		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 		rec := httptest.NewRecorder()
 		c := e.NewContext(req, rec)
-		c.SetParamNames("id")
-		c.SetParamValues(stepExec.ID.String())
+		c.SetPathValues(echo.PathValues{{Name: "id", Value: stepExec.ID.String()}})
 		c.Set("user", claims)
 
 		err = handler.TransitionStep(c)
@@ -327,8 +324,7 @@ func TestStepExecutionHandler_TransitionStep(t *testing.T) {
 		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 		rec = httptest.NewRecorder()
 		c = e.NewContext(req, rec)
-		c.SetParamNames("id")
-		c.SetParamValues(stepExec.ID.String())
+		c.SetPathValues(echo.PathValues{{Name: "id", Value: stepExec.ID.String()}})
 		c.Set("user", claims)
 
 		err = handler.TransitionStep(c)
@@ -399,8 +395,7 @@ func TestStepExecutionHandler_TransitionStep(t *testing.T) {
 		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 		rec := httptest.NewRecorder()
 		c := e.NewContext(req, rec)
-		c.SetParamNames("id")
-		c.SetParamValues(overdueStep.ID.String())
+		c.SetPathValues(echo.PathValues{{Name: "id", Value: overdueStep.ID.String()}})
 		c.Set("user", claims)
 
 		err = handler.TransitionStep(c)
@@ -457,8 +452,7 @@ func TestStepExecutionHandler_GetEvidenceRequirements(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/workflows/step-executions/"+stepExec.ID.String()+"/evidence-requirements", nil)
 		rec := httptest.NewRecorder()
 		c := e.NewContext(req, rec)
-		c.SetParamNames("id")
-		c.SetParamValues(stepExec.ID.String())
+		c.SetPathValues(echo.PathValues{{Name: "id", Value: stepExec.ID.String()}})
 
 		err := handler.GetEvidenceRequirements(c)
 		require.NoError(t, err)
@@ -523,8 +517,7 @@ func TestStepExecutionHandler_Fail(t *testing.T) {
 		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 		rec := httptest.NewRecorder()
 		c := e.NewContext(req, rec)
-		c.SetParamNames("id")
-		c.SetParamValues(stepExec.ID.String())
+		c.SetPathValues(echo.PathValues{{Name: "id", Value: stepExec.ID.String()}})
 
 		err = handler.Fail(c)
 		require.NoError(t, err)
@@ -677,7 +670,7 @@ func TestStepExecutionHandler_ListMy(t *testing.T) {
 	require.NoError(t, db.Create(stepExec4).Error)
 
 	// Helper to create context with JWT claims
-	createContextWithClaims := func(req *http.Request, rec *httptest.ResponseRecorder, email string) echo.Context {
+	createContextWithClaims := func(req *http.Request, rec *httptest.ResponseRecorder, email string) *echo.Context {
 		c := e.NewContext(req, rec)
 		c.Set("user", &authn.UserClaims{
 			GivenName:  "Test",
@@ -995,7 +988,7 @@ func TestStepExecutionHandler_Reassign(t *testing.T) {
 	}
 	require.NoError(t, db.Create(stepExec).Error)
 
-	createActorContext := func(req *http.Request, rec *httptest.ResponseRecorder) echo.Context {
+	createActorContext := func(req *http.Request, rec *httptest.ResponseRecorder) *echo.Context {
 		c := e.NewContext(req, rec)
 		c.Set("user", &authn.UserClaims{
 			GivenName:  actor.FirstName,
@@ -1003,8 +996,7 @@ func TestStepExecutionHandler_Reassign(t *testing.T) {
 		})
 		claims := c.Get("user").(*authn.UserClaims)
 		claims.Subject = actor.Email
-		c.SetParamNames("id")
-		c.SetParamValues(stepExec.ID.String())
+		c.SetPathValues(echo.PathValues{{Name: "id", Value: stepExec.ID.String()}})
 		return c
 	}
 
@@ -1099,8 +1091,7 @@ func TestStepExecutionHandler_Reassign(t *testing.T) {
 		})
 		claims := c.Get("user").(*authn.UserClaims)
 		claims.Subject = actor.Email
-		c.SetParamNames("id")
-		c.SetParamValues(nonExistentID.String())
+		c.SetPathValues(echo.PathValues{{Name: "id", Value: nonExistentID.String()}})
 
 		err = handler.Reassign(c)
 		require.NoError(t, err)

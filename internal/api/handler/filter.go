@@ -13,7 +13,7 @@ import (
 	"github.com/compliance-framework/api/internal/service/relational/sspscope"
 	oscalTypes_1_1_3 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
 	"github.com/google/uuid"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"go.uber.org/zap"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
@@ -66,7 +66,7 @@ type FilterWithAssociations struct {
 //	@Failure		404	{object}	api.Error
 //	@Failure		500	{object}	api.Error
 //	@Router			/filters/{id} [get]
-func (h *FilterHandler) Get(ctx echo.Context) error {
+func (h *FilterHandler) Get(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -118,7 +118,7 @@ func (h *FilterHandler) Get(ctx echo.Context) error {
 //	@Failure		401			{object}	api.Error
 //	@Failure		500			{object}	api.Error
 //	@Router			/filters [get]
-func (h *FilterHandler) List(ctx echo.Context) error {
+func (h *FilterHandler) List(ctx *echo.Context) error {
 	controlID := ctx.QueryParam("controlId")
 	componentID := ctx.QueryParam("componentId")
 	scope := strings.TrimSpace(ctx.QueryParam("scope"))
@@ -204,7 +204,7 @@ func (h *FilterHandler) List(ctx echo.Context) error {
 //	@Failure		422		{object}	api.Error
 //	@Failure		500		{object}	api.Error
 //	@Router			/filters [post]
-func (h *FilterHandler) Create(ctx echo.Context) error {
+func (h *FilterHandler) Create(ctx *echo.Context) error {
 	var req createFilterRequest
 	if err := ctx.Bind(&req); err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
@@ -291,7 +291,7 @@ func (h *FilterHandler) Create(ctx echo.Context) error {
 //	@Failure		404		{object}	api.Error
 //	@Failure		500		{object}	api.Error
 //	@Router			/filters/{id} [put]
-func (h *FilterHandler) Update(ctx echo.Context) error {
+func (h *FilterHandler) Update(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -433,7 +433,7 @@ func (h *FilterHandler) Update(ctx echo.Context) error {
 //	@Failure		404	{object}	api.Error
 //	@Failure		500	{object}	api.Error
 //	@Router			/filters/{id} [delete]
-func (h *FilterHandler) Delete(ctx echo.Context) error {
+func (h *FilterHandler) Delete(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -476,7 +476,7 @@ func (h *FilterHandler) Delete(ctx echo.Context) error {
 //	@Failure		409			{object}	api.Error
 //	@Failure		500			{object}	api.Error
 //	@Router			/filters/{id}/responsibilities [post]
-func (h *FilterHandler) AttachResponsibility(ctx echo.Context) error {
+func (h *FilterHandler) AttachResponsibility(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	filterID, err := uuid.Parse(idParam)
 	if err != nil {
@@ -772,7 +772,7 @@ func (h *FilterHandler) resolveCatalogIDForSSPControl(sspID uuid.UUID, controlID
 	}
 }
 
-func (h *FilterHandler) DetachResponsibility(ctx echo.Context) error {
+func (h *FilterHandler) DetachResponsibility(ctx *echo.Context) error {
 	filterID, err := uuid.Parse(ctx.Param("id"))
 	if err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
@@ -862,7 +862,7 @@ func followSSPScope(tx *gorm.DB, filter *relational.Filter, base labelfilter.Fil
 	return nil
 }
 
-func (h *FilterHandler) filterWriteError(ctx echo.Context, err error) error {
+func (h *FilterHandler) filterWriteError(ctx *echo.Context, err error) error {
 	switch {
 	case errors.Is(err, errFollowNeedsSSP), errors.Is(err, sspscope.ErrScopeEmpty), errors.Is(err, sspscope.ErrSSPNotFound):
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))

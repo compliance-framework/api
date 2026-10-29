@@ -16,7 +16,7 @@ import (
 	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/compliance-framework/api/internal/service/sso"
 	"github.com/compliance-framework/api/internal/service/sso/types"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"go.uber.org/zap"
 	"golang.org/x/oauth2"
 	"gorm.io/gorm"
@@ -112,7 +112,7 @@ type ProviderInfo struct {
 	IconURL     string `json:"iconUrl,omitempty"`
 }
 
-func (h *SSOHandler) ListProviders(ctx echo.Context) error {
+func (h *SSOHandler) ListProviders(ctx *echo.Context) error {
 	if !h.ssoService.IsEnabled() {
 		return ctx.JSON(http.StatusOK, handler.GenericDataResponse[[]ProviderInfo]{
 			Data: []ProviderInfo{},
@@ -135,7 +135,7 @@ func (h *SSOHandler) ListProviders(ctx echo.Context) error {
 	})
 }
 
-func (h *SSOHandler) InitiateLogin(ctx echo.Context) error {
+func (h *SSOHandler) InitiateLogin(ctx *echo.Context) error {
 	providerName := ctx.Param("provider")
 
 	if !h.ssoService.IsEnabled() {
@@ -179,7 +179,7 @@ func (h *SSOHandler) InitiateLogin(ctx echo.Context) error {
 	return ctx.Redirect(http.StatusTemporaryRedirect, authURL)
 }
 
-func (h *SSOHandler) Callback(ctx echo.Context) error {
+func (h *SSOHandler) Callback(ctx *echo.Context) error {
 	providerName := ctx.Param("provider")
 
 	if !h.ssoService.IsEnabled() {

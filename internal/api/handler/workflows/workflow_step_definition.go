@@ -9,7 +9,7 @@ import (
 	"github.com/compliance-framework/api/internal/api/middleware"
 	"github.com/compliance-framework/api/internal/service/relational/workflows"
 	"github.com/google/uuid"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
@@ -145,7 +145,7 @@ type WorkflowStepDefinitionListResponse struct {
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/workflows/steps [post]
-func (h *WorkflowStepDefinitionHandler) Create(ctx echo.Context) error {
+func (h *WorkflowStepDefinitionHandler) Create(ctx *echo.Context) error {
 	var req CreateWorkflowStepDefinitionRequest
 	if err := h.BindAndValidate(ctx, &req); err != nil {
 		return HandleError(err)
@@ -199,7 +199,7 @@ func (h *WorkflowStepDefinitionHandler) Create(ctx echo.Context) error {
 //	@Failure		500						{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/workflows/steps [get]
-func (h *WorkflowStepDefinitionHandler) ListByWorkflowDefinition(ctx echo.Context) error {
+func (h *WorkflowStepDefinitionHandler) ListByWorkflowDefinition(ctx *echo.Context) error {
 	workflowDefIDStr := ctx.QueryParam("workflow_definition_id")
 	if workflowDefIDStr == "" {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(echo.NewHTTPError(http.StatusBadRequest, "workflow_definition_id is required")))
@@ -233,7 +233,7 @@ func (h *WorkflowStepDefinitionHandler) ListByWorkflowDefinition(ctx echo.Contex
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/workflows/steps/{id} [get]
-func (h *WorkflowStepDefinitionHandler) Get(ctx echo.Context) error {
+func (h *WorkflowStepDefinitionHandler) Get(ctx *echo.Context) error {
 	id, err := h.ParseUUID(ctx, "id", "step definition")
 	if err != nil {
 		return HandleError(err)
@@ -263,7 +263,7 @@ func (h *WorkflowStepDefinitionHandler) Get(ctx echo.Context) error {
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/workflows/steps/{id} [put]
-func (h *WorkflowStepDefinitionHandler) Update(ctx echo.Context) error {
+func (h *WorkflowStepDefinitionHandler) Update(ctx *echo.Context) error {
 	id, err := h.ParseUUID(ctx, "id", "step definition")
 	if err != nil {
 		return HandleError(err)
@@ -334,7 +334,7 @@ func (h *WorkflowStepDefinitionHandler) Update(ctx echo.Context) error {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/workflows/steps/{id} [delete]
-func (h *WorkflowStepDefinitionHandler) Delete(ctx echo.Context) error {
+func (h *WorkflowStepDefinitionHandler) Delete(ctx *echo.Context) error {
 	id, err := h.ParseUUID(ctx, "id", "step definition")
 	if err != nil {
 		return HandleError(err)
@@ -362,7 +362,7 @@ func (h *WorkflowStepDefinitionHandler) Delete(ctx echo.Context) error {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/workflows/steps/{id}/dependencies [get]
-func (h *WorkflowStepDefinitionHandler) GetDependencies(ctx echo.Context) error {
+func (h *WorkflowStepDefinitionHandler) GetDependencies(ctx *echo.Context) error {
 	id, err := h.ParseUUID(ctx, "id", "step definition")
 	if err != nil {
 		return HandleError(err)

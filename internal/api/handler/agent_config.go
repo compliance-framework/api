@@ -20,7 +20,7 @@ import (
 	"github.com/compliance-framework/api/internal/service/relational/agentcfg"
 	"github.com/compliance-framework/api/pkg/agentconfig"
 	"github.com/google/uuid"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
@@ -204,7 +204,7 @@ type agentConfigPreviewRequest struct {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/admin/agents/{id}/config [get]
-func (h *AgentConfigHandler) Get(ctx echo.Context) error {
+func (h *AgentConfigHandler) Get(ctx *echo.Context) error {
 	agent, errResp := h.resolveAgent(ctx)
 	if agent == nil {
 		return errResp
@@ -244,7 +244,7 @@ func (h *AgentConfigHandler) Get(ctx echo.Context) error {
 //	@Failure		500			{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/admin/agents/{id}/config [put]
-func (h *AgentConfigHandler) Put(ctx echo.Context) error {
+func (h *AgentConfigHandler) Put(ctx *echo.Context) error {
 	agent, errResp := h.resolveAgent(ctx)
 	if agent == nil {
 		return errResp
@@ -295,7 +295,7 @@ func (h *AgentConfigHandler) Put(ctx echo.Context) error {
 //	@Failure		500			{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/admin/agents/{id}/config/revisions/{rev}/revert [post]
-func (h *AgentConfigHandler) Revert(ctx echo.Context) error {
+func (h *AgentConfigHandler) Revert(ctx *echo.Context) error {
 	agent, errResp := h.resolveAgent(ctx)
 	if agent == nil {
 		return errResp
@@ -333,7 +333,7 @@ func (h *AgentConfigHandler) Revert(ctx echo.Context) error {
 }
 
 // save implements PUT/revert steps 3-7 (A4.3).
-func (h *AgentConfigHandler) save(ctx echo.Context, agent *relational.Agent, expected int64, overlay json.RawMessage, comment *string, revertOf *int64) error {
+func (h *AgentConfigHandler) save(ctx *echo.Context, agent *relational.Agent, expected int64, overlay json.RawMessage, comment *string, revertOf *int64) error {
 	reqCtx := ctx.Request().Context()
 	agentID := *agent.ID
 
@@ -413,7 +413,7 @@ func (h *AgentConfigHandler) save(ctx echo.Context, agent *relational.Agent, exp
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/admin/agents/{id}/config/preview [post]
-func (h *AgentConfigHandler) Preview(ctx echo.Context) error {
+func (h *AgentConfigHandler) Preview(ctx *echo.Context) error {
 	agent, errResp := h.resolveAgent(ctx)
 	if agent == nil {
 		return errResp
@@ -625,7 +625,7 @@ func mergeAndValidate(base agentconfig.Config, overlay json.RawMessage) (*agentc
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/admin/agents/{id}/config/revisions [get]
-func (h *AgentConfigHandler) ListRevisions(ctx echo.Context) error {
+func (h *AgentConfigHandler) ListRevisions(ctx *echo.Context) error {
 	agent, errResp := h.resolveAgent(ctx)
 	if agent == nil {
 		return errResp
@@ -670,7 +670,7 @@ func (h *AgentConfigHandler) ListRevisions(ctx echo.Context) error {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/admin/agents/{id}/config/revisions/{rev} [get]
-func (h *AgentConfigHandler) GetRevision(ctx echo.Context) error {
+func (h *AgentConfigHandler) GetRevision(ctx *echo.Context) error {
 	agent, errResp := h.resolveAgent(ctx)
 	if agent == nil {
 		return errResp
@@ -709,7 +709,7 @@ func (h *AgentConfigHandler) GetRevision(ctx echo.Context) error {
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/admin/agents/{id}/instances [get]
-func (h *AgentConfigHandler) ListInstances(ctx echo.Context) error {
+func (h *AgentConfigHandler) ListInstances(ctx *echo.Context) error {
 	agent, errResp := h.resolveAgent(ctx)
 	if agent == nil {
 		return errResp
@@ -763,7 +763,7 @@ func (h *AgentConfigHandler) ListInstances(ctx echo.Context) error {
 //	@Failure		500			{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/admin/agents/{id}/instances/{instanceId} [get]
-func (h *AgentConfigHandler) GetInstance(ctx echo.Context) error {
+func (h *AgentConfigHandler) GetInstance(ctx *echo.Context) error {
 	agent, errResp := h.resolveAgent(ctx)
 	if agent == nil {
 		return errResp
@@ -841,7 +841,7 @@ func (h *AgentConfigHandler) decodeColumn(inst *relational.AgentInstance, column
 }
 
 // resolveAgent loads :id. On failure it returns nil and the already-written error response.
-func (h *AgentConfigHandler) resolveAgent(ctx echo.Context) (*relational.Agent, error) {
+func (h *AgentConfigHandler) resolveAgent(ctx *echo.Context) (*relational.Agent, error) {
 	id, err := uuid.Parse(ctx.Param("id"))
 	if err != nil {
 		return nil, ctx.JSON(http.StatusBadRequest, api.InvalidUUID())
@@ -859,7 +859,7 @@ func (h *AgentConfigHandler) resolveAgent(ctx echo.Context) (*relational.Agent, 
 // canConfigure reports whether the caller holds agent:configure on the agent in :id,
 // evaluated against the PDP like the route guard does. It fails closed: no PDP, an
 // unavailable PDP or an evaluation error all count as no.
-func (h *AgentConfigHandler) canConfigure(ctx echo.Context) bool {
+func (h *AgentConfigHandler) canConfigure(ctx *echo.Context) bool {
 	if h.pdp == nil {
 		return false
 	}
@@ -877,7 +877,7 @@ func (h *AgentConfigHandler) canConfigure(ctx echo.Context) bool {
 // redactForReader redacts resp.Overlay (agentconfig.RedactDocument) unless the caller holds
 // agent:configure, so plain readers never see literal secrets typed into an overlay.
 // OverlaySize stays the stored size.
-func (h *AgentConfigHandler) redactForReader(ctx echo.Context, resp *agentConfigRevisionResponse) error {
+func (h *AgentConfigHandler) redactForReader(ctx *echo.Context, resp *agentConfigRevisionResponse) error {
 	if len(resp.Overlay) == 0 || h.canConfigure(ctx) {
 		return nil
 	}
@@ -889,7 +889,7 @@ func (h *AgentConfigHandler) redactForReader(ctx echo.Context, resp *agentConfig
 	return nil
 }
 
-func (h *AgentConfigHandler) internalError(ctx echo.Context, what string, err error) error {
+func (h *AgentConfigHandler) internalError(ctx *echo.Context, what string, err error) error {
 	h.sugar.Errorw("Agent configuration request failed", "operation", what, "path", ctx.Path(), "error", err)
 	return ctx.JSON(http.StatusInternalServerError, api.InternalServerError())
 }
@@ -919,11 +919,11 @@ func revisionResponse(agentID uuid.UUID, rev *relational.AgentConfigRevision, wi
 	return resp
 }
 
-func preconditionRequired(ctx echo.Context) error {
+func preconditionRequired(ctx *echo.Context) error {
 	return ctx.JSON(http.StatusPreconditionRequired, api.NewError(errors.New("If-Match header with the current revision is required")))
 }
 
-func revisionConflict(ctx echo.Context, current int64) error {
+func revisionConflict(ctx *echo.Context, current int64) error {
 	return ctx.JSON(http.StatusConflict, api.Error{Errors: map[string]any{
 		"body":             agentcfg.ErrRevisionConflict.Error(),
 		"current-revision": current,
@@ -931,7 +931,7 @@ func revisionConflict(ctx echo.Context, current int64) error {
 }
 
 // revisionAuthor returns the user subject (email) and user_uuid claim of the caller.
-func revisionAuthor(ctx echo.Context) (string, *uuid.UUID) {
+func revisionAuthor(ctx *echo.Context) (string, *uuid.UUID) {
 	claims, ok := ctx.Get("user").(*authn.UserClaims)
 	if !ok || claims == nil {
 		return "", nil

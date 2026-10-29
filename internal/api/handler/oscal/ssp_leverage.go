@@ -9,7 +9,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"go.uber.org/zap"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
@@ -147,7 +147,7 @@ func (h *SSPLeverageHandler) RegisterProjection(g *echo.Group, guard middleware.
 // handling. Critically, this is the only authorization check Subscribe performs against
 // the downstream SSP's own resource — ssp:read on the *upstream* SSP is never evaluated
 // anywhere in this path, which is the trust-boundary property AC #2 requires.
-func (h *SSPLeverageHandler) authorizeDownstreamUpdate(ctx echo.Context, sspID uuid.UUID) (bool, error) {
+func (h *SSPLeverageHandler) authorizeDownstreamUpdate(ctx *echo.Context, sspID uuid.UUID) (bool, error) {
 	subject := middleware.SubjectFromContext(ctx)
 	resource := authz.Resource{Type: authz.ResourceSSP, ID: sspID.String()}
 	reqCtx := map[string]any{"method": ctx.Request().Method, "path": ctx.Path()}
@@ -521,7 +521,7 @@ func (r subscribeRequest) validate() error {
 //	@Failure		500			{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/ssp-export-offerings/{id}/subscribe [post]
-func (h *SSPLeverageHandler) Subscribe(ctx echo.Context) error {
+func (h *SSPLeverageHandler) Subscribe(ctx *echo.Context) error {
 	offeringIdParam := ctx.Param("id")
 	offeringID, err := uuid.Parse(offeringIdParam)
 	if err != nil {
@@ -913,7 +913,7 @@ type responsibilityFilterResponse struct {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/responsibility-filters [get]
-func (h *SSPLeverageHandler) ResponsibilityFilters(ctx echo.Context) error {
+func (h *SSPLeverageHandler) ResponsibilityFilters(ctx *echo.Context) error {
 	sspIdParam := ctx.Param("id")
 	sspID, err := uuid.Parse(sspIdParam)
 	if err != nil {
@@ -985,7 +985,7 @@ func (h *SSPLeverageHandler) ResponsibilityFilters(ctx echo.Context) error {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/leveraged-controls [get]
-func (h *SSPLeverageHandler) LeveragedControls(ctx echo.Context) error {
+func (h *SSPLeverageHandler) LeveragedControls(ctx *echo.Context) error {
 	sspIdParam := ctx.Param("id")
 	sspID, err := uuid.Parse(sspIdParam)
 	if err != nil {
@@ -1056,7 +1056,7 @@ func projectLeveragedControls(db *gorm.DB, sspID uuid.UUID) ([]leveragedControlP
 // responsibility set and downstream satisfied set, flips the link back to active, and
 // marks the associated drift risk remediated — all in one transaction. Human-in-the-loop
 // only: this is the sole path that clears drift, there is no automatic re-activation.
-func (h *SSPLeverageHandler) ReAttest(ctx echo.Context) error {
+func (h *SSPLeverageHandler) ReAttest(ctx *echo.Context) error {
 	sspIdParam := ctx.Param("id")
 	sspID, err := uuid.Parse(sspIdParam)
 	if err != nil {

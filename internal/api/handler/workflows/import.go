@@ -9,7 +9,7 @@ import (
 
 	"github.com/compliance-framework/api/internal/api"
 	workflowseed "github.com/compliance-framework/api/internal/service/relational/workflows"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
@@ -18,7 +18,7 @@ const (
 	maxImportFiles     = 10
 	maxImportFileBytes = 5 * 1024 * 1024
 
-	WorkflowImportBodyLimit = "55000000"
+	WorkflowImportBodyLimit int64 = 55000000
 )
 
 var errImportFileTooLarge = errors.New("workflow import file exceeds size limit")
@@ -70,7 +70,7 @@ type WorkflowImportDataResponse struct {
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/workflows/import [post]
-func (h *WorkflowImportHandler) Import(ctx echo.Context) error {
+func (h *WorkflowImportHandler) Import(ctx *echo.Context) error {
 	form, err := ctx.MultipartForm()
 	if err != nil {
 		h.sugar.Errorw("Failed to parse multipart form", "error", err)
@@ -122,7 +122,7 @@ func (h *WorkflowImportHandler) Import(ctx echo.Context) error {
 	return ctx.JSON(statusCode, WorkflowImportDataResponse{Data: response})
 }
 
-func (h *WorkflowImportHandler) processWorkflowSeedFile(ctx echo.Context, fileHeader *multipart.FileHeader) WorkflowImportFileResult {
+func (h *WorkflowImportHandler) processWorkflowSeedFile(ctx *echo.Context, fileHeader *multipart.FileHeader) WorkflowImportFileResult {
 	result := WorkflowImportFileResult{
 		Filename: fileHeader.Filename,
 		Success:  false,

@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/compliance-framework/api/internal/authz"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
@@ -46,11 +46,11 @@ func (h *HealthHandler) Register(api *echo.Group) {
 	api.GET("/ready", h.Ready)
 }
 
-func (h *HealthHandler) Health(ctx echo.Context) error {
+func (h *HealthHandler) Health(ctx *echo.Context) error {
 	return ctx.JSON(http.StatusOK, healthResponse{Status: "ok"})
 }
 
-func (h *HealthHandler) Ready(ctx echo.Context) error {
+func (h *HealthHandler) Ready(ctx *echo.Context) error {
 	sqlDB, err := h.sqlDB()
 	if err != nil {
 		h.sugar.Errorw("failed to retrieve sql DB", "err", err)

@@ -12,7 +12,7 @@ import (
 	oscalTypes_1_1_3 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
 
 	"github.com/google/uuid"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 
@@ -73,7 +73,7 @@ func (h *CatalogHandler) Register(api *echo.Group, guard middleware.ResourceGuar
 // @Failure		500		{object}	api.Error
 // @Security		OAuth2Password
 // @Router			/oscal/catalogs [get]
-func (h *CatalogHandler) List(ctx echo.Context) error {
+func (h *CatalogHandler) List(ctx *echo.Context) error {
 	query := h.db.
 		Preload("Metadata").
 		Preload("Metadata.Revisions")
@@ -115,7 +115,7 @@ func (h *CatalogHandler) List(ctx echo.Context) error {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/catalogs/{id} [get]
-func (h *CatalogHandler) Get(ctx echo.Context) error {
+func (h *CatalogHandler) Get(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -150,7 +150,7 @@ func (h *CatalogHandler) Get(ctx echo.Context) error {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/catalogs/{id} [delete]
-func (h *CatalogHandler) Delete(ctx echo.Context) error {
+func (h *CatalogHandler) Delete(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	catalogID, err := uuid.Parse(idParam)
 	if err != nil {
@@ -328,7 +328,7 @@ func (h *CatalogHandler) Delete(ctx echo.Context) error {
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/catalogs/{id}/groups/{group} [delete]
-func (h *CatalogHandler) DeleteGroup(ctx echo.Context) error {
+func (h *CatalogHandler) DeleteGroup(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	catalogID, err := uuid.Parse(idParam)
 	if err != nil {
@@ -409,7 +409,7 @@ func (h *CatalogHandler) DeleteGroup(ctx echo.Context) error {
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/catalogs/{id}/controls/{control} [delete]
-func (h *CatalogHandler) DeleteControl(ctx echo.Context) error {
+func (h *CatalogHandler) DeleteControl(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	catalogID, err := uuid.Parse(idParam)
 	if err != nil {
@@ -468,7 +468,7 @@ func (h *CatalogHandler) DeleteControl(ctx echo.Context) error {
 // @Failure		500		{object}	api.Error
 // @Security		OAuth2Password
 // @Router			/oscal/catalogs [post]
-func (h *CatalogHandler) Create(ctx echo.Context) error {
+func (h *CatalogHandler) Create(ctx *echo.Context) error {
 	now := time.Now()
 
 	var oscalCat oscalTypes_1_1_3.Catalog
@@ -510,7 +510,7 @@ func (h *CatalogHandler) Create(ctx echo.Context) error {
 // @Failure		500		{object}	api.Error
 // @Security		OAuth2Password
 // @Router			/oscal/catalogs/{id} [put]
-func (h *CatalogHandler) Update(ctx echo.Context) error {
+func (h *CatalogHandler) Update(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	catalogID, err := uuid.Parse(idParam)
 	if err != nil {
@@ -555,7 +555,7 @@ func (h *CatalogHandler) Update(ctx echo.Context) error {
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/catalogs/{id}/active [put]
-func (h *CatalogHandler) SetActive(ctx echo.Context) error {
+func (h *CatalogHandler) SetActive(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	catalogID, err := uuid.Parse(idParam)
 	if err != nil {
@@ -618,7 +618,7 @@ func (h *CatalogHandler) SetActive(ctx echo.Context) error {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/catalogs/{id}/back-matter [get]
-func (h *CatalogHandler) GetBackMatter(ctx echo.Context) error {
+func (h *CatalogHandler) GetBackMatter(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -660,7 +660,7 @@ func (h *CatalogHandler) GetBackMatter(ctx echo.Context) error {
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/catalogs/{id}/groups/{group} [get]
-func (h *CatalogHandler) GetGroup(ctx echo.Context) error {
+func (h *CatalogHandler) GetGroup(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -695,7 +695,7 @@ func (h *CatalogHandler) GetGroup(ctx echo.Context) error {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/catalogs/{id}/groups [get]
-func (h *CatalogHandler) GetGroups(ctx echo.Context) error {
+func (h *CatalogHandler) GetGroups(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -733,7 +733,7 @@ func (h *CatalogHandler) GetGroups(ctx echo.Context) error {
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/catalogs/{id}/groups/{group}/groups [get]
-func (h *CatalogHandler) GetGroupSubGroups(ctx echo.Context) error {
+func (h *CatalogHandler) GetGroupSubGroups(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -773,7 +773,7 @@ func (h *CatalogHandler) GetGroupSubGroups(ctx echo.Context) error {
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/catalogs/{id}/groups/{group}/controls [get]
-func (h *CatalogHandler) GetGroupControls(ctx echo.Context) error {
+func (h *CatalogHandler) GetGroupControls(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -813,7 +813,7 @@ func (h *CatalogHandler) GetGroupControls(ctx echo.Context) error {
 // @Failure		500		{object}	api.Error
 // @Security		OAuth2Password
 // @Router			/oscal/catalogs/{id}/groups [post]
-func (h *CatalogHandler) CreateGroup(ctx echo.Context) error {
+func (h *CatalogHandler) CreateGroup(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	catalogID, err := uuid.Parse(idParam)
 	if err != nil {
@@ -863,7 +863,7 @@ func (h *CatalogHandler) CreateGroup(ctx echo.Context) error {
 // @Failure		500		{object}	api.Error
 // @Security		OAuth2Password
 // @Router			/oscal/catalogs/{id}/groups/{group} [put]
-func (h *CatalogHandler) UpdateGroup(ctx echo.Context) error {
+func (h *CatalogHandler) UpdateGroup(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	catalogID, err := uuid.Parse(idParam)
 	if err != nil {
@@ -906,7 +906,7 @@ func (h *CatalogHandler) UpdateGroup(ctx echo.Context) error {
 // @Failure		500		{object}	api.Error
 // @Security		OAuth2Password
 // @Router			/oscal/catalogs/{id}/groups/{group}/groups [post]
-func (h *CatalogHandler) CreateGroupSubGroup(ctx echo.Context) error {
+func (h *CatalogHandler) CreateGroupSubGroup(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	catalogID, err := uuid.Parse(idParam)
 	if err != nil {
@@ -958,7 +958,7 @@ func (h *CatalogHandler) CreateGroupSubGroup(ctx echo.Context) error {
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/catalogs/{id}/groups/{group}/controls [post]
-func (h *CatalogHandler) CreateGroupControl(ctx echo.Context) error {
+func (h *CatalogHandler) CreateGroupControl(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	catalogID, err := uuid.Parse(idParam)
 	if err != nil {
@@ -1009,7 +1009,7 @@ func (h *CatalogHandler) CreateGroupControl(ctx echo.Context) error {
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/catalogs/{id}/controls/{control} [get]
-func (h *CatalogHandler) GetControl(ctx echo.Context) error {
+func (h *CatalogHandler) GetControl(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -1044,7 +1044,7 @@ func (h *CatalogHandler) GetControl(ctx echo.Context) error {
 // @Failure		500	{object}	api.Error
 // @Security		OAuth2Password
 // @Router			/oscal/catalogs/{id}/controls [get]
-func (h *CatalogHandler) GetControls(ctx echo.Context) error {
+func (h *CatalogHandler) GetControls(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -1082,7 +1082,7 @@ func (h *CatalogHandler) GetControls(ctx echo.Context) error {
 // @Failure		500	{object}	api.Error
 // @Security		OAuth2Password
 // @Router			/oscal/catalogs/{id}/all-controls [get]
-func (h *CatalogHandler) GetAllControls(ctx echo.Context) error {
+func (h *CatalogHandler) GetAllControls(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -1120,7 +1120,7 @@ func (h *CatalogHandler) GetAllControls(ctx echo.Context) error {
 // @Failure		500		{object}	api.Error
 // @Security		OAuth2Password
 // @Router			/oscal/catalogs/{id}/controls/{control}/controls [get]
-func (h *CatalogHandler) GetControlSubControls(ctx echo.Context) error {
+func (h *CatalogHandler) GetControlSubControls(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -1162,7 +1162,7 @@ func (h *CatalogHandler) GetControlSubControls(ctx echo.Context) error {
 // @Failure		500		{object}	api.Error
 // @Security		OAuth2Password
 // @Router			/oscal/catalogs/{id}/controls [post]
-func (h *CatalogHandler) CreateControl(ctx echo.Context) error {
+func (h *CatalogHandler) CreateControl(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	catalogID, err := uuid.Parse(idParam)
 	if err != nil {
@@ -1211,7 +1211,7 @@ func (h *CatalogHandler) CreateControl(ctx echo.Context) error {
 // @Failure		500		{object}	api.Error
 // @Security		OAuth2Password
 // @Router			/oscal/catalogs/{id}/controls/{control} [put]
-func (h *CatalogHandler) UpdateControl(ctx echo.Context) error {
+func (h *CatalogHandler) UpdateControl(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	catalogID, err := uuid.Parse(idParam)
 	if err != nil {
@@ -1254,7 +1254,7 @@ func (h *CatalogHandler) UpdateControl(ctx echo.Context) error {
 // @Failure		500		{object}	api.Error
 // @Security		OAuth2Password
 // @Router			/oscal/catalogs/{id}/controls/{control}/controls [post]
-func (h *CatalogHandler) CreateControlSubControl(ctx echo.Context) error {
+func (h *CatalogHandler) CreateControlSubControl(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	catalogID, err := uuid.Parse(idParam)
 	if err != nil {
@@ -1292,7 +1292,7 @@ func (h *CatalogHandler) CreateControlSubControl(ctx echo.Context) error {
 	return ctx.JSON(http.StatusCreated, handler.GenericDataResponse[oscalTypes_1_1_3.Control]{Data: *relCtl.MarshalOscal()})
 }
 
-func (h *CatalogHandler) Full(ctx echo.Context) error {
+func (h *CatalogHandler) Full(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {

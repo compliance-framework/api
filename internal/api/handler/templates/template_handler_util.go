@@ -7,12 +7,12 @@ import (
 
 	"github.com/compliance-framework/api/internal/api"
 	templaterel "github.com/compliance-framework/api/internal/service/relational/templates"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
-func handleTemplateServiceError(ctx echo.Context, sugar *zap.SugaredLogger, message string, err error) error {
+func handleTemplateServiceError(ctx *echo.Context, sugar *zap.SugaredLogger, message string, err error) error {
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return ctx.JSON(http.StatusNotFound, api.NotFound())
 	}
@@ -22,7 +22,7 @@ func handleTemplateServiceError(ctx echo.Context, sugar *zap.SugaredLogger, mess
 	return templateInternalServerError(ctx, sugar, message, err)
 }
 
-func templateInternalServerError(ctx echo.Context, sugar *zap.SugaredLogger, message string, err error) error {
+func templateInternalServerError(ctx *echo.Context, sugar *zap.SugaredLogger, message string, err error) error {
 	if sugar != nil {
 		sugar.Errorw(message, "error", err)
 	}

@@ -7,13 +7,13 @@ import (
 	"strings"
 
 	"github.com/compliance-framework/api/internal/authn"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // JWTMiddleware returns an Echo middleware function that verifies JWT tokens using the provided RSA public key.
 func JWTMiddleware(publicKey *rsa.PublicKey) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
+		return func(c *echo.Context) error {
 			if c.Request().Method == http.MethodOptions {
 				// Allow preflight requests without authentication
 				return next(c)
@@ -27,7 +27,7 @@ func JWTMiddleware(publicKey *rsa.PublicKey) echo.MiddlewareFunc {
 			} else {
 				tokenString, err = getTokenFromHeader(c.Request().Header.Get("Authorization"))
 				if err != nil {
-					return echo.NewHTTPError(http.StatusUnauthorized, err)
+					return echo.NewHTTPError(http.StatusUnauthorized, err.Error())
 				}
 			}
 

@@ -4,10 +4,10 @@ import (
 	"github.com/compliance-framework/api/internal/api/middleware"
 	"github.com/compliance-framework/api/internal/authn"
 	evidencesvc "github.com/compliance-framework/api/internal/service/relational/evidence"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
-func SignerContextFromEcho(ctx echo.Context) *evidencesvc.SignerContext {
+func SignerContextFromEcho(ctx *echo.Context) *evidencesvc.SignerContext {
 	if claims, ok := ctx.Get("user").(*authn.UserClaims); ok && claims != nil {
 		return evidencesvc.NewUserSignerContextFromClaims(claims)
 	}

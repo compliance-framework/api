@@ -14,7 +14,7 @@ import (
 	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/compliance-framework/api/internal/service/relational/workflows"
 	"github.com/google/uuid"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -34,7 +34,7 @@ func createTestUser(t *testing.T, db *gorm.DB) *relational.User {
 	return user
 }
 
-func setAuthClaims(c echo.Context, user *relational.User) {
+func setAuthClaims(c *echo.Context, user *relational.User) {
 	claims := &authn.UserClaims{GivenName: user.FirstName, FamilyName: user.LastName}
 	claims.Subject = user.Email
 	c.Set("user", claims)
@@ -263,8 +263,7 @@ func TestWorkflowInstanceHandler_Get(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/workflows/instances/"+instance.ID.String(), nil)
 		rec := httptest.NewRecorder()
 		c := e.NewContext(req, rec)
-		c.SetParamNames("id")
-		c.SetParamValues(instance.ID.String())
+		c.SetPathValues(echo.PathValues{{Name: "id", Value: instance.ID.String()}})
 
 		err := handler.Get(c)
 		require.NoError(t, err)
@@ -283,8 +282,7 @@ func TestWorkflowInstanceHandler_Get(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/workflows/instances/"+nonExistentID.String(), nil)
 		rec := httptest.NewRecorder()
 		c := e.NewContext(req, rec)
-		c.SetParamNames("id")
-		c.SetParamValues(nonExistentID.String())
+		c.SetPathValues(echo.PathValues{{Name: "id", Value: nonExistentID.String()}})
 
 		err := handler.Get(c)
 		require.NoError(t, err)
@@ -333,8 +331,7 @@ func TestWorkflowInstanceHandler_Update(t *testing.T) {
 		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 		rec := httptest.NewRecorder()
 		c := e.NewContext(req, rec)
-		c.SetParamNames("id")
-		c.SetParamValues(instance.ID.String())
+		c.SetPathValues(echo.PathValues{{Name: "id", Value: instance.ID.String()}})
 		setAuthClaims(c, testUser)
 
 		err = handler.Update(c)
@@ -367,8 +364,7 @@ func TestWorkflowInstanceHandler_Update(t *testing.T) {
 		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 		rec := httptest.NewRecorder()
 		c := e.NewContext(req, rec)
-		c.SetParamNames("id")
-		c.SetParamValues(nonExistentID.String())
+		c.SetPathValues(echo.PathValues{{Name: "id", Value: nonExistentID.String()}})
 		setAuthClaims(c, testUser)
 
 		err = handler.Update(c)
@@ -401,8 +397,7 @@ func TestWorkflowInstanceHandler_Delete(t *testing.T) {
 		req := httptest.NewRequest(http.MethodDelete, "/workflows/instances/"+instance.ID.String(), nil)
 		rec := httptest.NewRecorder()
 		c := e.NewContext(req, rec)
-		c.SetParamNames("id")
-		c.SetParamValues(instance.ID.String())
+		c.SetPathValues(echo.PathValues{{Name: "id", Value: instance.ID.String()}})
 
 		err := handler.Delete(c)
 		require.NoError(t, err)
@@ -419,8 +414,7 @@ func TestWorkflowInstanceHandler_Delete(t *testing.T) {
 		req := httptest.NewRequest(http.MethodDelete, "/workflows/instances/"+nonExistentID.String(), nil)
 		rec := httptest.NewRecorder()
 		c := e.NewContext(req, rec)
-		c.SetParamNames("id")
-		c.SetParamValues(nonExistentID.String())
+		c.SetPathValues(echo.PathValues{{Name: "id", Value: nonExistentID.String()}})
 
 		err := handler.Delete(c)
 		require.NoError(t, err)
@@ -453,8 +447,7 @@ func TestWorkflowInstanceHandler_Activate(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPut, "/workflows/instances/"+instance.ID.String()+"/activate", nil)
 		rec := httptest.NewRecorder()
 		c := e.NewContext(req, rec)
-		c.SetParamNames("id")
-		c.SetParamValues(instance.ID.String())
+		c.SetPathValues(echo.PathValues{{Name: "id", Value: instance.ID.String()}})
 
 		err := handler.Activate(c)
 		require.NoError(t, err)
@@ -471,8 +464,7 @@ func TestWorkflowInstanceHandler_Activate(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPut, "/workflows/instances/"+nonExistentID.String()+"/activate", nil)
 		rec := httptest.NewRecorder()
 		c := e.NewContext(req, rec)
-		c.SetParamNames("id")
-		c.SetParamValues(nonExistentID.String())
+		c.SetPathValues(echo.PathValues{{Name: "id", Value: nonExistentID.String()}})
 
 		err := handler.Activate(c)
 		require.NoError(t, err)
@@ -505,8 +497,7 @@ func TestWorkflowInstanceHandler_Deactivate(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPut, "/workflows/instances/"+instance.ID.String()+"/deactivate", nil)
 		rec := httptest.NewRecorder()
 		c := e.NewContext(req, rec)
-		c.SetParamNames("id")
-		c.SetParamValues(instance.ID.String())
+		c.SetPathValues(echo.PathValues{{Name: "id", Value: instance.ID.String()}})
 
 		err := handler.Deactivate(c)
 		require.NoError(t, err)
@@ -523,8 +514,7 @@ func TestWorkflowInstanceHandler_Deactivate(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPut, "/workflows/instances/"+nonExistentID.String()+"/deactivate", nil)
 		rec := httptest.NewRecorder()
 		c := e.NewContext(req, rec)
-		c.SetParamNames("id")
-		c.SetParamValues(nonExistentID.String())
+		c.SetPathValues(echo.PathValues{{Name: "id", Value: nonExistentID.String()}})
 
 		err := handler.Deactivate(c)
 		require.NoError(t, err)

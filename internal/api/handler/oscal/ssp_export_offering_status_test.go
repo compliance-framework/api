@@ -9,20 +9,19 @@ import (
 	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/compliance-framework/api/internal/service/relational/risks"
 	"github.com/google/uuid"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
-func newOfferingStatusRequestContext(sspID, offeringID uuid.UUID, body string) (echo.Context, *httptest.ResponseRecorder) {
+func newOfferingStatusRequestContext(sspID, offeringID uuid.UUID, body string) (*echo.Context, *httptest.ResponseRecorder) {
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodPatch, "/", bytes.NewBufferString(body))
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	rec := httptest.NewRecorder()
 	ctx := e.NewContext(req, rec)
-	ctx.SetParamNames("id", "offeringId")
-	ctx.SetParamValues(sspID.String(), offeringID.String())
+	ctx.SetPathValues(echo.PathValues{{Name: "id", Value: sspID.String()}, {Name: "offeringId", Value: offeringID.String()}})
 	return ctx, rec
 }
 

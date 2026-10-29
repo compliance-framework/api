@@ -15,7 +15,7 @@ import (
 	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
@@ -118,7 +118,7 @@ func (h *UserHandler) RegisterPublicRoutes(api *echo.Group, guard middleware.Res
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/admin/users [get]
-func (h *UserHandler) ListUsers(ctx echo.Context) error {
+func (h *UserHandler) ListUsers(ctx *echo.Context) error {
 	var users []relational.User
 
 	if err := h.db.Find(&users).Error; err != nil {
@@ -154,7 +154,7 @@ func (h *UserHandler) ListUsers(ctx echo.Context) error {
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/users/select [get]
-func (h *UserHandler) ListSelectableUsers(ctx echo.Context) error {
+func (h *UserHandler) ListSelectableUsers(ctx *echo.Context) error {
 	search := strings.TrimSpace(ctx.QueryParam("search"))
 	query := h.db.Model(&relational.User{}).
 		Select("id", "first_name", "last_name").
@@ -228,7 +228,7 @@ func (h *UserHandler) ListSelectableUsers(ctx echo.Context) error {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/admin/users/{id} [get]
-func (h *UserHandler) GetUser(ctx echo.Context) error {
+func (h *UserHandler) GetUser(ctx *echo.Context) error {
 	userID := ctx.Param("id")
 
 	userUUID, err := uuid.Parse(userID)
@@ -272,7 +272,7 @@ func (h *UserHandler) GetUser(ctx echo.Context) error {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/admin/users/{id}/groups [get]
-func (h *UserHandler) GetUserGroups(ctx echo.Context) error {
+func (h *UserHandler) GetUserGroups(ctx *echo.Context) error {
 	userID := ctx.Param("id")
 
 	userUUID, err := uuid.Parse(userID)
@@ -313,7 +313,7 @@ func (h *UserHandler) GetUserGroups(ctx echo.Context) error {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/users/{id} [get]
-func (h *UserHandler) GetPublicUser(ctx echo.Context) error {
+func (h *UserHandler) GetPublicUser(ctx *echo.Context) error {
 	userID := ctx.Param("id")
 
 	userUUID, err := uuid.Parse(userID)
@@ -446,7 +446,7 @@ func UserDisplayName(user relational.User) string {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/users/me [get]
-func (h *UserHandler) GetMe(ctx echo.Context) error {
+func (h *UserHandler) GetMe(ctx *echo.Context) error {
 	userClaims := ctx.Get("user").(*authn.UserClaims)
 
 	email := userClaims.Subject
@@ -486,7 +486,7 @@ func (h *UserHandler) GetMe(ctx echo.Context) error {
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/admin/users [post]
-func (h *UserHandler) CreateUser(ctx echo.Context) error {
+func (h *UserHandler) CreateUser(ctx *echo.Context) error {
 	type createUserRequest struct {
 		Email     string `json:"email" validate:"required,email"`
 		Password  string `json:"password" validate:"required"`
@@ -540,7 +540,7 @@ func (h *UserHandler) CreateUser(ctx echo.Context) error {
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/admin/users/{id} [put]
-func (h *UserHandler) UpdateUser(ctx echo.Context) error {
+func (h *UserHandler) UpdateUser(ctx *echo.Context) error {
 	type updateUserRequest struct {
 		FirstName    *string `json:"firstName"`
 		LastName     *string `json:"lastName"`
@@ -608,7 +608,7 @@ func (h *UserHandler) UpdateUser(ctx echo.Context) error {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/admin/users/{id} [delete]
-func (h *UserHandler) DeleteUser(ctx echo.Context) error {
+func (h *UserHandler) DeleteUser(ctx *echo.Context) error {
 	userID := ctx.Param("id")
 	userUUID, err := uuid.Parse(userID)
 	if err != nil {
@@ -664,7 +664,7 @@ func (h *UserHandler) DeleteUser(ctx echo.Context) error {
 //	@Failure		500						{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/users/me/change-password [post]
-func (h *UserHandler) ChangeLoggedInUserPassword(ctx echo.Context) error {
+func (h *UserHandler) ChangeLoggedInUserPassword(ctx *echo.Context) error {
 	userClaims := ctx.Get("user").(*authn.UserClaims)
 
 	email := userClaims.Subject
@@ -716,7 +716,7 @@ func (h *UserHandler) ChangeLoggedInUserPassword(ctx echo.Context) error {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/users/me/subscriptions [get]
-func (h *UserHandler) GetSubscriptions(ctx echo.Context) error {
+func (h *UserHandler) GetSubscriptions(ctx *echo.Context) error {
 	userClaims := ctx.Get("user").(*authn.UserClaims)
 
 	email := userClaims.Subject
@@ -757,7 +757,7 @@ func (h *UserHandler) GetSubscriptions(ctx echo.Context) error {
 //	@Failure		500				{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/users/me/subscriptions [put]
-func (h *UserHandler) UpdateSubscriptions(ctx echo.Context) error {
+func (h *UserHandler) UpdateSubscriptions(ctx *echo.Context) error {
 	userClaims := ctx.Get("user").(*authn.UserClaims)
 
 	var req UpdateSubscriptionsRequest
@@ -933,7 +933,7 @@ func (h *UserHandler) replaceUserNotificationSubscriptions(ctx context.Context, 
 //	@Failure		500						{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/users/{id}/change-password [post]
-func (h *UserHandler) ChangePassword(ctx echo.Context) error {
+func (h *UserHandler) ChangePassword(ctx *echo.Context) error {
 	userID := ctx.Param("id")
 	userUUID, err := uuid.Parse(userID)
 	if err != nil {

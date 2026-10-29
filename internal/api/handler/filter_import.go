@@ -11,7 +11,7 @@ import (
 	"github.com/compliance-framework/api/internal/converters/labelfilter"
 	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/google/uuid"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"gorm.io/datatypes"
 	"gorm.io/gorm/clause"
 )
@@ -55,7 +55,7 @@ type controlRef struct {
 //	@Failure		400		{object}	api.Error
 //	@Failure		500		{object}	api.Error
 //	@Router			/filters/import [post]
-func (h *FilterHandler) ImportFilters(ctx echo.Context) error {
+func (h *FilterHandler) ImportFilters(ctx *echo.Context) error {
 	form, err := ctx.MultipartForm()
 	if err != nil {
 		h.sugar.Errorw("Failed to parse multipart form", "error", err)

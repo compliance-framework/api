@@ -5,7 +5,7 @@ import (
 	"net/http"
 
 	"github.com/compliance-framework/api/internal/authn"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"gorm.io/gorm"
 )
 
@@ -13,7 +13,7 @@ import (
 // or unauthenticated public requests when allowPublic is true.
 func OptionalUserOrAgentJWTMiddleware(db *gorm.DB, publicKey *rsa.PublicKey, allowPublic bool) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
+		return func(c *echo.Context) error {
 			if c.Request().Method == http.MethodOptions {
 				return next(c)
 			}
@@ -21,7 +21,7 @@ func OptionalUserOrAgentJWTMiddleware(db *gorm.DB, publicKey *rsa.PublicKey, all
 			if authHeader := c.Request().Header.Get(echo.HeaderAuthorization); authHeader != "" {
 				tokenString, err := getTokenFromHeader(authHeader)
 				if err != nil {
-					return echo.NewHTTPError(http.StatusUnauthorized, err)
+					return echo.NewHTTPError(http.StatusUnauthorized, err.Error())
 				}
 
 				if claims, err := authn.VerifyJWTToken(tokenString, publicKey); err == nil {

@@ -8,7 +8,7 @@ import (
 	"github.com/compliance-framework/api/internal/service"
 	"github.com/compliance-framework/api/internal/service/relational/agentcfg"
 	"github.com/google/uuid"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
@@ -70,7 +70,7 @@ type HeartbeatCreateRequest struct {
 //	@Failure		400			{object}	api.Error
 //	@Failure		500			{object}	api.Error
 //	@Router			/agent/heartbeat [post]
-func (h *HeartbeatHandler) Create(ctx echo.Context) error {
+func (h *HeartbeatHandler) Create(ctx *echo.Context) error {
 	// Bind the incoming JSON payload into a slice of SDK findings.
 	var heartbeat HeartbeatCreateRequest
 	if err := ctx.Bind(&heartbeat); err != nil {
@@ -97,7 +97,7 @@ func (h *HeartbeatHandler) Create(ctx echo.Context) error {
 
 // touchAgentInstance records an authenticated heartbeat against the agent-instance registry.
 // Failures are logged and never change the 201; anonymous heartbeats are ignored.
-func (h *HeartbeatHandler) touchAgentInstance(ctx echo.Context, heartbeat HeartbeatCreateRequest) {
+func (h *HeartbeatHandler) touchAgentInstance(ctx *echo.Context, heartbeat HeartbeatCreateRequest) {
 	if h.instances == nil {
 		return
 	}
@@ -135,7 +135,7 @@ func (h *HeartbeatHandler) touchAgentInstance(ctx echo.Context, heartbeat Heartb
 //	@Success		200	{object}	handler.GenericDataListResponse[handler.OverTime.HeartbeatInterval]
 //	@Failure		500	{object}	api.Error
 //	@Router			/agent/heartbeat/over-time [get]
-func (h *HeartbeatHandler) OverTime(ctx echo.Context) error {
+func (h *HeartbeatHandler) OverTime(ctx *echo.Context) error {
 
 	type HeartbeatInterval struct {
 		Interval time.Time `json:"interval"`

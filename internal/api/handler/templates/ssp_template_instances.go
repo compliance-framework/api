@@ -9,7 +9,7 @@ import (
 	svc "github.com/compliance-framework/api/internal/service"
 	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/google/uuid"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 type sspTemplateInstanceResponse struct {
@@ -39,7 +39,7 @@ type sspTemplateInstanceResponse struct {
 //	@Failure		503	{object}	api.Error	"background jobs are not available"
 //	@Security		OAuth2Password
 //	@Router			/admin/ssp-templates/{id}/run [post]
-func (h *SSPTemplateHandler) Run(ctx echo.Context) error {
+func (h *SSPTemplateHandler) Run(ctx *echo.Context) error {
 	id, err := uuid.Parse(ctx.Param("id"))
 	if err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
@@ -71,7 +71,7 @@ func (h *SSPTemplateHandler) Run(ctx echo.Context) error {
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/admin/ssp-templates/{id}/ssps [get]
-func (h *SSPTemplateHandler) ListSSPs(ctx echo.Context) error {
+func (h *SSPTemplateHandler) ListSSPs(ctx *echo.Context) error {
 	id, err := uuid.Parse(ctx.Param("id"))
 	if err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
@@ -117,7 +117,7 @@ func (h *SSPTemplateHandler) ListSSPs(ctx echo.Context) error {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/admin/ssp-templates/{id}/ssps/{keyHash} [delete]
-func (h *SSPTemplateHandler) Forget(ctx echo.Context) error {
+func (h *SSPTemplateHandler) Forget(ctx *echo.Context) error {
 	id, err := uuid.Parse(ctx.Param("id"))
 	if err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))

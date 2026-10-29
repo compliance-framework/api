@@ -11,7 +11,7 @@ import (
 	oscalTypes_1_1_3 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
 
 	"github.com/google/uuid"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"go.uber.org/zap"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
@@ -79,7 +79,7 @@ func (h *ComponentDefinitionHandler) Register(api *echo.Group, guard middleware.
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/component-definitions [get]
-func (h *ComponentDefinitionHandler) List(ctx echo.Context) error {
+func (h *ComponentDefinitionHandler) List(ctx *echo.Context) error {
 	var componentDefinitions []relational.ComponentDefinition
 	if err := h.db.
 		Preload("Metadata").
@@ -111,7 +111,7 @@ func (h *ComponentDefinitionHandler) List(ctx echo.Context) error {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/component-definitions/{id} [get]
-func (h *ComponentDefinitionHandler) Get(ctx echo.Context) error {
+func (h *ComponentDefinitionHandler) Get(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -149,7 +149,7 @@ func (h *ComponentDefinitionHandler) Get(ctx echo.Context) error {
 //	@Failure		500					{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/component-definitions [post]
-func (h *ComponentDefinitionHandler) Create(ctx echo.Context) error {
+func (h *ComponentDefinitionHandler) Create(ctx *echo.Context) error {
 	now := time.Now()
 
 	var oscalCat oscalTypes_1_1_3.ComponentDefinition
@@ -184,7 +184,7 @@ func (h *ComponentDefinitionHandler) Create(ctx echo.Context) error {
 //	@Failure		500					{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/component-definitions/{id} [put]
-func (h *ComponentDefinitionHandler) Update(ctx echo.Context) error {
+func (h *ComponentDefinitionHandler) Update(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -277,7 +277,7 @@ func (h *ComponentDefinitionHandler) Update(ctx echo.Context) error {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/component-definitions/{id}/full [get]
-func (h *ComponentDefinitionHandler) Full(ctx echo.Context) error {
+func (h *ComponentDefinitionHandler) Full(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -332,7 +332,7 @@ func (h *ComponentDefinitionHandler) Full(ctx echo.Context) error {
 //	@Failure		500					{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/component-definitions/{id}/import-component-definitions [get]
-func (h *ComponentDefinitionHandler) GetImportComponentDefinitions(ctx echo.Context) error {
+func (h *ComponentDefinitionHandler) GetImportComponentDefinitions(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -371,7 +371,7 @@ func (h *ComponentDefinitionHandler) GetImportComponentDefinitions(ctx echo.Cont
 //	@Failure		500								{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/component-definitions/{id}/import-component-definitions [post]
-func (h *ComponentDefinitionHandler) CreateImportComponentDefinitions(ctx echo.Context) error {
+func (h *ComponentDefinitionHandler) CreateImportComponentDefinitions(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -458,7 +458,7 @@ func (h *ComponentDefinitionHandler) CreateImportComponentDefinitions(ctx echo.C
 //	@Failure		500								{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/component-definitions/{id}/import-component-definitions [put]
-func (h *ComponentDefinitionHandler) UpdateImportComponentDefinitions(ctx echo.Context) error {
+func (h *ComponentDefinitionHandler) UpdateImportComponentDefinitions(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -543,7 +543,7 @@ func (h *ComponentDefinitionHandler) UpdateImportComponentDefinitions(ctx echo.C
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/component-definitions/{id}/components [get]
-func (h *ComponentDefinitionHandler) GetComponents(ctx echo.Context) error {
+func (h *ComponentDefinitionHandler) GetComponents(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -585,7 +585,7 @@ func (h *ComponentDefinitionHandler) GetComponents(ctx echo.Context) error {
 //	@Failure		500			{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/component-definitions/{id}/components [post]
-func (h *ComponentDefinitionHandler) CreateComponents(ctx echo.Context) error {
+func (h *ComponentDefinitionHandler) CreateComponents(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -688,7 +688,7 @@ func (h *ComponentDefinitionHandler) CreateComponents(ctx echo.Context) error {
 //	@Failure		500			{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/component-definitions/{id}/components [put]
-func (h *ComponentDefinitionHandler) UpdateComponents(ctx echo.Context) error {
+func (h *ComponentDefinitionHandler) UpdateComponents(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -812,7 +812,7 @@ func (h *ComponentDefinitionHandler) UpdateComponents(ctx echo.Context) error {
 //	@Failure		500					{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/component-definitions/{id}/components/{defined-component} [get]
-func (h *ComponentDefinitionHandler) GetDefinedComponent(ctx echo.Context) error {
+func (h *ComponentDefinitionHandler) GetDefinedComponent(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -862,7 +862,7 @@ func (h *ComponentDefinitionHandler) GetDefinedComponent(ctx echo.Context) error
 //	@Failure		500					{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/component-definitions/{id}/components/{defined-component} [post]
-func (h *ComponentDefinitionHandler) CreateDefinedComponent(ctx echo.Context) error {
+func (h *ComponentDefinitionHandler) CreateDefinedComponent(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -949,7 +949,7 @@ func (h *ComponentDefinitionHandler) CreateDefinedComponent(ctx echo.Context) er
 //	@Failure		500					{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/component-definitions/{id}/components/{defined-component} [put]
-func (h *ComponentDefinitionHandler) UpdateDefinedComponent(ctx echo.Context) error {
+func (h *ComponentDefinitionHandler) UpdateDefinedComponent(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -1060,7 +1060,7 @@ func (h *ComponentDefinitionHandler) UpdateDefinedComponent(ctx echo.Context) er
 //	@Failure		500					{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/component-definitions/{id}/components/{defined-component}/control-implementations [get]
-func (h *ComponentDefinitionHandler) GetControlImplementations(ctx echo.Context) error {
+func (h *ComponentDefinitionHandler) GetControlImplementations(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -1147,7 +1147,7 @@ func (h *ComponentDefinitionHandler) GetControlImplementations(ctx echo.Context)
 //	@Failure		500						{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/component-definitions/{id}/components/{defined-component}/control-implementations [post]
-func (h *ComponentDefinitionHandler) CreateControlImplementations(ctx echo.Context) error {
+func (h *ComponentDefinitionHandler) CreateControlImplementations(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -1228,7 +1228,7 @@ func (h *ComponentDefinitionHandler) CreateControlImplementations(ctx echo.Conte
 //	@Failure		500					{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/component-definitions/{id}/components/{defined-component}/control-implementations/implemented-requirements [get]
-func (h *ComponentDefinitionHandler) GetImplementedRequirements(ctx echo.Context) error {
+func (h *ComponentDefinitionHandler) GetImplementedRequirements(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -1284,7 +1284,7 @@ func (h *ComponentDefinitionHandler) GetImplementedRequirements(ctx echo.Context
 // //	@Failure		500							{object}	api.Error
 // //  @Security		OAuth2Password
 // //	@Router			/oscal/component-definitions/{id}/components/{defined-component}/control-implementations/implemented-requirements [post]
-// func (h *ComponentDefinitionHandler) CreateImplementedRequirements(ctx echo.Context) error {
+// func (h *ComponentDefinitionHandler) CreateImplementedRequirements(ctx *echo.Context) error {
 // 	idParam := ctx.Param("id")
 // 	id, err := uuid.Parse(idParam)
 // 	if err != nil {
@@ -1367,7 +1367,7 @@ func (h *ComponentDefinitionHandler) GetImplementedRequirements(ctx echo.Context
 //	@Failure		500					{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/component-definitions/{id}/components/{defined-component}/control-implementations/implemented-requirements/statements [get]
-func (h *ComponentDefinitionHandler) GetStatements(ctx echo.Context) error {
+func (h *ComponentDefinitionHandler) GetStatements(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -1428,7 +1428,7 @@ func (h *ComponentDefinitionHandler) GetStatements(ctx echo.Context) error {
 // //	@Failure		500						{object}	api.Error
 // //  @Security		OAuth2Password
 // //	@Router			/oscal/component-definitions/{id}/components/{defined-component}/control-implementations/statements [post]
-// func (h *ComponentDefinitionHandler) CreateStatements(ctx echo.Context) error {
+// func (h *ComponentDefinitionHandler) CreateStatements(ctx *echo.Context) error {
 // 	idParam := ctx.Param("id")
 // 	id, err := uuid.Parse(idParam)
 // 	if err != nil {
@@ -1531,7 +1531,7 @@ func (h *ComponentDefinitionHandler) GetStatements(ctx echo.Context) error {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/component-definitions/{id}/capabilities [get]
-func (h *ComponentDefinitionHandler) GetCapabilities(ctx echo.Context) error {
+func (h *ComponentDefinitionHandler) GetCapabilities(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -1573,7 +1573,7 @@ func (h *ComponentDefinitionHandler) GetCapabilities(ctx echo.Context) error {
 //	@Failure		500				{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/component-definitions/{id}/capabilities [post]
-func (h *ComponentDefinitionHandler) CreateCapabilities(ctx echo.Context) error {
+func (h *ComponentDefinitionHandler) CreateCapabilities(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -1678,7 +1678,7 @@ func (h *ComponentDefinitionHandler) CreateCapabilities(ctx echo.Context) error 
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/component-definitions/{id}/capabilities/incorporates-components [get]
-func (h *ComponentDefinitionHandler) GetIncorporatesComponents(ctx echo.Context) error {
+func (h *ComponentDefinitionHandler) GetIncorporatesComponents(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -1737,7 +1737,7 @@ func (h *ComponentDefinitionHandler) GetIncorporatesComponents(ctx echo.Context)
 //	@Failure		500						{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/component-definitions/{id}/capabilities/incorporates-components [post]
-func (h *ComponentDefinitionHandler) CreateIncorporatesComponents(ctx echo.Context) error {
+func (h *ComponentDefinitionHandler) CreateIncorporatesComponents(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -1808,7 +1808,7 @@ func (h *ComponentDefinitionHandler) CreateIncorporatesComponents(ctx echo.Conte
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/component-definitions/{id}/back-matter [get]
-func (h *ComponentDefinitionHandler) GetBackMatter(ctx echo.Context) error {
+func (h *ComponentDefinitionHandler) GetBackMatter(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -1852,7 +1852,7 @@ func (h *ComponentDefinitionHandler) GetBackMatter(ctx echo.Context) error {
 //	@Failure		500			{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/component-definitions/{id}/back-matter [post]
-func (h *ComponentDefinitionHandler) CreateBackMatter(ctx echo.Context) error {
+func (h *ComponentDefinitionHandler) CreateBackMatter(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -1950,7 +1950,7 @@ func (h *ComponentDefinitionHandler) CreateBackMatter(ctx echo.Context) error {
 //	@Failure		500						{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/component-definitions/{id}/components/{defined-component}/control-implementations [put]
-func (h *ComponentDefinitionHandler) UpdateControlImplementations(ctx echo.Context) error {
+func (h *ComponentDefinitionHandler) UpdateControlImplementations(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -2052,7 +2052,7 @@ func (h *ComponentDefinitionHandler) UpdateControlImplementations(ctx echo.Conte
 //	@Failure		500						{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/component-definitions/{id}/components/{defined-component}/control-implementations/{control-implementation} [put]
-func (h *ComponentDefinitionHandler) UpdateSingleControlImplementation(ctx echo.Context) error {
+func (h *ComponentDefinitionHandler) UpdateSingleControlImplementation(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -2160,7 +2160,7 @@ func (h *ComponentDefinitionHandler) UpdateSingleControlImplementation(ctx echo.
 //	@Failure		500			{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/component-definitions/{id}/capabilities/{capability} [put]
-func (h *ComponentDefinitionHandler) UpdateCapability(ctx echo.Context) error {
+func (h *ComponentDefinitionHandler) UpdateCapability(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {

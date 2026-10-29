@@ -18,7 +18,7 @@ import (
 	evidencesvc "github.com/compliance-framework/api/internal/service/relational/evidence"
 	"github.com/compliance-framework/api/pkg/policyeval"
 	"github.com/google/uuid"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"gorm.io/gorm"
 )
 
@@ -133,7 +133,7 @@ func (h *PlaybackHandler) RegisterEvidence(api *echo.Group, middlewares ...echo.
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/evidence/{id}/playback [get]
-func (h *PlaybackHandler) EvidencePlayback(ctx echo.Context) error {
+func (h *PlaybackHandler) EvidencePlayback(ctx *echo.Context) error {
 	id, err := uuid.Parse(ctx.Param("id"))
 	if err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("invalid evidence id: %w", err)))

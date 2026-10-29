@@ -8,7 +8,7 @@ import (
 
 	"github.com/compliance-framework/api/internal/authn"
 	"github.com/compliance-framework/api/internal/service/relational"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"gorm.io/gorm"
 )
 
@@ -24,7 +24,7 @@ func AgentJWTMiddleware(db *gorm.DB, publicKey *rsa.PublicKey) echo.MiddlewareFu
 
 func AgentJWTOrPublicMiddleware(db *gorm.DB, publicKey *rsa.PublicKey, allowPublic bool) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
+		return func(c *echo.Context) error {
 			if c.Request().Method == http.MethodOptions {
 				return next(c)
 			}
@@ -39,7 +39,7 @@ func AgentJWTOrPublicMiddleware(db *gorm.DB, publicKey *rsa.PublicKey, allowPubl
 
 			tokenString, err := getTokenFromHeader(authHeader)
 			if err != nil {
-				return echo.NewHTTPError(http.StatusUnauthorized, err)
+				return echo.NewHTTPError(http.StatusUnauthorized, err.Error())
 			}
 
 			claims, agent, key, err := verifyAgentRequest(db, tokenString, publicKey, c)
@@ -58,7 +58,7 @@ func AgentJWTOrPublicMiddleware(db *gorm.DB, publicKey *rsa.PublicKey, allowPubl
 	}
 }
 
-func verifyAgentRequest(db *gorm.DB, tokenString string, publicKey *rsa.PublicKey, c echo.Context) (*authn.AgentClaims, *relational.Agent, *relational.AgentServiceAccountKey, error) {
+func verifyAgentRequest(db *gorm.DB, tokenString string, publicKey *rsa.PublicKey, c *echo.Context) (*authn.AgentClaims, *relational.Agent, *relational.AgentServiceAccountKey, error) {
 	claims, err := authn.VerifyAgentJWTToken(tokenString, publicKey)
 	if err != nil {
 		return nil, nil, nil, echo.NewHTTPError(http.StatusUnauthorized, "invalid or expired token")
@@ -69,7 +69,7 @@ func verifyAgentRequest(db *gorm.DB, tokenString string, publicKey *rsa.PublicKe
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil, nil, echo.NewHTTPError(http.StatusUnauthorized, "invalid or expired token")
 		}
-		c.Logger().Errorf("failed to load agent for authenticated agent request: %v (agent_id=%v)", err, claims.AgentID)
+		c.Logger().Error("failed to load agent for authenticated agent request", "error", err, "agent_id", claims.AgentID)
 		return nil, nil, nil, echo.NewHTTPError(http.StatusInternalServerError, "failed to load agent")
 	}
 	if !agent.IsActive {
@@ -81,7 +81,7 @@ func verifyAgentRequest(db *gorm.DB, tokenString string, publicKey *rsa.PublicKe
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil, nil, echo.NewHTTPError(http.StatusUnauthorized, "invalid or expired token")
 		}
-		c.Logger().Errorf("failed to load agent key for authenticated agent request: %v (agent_id=%v credential_id=%v)", err, agent.ID, claims.CredentialID)
+		c.Logger().Error("failed to load agent key for authenticated agent request", "error", err, "agent_id", agent.ID, "credential_id", claims.CredentialID)
 		return nil, nil, nil, echo.NewHTTPError(http.StatusInternalServerError, "failed to load agent key")
 	}
 	now := time.Now().UTC()

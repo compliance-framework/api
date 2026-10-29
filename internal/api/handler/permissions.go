@@ -7,7 +7,7 @@ import (
 
 	"github.com/compliance-framework/api/internal/api/middleware"
 	"github.com/compliance-framework/api/internal/authz"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"go.uber.org/zap"
 )
 
@@ -54,7 +54,7 @@ type permissionsResponse struct {
 // asks the PDP for all decisions in one batch, and returns the allowed map. Resources are
 // always present (so the UI knows the full vocabulary) with their allowed actions; ordering
 // is deterministic (resources sorted, actions in manifest order).
-func (h *PermissionsHandler) GetPermissions(c echo.Context) error {
+func (h *PermissionsHandler) GetPermissions(c *echo.Context) error {
 	subject := middleware.SubjectFromContext(c)
 	subjectView := permissionsSubject{Type: subject.Type, ID: subject.ID}
 

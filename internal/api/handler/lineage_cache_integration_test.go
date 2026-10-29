@@ -14,7 +14,7 @@ import (
 	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/compliance-framework/api/internal/tests"
 	"github.com/google/uuid"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/zap"
 )
@@ -74,8 +74,7 @@ func (suite *LineageCacheSuite) TestCachedDataIsReusedUntilRefresh() {
 	childReq := httptest.NewRequest(http.MethodGet, "/x", nil)
 	childRec := httptest.NewRecorder()
 	ctx := echo.New().NewContext(childReq, childRec)
-	ctx.SetParamNames("key")
-	ctx.SetParamValues("catalog:" + second.String())
+	ctx.SetPathValues(echo.PathValues{{Name: "key", Value: "catalog:" + second.String()}})
 	suite.Require().NoError(h.Children(ctx))
 	suite.Equal(http.StatusNotFound, childRec.Code, "the new catalog is not in the cached data")
 
