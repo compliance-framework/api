@@ -31,7 +31,7 @@ Run these before calling a change done. They are what CI runs (`.github/workflow
 
 ```sh
 make swag                 # regenerate docs/ from handler annotations; commit any diff
-make lint                 # golangci-lint v2.11.4 (make lint.install), default linters
+make lint                 # golangci-lint v2.15.0 (make lint.install), default linters
 make test                 # unit tests only: files with the integration tag are not compiled
 make test-integration-single TEST_PATH=./internal/api/handler/... TEST_NAME=TestArtifactApi
 make test-integration     # everything; slow

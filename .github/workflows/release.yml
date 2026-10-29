@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   release:
-    uses: compliance-framework/workflows/.github/workflows/release-go-image.yml@e85d35af2af2ddfcd4b92061d2063e665c1831f6 # v1.7.0
+    uses: compliance-framework/workflows/.github/workflows/release-go-image.yml@dc7434879fbd0db1d1df9f590ed8bc13789bd320 # v1.9.2
     with:
       images: '[{"name":"api","dockerfile":"Dockerfile","context":"."}]'
     permissions:
