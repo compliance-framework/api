@@ -14,7 +14,7 @@ import (
 	notificationproviders "github.com/compliance-framework/api/internal/service/notification/providers"
 	emailprovider "github.com/compliance-framework/api/internal/service/notification/providers/email"
 	slackprovider "github.com/compliance-framework/api/internal/service/notification/providers/slack"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 )

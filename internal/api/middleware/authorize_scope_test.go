@@ -7,7 +7,7 @@ import (
 
 	"github.com/compliance-framework/api/internal/authn"
 	"github.com/compliance-framework/api/internal/authz"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest/observer"
 )
@@ -38,11 +38,14 @@ func runScopedAuthorize(t *testing.T, paramNames, paramValues []string, opts ...
 	pdp := &fakePDP{decision: authz.Decision{Allow: true}}
 	e := echo.New()
 	c := e.NewContext(httptest.NewRequest(http.MethodGet, "/", http.NoBody), httptest.NewRecorder())
-	c.SetParamNames(paramNames...)
-	c.SetParamValues(paramValues...)
+	pathValues := make(echo.PathValues, len(paramNames))
+	for i, name := range paramNames {
+		pathValues[i] = echo.PathValue{Name: name, Value: paramValues[i]}
+	}
+	c.SetPathValues(pathValues)
 
 	pep := NewPEP(pdp, authz.FailClosed, nil)
-	h := pep.Authorize("risk", authz.ActionRead, opts...)(func(c echo.Context) error { return c.NoContent(http.StatusOK) })
+	h := pep.Authorize("risk", authz.ActionRead, opts...)(func(c *echo.Context) error { return c.NoContent(http.StatusOK) })
 	if err := h(c); err != nil {
 		t.Fatalf("handler error: %v", err)
 	}
@@ -95,9 +98,9 @@ func runAuditedAuthorize(t *testing.T, pdp authz.PDP, failMode authz.FailMode) *
 	e := echo.New()
 	c := e.NewContext(httptest.NewRequest(http.MethodPost, "/evidence", http.NoBody), httptest.NewRecorder())
 	pep := NewPEP(pdp, failMode, zap.New(core).Sugar())
-	h := pep.Authorize(authz.ResourceEvidence, authz.ActionCreate)(func(c echo.Context) error { return c.NoContent(http.StatusOK) })
+	h := pep.Authorize(authz.ResourceEvidence, authz.ActionCreate)(func(c *echo.Context) error { return c.NoContent(http.StatusOK) })
 	if err := h(c); err != nil {
-		e.HTTPErrorHandler(err, c)
+		e.HTTPErrorHandler(c, err)
 	}
 	return logs
 }

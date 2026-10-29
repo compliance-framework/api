@@ -14,7 +14,7 @@ import (
 	"github.com/compliance-framework/api/internal/service/relational"
 	oscalTypes_1_1_3 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
 	"github.com/google/uuid"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
@@ -62,7 +62,7 @@ type ImportResponse struct {
 //	@Failure		400		{object}	api.Error
 //	@Failure		500		{object}	api.Error
 //	@Router			/oscal/import [post]
-func (h *ImportHandler) ImportOSCAL(ctx echo.Context) error {
+func (h *ImportHandler) ImportOSCAL(ctx *echo.Context) error {
 	form, err := ctx.MultipartForm()
 	if err != nil {
 		h.sugar.Errorw("Failed to parse multipart form", "error", err)

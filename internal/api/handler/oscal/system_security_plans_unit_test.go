@@ -8,7 +8,7 @@ import (
 
 	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/google/uuid"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 	"gorm.io/driver/sqlite"
@@ -196,14 +196,13 @@ func closedSQLiteDB(t *testing.T) *gorm.DB {
 	return db
 }
 
-func newSSPProfileRequestContext(method string, sspID, profileID uuid.UUID) (echo.Context, *httptest.ResponseRecorder) {
+func newSSPProfileRequestContext(method string, sspID, profileID uuid.UUID) (*echo.Context, *httptest.ResponseRecorder) {
 	e := echo.New()
 	body := bytes.NewBufferString(`{"profileId":"` + profileID.String() + `"}`)
 	req := httptest.NewRequest(method, "/", body)
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	rec := httptest.NewRecorder()
 	ctx := e.NewContext(req, rec)
-	ctx.SetParamNames("id")
-	ctx.SetParamValues(sspID.String())
+	ctx.SetPathValues(echo.PathValues{{Name: "id", Value: sspID.String()}})
 	return ctx, rec
 }

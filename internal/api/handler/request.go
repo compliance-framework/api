@@ -7,7 +7,7 @@ import (
 
 	"github.com/compliance-framework/api/internal/converters/labelfilter"
 	"github.com/google/uuid"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 func ParseIntervalListQueryParam(intervalQuery string, def []time.Duration) ([]time.Duration, error) {
@@ -100,7 +100,7 @@ type filteredSearchRequest struct {
 	Filter labelfilter.Filter `json:"filter" yaml:"filter" validate:"required"`
 }
 
-func (r *filteredSearchRequest) bind(ctx echo.Context, p *labelfilter.Filter) error {
+func (r *filteredSearchRequest) bind(ctx *echo.Context, p *labelfilter.Filter) error {
 	if err := ctx.Bind(r); err != nil {
 		return err
 	}

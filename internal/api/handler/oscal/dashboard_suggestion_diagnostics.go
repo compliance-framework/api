@@ -18,7 +18,7 @@ import (
 	suggestionrel "github.com/compliance-framework/api/internal/service/relational/suggestions"
 	workersvc "github.com/compliance-framework/api/internal/service/worker"
 	"github.com/google/uuid"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
@@ -175,7 +175,7 @@ func (h *AiDiagnosticsHandler) Register(apiGroup *echo.Group) {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/admin/ai-diagnostics/summary [get]
-func (h *AiDiagnosticsHandler) Summary(ctx echo.Context) error {
+func (h *AiDiagnosticsHandler) Summary(ctx *echo.Context) error {
 	totals, recent, err := h.loadTotals(ctx.Request().Context())
 	if err != nil {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
@@ -210,7 +210,7 @@ func (h *AiDiagnosticsHandler) Summary(ctx echo.Context) error {
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/admin/ai-diagnostics/runs [get]
-func (h *AiDiagnosticsHandler) Runs(ctx echo.Context) error {
+func (h *AiDiagnosticsHandler) Runs(ctx *echo.Context) error {
 	query, err := parseAiDiagnosticsRunsQuery(ctx)
 	if err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
@@ -239,7 +239,7 @@ func (h *AiDiagnosticsHandler) Runs(ctx echo.Context) error {
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/admin/ai-diagnostics/runs/{runId} [get]
-func (h *AiDiagnosticsHandler) RunDetail(ctx echo.Context) error {
+func (h *AiDiagnosticsHandler) RunDetail(ctx *echo.Context) error {
 	runID, err := uuid.Parse(ctx.Param("runId"))
 	if err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
@@ -303,7 +303,7 @@ type aiDiagnosticsRunsQuery struct {
 	runID  *uuid.UUID
 }
 
-func parseAiDiagnosticsRunsQuery(ctx echo.Context) (aiDiagnosticsRunsQuery, error) {
+func parseAiDiagnosticsRunsQuery(ctx *echo.Context) (aiDiagnosticsRunsQuery, error) {
 	limit := 25
 	if raw := strings.TrimSpace(ctx.QueryParam("limit")); raw != "" {
 		parsed, err := strconv.Atoi(raw)

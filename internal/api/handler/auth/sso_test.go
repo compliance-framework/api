@@ -13,7 +13,7 @@ import (
 	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/compliance-framework/api/internal/service/sso"
 	"github.com/compliance-framework/api/internal/service/sso/types"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 	"golang.org/x/oauth2"
@@ -134,8 +134,7 @@ func TestSSOHandlerInitiateLogin_SetsStateCookie(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/api/auth/sso/google", nil)
 	rec := httptest.NewRecorder()
 	ctx := e.NewContext(req, rec)
-	ctx.SetParamNames("provider")
-	ctx.SetParamValues("google")
+	ctx.SetPathValues(echo.PathValues{{Name: "provider", Value: "google"}})
 
 	err := h.InitiateLogin(ctx)
 	require.NoError(t, err)
@@ -183,8 +182,7 @@ func TestSSOHandlerCallback_NewUserCreated(t *testing.T) {
 
 	rec := httptest.NewRecorder()
 	ctx := e.NewContext(req, rec)
-	ctx.SetParamNames("provider")
-	ctx.SetParamValues("google")
+	ctx.SetPathValues(echo.PathValues{{Name: "provider", Value: "google"}})
 
 	err := h.Callback(ctx)
 	require.NoError(t, err)
@@ -241,8 +239,7 @@ func TestSSOHandlerCallback_MaterializesNativeMemberships(t *testing.T) {
 	req.AddCookie(&http.Cookie{Name: "oauth_state", Value: "state123"})
 	rec := httptest.NewRecorder()
 	ctx := e.NewContext(req, rec)
-	ctx.SetParamNames("provider")
-	ctx.SetParamValues("google")
+	ctx.SetPathValues(echo.PathValues{{Name: "provider", Value: "google"}})
 
 	require.NoError(t, h.Callback(ctx))
 	require.Equal(t, http.StatusTemporaryRedirect, rec.Code)

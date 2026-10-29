@@ -7,7 +7,7 @@ import (
 
 	"github.com/compliance-framework/api/internal/authn"
 	"github.com/compliance-framework/api/internal/authz"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"go.uber.org/zap"
 )
 
@@ -124,7 +124,7 @@ func (p *PEP) Authorize(resource, action string, opts ...AuthorizeOption) echo.M
 		o(&cfg)
 	}
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
+		return func(c *echo.Context) error {
 			subject := SubjectFromContext(c)
 			res := authz.Resource{Type: resource, ID: c.Param(cfg.idParam)}
 			for attr, param := range cfg.scopeParams {
@@ -227,7 +227,7 @@ func camelToSnake(s string) string {
 // subject on public-allowed routes. It is the single source of subject derivation, shared
 // by the PEP and the /me/permissions handler. Attributes are intentionally minimal in
 // Phase 1; the authoritative attribute surface is designed in BCH-1319.
-func SubjectFromContext(c echo.Context) authz.Subject {
+func SubjectFromContext(c *echo.Context) authz.Subject {
 	if claims, ok := c.Get("user").(*authn.UserClaims); ok && claims != nil {
 		props := map[string]any{
 			"given_name":  claims.GivenName,

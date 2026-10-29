@@ -10,7 +10,7 @@ import (
 
 	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/google/uuid"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"go.uber.org/zap"
 )
 
@@ -128,8 +128,7 @@ func (suite *ProfileIntegrationSuite) complianceProgress(profileID, sspID string
 	req := httptest.NewRequest(http.MethodGet, url, nil)
 	rec := httptest.NewRecorder()
 	ctx := e.NewContext(req, rec)
-	ctx.SetParamNames("id")
-	ctx.SetParamValues(profileID)
+	ctx.SetPathValues(echo.PathValues{{Name: "id", Value: profileID}})
 	suite.Require().NoError(NewProfileHandler(zap.NewNop().Sugar(), suite.DB).ComplianceProgress(ctx))
 	suite.Require().Equal(http.StatusOK, rec.Code, rec.Body.String())
 	var resp struct {

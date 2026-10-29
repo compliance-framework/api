@@ -8,7 +8,7 @@ import (
 	"github.com/compliance-framework/api/internal/converters/labelfilter"
 	"github.com/compliance-framework/api/internal/service/relational/sspscope"
 	"github.com/google/uuid"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // RegisterSSPScopedRoutes mounts the SSP-scoped evidence reads, which read scopes through
@@ -23,7 +23,7 @@ func (h *EvidenceHandler) RegisterSSPScopedRoutes(api *echo.Group, scope *sspsco
 
 // sspScopeRestriction loads the scope of the SSP named by the id path parameter. On
 // failure it has already written the response and returns ok=false.
-func (h *EvidenceHandler) sspScopeRestriction(ctx echo.Context) (scopeRestriction, bool) {
+func (h *EvidenceHandler) sspScopeRestriction(ctx *echo.Context) (scopeRestriction, bool) {
 	sspID, err := uuid.Parse(ctx.Param("id"))
 	if err != nil {
 		_ = ctx.JSON(http.StatusBadRequest, api.NewError(err))

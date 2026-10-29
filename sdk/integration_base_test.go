@@ -5,9 +5,8 @@ package sdk_test
 import (
 	"context"
 	"fmt"
-	"net"
 	"net/http"
-	"strings"
+	"net/http/httptest"
 	"time"
 
 	"github.com/compliance-framework/api/internal/api"
@@ -22,7 +21,6 @@ import (
 
 	"github.com/compliance-framework/api/sdk"
 	"github.com/google/uuid"
-	"github.com/labstack/echo/v4"
 	"github.com/stretchr/testify/suite"
 	"github.com/testcontainers/testcontainers-go"
 	postgresContainers "github.com/testcontainers/testcontainers-go/modules/postgres"
@@ -40,11 +38,13 @@ type IntegrationBaseTestSuite struct {
 	Config      *config.Config
 
 	Server *api.Server
+	// httpServer serves Server's routes on a free local port.
+	httpServer *httptest.Server
 }
 
 func (suite *IntegrationBaseTestSuite) GetSDKTestClient() *sdk.Client {
 	config := &sdk.Config{
-		BaseURL: "http://" + suite.Server.E().ListenerAddr().String(),
+		BaseURL: suite.httpServer.URL,
 	}
 	return sdk.NewClient(http.DefaultClient, config)
 }
@@ -77,7 +77,7 @@ func (suite *IntegrationBaseTestSuite) GetAuthenticatedSDKTestClientWithLogger(l
 	}
 
 	return sdk.NewClient(http.DefaultClient, &sdk.Config{
-		BaseURL: "http://" + suite.Server.E().ListenerAddr().String(),
+		BaseURL: suite.httpServer.URL,
 		Logger:  logger,
 		AgentAuth: &sdk.AgentAuthConfig{
 			ClientID:     key.ClientID,
@@ -160,14 +160,7 @@ func (suite *IntegrationBaseTestSuite) SetupSuite() {
 
 	suite.Server = server
 
-	errChan := make(chan error)
-	go func() {
-		err := suite.Server.E().Start("localhost:")
-		if err != nil {
-			errChan <- err
-		}
-	}()
-	err = waitForServerStart(suite.Server.E(), errChan, false)
+	suite.httpServer = httptest.NewServer(suite.Server.E())
 }
 
 // syncEvidenceBatchQueue processes each evidence batch chunk as soon as it is enqueued,
@@ -192,6 +185,7 @@ func (q *syncEvidenceBatchQueue) EnqueueEvidenceBatchChunks(ctx context.Context,
 }
 
 func (suite *IntegrationBaseTestSuite) TearDownSuite() {
+	suite.httpServer.Close()
 	err := testcontainers.TerminateContainer(suite.dbcontainer)
 	if err != nil {
 		suite.T().Fatal(err)
@@ -206,34 +200,4 @@ func (suite *IntegrationBaseTestSuite) GetAuthToken() (*string, error) {
 	}
 
 	return authn.GenerateJWTToken(&dummyUser, suite.Config.JWTPrivateKey)
-}
-
-func waitForServerStart(e *echo.Echo, errChan <-chan error, isTLS bool) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
-	defer cancel()
-
-	ticker := time.NewTicker(5 * time.Millisecond)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-ticker.C:
-			var addr net.Addr
-			if isTLS {
-				addr = e.TLSListenerAddr()
-			} else {
-				addr = e.ListenerAddr()
-			}
-			if addr != nil && strings.Contains(addr.String(), ":") {
-				return nil // was started
-			}
-		case err := <-errChan:
-			if err == http.ErrServerClosed {
-				return nil
-			}
-			return err
-		}
-	}
 }

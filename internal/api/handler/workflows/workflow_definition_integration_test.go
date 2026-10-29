@@ -13,7 +13,7 @@ import (
 	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/compliance-framework/api/internal/service/relational/workflows"
 	"github.com/google/uuid"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -180,8 +180,7 @@ func TestWorkflowDefinitionHandler_Get(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/workflows/definitions/"+definition.ID.String(), nil)
 		rec := httptest.NewRecorder()
 		c := e.NewContext(req, rec)
-		c.SetParamNames("id")
-		c.SetParamValues(definition.ID.String())
+		c.SetPathValues(echo.PathValues{{Name: "id", Value: definition.ID.String()}})
 
 		err := handler.Get(c)
 		require.NoError(t, err)
@@ -200,8 +199,7 @@ func TestWorkflowDefinitionHandler_Get(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/workflows/definitions/"+nonExistentID.String(), nil)
 		rec := httptest.NewRecorder()
 		c := e.NewContext(req, rec)
-		c.SetParamNames("id")
-		c.SetParamValues(nonExistentID.String())
+		c.SetPathValues(echo.PathValues{{Name: "id", Value: nonExistentID.String()}})
 
 		err := handler.Get(c)
 		require.NoError(t, err)
@@ -212,8 +210,7 @@ func TestWorkflowDefinitionHandler_Get(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/workflows/definitions/invalid-id", nil)
 		rec := httptest.NewRecorder()
 		c := e.NewContext(req, rec)
-		c.SetParamNames("id")
-		c.SetParamValues("invalid-id")
+		c.SetPathValues(echo.PathValues{{Name: "id", Value: "invalid-id"}})
 
 		err := handler.Get(c)
 		require.NoError(t, err)
@@ -250,8 +247,7 @@ func TestWorkflowDefinitionHandler_Update(t *testing.T) {
 		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 		rec := httptest.NewRecorder()
 		c := e.NewContext(req, rec)
-		c.SetParamNames("id")
-		c.SetParamValues(definition.ID.String())
+		c.SetPathValues(echo.PathValues{{Name: "id", Value: definition.ID.String()}})
 
 		err = handler.Update(c)
 		require.NoError(t, err)
@@ -280,8 +276,7 @@ func TestWorkflowDefinitionHandler_Update(t *testing.T) {
 		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 		rec := httptest.NewRecorder()
 		c := e.NewContext(req, rec)
-		c.SetParamNames("id")
-		c.SetParamValues(definition.ID.String())
+		c.SetPathValues(echo.PathValues{{Name: "id", Value: definition.ID.String()}})
 
 		err = handler.Update(c)
 		require.NoError(t, err)
@@ -311,8 +306,7 @@ func TestWorkflowDefinitionHandler_Update(t *testing.T) {
 		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 		rec := httptest.NewRecorder()
 		c := e.NewContext(req, rec)
-		c.SetParamNames("id")
-		c.SetParamValues(definition.ID.String())
+		c.SetPathValues(echo.PathValues{{Name: "id", Value: definition.ID.String()}})
 
 		err = handler.Update(c)
 		require.NoError(t, err)
@@ -338,8 +332,7 @@ func TestWorkflowDefinitionHandler_Update(t *testing.T) {
 		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 		rec := httptest.NewRecorder()
 		c := e.NewContext(req, rec)
-		c.SetParamNames("id")
-		c.SetParamValues(nonExistentID.String())
+		c.SetPathValues(echo.PathValues{{Name: "id", Value: nonExistentID.String()}})
 
 		err = handler.Update(c)
 		require.NoError(t, err)
@@ -359,8 +352,7 @@ func TestWorkflowDefinitionHandler_Update(t *testing.T) {
 		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 		rec := httptest.NewRecorder()
 		c := e.NewContext(req, rec)
-		c.SetParamNames("id")
-		c.SetParamValues("invalid-id")
+		c.SetPathValues(echo.PathValues{{Name: "id", Value: "invalid-id"}})
 
 		err = handler.Update(c)
 		require.NoError(t, err)
@@ -402,8 +394,7 @@ func TestWorkflowDefinitionHandler_Delete(t *testing.T) {
 		req := httptest.NewRequest(http.MethodDelete, "/workflows/definitions/"+definition.ID.String(), nil)
 		rec := httptest.NewRecorder()
 		c := e.NewContext(req, rec)
-		c.SetParamNames("id")
-		c.SetParamValues(definition.ID.String())
+		c.SetPathValues(echo.PathValues{{Name: "id", Value: definition.ID.String()}})
 
 		err := handler.Delete(c)
 		require.NoError(t, err)
@@ -424,8 +415,7 @@ func TestWorkflowDefinitionHandler_Delete(t *testing.T) {
 		req := httptest.NewRequest(http.MethodDelete, "/workflows/definitions/"+nonExistentID.String(), nil)
 		rec := httptest.NewRecorder()
 		c := e.NewContext(req, rec)
-		c.SetParamNames("id")
-		c.SetParamValues(nonExistentID.String())
+		c.SetPathValues(echo.PathValues{{Name: "id", Value: nonExistentID.String()}})
 
 		err := handler.Delete(c)
 		require.NoError(t, err)
@@ -436,8 +426,7 @@ func TestWorkflowDefinitionHandler_Delete(t *testing.T) {
 		req := httptest.NewRequest(http.MethodDelete, "/workflows/definitions/invalid-id", nil)
 		rec := httptest.NewRecorder()
 		c := e.NewContext(req, rec)
-		c.SetParamNames("id")
-		c.SetParamValues("invalid-id")
+		c.SetPathValues(echo.PathValues{{Name: "id", Value: "invalid-id"}})
 
 		err := handler.Delete(c)
 		require.NoError(t, err)

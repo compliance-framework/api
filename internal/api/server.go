@@ -3,17 +3,20 @@ package api
 import (
 	"cmp"
 	"context"
+	"os"
+	"os/signal"
 	"slices"
+	"syscall"
 
 	"github.com/compliance-framework/api/internal/api/binders"
 	mw "github.com/compliance-framework/api/internal/api/middleware"
 	"github.com/compliance-framework/api/internal/config"
 
 	_ "github.com/compliance-framework/api/docs"
-	"github.com/labstack/echo-contrib/echoprometheus"
-	"github.com/labstack/echo/v4"
-	"github.com/labstack/echo/v4/middleware"
-	echoSwagger "github.com/swaggo/echo-swagger"
+	"github.com/labstack/echo-contrib/v5/echoprometheus"
+	"github.com/labstack/echo/v5"
+	"github.com/labstack/echo/v5/middleware"
+	echoSwagger "github.com/swaggo/echo-swagger/v2"
 	"go.uber.org/zap"
 )
 
@@ -32,7 +35,6 @@ const LineageGeneratedAtHeader = "X-Lineage-Generated-At"
 func NewServer(ctx context.Context, s *zap.SugaredLogger, config *config.Config, metrics *PrometheusMetrics) *Server {
 	e := echo.New()
 	e.Binder = &binders.CustomBinder{}
-	e.HideBanner = true
 	e.Pre(middleware.RemoveTrailingSlash())
 	e.Use(middleware.RequestLoggerWithConfig(middleware.RequestLoggerConfig{
 		LogURI:       true,
@@ -40,7 +42,7 @@ func NewServer(ctx context.Context, s *zap.SugaredLogger, config *config.Config,
 		LogMethod:    true,
 		LogUserAgent: true,
 		LogLatency:   true,
-		LogValuesFunc: func(c echo.Context, v middleware.RequestLoggerValues) error {
+		LogValuesFunc: func(c *echo.Context, v middleware.RequestLoggerValues) error {
 			s.Debugw("request",
 				zap.String("method", v.Method),
 				zap.String("uri", v.URI),
@@ -55,10 +57,12 @@ func NewServer(ctx context.Context, s *zap.SugaredLogger, config *config.Config,
 	// A handler panic becomes a 500 (logged above) instead of a dropped connection.
 	e.Use(middleware.Recover())
 	e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
-		AllowOrigins:     config.APIAllowedOrigins,
-		AllowHeaders:     []string{echo.HeaderOrigin, echo.HeaderContentType, echo.HeaderAccept, echo.HeaderAuthorization, "If-Match", "If-None-Match"},
-		ExposeHeaders:    []string{"ETag", LineageGeneratedAtHeader},
-		AllowCredentials: true,
+		AllowOrigins:  config.APIAllowedOrigins,
+		AllowHeaders:  []string{echo.HeaderOrigin, echo.HeaderContentType, echo.HeaderAccept, echo.HeaderAuthorization, "If-Match", "If-None-Match"},
+		ExposeHeaders: []string{"ETag", LineageGeneratedAtHeader},
+		// Echo refuses "*" with credentials (browsers reject that pair anyway), so a
+		// wildcard allows every origin without them instead of failing at startup.
+		AllowCredentials: !slices.Contains(config.APIAllowedOrigins, "*"),
 	}))
 	e.Use(echoprometheus.NewMiddlewareWithConfig(echoprometheus.MiddlewareConfig{
 		Registerer: metrics.Registry(),
@@ -74,22 +78,15 @@ func NewServer(ctx context.Context, s *zap.SugaredLogger, config *config.Config,
 	}
 }
 
-// Start starts the echo server
+// Start serves until SIGINT/SIGTERM, then shuts the server down gracefully.
 func (s *Server) Start(address string) error {
-	return s.echo.Start(address)
+	ctx, stop := signal.NotifyContext(s.ctx, os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	return echo.StartConfig{Address: address, HideBanner: true}.Start(ctx, s.echo)
 }
 
 func (s *Server) E() *echo.Echo {
 	return s.echo
-}
-
-func (s *Server) Stop() error {
-	err := s.echo.Shutdown(s.ctx)
-	if err != nil {
-		return err
-	}
-
-	return nil
 }
 
 func (s *Server) API() *echo.Group {
@@ -97,7 +94,7 @@ func (s *Server) API() *echo.Group {
 }
 
 func (s *Server) PrintRoutes() {
-	for _, route := range slices.SortedFunc(slices.Values(s.echo.Routes()), func(a, b *echo.Route) int {
+	for _, route := range slices.SortedFunc(slices.Values(s.echo.Router().Routes()), func(a, b echo.RouteInfo) int {
 		return cmp.Compare(a.Path, b.Path)
 	}) {
 		s.sugar.Infof("%s %s", route.Method, route.Path)

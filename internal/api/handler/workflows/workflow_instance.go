@@ -4,7 +4,7 @@ import (
 	"github.com/compliance-framework/api/internal/api/middleware"
 	"github.com/compliance-framework/api/internal/service/relational/workflows"
 	"github.com/google/uuid"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
@@ -73,7 +73,7 @@ type WorkflowInstanceListResponse struct {
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/workflows/instances [post]
-func (h *WorkflowInstanceHandler) Create(ctx echo.Context) error {
+func (h *WorkflowInstanceHandler) Create(ctx *echo.Context) error {
 	var req CreateWorkflowInstanceRequest
 	if err := h.BindAndValidate(ctx, &req); err != nil {
 		return HandleError(err)
@@ -126,7 +126,7 @@ func (h *WorkflowInstanceHandler) Create(ctx echo.Context) error {
 //	@Failure		500						{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/workflows/instances [get]
-func (h *WorkflowInstanceHandler) List(ctx echo.Context) error {
+func (h *WorkflowInstanceHandler) List(ctx *echo.Context) error {
 	workflowDefIDStr := ctx.QueryParam("workflow_definition_id")
 	systemSecurityPlanIDStr := ctx.QueryParam("system_security_plan_id")
 	isActiveStr := ctx.QueryParam("is_active")
@@ -186,7 +186,7 @@ func (h *WorkflowInstanceHandler) List(ctx echo.Context) error {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/workflows/instances/{id} [get]
-func (h *WorkflowInstanceHandler) Get(ctx echo.Context) error {
+func (h *WorkflowInstanceHandler) Get(ctx *echo.Context) error {
 	id, err := h.ParseUUID(ctx, "id", "workflow instance")
 	if err != nil {
 		return HandleError(err)
@@ -216,7 +216,7 @@ func (h *WorkflowInstanceHandler) Get(ctx echo.Context) error {
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/workflows/instances/{id} [put]
-func (h *WorkflowInstanceHandler) Update(ctx echo.Context) error {
+func (h *WorkflowInstanceHandler) Update(ctx *echo.Context) error {
 	id, err := h.ParseUUID(ctx, "id", "workflow instance")
 	if err != nil {
 		return HandleError(err)
@@ -276,7 +276,7 @@ func (h *WorkflowInstanceHandler) Update(ctx echo.Context) error {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/workflows/instances/{id} [delete]
-func (h *WorkflowInstanceHandler) Delete(ctx echo.Context) error {
+func (h *WorkflowInstanceHandler) Delete(ctx *echo.Context) error {
 	id, err := h.ParseUUID(ctx, "id", "workflow instance")
 	if err != nil {
 		return HandleError(err)
@@ -304,7 +304,7 @@ func (h *WorkflowInstanceHandler) Delete(ctx echo.Context) error {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/workflows/instances/{id}/activate [put]
-func (h *WorkflowInstanceHandler) Activate(ctx echo.Context) error {
+func (h *WorkflowInstanceHandler) Activate(ctx *echo.Context) error {
 	id, err := h.ParseUUID(ctx, "id", "workflow instance")
 	if err != nil {
 		return HandleError(err)
@@ -343,7 +343,7 @@ func (h *WorkflowInstanceHandler) Activate(ctx echo.Context) error {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/workflows/instances/{id}/deactivate [put]
-func (h *WorkflowInstanceHandler) Deactivate(ctx echo.Context) error {
+func (h *WorkflowInstanceHandler) Deactivate(ctx *echo.Context) error {
 	id, err := h.ParseUUID(ctx, "id", "workflow instance")
 	if err != nil {
 		return HandleError(err)

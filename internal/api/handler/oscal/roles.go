@@ -7,7 +7,7 @@ import (
 	"github.com/compliance-framework/api/internal/api"
 	oscalTypes_1_1_3 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
 	"github.com/google/uuid"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 
@@ -45,7 +45,7 @@ func (h *RoleHandler) Register(api *echo.Group, guard middleware.ResourceGuard) 
 // @Failure		500	{object}	api.Error
 // @Security		OAuth2Password
 // @Router			/oscal/roles [get]
-func (h *RoleHandler) List(ctx echo.Context) error {
+func (h *RoleHandler) List(ctx *echo.Context) error {
 	var parties []relational.Role
 	if err := h.db.
 		Find(&parties).Error; err != nil {
@@ -75,7 +75,7 @@ func (h *RoleHandler) List(ctx echo.Context) error {
 // @Failure		500	{object}	api.Error
 // @Security		OAuth2Password
 // @Router			/oscal/roles/{id} [get]
-func (h *RoleHandler) Get(ctx echo.Context) error {
+func (h *RoleHandler) Get(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {

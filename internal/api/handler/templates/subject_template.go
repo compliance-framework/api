@@ -10,7 +10,7 @@ import (
 	"github.com/compliance-framework/api/internal/service/relational"
 	templaterel "github.com/compliance-framework/api/internal/service/relational/templates"
 	"github.com/google/uuid"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
@@ -116,7 +116,7 @@ type subjectTemplateDataResponse struct {
 //	@Failure		500			{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/admin/subject-templates [get]
-func (h *SubjectTemplateHandler) List(ctx echo.Context) error {
+func (h *SubjectTemplateHandler) List(ctx *echo.Context) error {
 	pagination, err := h.pagination.ParseParams(ctx)
 	if err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
@@ -166,7 +166,7 @@ func (h *SubjectTemplateHandler) List(ctx echo.Context) error {
 //	@Failure		500			{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/admin/subject-templates [post]
-func (h *SubjectTemplateHandler) Create(ctx echo.Context) error {
+func (h *SubjectTemplateHandler) Create(ctx *echo.Context) error {
 	var req upsertSubjectTemplateRequest
 	if err := ctx.Bind(&req); err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
@@ -197,7 +197,7 @@ func (h *SubjectTemplateHandler) Create(ctx echo.Context) error {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/admin/subject-templates/{id} [get]
-func (h *SubjectTemplateHandler) Get(ctx echo.Context) error {
+func (h *SubjectTemplateHandler) Get(ctx *echo.Context) error {
 	id, err := uuid.Parse(ctx.Param("id"))
 	if err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
@@ -226,7 +226,7 @@ func (h *SubjectTemplateHandler) Get(ctx echo.Context) error {
 //	@Failure		500			{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/admin/subject-templates/{id} [put]
-func (h *SubjectTemplateHandler) Update(ctx echo.Context) error {
+func (h *SubjectTemplateHandler) Update(ctx *echo.Context) error {
 	id, err := uuid.Parse(ctx.Param("id"))
 	if err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
@@ -333,7 +333,7 @@ type batchUpsertSubjectTemplatesResponse struct {
 //	@Failure		400		{object}	api.Error
 //	@Failure		500		{object}	api.Error
 //	@Router			/agent/subject-templates/batch [post]
-func (h *SubjectTemplateHandler) BatchUpsert(ctx echo.Context) error {
+func (h *SubjectTemplateHandler) BatchUpsert(ctx *echo.Context) error {
 	var req batchUpsertSubjectTemplatesRequest
 	if err := ctx.Bind(&req); err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))

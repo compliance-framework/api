@@ -10,19 +10,18 @@ import (
 	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/compliance-framework/api/internal/service/relational/risks"
 	"github.com/google/uuid"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
-func newReAttestRequestContext(sspID, linkID uuid.UUID) (echo.Context, *httptest.ResponseRecorder) {
+func newReAttestRequestContext(sspID, linkID uuid.UUID) (*echo.Context, *httptest.ResponseRecorder) {
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodPost, "/", nil)
 	rec := httptest.NewRecorder()
 	ctx := e.NewContext(req, rec)
-	ctx.SetParamNames("id", "linkId")
-	ctx.SetParamValues(sspID.String(), linkID.String())
+	ctx.SetPathValues(echo.PathValues{{Name: "id", Value: sspID.String()}, {Name: "linkId", Value: linkID.String()}})
 	return ctx, rec
 }
 
@@ -93,8 +92,7 @@ func TestLeveragedControlsIncludesIdStatusAndDriftRiskId(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	rec := httptest.NewRecorder()
 	ctx := e.NewContext(req, rec)
-	ctx.SetParamNames("id")
-	ctx.SetParamValues(fx.downstreamSSPID.String())
+	ctx.SetPathValues(echo.PathValues{{Name: "id", Value: fx.downstreamSSPID.String()}})
 
 	require.NoError(t, h.LeveragedControls(ctx))
 	require.Equal(t, http.StatusOK, rec.Code)
@@ -132,8 +130,7 @@ func TestLeveragedControlsActiveLinkHasNoDriftRiskId(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	rec := httptest.NewRecorder()
 	ctx := e.NewContext(req, rec)
-	ctx.SetParamNames("id")
-	ctx.SetParamValues(fx.downstreamSSPID.String())
+	ctx.SetPathValues(echo.PathValues{{Name: "id", Value: fx.downstreamSSPID.String()}})
 
 	require.NoError(t, h.LeveragedControls(ctx))
 	require.Equal(t, http.StatusOK, rec.Code)
@@ -173,8 +170,7 @@ func TestLeveragedControlsRevokedLinkHasNoDriftRiskId(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	rec := httptest.NewRecorder()
 	ctx := e.NewContext(req, rec)
-	ctx.SetParamNames("id")
-	ctx.SetParamValues(fx.downstreamSSPID.String())
+	ctx.SetPathValues(echo.PathValues{{Name: "id", Value: fx.downstreamSSPID.String()}})
 
 	require.NoError(t, h.LeveragedControls(ctx))
 	require.Equal(t, http.StatusOK, rec.Code)

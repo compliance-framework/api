@@ -19,7 +19,7 @@ import (
 	"github.com/compliance-framework/api/internal/config"
 	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/google/uuid"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"go.uber.org/zap"
 	"golang.org/x/oauth2"
 	"gorm.io/gorm"
@@ -101,7 +101,7 @@ func (h *SlackLinkHandler) Register(api *echo.Group, jwtMiddleware echo.Middlewa
 	api.GET("/slack/link/callback", h.Callback)
 }
 
-func (h *SlackLinkHandler) StartLink(ctx echo.Context) error {
+func (h *SlackLinkHandler) StartLink(ctx *echo.Context) error {
 
 	if !h.isLinkingConfigured() {
 		h.sugar.Error("Slack linking attempted but Slack integration is not configured")
@@ -132,7 +132,7 @@ func (h *SlackLinkHandler) StartLink(ctx echo.Context) error {
 	return ctx.Redirect(http.StatusTemporaryRedirect, authURL)
 }
 
-func (h *SlackLinkHandler) Callback(ctx echo.Context) error {
+func (h *SlackLinkHandler) Callback(ctx *echo.Context) error {
 	if !h.isLinkingConfigured() {
 		return h.respondCallbackError(ctx, "not_configured")
 	}
@@ -201,7 +201,7 @@ func (h *SlackLinkHandler) Callback(ctx echo.Context) error {
 	return h.respondCallbackSuccess(ctx)
 }
 
-func (h *SlackLinkHandler) GetStatus(ctx echo.Context) error {
+func (h *SlackLinkHandler) GetStatus(ctx *echo.Context) error {
 	if !h.isLinkingConfigured() {
 		return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("slack account linking is not configured")))
 	}
@@ -239,7 +239,7 @@ func (h *SlackLinkHandler) GetStatus(ctx echo.Context) error {
 	})
 }
 
-func (h *SlackLinkHandler) Unlink(ctx echo.Context) error {
+func (h *SlackLinkHandler) Unlink(ctx *echo.Context) error {
 	if !h.isLinkingConfigured() {
 		return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("slack account linking is not configured")))
 	}
@@ -451,7 +451,7 @@ func (h *SlackLinkHandler) consumeLinkAttempt(ctx context.Context, state string)
 	return userID, nil
 }
 
-func (h *SlackLinkHandler) getCurrentUser(ctx echo.Context) (*relational.User, error) {
+func (h *SlackLinkHandler) getCurrentUser(ctx *echo.Context) (*relational.User, error) {
 	userClaims, ok := ctx.Get("user").(*authn.UserClaims)
 	if !ok || userClaims == nil {
 		return nil, fmt.Errorf("missing user claims")
@@ -476,7 +476,7 @@ func (h *SlackLinkHandler) getCurrentUser(ctx echo.Context) (*relational.User, e
 	return &user, nil
 }
 
-func (h *SlackLinkHandler) setLinkCookie(ctx echo.Context, name, value string, ttl time.Duration) {
+func (h *SlackLinkHandler) setLinkCookie(ctx *echo.Context, name, value string, ttl time.Duration) {
 	cookie := new(http.Cookie)
 	cookie.Name = name
 	cookie.Value = value
@@ -493,7 +493,7 @@ func (h *SlackLinkHandler) setLinkCookie(ctx echo.Context, name, value string, t
 	ctx.SetCookie(cookie)
 }
 
-func (h *SlackLinkHandler) clearLinkCookie(ctx echo.Context, name string) {
+func (h *SlackLinkHandler) clearLinkCookie(ctx *echo.Context, name string) {
 	cookie := new(http.Cookie)
 	cookie.Name = name
 	cookie.Value = ""
@@ -556,14 +556,14 @@ func generateStateToken() (string, error) {
 	return base64.RawURLEncoding.EncodeToString(raw), nil
 }
 
-func (h *SlackLinkHandler) respondCallbackSuccess(ctx echo.Context) error {
+func (h *SlackLinkHandler) respondCallbackSuccess(ctx *echo.Context) error {
 	query := url.Values{}
 	query.Set("status", "success")
 
 	return ctx.Redirect(http.StatusFound, h.webCallbackRedirectURL(query))
 }
 
-func (h *SlackLinkHandler) respondCallbackError(ctx echo.Context, errCode string) error {
+func (h *SlackLinkHandler) respondCallbackError(ctx *echo.Context, errCode string) error {
 	query := url.Values{}
 	query.Set("status", "error")
 

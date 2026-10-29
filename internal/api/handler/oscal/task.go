@@ -6,7 +6,7 @@ import (
 	"net/http"
 
 	"github.com/google/uuid"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"gorm.io/gorm"
 
 	"github.com/compliance-framework/api/internal/api"
@@ -49,7 +49,7 @@ func (h *AssessmentPlanHandler) validateTaskInput(task *oscalTypes_1_1_3.Task) e
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/assessment-plans/{id}/tasks [get]
-func (h *AssessmentPlanHandler) GetTasks(ctx echo.Context) error {
+func (h *AssessmentPlanHandler) GetTasks(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -101,7 +101,7 @@ func (h *AssessmentPlanHandler) GetTasks(ctx echo.Context) error {
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/assessment-plans/{id}/tasks [post]
-func (h *AssessmentPlanHandler) CreateTask(ctx echo.Context) error {
+func (h *AssessmentPlanHandler) CreateTask(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -155,7 +155,7 @@ func (h *AssessmentPlanHandler) CreateTask(ctx echo.Context) error {
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/assessment-plans/{id}/tasks/{taskId} [put]
-func (h *AssessmentPlanHandler) UpdateTask(ctx echo.Context) error {
+func (h *AssessmentPlanHandler) UpdateTask(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -254,7 +254,7 @@ func (h *AssessmentPlanHandler) UpdateTask(ctx echo.Context) error {
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/assessment-plans/{id}/tasks/{taskId} [delete]
-func (h *AssessmentPlanHandler) DeleteTask(ctx echo.Context) error {
+func (h *AssessmentPlanHandler) DeleteTask(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -304,7 +304,7 @@ func (h *AssessmentPlanHandler) DeleteTask(ctx echo.Context) error {
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/assessment-plans/{id}/tasks/{taskId}/associated-activities [get]
-func (h *AssessmentPlanHandler) GetTaskActivities(ctx echo.Context) error {
+func (h *AssessmentPlanHandler) GetTaskActivities(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -356,7 +356,7 @@ func (h *AssessmentPlanHandler) GetTaskActivities(ctx echo.Context) error {
 //	@Failure		500			{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/assessment-plans/{id}/tasks/{taskId}/associated-activities/{activityId} [post]
-func (h *AssessmentPlanHandler) AssociateTaskActivity(ctx echo.Context) error {
+func (h *AssessmentPlanHandler) AssociateTaskActivity(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -422,7 +422,7 @@ func (h *AssessmentPlanHandler) AssociateTaskActivity(ctx echo.Context) error {
 //	@Failure		500			{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/assessment-plans/{id}/tasks/{taskId}/associated-activities/{activityId} [delete]
-func (h *AssessmentPlanHandler) DisassociateTaskActivity(ctx echo.Context) error {
+func (h *AssessmentPlanHandler) DisassociateTaskActivity(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {

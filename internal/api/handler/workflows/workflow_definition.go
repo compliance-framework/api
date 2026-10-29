@@ -3,7 +3,7 @@ package workflows
 import (
 	"github.com/compliance-framework/api/internal/api/middleware"
 	"github.com/compliance-framework/api/internal/service/relational/workflows"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
@@ -68,7 +68,7 @@ type WorkflowDefinitionListResponse struct {
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/workflows/definitions [post]
-func (h *WorkflowDefinitionHandler) Create(ctx echo.Context) error {
+func (h *WorkflowDefinitionHandler) Create(ctx *echo.Context) error {
 	var req CreateWorkflowDefinitionRequest
 	if err := h.BindAndValidate(ctx, &req); err != nil {
 		return HandleError(err)
@@ -107,7 +107,7 @@ func (h *WorkflowDefinitionHandler) Create(ctx echo.Context) error {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/workflows/definitions [get]
-func (h *WorkflowDefinitionHandler) List(ctx echo.Context) error {
+func (h *WorkflowDefinitionHandler) List(ctx *echo.Context) error {
 	// For now, return all definitions without pagination
 	// TODO: Add pagination query parameters
 	definitions, _, err := h.service.GetAll(1000, 0)
@@ -132,7 +132,7 @@ func (h *WorkflowDefinitionHandler) List(ctx echo.Context) error {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/workflows/definitions/{id} [get]
-func (h *WorkflowDefinitionHandler) Get(ctx echo.Context) error {
+func (h *WorkflowDefinitionHandler) Get(ctx *echo.Context) error {
 	id, err := h.ParseUUID(ctx, "id", "workflow definition")
 	if err != nil {
 		return HandleError(err)
@@ -162,7 +162,7 @@ func (h *WorkflowDefinitionHandler) Get(ctx echo.Context) error {
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/workflows/definitions/{id} [put]
-func (h *WorkflowDefinitionHandler) Update(ctx echo.Context) error {
+func (h *WorkflowDefinitionHandler) Update(ctx *echo.Context) error {
 	id, err := h.ParseUUID(ctx, "id", "workflow definition")
 	if err != nil {
 		return HandleError(err)
@@ -222,7 +222,7 @@ func (h *WorkflowDefinitionHandler) Update(ctx echo.Context) error {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/workflows/definitions/{id} [delete]
-func (h *WorkflowDefinitionHandler) Delete(ctx echo.Context) error {
+func (h *WorkflowDefinitionHandler) Delete(ctx *echo.Context) error {
 	id, err := h.ParseUUID(ctx, "id", "workflow definition")
 	if err != nil {
 		return HandleError(err)

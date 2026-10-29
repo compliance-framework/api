@@ -13,7 +13,7 @@ import (
 	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/compliance-framework/api/internal/service/relational/ssptemplates"
 	"github.com/google/uuid"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
@@ -136,7 +136,7 @@ func toSSPTemplateResponse(t ssptemplates.Listed) sspTemplateResponse {
 //	@Failure	500		{object}	api.Error
 //	@Security	OAuth2Password
 //	@Router		/admin/ssp-templates [get]
-func (h *SSPTemplateHandler) List(ctx echo.Context) error {
+func (h *SSPTemplateHandler) List(ctx *echo.Context) error {
 	pagination, err := h.pagination.ParseParams(ctx)
 	if err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
@@ -165,7 +165,7 @@ func (h *SSPTemplateHandler) List(ctx echo.Context) error {
 //	@Failure		500			{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/admin/ssp-templates [post]
-func (h *SSPTemplateHandler) Create(ctx echo.Context) error {
+func (h *SSPTemplateHandler) Create(ctx *echo.Context) error {
 	var req sspTemplateRequest
 	if err := ctx.Bind(&req); err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
@@ -189,7 +189,7 @@ func (h *SSPTemplateHandler) Create(ctx echo.Context) error {
 //	@Failure	500	{object}	api.Error
 //	@Security	OAuth2Password
 //	@Router		/admin/ssp-templates/{id} [get]
-func (h *SSPTemplateHandler) Get(ctx echo.Context) error {
+func (h *SSPTemplateHandler) Get(ctx *echo.Context) error {
 	id, err := uuid.Parse(ctx.Param("id"))
 	if err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
@@ -216,7 +216,7 @@ func (h *SSPTemplateHandler) Get(ctx echo.Context) error {
 //	@Failure		500			{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/admin/ssp-templates/{id} [put]
-func (h *SSPTemplateHandler) Update(ctx echo.Context) error {
+func (h *SSPTemplateHandler) Update(ctx *echo.Context) error {
 	id, err := uuid.Parse(ctx.Param("id"))
 	if err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
@@ -244,7 +244,7 @@ func (h *SSPTemplateHandler) Update(ctx echo.Context) error {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/admin/ssp-templates/{id} [delete]
-func (h *SSPTemplateHandler) Delete(ctx echo.Context) error {
+func (h *SSPTemplateHandler) Delete(ctx *echo.Context) error {
 	id, err := uuid.Parse(ctx.Param("id"))
 	if err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
@@ -280,7 +280,7 @@ type sspTemplatePreviewResponse struct {
 //	@Failure		500			{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/admin/ssp-templates/preview [post]
-func (h *SSPTemplateHandler) Preview(ctx echo.Context) error {
+func (h *SSPTemplateHandler) Preview(ctx *echo.Context) error {
 	var req sspTemplatePreviewRequest
 	if err := ctx.Bind(&req); err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
@@ -292,7 +292,7 @@ func (h *SSPTemplateHandler) Preview(ctx echo.Context) error {
 	return ctx.JSON(http.StatusOK, sspTemplatePreviewResponse{Data: plan})
 }
 
-func (h *SSPTemplateHandler) serviceError(ctx echo.Context, message string, err error) error {
+func (h *SSPTemplateHandler) serviceError(ctx *echo.Context, message string, err error) error {
 	switch {
 	case errors.Is(err, ssptemplates.ErrNotFound), errors.Is(err, ssptemplates.ErrInstanceNotFound):
 		return ctx.JSON(http.StatusNotFound, api.NotFound())

@@ -15,7 +15,7 @@ import (
 	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/compliance-framework/api/internal/service/relational/risks"
 	"github.com/google/uuid"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 	"gorm.io/driver/sqlite"
@@ -145,14 +145,13 @@ func newLeverageFixture(t *testing.T, db *gorm.DB) leverageFixture {
 	}
 }
 
-func newSubscribeRequestContext(offeringID uuid.UUID, body string) (echo.Context, *echo.Echo, *httptest.ResponseRecorder) {
+func newSubscribeRequestContext(offeringID uuid.UUID, body string) (*echo.Context, *echo.Echo, *httptest.ResponseRecorder) {
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodPost, "/", bytes.NewBufferString(body))
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	rec := httptest.NewRecorder()
 	ctx := e.NewContext(req, rec)
-	ctx.SetParamNames("id")
-	ctx.SetParamValues(offeringID.String())
+	ctx.SetPathValues(echo.PathValues{{Name: "id", Value: offeringID.String()}})
 	ctx.Set("user", &authn.UserClaims{UserUUID: uuid.New().String()})
 	return ctx, e, rec
 }
@@ -477,7 +476,7 @@ func TestSubscribeForbiddenWhenDownstreamUpdateDenied(t *testing.T) {
 
 	err := h.Subscribe(ctx)
 	require.Error(t, err)
-	e.HTTPErrorHandler(err, ctx)
+	e.HTTPErrorHandler(ctx, err)
 	require.Equal(t, http.StatusForbidden, rec.Code)
 
 	var count int64
@@ -586,8 +585,7 @@ func TestLeveragedControlsProjectionShowsPartialAndOutstanding(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	rec := httptest.NewRecorder()
 	ctx := e.NewContext(req, rec)
-	ctx.SetParamNames("id")
-	ctx.SetParamValues(fx.downstreamSSPID.String())
+	ctx.SetPathValues(echo.PathValues{{Name: "id", Value: fx.downstreamSSPID.String()}})
 
 	require.NoError(t, h.LeveragedControls(ctx))
 	require.Equal(t, http.StatusOK, rec.Code)

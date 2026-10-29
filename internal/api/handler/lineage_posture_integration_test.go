@@ -14,7 +14,7 @@ import (
 	"github.com/compliance-framework/api/internal/tests"
 	oscalTypes_1_1_3 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
 	"github.com/google/uuid"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/zap"
 	"gorm.io/datatypes"
@@ -38,8 +38,7 @@ func (suite *LineagePostureSuite) childrenOf(key, sspID string) []LineageNode {
 	req := httptest.NewRequest(http.MethodGet, url, nil)
 	rec := httptest.NewRecorder()
 	ctx := e.NewContext(req, rec)
-	ctx.SetParamNames("key")
-	ctx.SetParamValues(key)
+	ctx.SetPathValues(echo.PathValues{{Name: "key", Value: key}})
 	suite.Require().NoError(NewLineageHandler(zap.NewNop().Sugar(), suite.DB).Children(ctx))
 	suite.Require().Equal(http.StatusOK, rec.Code, rec.Body.String())
 	var resp struct {

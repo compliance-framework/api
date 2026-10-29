@@ -13,7 +13,7 @@ import (
 	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/compliance-framework/api/internal/service/relational/workflows"
 	"github.com/google/uuid"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -157,8 +157,7 @@ func TestControlRelationshipHandler_Get(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/workflows/control-relationships/"+relationship.ID.String(), nil)
 		rec := httptest.NewRecorder()
 		c := e.NewContext(req, rec)
-		c.SetParamNames("id")
-		c.SetParamValues(relationship.ID.String())
+		c.SetPathValues(echo.PathValues{{Name: "id", Value: relationship.ID.String()}})
 
 		err := handler.Get(c)
 		require.NoError(t, err)
@@ -175,8 +174,7 @@ func TestControlRelationshipHandler_Get(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/workflows/control-relationships/"+nonExistentID.String(), nil)
 		rec := httptest.NewRecorder()
 		c := e.NewContext(req, rec)
-		c.SetParamNames("id")
-		c.SetParamValues(nonExistentID.String())
+		c.SetPathValues(echo.PathValues{{Name: "id", Value: nonExistentID.String()}})
 
 		err := handler.Get(c)
 		require.NoError(t, err)
@@ -216,8 +214,7 @@ func TestControlRelationshipHandler_Update(t *testing.T) {
 		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 		rec := httptest.NewRecorder()
 		c := e.NewContext(req, rec)
-		c.SetParamNames("id")
-		c.SetParamValues(relationship.ID.String())
+		c.SetPathValues(echo.PathValues{{Name: "id", Value: relationship.ID.String()}})
 
 		err = handler.Update(c)
 		require.NoError(t, err)
@@ -252,8 +249,7 @@ func TestControlRelationshipHandler_Delete(t *testing.T) {
 		req := httptest.NewRequest(http.MethodDelete, "/workflows/control-relationships/"+relationship.ID.String(), nil)
 		rec := httptest.NewRecorder()
 		c := e.NewContext(req, rec)
-		c.SetParamNames("id")
-		c.SetParamValues(relationship.ID.String())
+		c.SetPathValues(echo.PathValues{{Name: "id", Value: relationship.ID.String()}})
 
 		err := handler.Delete(c)
 		require.NoError(t, err)
@@ -284,8 +280,7 @@ func TestControlRelationshipHandler_Activate(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPut, "/workflows/control-relationships/"+relationship.ID.String()+"/activate", nil)
 		rec := httptest.NewRecorder()
 		c := e.NewContext(req, rec)
-		c.SetParamNames("id")
-		c.SetParamValues(relationship.ID.String())
+		c.SetPathValues(echo.PathValues{{Name: "id", Value: relationship.ID.String()}})
 
 		err := handler.Activate(c)
 		require.NoError(t, err)
@@ -321,8 +316,7 @@ func TestControlRelationshipHandler_Deactivate(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPut, "/workflows/control-relationships/"+relationship.ID.String()+"/deactivate", nil)
 		rec := httptest.NewRecorder()
 		c := e.NewContext(req, rec)
-		c.SetParamNames("id")
-		c.SetParamValues(relationship.ID.String())
+		c.SetPathValues(echo.PathValues{{Name: "id", Value: relationship.ID.String()}})
 
 		err := handler.Deactivate(c)
 		require.NoError(t, err)

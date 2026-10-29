@@ -20,7 +20,7 @@ import (
 	riskrel "github.com/compliance-framework/api/internal/service/relational/risks"
 	"github.com/compliance-framework/api/internal/tests"
 	"github.com/google/uuid"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/zap"

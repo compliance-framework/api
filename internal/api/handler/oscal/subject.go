@@ -5,7 +5,7 @@ import (
 	"net/http"
 
 	"github.com/google/uuid"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 
 	"github.com/compliance-framework/api/internal/api"
 	"github.com/compliance-framework/api/internal/api/handler"
@@ -34,7 +34,7 @@ func (h *AssessmentPlanHandler) validateAssessmentSubjectInput(subject *oscalTyp
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/assessment-plans/{id}/assessment-subjects [get]
-func (h *AssessmentPlanHandler) GetAssessmentSubjects(ctx echo.Context) error {
+func (h *AssessmentPlanHandler) GetAssessmentSubjects(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -78,7 +78,7 @@ func (h *AssessmentPlanHandler) GetAssessmentSubjects(ctx echo.Context) error {
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/assessment-plans/{id}/assessment-subjects [post]
-func (h *AssessmentPlanHandler) CreateAssessmentSubject(ctx echo.Context) error {
+func (h *AssessmentPlanHandler) CreateAssessmentSubject(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -182,7 +182,7 @@ func (h *AssessmentPlanHandler) CreateAssessmentSubject(ctx echo.Context) error 
 //	@Failure		500			{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/assessment-plans/{id}/assessment-subjects/{subjectId} [put]
-func (h *AssessmentPlanHandler) UpdateAssessmentSubject(ctx echo.Context) error {
+func (h *AssessmentPlanHandler) UpdateAssessmentSubject(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -246,7 +246,7 @@ func (h *AssessmentPlanHandler) UpdateAssessmentSubject(ctx echo.Context) error 
 //	@Failure		500			{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/assessment-plans/{id}/assessment-subjects/{subjectId} [delete]
-func (h *AssessmentPlanHandler) DeleteAssessmentSubject(ctx echo.Context) error {
+func (h *AssessmentPlanHandler) DeleteAssessmentSubject(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {

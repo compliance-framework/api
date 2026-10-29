@@ -16,7 +16,7 @@ import (
 	"github.com/defenseunicorns/go-oscal/src/pkg/versioning"
 	oscalTypes_1_1_3 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
 	"github.com/google/uuid"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"go.uber.org/zap"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
@@ -105,7 +105,7 @@ func (h *ProfileHandler) Register(api *echo.Group, guard middleware.ResourceGuar
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/profiles/build-props [post]
-func (h *ProfileHandler) BuildByProps(ctx echo.Context) error {
+func (h *ProfileHandler) BuildByProps(ctx *echo.Context) error {
 	var req BuildByPropsRequest
 	var raw map[string]any
 	if err := json.NewDecoder(ctx.Request().Body).Decode(&raw); err != nil {
@@ -340,7 +340,7 @@ func matchControlByProps(ctl *relational.Control, rules []rule, matchAll bool) b
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/profiles [get]
-func (h *ProfileHandler) List(ctx echo.Context) error {
+func (h *ProfileHandler) List(ctx *echo.Context) error {
 	type response struct {
 		UUID     uuid.UUID                 `json:"uuid"`
 		Metadata oscalTypes_1_1_3.Metadata `json:"metadata"`
@@ -381,7 +381,7 @@ func (h *ProfileHandler) List(ctx echo.Context) error {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/profiles/{id} [get]
-func (h *ProfileHandler) Get(ctx echo.Context) error {
+func (h *ProfileHandler) Get(ctx *echo.Context) error {
 	type response struct {
 		UUID     uuid.UUID                 `json:"uuid"`
 		Metadata oscalTypes_1_1_3.Metadata `json:"metadata"`
@@ -429,7 +429,7 @@ func (h *ProfileHandler) Get(ctx echo.Context) error {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/profiles/{id}/resolved [get]
-func (h *ProfileHandler) Resolved(ctx echo.Context) error {
+func (h *ProfileHandler) Resolved(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -472,7 +472,7 @@ func (h *ProfileHandler) Resolved(ctx echo.Context) error {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/profiles/{id}/resolved-with-catalogs [get]
-func (h *ProfileHandler) ResolvedWithCatalogs(ctx echo.Context) error {
+func (h *ProfileHandler) ResolvedWithCatalogs(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -533,7 +533,7 @@ func (h *ProfileHandler) ResolvedWithCatalogs(ctx echo.Context) error {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/profiles/{id}/imports [get]
-func (h *ProfileHandler) ListImports(ctx echo.Context) error {
+func (h *ProfileHandler) ListImports(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -575,7 +575,7 @@ func (h *ProfileHandler) ListImports(ctx echo.Context) error {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/profiles/{id}/imports/{href} [get]
-func (h *ProfileHandler) GetImport(ctx echo.Context) error {
+func (h *ProfileHandler) GetImport(ctx *echo.Context) error {
 	profileId := ctx.Param("id")
 	importHref := ctx.Param("href")
 
@@ -616,7 +616,7 @@ func (h *ProfileHandler) GetImport(ctx echo.Context) error {
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/profiles/{id}/imports/add [post]
-func (h *ProfileHandler) AddImport(ctx echo.Context) error {
+func (h *ProfileHandler) AddImport(ctx *echo.Context) error {
 	type request struct {
 		Type string `json:"type"` // catalog / profile
 		UUID string `json:"uuid"`
@@ -715,7 +715,7 @@ func (h *ProfileHandler) AddImport(ctx echo.Context) error {
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/profiles/{id}/imports/{href} [put]
-func (h *ProfileHandler) UpdateImport(ctx echo.Context) error {
+func (h *ProfileHandler) UpdateImport(ctx *echo.Context) error {
 	profileId := ctx.Param("id")
 	id, err := uuid.Parse(profileId)
 	if err != nil {
@@ -795,7 +795,7 @@ func (h *ProfileHandler) UpdateImport(ctx echo.Context) error {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/profiles/{id}/imports/{href} [delete]
-func (h *ProfileHandler) DeleteImport(ctx echo.Context) error {
+func (h *ProfileHandler) DeleteImport(ctx *echo.Context) error {
 	profileId := ctx.Param("id")
 	href := ctx.Param("href")
 
@@ -868,7 +868,7 @@ func (h *ProfileHandler) DeleteImport(ctx echo.Context) error {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/profiles/{id}/merge [get]
-func (h *ProfileHandler) GetMerge(ctx echo.Context) error {
+func (h *ProfileHandler) GetMerge(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -907,7 +907,7 @@ func (h *ProfileHandler) GetMerge(ctx echo.Context) error {
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/profiles/{id}/merge [put]
-func (h *ProfileHandler) UpdateMerge(ctx echo.Context) error {
+func (h *ProfileHandler) UpdateMerge(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -985,7 +985,7 @@ func (h *ProfileHandler) UpdateMerge(ctx echo.Context) error {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/profiles/{id}/back-matter [get]
-func (h *ProfileHandler) GetBackmatter(ctx echo.Context) error {
+func (h *ProfileHandler) GetBackmatter(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -1020,7 +1020,7 @@ func (h *ProfileHandler) GetBackmatter(ctx echo.Context) error {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/profiles/{id}/resolve [post]
-func (h *ProfileHandler) Resolve(ctx echo.Context) error {
+func (h *ProfileHandler) Resolve(ctx *echo.Context) error {
 	type response struct {
 		ID string `json:"id"`
 	}
@@ -1121,7 +1121,7 @@ func updateCatalogID(controls []relational.Control, newCatalogID uuid.UUID) []re
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/profiles [post]
-func (h *ProfileHandler) Create(ctx echo.Context) error {
+func (h *ProfileHandler) Create(ctx *echo.Context) error {
 	now := time.Now()
 
 	var oscalProfile oscalTypes_1_1_3.Profile
@@ -1171,7 +1171,7 @@ func (h *ProfileHandler) Create(ctx echo.Context) error {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/profiles/{id}/full [get]
-func (h *ProfileHandler) GetFull(ctx echo.Context) error {
+func (h *ProfileHandler) GetFull(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -1204,7 +1204,7 @@ func (h *ProfileHandler) GetFull(ctx echo.Context) error {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/profiles/{id}/modify [get]
-func (h *ProfileHandler) GetModify(ctx echo.Context) error {
+func (h *ProfileHandler) GetModify(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {

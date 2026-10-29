@@ -18,7 +18,7 @@ import (
 	evidencesvc "github.com/compliance-framework/api/internal/service/relational/evidence"
 	"github.com/compliance-framework/api/internal/tests"
 	oscaltypes "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap"
 	"gorm.io/datatypes"

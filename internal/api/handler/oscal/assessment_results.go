@@ -8,7 +8,7 @@ import (
 
 	"github.com/defenseunicorns/go-oscal/src/pkg/versioning"
 	"github.com/google/uuid"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"go.uber.org/zap"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
@@ -39,7 +39,7 @@ func NewAssessmentResultsHandler(sugar *zap.SugaredLogger, db *gorm.DB) *Assessm
 }
 
 // verifyAssessmentResultsExists checks if an Assessment Results exists by ID and returns appropriate HTTP error if not
-func (h *AssessmentResultsHandler) verifyAssessmentResultsExists(ctx echo.Context, arID uuid.UUID) error {
+func (h *AssessmentResultsHandler) verifyAssessmentResultsExists(ctx *echo.Context, arID uuid.UUID) error {
 	var ar relational.AssessmentResult
 	if err := h.db.First(&ar, "id = ?", arID).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -254,7 +254,7 @@ func (h *AssessmentResultsHandler) validateAttestationInput(attestation *oscalTy
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/assessment-results [get]
-func (h *AssessmentResultsHandler) List(ctx echo.Context) error {
+func (h *AssessmentResultsHandler) List(ctx *echo.Context) error {
 	var assessmentResults []relational.AssessmentResult
 	if err := h.db.Preload("Metadata").Preload("Metadata.Revisions").Find(&assessmentResults).Error; err != nil {
 		h.sugar.Errorw("failed to list assessment results", "error", err)
@@ -281,7 +281,7 @@ func (h *AssessmentResultsHandler) List(ctx echo.Context) error {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/assessment-results/{id} [get]
-func (h *AssessmentResultsHandler) Get(ctx echo.Context) error {
+func (h *AssessmentResultsHandler) Get(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -313,7 +313,7 @@ func (h *AssessmentResultsHandler) Get(ctx echo.Context) error {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/assessment-results/{id}/full [get]
-func (h *AssessmentResultsHandler) Full(ctx echo.Context) error {
+func (h *AssessmentResultsHandler) Full(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -353,7 +353,7 @@ func (h *AssessmentResultsHandler) Full(ctx echo.Context) error {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/assessment-results [post]
-func (h *AssessmentResultsHandler) Create(ctx echo.Context) error {
+func (h *AssessmentResultsHandler) Create(ctx *echo.Context) error {
 	var oscalAR oscalTypes_1_1_3.AssessmentResults
 	if err := ctx.Bind(&oscalAR); err != nil {
 		h.sugar.Warnw("Invalid create assessment results request", "error", err)
@@ -395,7 +395,7 @@ func (h *AssessmentResultsHandler) Create(ctx echo.Context) error {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/assessment-results/{id} [put]
-func (h *AssessmentResultsHandler) Update(ctx echo.Context) error {
+func (h *AssessmentResultsHandler) Update(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -521,7 +521,7 @@ func (h *AssessmentResultsHandler) Update(ctx echo.Context) error {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/assessment-results/{id} [delete]
-func (h *AssessmentResultsHandler) Delete(ctx echo.Context) error {
+func (h *AssessmentResultsHandler) Delete(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -555,7 +555,7 @@ func (h *AssessmentResultsHandler) Delete(ctx echo.Context) error {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/assessment-results/{id}/metadata [get]
-func (h *AssessmentResultsHandler) GetMetadata(ctx echo.Context) error {
+func (h *AssessmentResultsHandler) GetMetadata(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -585,7 +585,7 @@ func (h *AssessmentResultsHandler) GetMetadata(ctx echo.Context) error {
 //	@Failure		500			{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/assessment-results/{id}/metadata [put]
-func (h *AssessmentResultsHandler) UpdateMetadata(ctx echo.Context) error {
+func (h *AssessmentResultsHandler) UpdateMetadata(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -649,7 +649,7 @@ func (h *AssessmentResultsHandler) UpdateMetadata(ctx echo.Context) error {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/assessment-results/{id}/import-ap [get]
-func (h *AssessmentResultsHandler) GetImportAp(ctx echo.Context) error {
+func (h *AssessmentResultsHandler) GetImportAp(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -680,7 +680,7 @@ func (h *AssessmentResultsHandler) GetImportAp(ctx echo.Context) error {
 //	@Failure		500			{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/assessment-results/{id}/import-ap [put]
-func (h *AssessmentResultsHandler) UpdateImportAp(ctx echo.Context) error {
+func (h *AssessmentResultsHandler) UpdateImportAp(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -746,7 +746,7 @@ func (h *AssessmentResultsHandler) UpdateImportAp(ctx echo.Context) error {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/assessment-results/{id}/local-definitions [get]
-func (h *AssessmentResultsHandler) GetLocalDefinitions(ctx echo.Context) error {
+func (h *AssessmentResultsHandler) GetLocalDefinitions(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -780,7 +780,7 @@ func (h *AssessmentResultsHandler) GetLocalDefinitions(ctx echo.Context) error {
 //	@Failure		500					{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/assessment-results/{id}/local-definitions [put]
-func (h *AssessmentResultsHandler) UpdateLocalDefinitions(ctx echo.Context) error {
+func (h *AssessmentResultsHandler) UpdateLocalDefinitions(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -858,7 +858,7 @@ func (h *AssessmentResultsHandler) UpdateLocalDefinitions(ctx echo.Context) erro
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/assessment-results/{id}/results [get]
-func (h *AssessmentResultsHandler) GetResults(ctx echo.Context) error {
+func (h *AssessmentResultsHandler) GetResults(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -895,7 +895,7 @@ func (h *AssessmentResultsHandler) GetResults(ctx echo.Context) error {
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/assessment-results/{id}/results [post]
-func (h *AssessmentResultsHandler) CreateResult(ctx echo.Context) error {
+func (h *AssessmentResultsHandler) CreateResult(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -955,7 +955,7 @@ func (h *AssessmentResultsHandler) CreateResult(ctx echo.Context) error {
 //	@Failure		500			{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/assessment-results/{id}/results/{resultId} [get]
-func (h *AssessmentResultsHandler) GetResult(ctx echo.Context) error {
+func (h *AssessmentResultsHandler) GetResult(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -1002,7 +1002,7 @@ func (h *AssessmentResultsHandler) GetResult(ctx echo.Context) error {
 //	@Failure		500			{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/assessment-results/{id}/results/{resultId} [put]
-func (h *AssessmentResultsHandler) UpdateResult(ctx echo.Context) error {
+func (h *AssessmentResultsHandler) UpdateResult(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -1075,7 +1075,7 @@ func (h *AssessmentResultsHandler) UpdateResult(ctx echo.Context) error {
 //	@Failure		500			{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/assessment-results/{id}/results/{resultId} [delete]
-func (h *AssessmentResultsHandler) DeleteResult(ctx echo.Context) error {
+func (h *AssessmentResultsHandler) DeleteResult(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -1138,7 +1138,7 @@ func (h *AssessmentResultsHandler) DeleteResult(ctx echo.Context) error {
 //	@Failure		500			{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/assessment-results/{id}/results/{resultId}/observations [get]
-func (h *AssessmentResultsHandler) GetResultObservations(ctx echo.Context) error {
+func (h *AssessmentResultsHandler) GetResultObservations(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	_, err := uuid.Parse(idParam)
 	if err != nil {
@@ -1185,7 +1185,7 @@ func (h *AssessmentResultsHandler) GetResultObservations(ctx echo.Context) error
 //	@Failure		500			{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/assessment-results/{id}/results/{resultId}/observations [post]
-func (h *AssessmentResultsHandler) CreateResultObservation(ctx echo.Context) error {
+func (h *AssessmentResultsHandler) CreateResultObservation(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -1258,7 +1258,7 @@ func (h *AssessmentResultsHandler) CreateResultObservation(ctx echo.Context) err
 //	@Failure		500			{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/assessment-results/{id}/results/{resultId}/observations/{obsId} [put]
-func (h *AssessmentResultsHandler) UpdateResultObservation(ctx echo.Context) error {
+func (h *AssessmentResultsHandler) UpdateResultObservation(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -1353,7 +1353,7 @@ func (h *AssessmentResultsHandler) UpdateResultObservation(ctx echo.Context) err
 //	@Failure		500			{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/assessment-results/{id}/results/{resultId}/observations/{obsId} [delete]
-func (h *AssessmentResultsHandler) DeleteResultObservation(ctx echo.Context) error {
+func (h *AssessmentResultsHandler) DeleteResultObservation(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -1415,7 +1415,7 @@ func (h *AssessmentResultsHandler) DeleteResultObservation(ctx echo.Context) err
 //	@Failure		500			{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/assessment-results/{id}/results/{resultId}/risks [get]
-func (h *AssessmentResultsHandler) GetResultRisks(ctx echo.Context) error {
+func (h *AssessmentResultsHandler) GetResultRisks(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	_, err := uuid.Parse(idParam)
 	if err != nil {
@@ -1462,7 +1462,7 @@ func (h *AssessmentResultsHandler) GetResultRisks(ctx echo.Context) error {
 //	@Failure		500			{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/assessment-results/{id}/results/{resultId}/risks [post]
-func (h *AssessmentResultsHandler) CreateResultRisk(ctx echo.Context) error {
+func (h *AssessmentResultsHandler) CreateResultRisk(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -1535,7 +1535,7 @@ func (h *AssessmentResultsHandler) CreateResultRisk(ctx echo.Context) error {
 //	@Failure		500			{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/assessment-results/{id}/results/{resultId}/risks/{riskId} [put]
-func (h *AssessmentResultsHandler) UpdateResultRisk(ctx echo.Context) error {
+func (h *AssessmentResultsHandler) UpdateResultRisk(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -1630,7 +1630,7 @@ func (h *AssessmentResultsHandler) UpdateResultRisk(ctx echo.Context) error {
 //	@Failure		500			{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/assessment-results/{id}/results/{resultId}/risks/{riskId} [delete]
-func (h *AssessmentResultsHandler) DeleteResultRisk(ctx echo.Context) error {
+func (h *AssessmentResultsHandler) DeleteResultRisk(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -1692,7 +1692,7 @@ func (h *AssessmentResultsHandler) DeleteResultRisk(ctx echo.Context) error {
 //	@Failure		500			{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/assessment-results/{id}/results/{resultId}/findings [get]
-func (h *AssessmentResultsHandler) GetResultFindings(ctx echo.Context) error {
+func (h *AssessmentResultsHandler) GetResultFindings(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	_, err := uuid.Parse(idParam)
 	if err != nil {
@@ -1739,7 +1739,7 @@ func (h *AssessmentResultsHandler) GetResultFindings(ctx echo.Context) error {
 //	@Failure		500			{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/assessment-results/{id}/results/{resultId}/findings [post]
-func (h *AssessmentResultsHandler) CreateResultFinding(ctx echo.Context) error {
+func (h *AssessmentResultsHandler) CreateResultFinding(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -1812,7 +1812,7 @@ func (h *AssessmentResultsHandler) CreateResultFinding(ctx echo.Context) error {
 //	@Failure		500			{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/assessment-results/{id}/results/{resultId}/findings/{findingId} [put]
-func (h *AssessmentResultsHandler) UpdateResultFinding(ctx echo.Context) error {
+func (h *AssessmentResultsHandler) UpdateResultFinding(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -1907,7 +1907,7 @@ func (h *AssessmentResultsHandler) UpdateResultFinding(ctx echo.Context) error {
 //	@Failure		500			{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/assessment-results/{id}/results/{resultId}/findings/{findingId} [delete]
-func (h *AssessmentResultsHandler) DeleteResultFinding(ctx echo.Context) error {
+func (h *AssessmentResultsHandler) DeleteResultFinding(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -1969,7 +1969,7 @@ func (h *AssessmentResultsHandler) DeleteResultFinding(ctx echo.Context) error {
 //	@Failure		500			{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/assessment-results/{id}/results/{resultId}/attestations [get]
-func (h *AssessmentResultsHandler) GetResultAttestations(ctx echo.Context) error {
+func (h *AssessmentResultsHandler) GetResultAttestations(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	_, err := uuid.Parse(idParam)
 	if err != nil {
@@ -2016,7 +2016,7 @@ func (h *AssessmentResultsHandler) GetResultAttestations(ctx echo.Context) error
 //	@Failure		500			{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/assessment-results/{id}/results/{resultId}/attestations [post]
-func (h *AssessmentResultsHandler) CreateResultAttestation(ctx echo.Context) error {
+func (h *AssessmentResultsHandler) CreateResultAttestation(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -2090,7 +2090,7 @@ func (h *AssessmentResultsHandler) CreateResultAttestation(ctx echo.Context) err
 //	@Failure		500				{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/assessment-results/{id}/results/{resultId}/attestations/{attestationId} [put]
-func (h *AssessmentResultsHandler) UpdateResultAttestation(ctx echo.Context) error {
+func (h *AssessmentResultsHandler) UpdateResultAttestation(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -2179,7 +2179,7 @@ func (h *AssessmentResultsHandler) UpdateResultAttestation(ctx echo.Context) err
 //	@Failure		500				{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/assessment-results/{id}/results/{resultId}/attestations/{attestationId} [delete]
-func (h *AssessmentResultsHandler) DeleteResultAttestation(ctx echo.Context) error {
+func (h *AssessmentResultsHandler) DeleteResultAttestation(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -2251,7 +2251,7 @@ func (h *AssessmentResultsHandler) DeleteResultAttestation(ctx echo.Context) err
 //	@Failure		500			{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/assessment-results/{id}/results/{resultId}/associated-observations [get]
-func (h *AssessmentResultsHandler) GetResultAssociatedObservations(ctx echo.Context) error {
+func (h *AssessmentResultsHandler) GetResultAssociatedObservations(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -2307,7 +2307,7 @@ func (h *AssessmentResultsHandler) GetResultAssociatedObservations(ctx echo.Cont
 //	@Failure		500				{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/assessment-results/{id}/results/{resultId}/associated-observations/{observationId} [post]
-func (h *AssessmentResultsHandler) AssociateResultObservation(ctx echo.Context) error {
+func (h *AssessmentResultsHandler) AssociateResultObservation(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -2386,7 +2386,7 @@ func (h *AssessmentResultsHandler) AssociateResultObservation(ctx echo.Context) 
 //	@Failure		500				{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/assessment-results/{id}/results/{resultId}/associated-observations/{observationId} [delete]
-func (h *AssessmentResultsHandler) DisassociateResultObservation(ctx echo.Context) error {
+func (h *AssessmentResultsHandler) DisassociateResultObservation(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -2454,7 +2454,7 @@ func (h *AssessmentResultsHandler) DisassociateResultObservation(ctx echo.Contex
 //	@Failure		500			{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/assessment-results/{id}/results/{resultId}/associated-risks [get]
-func (h *AssessmentResultsHandler) GetResultAssociatedRisks(ctx echo.Context) error {
+func (h *AssessmentResultsHandler) GetResultAssociatedRisks(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -2510,7 +2510,7 @@ func (h *AssessmentResultsHandler) GetResultAssociatedRisks(ctx echo.Context) er
 //	@Failure		500			{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/assessment-results/{id}/results/{resultId}/associated-risks/{riskId} [post]
-func (h *AssessmentResultsHandler) AssociateResultRisk(ctx echo.Context) error {
+func (h *AssessmentResultsHandler) AssociateResultRisk(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -2589,7 +2589,7 @@ func (h *AssessmentResultsHandler) AssociateResultRisk(ctx echo.Context) error {
 //	@Failure		500			{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/assessment-results/{id}/results/{resultId}/associated-risks/{riskId} [delete]
-func (h *AssessmentResultsHandler) DisassociateResultRisk(ctx echo.Context) error {
+func (h *AssessmentResultsHandler) DisassociateResultRisk(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -2657,7 +2657,7 @@ func (h *AssessmentResultsHandler) DisassociateResultRisk(ctx echo.Context) erro
 //	@Failure		500			{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/assessment-results/{id}/results/{resultId}/associated-findings [get]
-func (h *AssessmentResultsHandler) GetResultAssociatedFindings(ctx echo.Context) error {
+func (h *AssessmentResultsHandler) GetResultAssociatedFindings(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -2713,7 +2713,7 @@ func (h *AssessmentResultsHandler) GetResultAssociatedFindings(ctx echo.Context)
 //	@Failure		500			{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/assessment-results/{id}/results/{resultId}/associated-findings/{findingId} [post]
-func (h *AssessmentResultsHandler) AssociateResultFinding(ctx echo.Context) error {
+func (h *AssessmentResultsHandler) AssociateResultFinding(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -2792,7 +2792,7 @@ func (h *AssessmentResultsHandler) AssociateResultFinding(ctx echo.Context) erro
 //	@Failure		500			{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/assessment-results/{id}/results/{resultId}/associated-findings/{findingId} [delete]
-func (h *AssessmentResultsHandler) DisassociateResultFinding(ctx echo.Context) error {
+func (h *AssessmentResultsHandler) DisassociateResultFinding(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -2859,7 +2859,7 @@ func (h *AssessmentResultsHandler) DisassociateResultFinding(ctx echo.Context) e
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/assessment-results/{id}/observations [get]
-func (h *AssessmentResultsHandler) GetAllObservations(ctx echo.Context) error {
+func (h *AssessmentResultsHandler) GetAllObservations(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -2900,7 +2900,7 @@ func (h *AssessmentResultsHandler) GetAllObservations(ctx echo.Context) error {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/assessment-results/{id}/risks [get]
-func (h *AssessmentResultsHandler) GetAllRisks(ctx echo.Context) error {
+func (h *AssessmentResultsHandler) GetAllRisks(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -2941,7 +2941,7 @@ func (h *AssessmentResultsHandler) GetAllRisks(ctx echo.Context) error {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/assessment-results/{id}/findings [get]
-func (h *AssessmentResultsHandler) GetAllFindings(ctx echo.Context) error {
+func (h *AssessmentResultsHandler) GetAllFindings(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -2982,7 +2982,7 @@ func (h *AssessmentResultsHandler) GetAllFindings(ctx echo.Context) error {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/assessment-results/{id}/back-matter [get]
-func (h *AssessmentResultsHandler) GetBackMatter(ctx echo.Context) error {
+func (h *AssessmentResultsHandler) GetBackMatter(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -3025,7 +3025,7 @@ func (h *AssessmentResultsHandler) GetBackMatter(ctx echo.Context) error {
 //	@Failure		500			{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/assessment-results/{id}/back-matter [post]
-func (h *AssessmentResultsHandler) CreateBackMatter(ctx echo.Context) error {
+func (h *AssessmentResultsHandler) CreateBackMatter(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -3120,7 +3120,7 @@ func (h *AssessmentResultsHandler) CreateBackMatter(ctx echo.Context) error {
 //	@Failure		500			{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/assessment-results/{id}/back-matter [put]
-func (h *AssessmentResultsHandler) UpdateBackMatter(ctx echo.Context) error {
+func (h *AssessmentResultsHandler) UpdateBackMatter(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -3211,7 +3211,7 @@ func (h *AssessmentResultsHandler) UpdateBackMatter(ctx echo.Context) error {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/assessment-results/{id}/back-matter [delete]
-func (h *AssessmentResultsHandler) DeleteBackMatter(ctx echo.Context) error {
+func (h *AssessmentResultsHandler) DeleteBackMatter(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -3260,7 +3260,7 @@ func (h *AssessmentResultsHandler) DeleteBackMatter(ctx echo.Context) error {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/assessment-results/{id}/back-matter/resources [get]
-func (h *AssessmentResultsHandler) GetBackMatterResources(ctx echo.Context) error {
+func (h *AssessmentResultsHandler) GetBackMatterResources(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -3306,7 +3306,7 @@ func (h *AssessmentResultsHandler) GetBackMatterResources(ctx echo.Context) erro
 //	@Failure		500			{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/assessment-results/{id}/back-matter/resources [post]
-func (h *AssessmentResultsHandler) CreateBackMatterResource(ctx echo.Context) error {
+func (h *AssessmentResultsHandler) CreateBackMatterResource(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -3386,7 +3386,7 @@ func (h *AssessmentResultsHandler) CreateBackMatterResource(ctx echo.Context) er
 //	@Failure		500			{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/assessment-results/{id}/back-matter/resources/{resourceId} [put]
-func (h *AssessmentResultsHandler) UpdateBackMatterResource(ctx echo.Context) error {
+func (h *AssessmentResultsHandler) UpdateBackMatterResource(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -3468,7 +3468,7 @@ func (h *AssessmentResultsHandler) UpdateBackMatterResource(ctx echo.Context) er
 //	@Failure		500			{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/assessment-results/{id}/back-matter/resources/{resourceId} [delete]
-func (h *AssessmentResultsHandler) DeleteBackMatterResource(ctx echo.Context) error {
+func (h *AssessmentResultsHandler) DeleteBackMatterResource(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -3544,7 +3544,7 @@ func (h *AssessmentResultsHandler) validateResourceInput(r *oscalTypes_1_1_3.Res
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/assessment-results/{id}/available-controls [get]
-func (h *AssessmentResultsHandler) GetAvailableControls(ctx echo.Context) error {
+func (h *AssessmentResultsHandler) GetAvailableControls(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -3594,7 +3594,7 @@ func (h *AssessmentResultsHandler) GetAvailableControls(ctx echo.Context) error 
 //	@Failure		500			{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/assessment-results/{id}/control/{controlId} [get]
-func (h *AssessmentResultsHandler) GetControlDetails(ctx echo.Context) error {
+func (h *AssessmentResultsHandler) GetControlDetails(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {

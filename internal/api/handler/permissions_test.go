@@ -11,7 +11,7 @@ import (
 	"github.com/compliance-framework/api/internal/authn"
 	"github.com/compliance-framework/api/internal/authz"
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -40,7 +40,7 @@ func (s *stubPDP) Evaluations(_ context.Context, reqs []authz.EvalRequest) ([]au
 	return out, nil
 }
 
-func newPermissionsCtx(t *testing.T, subject string) (echo.Context, *httptest.ResponseRecorder) {
+func newPermissionsCtx(t *testing.T, subject string) (*echo.Context, *httptest.ResponseRecorder) {
 	t.Helper()
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodGet, "/api/me/permissions", nil)

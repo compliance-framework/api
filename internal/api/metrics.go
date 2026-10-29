@@ -3,9 +3,9 @@ package api
 import (
 	"context"
 
-	"github.com/labstack/echo-contrib/echoprometheus"
-	"github.com/labstack/echo/v4"
-	"github.com/labstack/echo/v4/middleware"
+	"github.com/labstack/echo-contrib/v5/echoprometheus"
+	"github.com/labstack/echo/v5"
+	"github.com/labstack/echo/v5/middleware"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	"go.uber.org/zap"
@@ -72,13 +72,12 @@ func (m *PrometheusMetrics) Registry() *prometheus.Registry {
 func (m *PrometheusMetrics) StartMetricsServer(port string) {
 	go func() {
 		metrics := echo.New()
-		metrics.HideBanner = true
 		metrics.Use(middleware.RequestLoggerWithConfig(middleware.RequestLoggerConfig{
 			LogURI:     true,
 			LogStatus:  true,
 			LogMethod:  true,
 			LogLatency: true,
-			LogValuesFunc: func(c echo.Context, v middleware.RequestLoggerValues) error {
+			LogValuesFunc: func(c *echo.Context, v middleware.RequestLoggerValues) error {
 				m.logger.Debugw("metrics request",
 					zap.String("method", v.Method),
 					zap.String("uri", v.URI),
@@ -91,14 +90,9 @@ func (m *PrometheusMetrics) StartMetricsServer(port string) {
 		metrics.GET("/metrics", echoprometheus.NewHandlerWithConfig(echoprometheus.HandlerConfig{
 			Gatherer: m.registry,
 		}))
-		if err := metrics.Start(port); err != nil {
+		// Serves until m.ctx is cancelled, then shuts down gracefully.
+		if err := (echo.StartConfig{Address: port, HideBanner: true}).Start(m.ctx, metrics); err != nil {
 			m.logger.Error(err)
-			return
-		}
-		<-m.ctx.Done()
-		err := metrics.Shutdown(m.ctx)
-		if err != nil {
-			m.logger.Errorw("failed to shutdown metrics server", "error", err)
 		}
 	}()
 }

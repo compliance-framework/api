@@ -9,7 +9,7 @@ import (
 	svc "github.com/compliance-framework/api/internal/service"
 	riskrel "github.com/compliance-framework/api/internal/service/relational/risks"
 	"github.com/google/uuid"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"gorm.io/gorm"
 )
 
@@ -29,7 +29,7 @@ import (
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{sspId}/risks/{id}/threat-ids [get]
-func (h *RiskHandler) ListThreatRefsForSSP(ctx echo.Context) error {
+func (h *RiskHandler) ListThreatRefsForSSP(ctx *echo.Context) error {
 	sspID, err := parsePathUUID(ctx, "sspId")
 	if err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
@@ -62,7 +62,7 @@ func (h *RiskHandler) ListThreatRefsForSSP(ctx echo.Context) error {
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/risks/{id}/threat-ids [get]
-func (h *RiskHandler) ListThreatRefs(ctx echo.Context) error {
+func (h *RiskHandler) ListThreatRefs(ctx *echo.Context) error {
 	return h.withRiskListContext(ctx, func(riskID uuid.UUID, pagination *svc.PaginationParams) error {
 		rows, total, err := h.riskService.ListThreatRefs(riskID, pagination.Limit, pagination.Offset)
 		if err != nil {
@@ -102,7 +102,7 @@ func (h *RiskHandler) ListThreatRefs(ctx echo.Context) error {
 //	@Failure		500			{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{sspId}/risks/{id}/threat-ids/{threatRefId} [get]
-func (h *RiskHandler) GetThreatRefForSSP(ctx echo.Context) error {
+func (h *RiskHandler) GetThreatRefForSSP(ctx *echo.Context) error {
 	sspID, err := parsePathUUID(ctx, "sspId")
 	if err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
@@ -134,7 +134,7 @@ func (h *RiskHandler) GetThreatRefForSSP(ctx echo.Context) error {
 //	@Failure		500			{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/risks/{id}/threat-ids/{threatRefId} [get]
-func (h *RiskHandler) GetThreatRef(ctx echo.Context) error {
+func (h *RiskHandler) GetThreatRef(ctx *echo.Context) error {
 	riskID, err := parsePathUUID(ctx, "id")
 	if err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
@@ -181,7 +181,7 @@ func (h *RiskHandler) GetThreatRef(ctx echo.Context) error {
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{sspId}/risks/{id}/threat-ids [post]
-func (h *RiskHandler) AddThreatRefForSSP(ctx echo.Context) error {
+func (h *RiskHandler) AddThreatRefForSSP(ctx *echo.Context) error {
 	sspID, err := parsePathUUID(ctx, "sspId")
 	if err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
@@ -214,7 +214,7 @@ func (h *RiskHandler) AddThreatRefForSSP(ctx echo.Context) error {
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/risks/{id}/threat-ids [post]
-func (h *RiskHandler) AddThreatRef(ctx echo.Context) error {
+func (h *RiskHandler) AddThreatRef(ctx *echo.Context) error {
 	riskID, err := parsePathUUID(ctx, "id")
 	if err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
@@ -271,7 +271,7 @@ func (h *RiskHandler) AddThreatRef(ctx echo.Context) error {
 //	@Failure		500			{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{sspId}/risks/{id}/threat-ids/{threatRefId} [put]
-func (h *RiskHandler) UpdateThreatRefForSSP(ctx echo.Context) error {
+func (h *RiskHandler) UpdateThreatRefForSSP(ctx *echo.Context) error {
 	sspID, err := parsePathUUID(ctx, "sspId")
 	if err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
@@ -305,7 +305,7 @@ func (h *RiskHandler) UpdateThreatRefForSSP(ctx echo.Context) error {
 //	@Failure		500			{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/risks/{id}/threat-ids/{threatRefId} [put]
-func (h *RiskHandler) UpdateThreatRef(ctx echo.Context) error {
+func (h *RiskHandler) UpdateThreatRef(ctx *echo.Context) error {
 	riskID, err := parsePathUUID(ctx, "id")
 	if err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
@@ -364,7 +364,7 @@ func (h *RiskHandler) UpdateThreatRef(ctx echo.Context) error {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{sspId}/risks/{id}/threat-ids/{threatRefId} [delete]
-func (h *RiskHandler) DeleteThreatRefForSSP(ctx echo.Context) error {
+func (h *RiskHandler) DeleteThreatRefForSSP(ctx *echo.Context) error {
 	sspID, err := parsePathUUID(ctx, "sspId")
 	if err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
@@ -396,7 +396,7 @@ func (h *RiskHandler) DeleteThreatRefForSSP(ctx echo.Context) error {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/risks/{id}/threat-ids/{threatRefId} [delete]
-func (h *RiskHandler) DeleteThreatRef(ctx echo.Context) error {
+func (h *RiskHandler) DeleteThreatRef(ctx *echo.Context) error {
 	riskID, err := parsePathUUID(ctx, "id")
 	if err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
@@ -432,7 +432,7 @@ func (h *RiskHandler) DeleteThreatRef(ctx echo.Context) error {
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{sspId}/risks/{id}/remediation-template [get]
-func (h *RiskHandler) GetRemediationTemplateForSSP(ctx echo.Context) error {
+func (h *RiskHandler) GetRemediationTemplateForSSP(ctx *echo.Context) error {
 	sspID, err := parsePathUUID(ctx, "sspId")
 	if err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
@@ -463,7 +463,7 @@ func (h *RiskHandler) GetRemediationTemplateForSSP(ctx echo.Context) error {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/risks/{id}/remediation-template [get]
-func (h *RiskHandler) GetRemediationTemplate(ctx echo.Context) error {
+func (h *RiskHandler) GetRemediationTemplate(ctx *echo.Context) error {
 	riskID, err := parsePathUUID(ctx, "id")
 	if err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
@@ -500,7 +500,7 @@ func (h *RiskHandler) GetRemediationTemplate(ctx echo.Context) error {
 //	@Failure		500			{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{sspId}/risks/{id}/remediation-template [post]
-func (h *RiskHandler) CreateRemediationTemplateForSSP(ctx echo.Context) error {
+func (h *RiskHandler) CreateRemediationTemplateForSSP(ctx *echo.Context) error {
 	sspID, err := parsePathUUID(ctx, "sspId")
 	if err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
@@ -534,7 +534,7 @@ func (h *RiskHandler) CreateRemediationTemplateForSSP(ctx echo.Context) error {
 //	@Failure		500			{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/risks/{id}/remediation-template [post]
-func (h *RiskHandler) CreateRemediationTemplate(ctx echo.Context) error {
+func (h *RiskHandler) CreateRemediationTemplate(ctx *echo.Context) error {
 	riskID, err := parsePathUUID(ctx, "id")
 	if err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
@@ -580,7 +580,7 @@ func (h *RiskHandler) CreateRemediationTemplate(ctx echo.Context) error {
 //	@Failure		500			{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{sspId}/risks/{id}/remediation-template [put]
-func (h *RiskHandler) UpsertRemediationTemplateForSSP(ctx echo.Context) error {
+func (h *RiskHandler) UpsertRemediationTemplateForSSP(ctx *echo.Context) error {
 	sspID, err := parsePathUUID(ctx, "sspId")
 	if err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
@@ -613,7 +613,7 @@ func (h *RiskHandler) UpsertRemediationTemplateForSSP(ctx echo.Context) error {
 //	@Failure		500			{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/risks/{id}/remediation-template [put]
-func (h *RiskHandler) UpsertRemediationTemplate(ctx echo.Context) error {
+func (h *RiskHandler) UpsertRemediationTemplate(ctx *echo.Context) error {
 	riskID, err := parsePathUUID(ctx, "id")
 	if err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
@@ -654,7 +654,7 @@ func (h *RiskHandler) UpsertRemediationTemplate(ctx echo.Context) error {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{sspId}/risks/{id}/remediation-template [delete]
-func (h *RiskHandler) DeleteRemediationTemplateForSSP(ctx echo.Context) error {
+func (h *RiskHandler) DeleteRemediationTemplateForSSP(ctx *echo.Context) error {
 	sspID, err := parsePathUUID(ctx, "sspId")
 	if err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
@@ -685,7 +685,7 @@ func (h *RiskHandler) DeleteRemediationTemplateForSSP(ctx echo.Context) error {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/risks/{id}/remediation-template [delete]
-func (h *RiskHandler) DeleteRemediationTemplate(ctx echo.Context) error {
+func (h *RiskHandler) DeleteRemediationTemplate(ctx *echo.Context) error {
 	riskID, err := parsePathUUID(ctx, "id")
 	if err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))

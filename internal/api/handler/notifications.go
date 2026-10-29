@@ -21,7 +21,7 @@ import (
 	slackprovider "github.com/compliance-framework/api/internal/service/notification/providers/slack"
 	notificationtroubleshooting "github.com/compliance-framework/api/internal/service/notificationtroubleshooting"
 	"github.com/compliance-framework/api/internal/service/relational"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"go.uber.org/zap"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
@@ -143,7 +143,7 @@ func (h *NotificationsHandler) RegisterPublic(api *echo.Group, guard middleware.
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/admin/notifications/health [get]
-func (h *NotificationsHandler) GetTroubleshootingHealth(ctx echo.Context) error {
+func (h *NotificationsHandler) GetTroubleshootingHealth(ctx *echo.Context) error {
 	response, err := h.troubleshooting.Health(ctx.Request().Context())
 	if err != nil {
 		h.sugar.Errorw("Failed to get notification troubleshooting health", "error", err)
@@ -171,7 +171,7 @@ func (h *NotificationsHandler) GetTroubleshootingHealth(ctx echo.Context) error 
 //	@Failure		500					{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/admin/notifications/jobs [get]
-func (h *NotificationsHandler) ListTroubleshootingJobs(ctx echo.Context) error {
+func (h *NotificationsHandler) ListTroubleshootingJobs(ctx *echo.Context) error {
 	query, err := parseTroubleshootingJobsQuery(ctx)
 	if err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
@@ -201,7 +201,7 @@ func (h *NotificationsHandler) ListTroubleshootingJobs(ctx echo.Context) error {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/admin/notifications/jobs/{id} [get]
-func (h *NotificationsHandler) GetTroubleshootingJob(ctx echo.Context) error {
+func (h *NotificationsHandler) GetTroubleshootingJob(ctx *echo.Context) error {
 	id, err := strconv.ParseInt(ctx.Param("id"), 10, 64)
 	if err != nil || id <= 0 {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(errors.New("invalid job id")))
@@ -231,7 +231,7 @@ func (h *NotificationsHandler) GetTroubleshootingJob(ctx echo.Context) error {
 //	@Failure		500					{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/admin/notifications/{notificationName}/diagnostics [get]
-func (h *NotificationsHandler) GetNotificationDiagnostics(ctx echo.Context) error {
+func (h *NotificationsHandler) GetNotificationDiagnostics(ctx *echo.Context) error {
 	response, err := h.troubleshooting.Diagnostics(ctx.Request().Context(), ctx.Param("notificationName"))
 	if err != nil {
 		if notificationtroubleshooting.IsUnsupportedNotificationName(err) {
@@ -258,7 +258,7 @@ func (h *NotificationsHandler) GetNotificationDiagnostics(ctx echo.Context) erro
 //	@Failure		503		{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/admin/notifications/test [post]
-func (h *NotificationsHandler) SendTestNotification(ctx echo.Context) error {
+func (h *NotificationsHandler) SendTestNotification(ctx *echo.Context) error {
 	if h.enqueuer == nil || !h.enqueuer.IsStarted() {
 		return ctx.JSON(http.StatusServiceUnavailable, api.NewError(errors.New("notification worker enqueuer is not available")))
 	}
@@ -345,7 +345,7 @@ func (h *NotificationsHandler) SendTestNotification(ctx echo.Context) error {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/admin/notifications/providers [get]
-func (h *NotificationsHandler) ListNotificationProviders(ctx echo.Context) error {
+func (h *NotificationsHandler) ListNotificationProviders(ctx *echo.Context) error {
 	catalog, ok := h.providers.(notification.ProviderCatalog)
 	if !ok {
 		err := errors.New("notification provider catalog is not configured")
@@ -380,7 +380,7 @@ func (h *NotificationsHandler) ListNotificationProviders(ctx echo.Context) error
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/notifications/providers [get]
-func (h *NotificationsHandler) ListNotificationProviderStatus(ctx echo.Context) error {
+func (h *NotificationsHandler) ListNotificationProviderStatus(ctx *echo.Context) error {
 	catalog, ok := h.providers.(notification.ProviderCatalog)
 	if !ok {
 		err := errors.New("notification provider catalog is not configured")
@@ -411,7 +411,7 @@ func (h *NotificationsHandler) ListNotificationProviderStatus(ctx echo.Context) 
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/admin/notifications [get]
-func (h *NotificationsHandler) ListSystemNotifications(ctx echo.Context) error {
+func (h *NotificationsHandler) ListSystemNotifications(ctx *echo.Context) error {
 	var rows []relational.SystemNotificationDestination
 	if err := h.db.WithContext(ctx.Request().Context()).
 		Order("notification_type ASC, provider ASC, created_at ASC").
@@ -492,7 +492,7 @@ func (h *NotificationsHandler) ListSystemNotifications(ctx echo.Context) error {
 //	@Failure		500					{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/admin/notifications/{notificationName}/destinations [post]
-func (h *NotificationsHandler) CreateSystemNotificationDestination(ctx echo.Context) error {
+func (h *NotificationsHandler) CreateSystemNotificationDestination(ctx *echo.Context) error {
 	notificationName := ctx.Param("notificationName")
 	canonicalType, ok := notification.NormalizeSystemNotificationName(notificationName)
 	if !ok {
@@ -592,7 +592,7 @@ func (h *NotificationsHandler) CreateSystemNotificationDestination(ctx echo.Cont
 //	@Failure		500					{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/admin/notifications/{notificationName}/destinations [delete]
-func (h *NotificationsHandler) DeleteSystemNotificationDestination(ctx echo.Context) error {
+func (h *NotificationsHandler) DeleteSystemNotificationDestination(ctx *echo.Context) error {
 	notificationName := ctx.Param("notificationName")
 	canonicalType, ok := notification.NormalizeSystemNotificationName(notificationName)
 	if !ok {
@@ -786,7 +786,7 @@ func (h *NotificationsHandler) targetsMatch(left notification.Target, right noti
 	return strings.EqualFold(leftResponse.DestinationTarget, rightResponse.DestinationTarget), nil
 }
 
-func parseTroubleshootingJobsQuery(ctx echo.Context) (notificationtroubleshooting.JobsQuery, error) {
+func parseTroubleshootingJobsQuery(ctx *echo.Context) (notificationtroubleshooting.JobsQuery, error) {
 	query := notificationtroubleshooting.JobsQuery{
 		Queues:           ctx.QueryParams()["queue"],
 		Provider:         strings.TrimSpace(ctx.QueryParam("provider")),

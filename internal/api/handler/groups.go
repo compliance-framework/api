@@ -8,7 +8,7 @@ import (
 	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
@@ -65,7 +65,7 @@ type groupResponse struct {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/admin/groups [get]
-func (h *GroupsHandler) ListGroups(ctx echo.Context) error {
+func (h *GroupsHandler) ListGroups(ctx *echo.Context) error {
 	var groups []relational.UserGroup
 	if err := h.db.Order("name ASC").Find(&groups).Error; err != nil {
 		h.sugar.Errorw("Failed to list groups", "error", err)
@@ -102,7 +102,7 @@ func (h *GroupsHandler) ListGroups(ctx echo.Context) error {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/admin/groups/{id} [get]
-func (h *GroupsHandler) GetGroup(ctx echo.Context) error {
+func (h *GroupsHandler) GetGroup(ctx *echo.Context) error {
 	group, err := h.loadGroup(ctx.Param("id"))
 	if err != nil {
 		return h.groupError(ctx, err)
@@ -135,7 +135,7 @@ func (h *GroupsHandler) GetGroup(ctx echo.Context) error {
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/admin/groups [post]
-func (h *GroupsHandler) CreateGroup(ctx echo.Context) error {
+func (h *GroupsHandler) CreateGroup(ctx *echo.Context) error {
 	type createGroupRequest struct {
 		Name        string `json:"name" validate:"required"`
 		Description string `json:"description"`
@@ -180,7 +180,7 @@ func (h *GroupsHandler) CreateGroup(ctx echo.Context) error {
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/admin/groups/{id} [put]
-func (h *GroupsHandler) UpdateGroup(ctx echo.Context) error {
+func (h *GroupsHandler) UpdateGroup(ctx *echo.Context) error {
 	type updateGroupRequest struct {
 		Name        *string `json:"name"`
 		Description *string `json:"description"`
@@ -232,7 +232,7 @@ func (h *GroupsHandler) UpdateGroup(ctx echo.Context) error {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/admin/groups/{id} [delete]
-func (h *GroupsHandler) DeleteGroup(ctx echo.Context) error {
+func (h *GroupsHandler) DeleteGroup(ctx *echo.Context) error {
 	group, err := h.loadGroup(ctx.Param("id"))
 	if err != nil {
 		return h.groupError(ctx, err)
@@ -286,7 +286,7 @@ func (h *GroupsHandler) DeleteGroup(ctx echo.Context) error {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/admin/groups/{id}/members [get]
-func (h *GroupsHandler) ListMembers(ctx echo.Context) error {
+func (h *GroupsHandler) ListMembers(ctx *echo.Context) error {
 	group, err := h.loadGroup(ctx.Param("id"))
 	if err != nil {
 		return h.groupError(ctx, err)
@@ -353,7 +353,7 @@ func (h *GroupsHandler) ListMembers(ctx echo.Context) error {
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/admin/groups/{id}/members [post]
-func (h *GroupsHandler) AddMember(ctx echo.Context) error {
+func (h *GroupsHandler) AddMember(ctx *echo.Context) error {
 	type addMemberRequest struct {
 		UserID string `json:"userId" validate:"required"`
 	}
@@ -418,7 +418,7 @@ func (h *GroupsHandler) AddMember(ctx echo.Context) error {
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/admin/groups/{id}/members/{userId} [delete]
-func (h *GroupsHandler) RemoveMember(ctx echo.Context) error {
+func (h *GroupsHandler) RemoveMember(ctx *echo.Context) error {
 	group, err := h.loadGroup(ctx.Param("id"))
 	if err != nil {
 		return h.groupError(ctx, err)
@@ -470,7 +470,7 @@ func (h *GroupsHandler) RemoveMember(ctx echo.Context) error {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/admin/groups/{id}/sso-mappings [get]
-func (h *GroupsHandler) ListSSOMappings(ctx echo.Context) error {
+func (h *GroupsHandler) ListSSOMappings(ctx *echo.Context) error {
 	group, err := h.loadGroup(ctx.Param("id"))
 	if err != nil {
 		return h.groupError(ctx, err)
@@ -504,7 +504,7 @@ func (h *GroupsHandler) ListSSOMappings(ctx echo.Context) error {
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/admin/groups/{id}/sso-mappings [post]
-func (h *GroupsHandler) AddSSOMapping(ctx echo.Context) error {
+func (h *GroupsHandler) AddSSOMapping(ctx *echo.Context) error {
 	type addMappingRequest struct {
 		Provider      string `json:"provider" validate:"required"`
 		ExternalGroup string `json:"externalGroup" validate:"required"`
@@ -558,7 +558,7 @@ func (h *GroupsHandler) AddSSOMapping(ctx echo.Context) error {
 //	@Failure		500			{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/admin/groups/{id}/sso-mappings/{mappingId} [delete]
-func (h *GroupsHandler) RemoveSSOMapping(ctx echo.Context) error {
+func (h *GroupsHandler) RemoveSSOMapping(ctx *echo.Context) error {
 	group, err := h.loadGroup(ctx.Param("id"))
 	if err != nil {
 		return h.groupError(ctx, err)
@@ -601,7 +601,7 @@ var errGroupNotEmpty = errors.New("group still has members")
 
 // groupError maps a loadGroup error to the right status: 400 for a malformed id, 404 for a
 // missing group, 500 otherwise.
-func (h *GroupsHandler) groupError(ctx echo.Context, err error) error {
+func (h *GroupsHandler) groupError(ctx *echo.Context, err error) error {
 	switch {
 	case errors.Is(err, errInvalidGroupID):
 		return ctx.JSON(400, api.NewError(err))

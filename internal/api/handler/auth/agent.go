@@ -9,7 +9,7 @@ import (
 	"github.com/compliance-framework/api/internal/api"
 	"github.com/compliance-framework/api/internal/authn"
 	"github.com/compliance-framework/api/internal/service/relational"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"gorm.io/gorm"
 )
 
@@ -19,7 +19,7 @@ type agentTokenResponse struct {
 	ExpiresIn   int    `json:"expires_in"`
 }
 
-func (h *AuthHandler) GetAgentToken(ctx echo.Context) error {
+func (h *AuthHandler) GetAgentToken(ctx *echo.Context) error {
 	clientID, clientSecret, err := getAgentCredentials(ctx)
 	if err != nil {
 		return ctx.JSON(http.StatusUnauthorized, api.NewError(err))
@@ -95,7 +95,7 @@ func (h *AuthHandler) GetAgentToken(ctx echo.Context) error {
 	})
 }
 
-func getAgentCredentials(ctx echo.Context) (string, string, error) {
+func getAgentCredentials(ctx *echo.Context) (string, string, error) {
 	if clientID, clientSecret, ok := ctx.Request().BasicAuth(); ok {
 		clientID = strings.TrimSpace(clientID)
 		clientSecret = strings.TrimSpace(clientSecret)
@@ -112,14 +112,14 @@ func getAgentCredentials(ctx echo.Context) (string, string, error) {
 	return clientID, clientSecret, nil
 }
 
-func (h *AuthHandler) logAgentAuthEvent(agent *relational.Agent, key *relational.AgentServiceAccountKey, principal string, outcome string, reason string, ctx echo.Context) {
+func (h *AuthHandler) logAgentAuthEvent(agent *relational.Agent, key *relational.AgentServiceAccountKey, principal string, outcome string, reason string, ctx *echo.Context) {
 	event := h.newAgentAuthEvent(agent, key, principal, outcome, &reason, ctx)
 	if err := h.db.Create(event).Error; err != nil {
 		h.sugar.Warnw("Failed to log agent auth event", "error", err)
 	}
 }
 
-func (h *AuthHandler) newAgentAuthEvent(agent *relational.Agent, key *relational.AgentServiceAccountKey, principal string, outcome string, reason *string, ctx echo.Context) *relational.AgentAuthEvent {
+func (h *AuthHandler) newAgentAuthEvent(agent *relational.Agent, key *relational.AgentServiceAccountKey, principal string, outcome string, reason *string, ctx *echo.Context) *relational.AgentAuthEvent {
 	event := &relational.AgentAuthEvent{
 		AuthMethod: relational.AgentAuthMethodServiceAccount,
 		Outcome:    outcome,

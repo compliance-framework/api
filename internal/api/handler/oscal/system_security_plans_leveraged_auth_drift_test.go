@@ -8,18 +8,17 @@ import (
 	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/compliance-framework/api/internal/service/relational/risks"
 	"github.com/google/uuid"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 )
 
-func newDeleteLeveragedAuthRequestContext(sspID, authID uuid.UUID) (echo.Context, *httptest.ResponseRecorder) {
+func newDeleteLeveragedAuthRequestContext(sspID, authID uuid.UUID) (*echo.Context, *httptest.ResponseRecorder) {
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodDelete, "/", nil)
 	rec := httptest.NewRecorder()
 	ctx := e.NewContext(req, rec)
-	ctx.SetParamNames("id", "authId")
-	ctx.SetParamValues(sspID.String(), authID.String())
+	ctx.SetPathValues(echo.PathValues{{Name: "id", Value: sspID.String()}, {Name: "authId", Value: authID.String()}})
 	return ctx, rec
 }
 

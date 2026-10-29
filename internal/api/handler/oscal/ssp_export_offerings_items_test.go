@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
@@ -71,8 +71,7 @@ func byControlPage(t *testing.T, h *SSPExportOfferingHandler, downstream *uuid.U
 	e := echo.New()
 	rec := httptest.NewRecorder()
 	ctx := e.NewContext(httptest.NewRequest(http.MethodGet, target, nil), rec)
-	ctx.SetParamNames("controlId")
-	ctx.SetParamValues("ac-2")
+	ctx.SetPathValues(echo.PathValues{{Name: "controlId", Value: "ac-2"}})
 
 	require.NoError(t, h.ByControl(ctx))
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
@@ -148,7 +147,7 @@ type offeringItemWriteCase struct {
 	name       string
 	method     string
 	okStatus   int
-	invoke     func(h *SSPExportOfferingHandler, ctx echo.Context) error
+	invoke     func(h *SSPExportOfferingHandler, ctx *echo.Context) error
 	extraParam func(fx sharedResponsibilityFixture) (name, value string)
 }
 
@@ -158,13 +157,13 @@ func offeringItemWriteCases() []offeringItemWriteCase {
 			name:     "CreateItem",
 			method:   http.MethodPost,
 			okStatus: http.StatusCreated,
-			invoke:   func(h *SSPExportOfferingHandler, ctx echo.Context) error { return h.CreateItem(ctx) },
+			invoke:   func(h *SSPExportOfferingHandler, ctx *echo.Context) error { return h.CreateItem(ctx) },
 		},
 		{
 			name:     "UpdateItem",
 			method:   http.MethodPut,
 			okStatus: http.StatusOK,
-			invoke:   func(h *SSPExportOfferingHandler, ctx echo.Context) error { return h.UpdateItem(ctx) },
+			invoke:   func(h *SSPExportOfferingHandler, ctx *echo.Context) error { return h.UpdateItem(ctx) },
 			extraParam: func(fx sharedResponsibilityFixture) (string, string) {
 				return "itemId", fx.itemID.String()
 			},
@@ -181,15 +180,15 @@ func (c offeringItemWriteCase) call(t *testing.T, h *SSPExportOfferingHandler, f
 	rec := httptest.NewRecorder()
 	ctx := e.NewContext(httpReq, rec)
 
-	names := []string{"id", "offeringId"}
-	values := []string{fx.upstreamSSPID.String(), fx.offeringID.String()}
+	pathValues := echo.PathValues{
+		{Name: "id", Value: fx.upstreamSSPID.String()},
+		{Name: "offeringId", Value: fx.offeringID.String()},
+	}
 	if c.extraParam != nil {
 		n, v := c.extraParam(fx)
-		names = append(names, n)
-		values = append(values, v)
+		pathValues = append(pathValues, echo.PathValue{Name: n, Value: v})
 	}
-	ctx.SetParamNames(names...)
-	ctx.SetParamValues(values...)
+	ctx.SetPathValues(pathValues)
 
 	require.NoError(t, c.invoke(h, ctx))
 	return rec
@@ -301,8 +300,7 @@ func TestUpdateItemUnknownItemReturns404(t *testing.T) {
 	httpReq.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	rec := httptest.NewRecorder()
 	ctx := e.NewContext(httpReq, rec)
-	ctx.SetParamNames("id", "offeringId", "itemId")
-	ctx.SetParamValues(fx.upstreamSSPID.String(), fx.offeringID.String(), uuid.New().String())
+	ctx.SetPathValues(echo.PathValues{{Name: "id", Value: fx.upstreamSSPID.String()}, {Name: "offeringId", Value: fx.offeringID.String()}, {Name: "itemId", Value: uuid.New().String()}})
 
 	require.NoError(t, h.UpdateItem(ctx))
 	require.Equal(t, http.StatusNotFound, rec.Code, rec.Body.String())

@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 	"gorm.io/datatypes"
@@ -135,21 +135,23 @@ func newSharedResponsibilityFixture(t *testing.T, db *gorm.DB) sharedResponsibil
 
 // newByComponentContext builds an echo context addressed at one statement-level by-component,
 // with any extra path params (inheritedId/satisfiedId) appended.
-func newByComponentContext(method, body string, sspID, reqID, stmtID, bcID uuid.UUID, extra ...[2]string) (echo.Context, *httptest.ResponseRecorder) {
+func newByComponentContext(method, body string, sspID, reqID, stmtID, bcID uuid.UUID, extra ...[2]string) (*echo.Context, *httptest.ResponseRecorder) {
 	e := echo.New()
 	req := httptest.NewRequest(method, "/", bytes.NewBufferString(body))
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	rec := httptest.NewRecorder()
 	ctx := e.NewContext(req, rec)
 
-	names := []string{"id", "reqId", "stmtId", "byComponentId"}
-	values := []string{sspID.String(), reqID.String(), stmtID.String(), bcID.String()}
-	for _, pair := range extra {
-		names = append(names, pair[0])
-		values = append(values, pair[1])
+	pathValues := echo.PathValues{
+		{Name: "id", Value: sspID.String()},
+		{Name: "reqId", Value: reqID.String()},
+		{Name: "stmtId", Value: stmtID.String()},
+		{Name: "byComponentId", Value: bcID.String()},
 	}
-	ctx.SetParamNames(names...)
-	ctx.SetParamValues(values...)
+	for _, pair := range extra {
+		pathValues = append(pathValues, echo.PathValue{Name: pair[0], Value: pair[1]})
+	}
+	ctx.SetPathValues(pathValues)
 	return ctx, rec
 }
 
@@ -498,8 +500,7 @@ func TestListStatementByComponentsReturnsAll(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	rec := httptest.NewRecorder()
 	ctx := e.NewContext(req, rec)
-	ctx.SetParamNames("id", "reqId", "stmtId")
-	ctx.SetParamValues(fx.upstreamSSPID.String(), fx.requirementID.String(), fx.statementID.String())
+	ctx.SetPathValues(echo.PathValues{{Name: "id", Value: fx.upstreamSSPID.String()}, {Name: "reqId", Value: fx.requirementID.String()}, {Name: "stmtId", Value: fx.statementID.String()}})
 
 	require.NoError(t, h.GetImplementedRequirementStatementByComponents(ctx))
 	require.Equal(t, http.StatusOK, rec.Code)
@@ -907,8 +908,7 @@ func TestDeleteRequirementByComponentCascades(t *testing.T) {
 	req := httptest.NewRequest(http.MethodDelete, "/", nil)
 	rec := httptest.NewRecorder()
 	ctx := e.NewContext(req, rec)
-	ctx.SetParamNames("id", "reqId", "byComponentId")
-	ctx.SetParamValues(fx.upstreamSSPID.String(), fx.requirementID.String(), legacyBC.ID.String())
+	ctx.SetPathValues(echo.PathValues{{Name: "id", Value: fx.upstreamSSPID.String()}, {Name: "reqId", Value: fx.requirementID.String()}, {Name: "byComponentId", Value: legacyBC.ID.String()}})
 
 	require.NoError(t, h.DeleteImplementedRequirementByComponent(ctx))
 	require.Equal(t, http.StatusNoContent, rec.Code)
@@ -957,8 +957,7 @@ func TestByControlResolvesEveryPointer(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	rec := httptest.NewRecorder()
 	ctx := e.NewContext(req, rec)
-	ctx.SetParamNames("controlId")
-	ctx.SetParamValues("AC-2") // deliberately different casing from the stored "ac-2"
+	ctx.SetPathValues(echo.PathValues{{Name: "controlId", Value: "AC-2"}}) // deliberately different casing from the stored "ac-2"
 
 	require.NoError(t, h.ByControl(ctx))
 	require.Equal(t, http.StatusOK, rec.Code)
@@ -998,8 +997,7 @@ func TestByControlExcludesUnpublishedOfferings(t *testing.T) {
 	e := echo.New()
 	rec := httptest.NewRecorder()
 	ctx := e.NewContext(httptest.NewRequest(http.MethodGet, "/", nil), rec)
-	ctx.SetParamNames("controlId")
-	ctx.SetParamValues("ac-2")
+	ctx.SetPathValues(echo.PathValues{{Name: "controlId", Value: "ac-2"}})
 
 	require.NoError(t, h.ByControl(ctx))
 	require.Equal(t, http.StatusOK, rec.Code)
@@ -1021,8 +1019,7 @@ func TestByControlHonoursDownstreamAllowList(t *testing.T) {
 		rec := httptest.NewRecorder()
 		req := httptest.NewRequest(http.MethodGet, "/?downstreamSspId="+downstream.String(), nil)
 		ctx := e.NewContext(req, rec)
-		ctx.SetParamNames("controlId")
-		ctx.SetParamValues("ac-2")
+		ctx.SetPathValues(echo.PathValues{{Name: "controlId", Value: "ac-2"}})
 		require.NoError(t, h.ByControl(ctx))
 		require.Equal(t, http.StatusOK, rec.Code)
 
@@ -1072,8 +1069,7 @@ func TestSharedResponsibilityRollup(t *testing.T) {
 		e := echo.New()
 		rec := httptest.NewRecorder()
 		ctx := e.NewContext(httptest.NewRequest(http.MethodGet, "/"+query, nil), rec)
-		ctx.SetParamNames("id")
-		ctx.SetParamValues(sspID.String())
+		ctx.SetPathValues(echo.PathValues{{Name: "id", Value: sspID.String()}})
 		require.NoError(t, h.SharedResponsibility(ctx))
 		require.Equal(t, http.StatusOK, rec.Code)
 
@@ -1138,8 +1134,7 @@ func TestSharedResponsibilityFiltersByControl(t *testing.T) {
 		e := echo.New()
 		rec := httptest.NewRecorder()
 		ctx := e.NewContext(httptest.NewRequest(http.MethodGet, "/?controlId="+controlID, nil), rec)
-		ctx.SetParamNames("id")
-		ctx.SetParamValues(sspID.String())
+		ctx.SetPathValues(echo.PathValues{{Name: "id", Value: sspID.String()}})
 		require.NoError(t, h.SharedResponsibility(ctx))
 		// Without this, an error response still returns nil from the handler and its JSON body
 		// unmarshals into a ZERO-VALUE rollup — so every "Empty" assertion below would pass just
@@ -1456,8 +1451,7 @@ func TestSharedResponsibilityOfferedIsPublishedOnly(t *testing.T) {
 		e := echo.New()
 		rec := httptest.NewRecorder()
 		ctx := e.NewContext(httptest.NewRequest(http.MethodGet, "/", nil), rec)
-		ctx.SetParamNames("id")
-		ctx.SetParamValues(fx.upstreamSSPID.String())
+		ctx.SetPathValues(echo.PathValues{{Name: "id", Value: fx.upstreamSSPID.String()}})
 		require.NoError(t, h.SharedResponsibility(ctx))
 		require.Equal(t, http.StatusOK, rec.Code)
 
@@ -1559,8 +1553,7 @@ func TestDeletingByComponentWithSubscribedInheritedConflicts(t *testing.T) {
 	e := echo.New()
 	rec = httptest.NewRecorder()
 	ctx = e.NewContext(httptest.NewRequest(http.MethodDelete, "/", nil), rec)
-	ctx.SetParamNames("id", "reqId")
-	ctx.SetParamValues(fx.downstreamSSPID.String(), reqID.String())
+	ctx.SetPathValues(echo.PathValues{{Name: "id", Value: fx.downstreamSSPID.String()}, {Name: "reqId", Value: reqID.String()}})
 	require.NoError(t, h.DeleteImplementedRequirement(ctx))
 	require.Equal(t, http.StatusConflict, rec.Code, rec.Body.String())
 
@@ -1626,8 +1619,7 @@ func TestOfferingItemStoresCanonicalControlIdCasing(t *testing.T) {
 	httpReq.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	rec := httptest.NewRecorder()
 	ctx := e.NewContext(httpReq, rec)
-	ctx.SetParamNames("id", "offeringId")
-	ctx.SetParamValues(fx.upstreamSSPID.String(), fx.offeringID.String())
+	ctx.SetPathValues(echo.PathValues{{Name: "id", Value: fx.upstreamSSPID.String()}, {Name: "offeringId", Value: fx.offeringID.String()}})
 
 	require.NoError(t, h.CreateItem(ctx))
 	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
@@ -1698,8 +1690,7 @@ func TestSharedResponsibilityLegacyExcludesOrdinaryImplementations(t *testing.T)
 	e := echo.New()
 	rec := httptest.NewRecorder()
 	ctx := e.NewContext(httptest.NewRequest(http.MethodGet, "/", nil), rec)
-	ctx.SetParamNames("id")
-	ctx.SetParamValues(fx.upstreamSSPID.String())
+	ctx.SetPathValues(echo.PathValues{{Name: "id", Value: fx.upstreamSSPID.String()}})
 	require.NoError(t, h.SharedResponsibility(ctx))
 	require.Equal(t, http.StatusOK, rec.Code)
 

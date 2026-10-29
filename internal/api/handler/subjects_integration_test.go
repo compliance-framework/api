@@ -19,7 +19,7 @@ import (
 	"github.com/compliance-framework/api/internal/service/relational/subjects"
 	"github.com/compliance-framework/api/internal/tests"
 	"github.com/google/uuid"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/zap"
 	"gorm.io/gorm/clause"

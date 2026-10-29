@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"go.uber.org/zap"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
@@ -55,7 +55,7 @@ func enqueueLeverageDriftNotifications(ctx context.Context, sugar *zap.SugaredLo
 // drifted, otherwise a detached, timeout-bounded context (mirroring the
 // EnqueueOrphanedRiskCleanup call sites) so a slow/failed enqueue can't hang or be
 // cancelled by the already-completed request.
-func enqueueLeverageDriftNotificationsAsync(ctx echo.Context, sugar *zap.SugaredLogger, jobEnqueuer SSPJobEnqueuer, links []driftedLinkInfo) {
+func enqueueLeverageDriftNotificationsAsync(ctx *echo.Context, sugar *zap.SugaredLogger, jobEnqueuer SSPJobEnqueuer, links []driftedLinkInfo) {
 	if len(links) == 0 {
 		return
 	}

@@ -59,7 +59,7 @@ func TestSubscribeRejectsNonAllowListedDownstream(t *testing.T) {
 	ctx, e, rec := newSubscribeRequestContext(fx.offeringID, body)
 	err := h.Subscribe(ctx)
 	require.Error(t, err)
-	e.HTTPErrorHandler(err, ctx)
+	e.HTTPErrorHandler(ctx, err)
 	require.Equal(t, http.StatusForbidden, rec.Code)
 
 	var count int64

@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -266,7 +266,7 @@ func (h *SSPExportOfferingHandler) Register(api *echo.Group, guard middleware.Re
 // actorUserID resolves the authenticated subject's own user UUID (set on the JWT at
 // login) for CreatedByID attribution. Returns nil (not an error) if the claim is
 // missing/invalid — attribution is best-effort, not a request precondition.
-func actorUserID(ctx echo.Context) *uuid.UUID {
+func actorUserID(ctx *echo.Context) *uuid.UUID {
 	claims, ok := ctx.Get("user").(*authn.UserClaims)
 	if !ok || claims == nil || claims.UserUUID == "" {
 		return nil
@@ -281,7 +281,7 @@ func actorUserID(ctx echo.Context) *uuid.UUID {
 // resolveOfferingForSSP loads the offering (with its items) and verifies it belongs to
 // the SSP named in the :id path param, writing the appropriate error response and
 // returning ok=false if either lookup fails.
-func (h *SSPExportOfferingHandler) resolveOfferingForSSP(ctx echo.Context) (offering *relational.SSPExportOffering, ok bool) {
+func (h *SSPExportOfferingHandler) resolveOfferingForSSP(ctx *echo.Context) (offering *relational.SSPExportOffering, ok bool) {
 	sspIdParam := ctx.Param("id")
 	sspID, err := uuid.Parse(sspIdParam)
 	if err != nil {
@@ -324,7 +324,7 @@ func (h *SSPExportOfferingHandler) resolveOfferingForSSP(ctx echo.Context) (offe
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/export-offerings [get]
-func (h *SSPExportOfferingHandler) ListForSSP(ctx echo.Context) error {
+func (h *SSPExportOfferingHandler) ListForSSP(ctx *echo.Context) error {
 	sspIdParam := ctx.Param("id")
 	sspID, err := uuid.Parse(sspIdParam)
 	if err != nil {
@@ -361,7 +361,7 @@ type createExportOfferingRequest struct {
 //	@Failure		500			{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/export-offerings [post]
-func (h *SSPExportOfferingHandler) CreateOffering(ctx echo.Context) error {
+func (h *SSPExportOfferingHandler) CreateOffering(ctx *echo.Context) error {
 	sspIdParam := ctx.Param("id")
 	sspID, err := uuid.Parse(sspIdParam)
 	if err != nil {
@@ -414,7 +414,7 @@ func (h *SSPExportOfferingHandler) CreateOffering(ctx echo.Context) error {
 //	@Failure		500			{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/export-offerings/{offeringId} [get]
-func (h *SSPExportOfferingHandler) GetOffering(ctx echo.Context) error {
+func (h *SSPExportOfferingHandler) GetOffering(ctx *echo.Context) error {
 	offering, ok := h.resolveOfferingForSSP(ctx)
 	if !ok {
 		return nil
@@ -438,7 +438,7 @@ func (h *SSPExportOfferingHandler) GetOffering(ctx echo.Context) error {
 //	@Failure		500			{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/export-offerings/{offeringId} [put]
-func (h *SSPExportOfferingHandler) UpdateOffering(ctx echo.Context) error {
+func (h *SSPExportOfferingHandler) UpdateOffering(ctx *echo.Context) error {
 	offering, ok := h.resolveOfferingForSSP(ctx)
 	if !ok {
 		return nil
@@ -477,7 +477,7 @@ func (h *SSPExportOfferingHandler) UpdateOffering(ctx echo.Context) error {
 //	@Failure		500			{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/export-offerings/{offeringId} [delete]
-func (h *SSPExportOfferingHandler) DeleteOffering(ctx echo.Context) error {
+func (h *SSPExportOfferingHandler) DeleteOffering(ctx *echo.Context) error {
 	offering, ok := h.resolveOfferingForSSP(ctx)
 	if !ok {
 		return nil
@@ -645,7 +645,7 @@ func (h *SSPExportOfferingHandler) validateOfferingItemCoherence(sspID uuid.UUID
 //	@Failure		500			{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/export-offerings/{offeringId}/items [post]
-func (h *SSPExportOfferingHandler) CreateItem(ctx echo.Context) error {
+func (h *SSPExportOfferingHandler) CreateItem(ctx *echo.Context) error {
 	offering, ok := h.resolveOfferingForSSP(ctx)
 	if !ok {
 		return nil
@@ -703,7 +703,7 @@ func (h *SSPExportOfferingHandler) CreateItem(ctx echo.Context) error {
 //	@Failure		500			{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/export-offerings/{offeringId}/items/{itemId} [put]
-func (h *SSPExportOfferingHandler) UpdateItem(ctx echo.Context) error {
+func (h *SSPExportOfferingHandler) UpdateItem(ctx *echo.Context) error {
 	offering, ok := h.resolveOfferingForSSP(ctx)
 	if !ok {
 		return nil
@@ -779,7 +779,7 @@ func (h *SSPExportOfferingHandler) UpdateItem(ctx echo.Context) error {
 //	@Failure		500			{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/export-offerings/{offeringId}/items/{itemId} [delete]
-func (h *SSPExportOfferingHandler) DeleteItem(ctx echo.Context) error {
+func (h *SSPExportOfferingHandler) DeleteItem(ctx *echo.Context) error {
 	offering, ok := h.resolveOfferingForSSP(ctx)
 	if !ok {
 		return nil
@@ -845,7 +845,7 @@ func (r allowedDownstreamRequest) validate() error {
 //	@Failure		500			{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/export-offerings/{offeringId}/allowed-downstreams [get]
-func (h *SSPExportOfferingHandler) ListAllowedDownstreams(ctx echo.Context) error {
+func (h *SSPExportOfferingHandler) ListAllowedDownstreams(ctx *echo.Context) error {
 	offering, ok := h.resolveOfferingForSSP(ctx)
 	if !ok {
 		return nil
@@ -878,7 +878,7 @@ func (h *SSPExportOfferingHandler) ListAllowedDownstreams(ctx echo.Context) erro
 //	@Failure		500			{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/export-offerings/{offeringId}/allowed-downstreams [post]
-func (h *SSPExportOfferingHandler) AddAllowedDownstream(ctx echo.Context) error {
+func (h *SSPExportOfferingHandler) AddAllowedDownstream(ctx *echo.Context) error {
 	offering, ok := h.resolveOfferingForSSP(ctx)
 	if !ok {
 		return nil
@@ -925,7 +925,7 @@ func (h *SSPExportOfferingHandler) AddAllowedDownstream(ctx echo.Context) error 
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/export-offerings/{offeringId}/allowed-downstreams/{downstreamSspId} [delete]
-func (h *SSPExportOfferingHandler) RemoveAllowedDownstream(ctx echo.Context) error {
+func (h *SSPExportOfferingHandler) RemoveAllowedDownstream(ctx *echo.Context) error {
 	offering, ok := h.resolveOfferingForSSP(ctx)
 	if !ok {
 		return nil
@@ -967,7 +967,7 @@ func (h *SSPExportOfferingHandler) RemoveAllowedDownstream(ctx echo.Context) err
 //	@Failure		500			{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/export-offerings/{offeringId}/publish [post]
-func (h *SSPExportOfferingHandler) Publish(ctx echo.Context) error {
+func (h *SSPExportOfferingHandler) Publish(ctx *echo.Context) error {
 	offering, ok := h.resolveOfferingForSSP(ctx)
 	if !ok {
 		return nil
@@ -1036,7 +1036,7 @@ func (r updateOfferingStatusRequest) validate() error {
 //	@Failure		500			{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/export-offerings/{offeringId}/status [patch]
-func (h *SSPExportOfferingHandler) UpdateOfferingStatus(ctx echo.Context) error {
+func (h *SSPExportOfferingHandler) UpdateOfferingStatus(ctx *echo.Context) error {
 	offering, ok := h.resolveOfferingForSSP(ctx)
 	if !ok {
 		return nil
@@ -1155,7 +1155,7 @@ func (h *SSPExportOfferingHandler) withResolvedResponsibilities(offerings []rela
 // parseExportOfferingPagination reads the shared limit/offset params for the export-offering
 // catalog reads, capping limit at maxExportOfferingCatalogLimit. Shared by ListAll and ByControl
 // so the two cannot drift into different bounds — or, as ByControl did, into none at all.
-func parseExportOfferingPagination(ctx echo.Context) (limit int, offset int, err error) {
+func parseExportOfferingPagination(ctx *echo.Context) (limit int, offset int, err error) {
 	limit = defaultExportOfferingCatalogLimit
 	if raw := strings.TrimSpace(ctx.QueryParam("limit")); raw != "" {
 		parsed, convErr := strconv.Atoi(raw)
@@ -1201,7 +1201,7 @@ const allowedDownstreamSQL = `(
 	)
 )`
 
-func (h *SSPExportOfferingHandler) ListAll(ctx echo.Context) error {
+func (h *SSPExportOfferingHandler) ListAll(ctx *echo.Context) error {
 	limit, offset, err := parseExportOfferingPagination(ctx)
 	if err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
@@ -1238,7 +1238,7 @@ func (h *SSPExportOfferingHandler) ListAll(ctx echo.Context) error {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/ssp-export-offerings/{id} [get]
-func (h *SSPExportOfferingHandler) GetByID(ctx echo.Context) error {
+func (h *SSPExportOfferingHandler) GetByID(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -1339,7 +1339,7 @@ type ControlExportOffer struct {
 //	@Failure		500				{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/ssp-export-offerings/by-control/{controlId} [get]
-func (h *SSPExportOfferingHandler) ByControl(ctx echo.Context) error {
+func (h *SSPExportOfferingHandler) ByControl(ctx *echo.Context) error {
 	controlID := strings.TrimSpace(ctx.Param("controlId"))
 	if controlID == "" {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("controlId is required")))

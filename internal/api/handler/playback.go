@@ -16,7 +16,7 @@ import (
 	artifactsvc "github.com/compliance-framework/api/internal/service/relational/artifacts"
 	evidencesvc "github.com/compliance-framework/api/internal/service/relational/evidence"
 	"github.com/compliance-framework/api/pkg/policyeval"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"go.uber.org/zap"
 )
 
@@ -73,7 +73,7 @@ func (h *PlaybackHandler) Register(api *echo.Group, middlewares ...echo.Middlewa
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/playback/evaluate [post]
-func (h *PlaybackHandler) Evaluate(ctx echo.Context) error {
+func (h *PlaybackHandler) Evaluate(ctx *echo.Context) error {
 	select {
 	case h.slots <- struct{}{}:
 		defer func() { <-h.slots }()

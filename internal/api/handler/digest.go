@@ -6,7 +6,7 @@ import (
 
 	"github.com/compliance-framework/api/internal/api"
 	"github.com/compliance-framework/api/internal/service/digest"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"go.uber.org/zap"
 )
 
@@ -42,7 +42,7 @@ func (h *DigestHandler) Register(api *echo.Group) {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/admin/digest/trigger [post]
-func (h *DigestHandler) TriggerDigest(ctx echo.Context) error {
+func (h *DigestHandler) TriggerDigest(ctx *echo.Context) error {
 	jobName := ctx.QueryParam("job")
 	if jobName == "" {
 		jobName = "global-evidence-digest"
@@ -72,7 +72,7 @@ func (h *DigestHandler) TriggerDigest(ctx echo.Context) error {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/admin/digest/preview [get]
-func (h *DigestHandler) PreviewDigest(ctx echo.Context) error {
+func (h *DigestHandler) PreviewDigest(ctx *echo.Context) error {
 	summary, err := h.digestService.GetGlobalEvidenceSummary(ctx.Request().Context())
 	if err != nil {
 		h.logger.Errorw("Failed to get evidence summary", "error", err)

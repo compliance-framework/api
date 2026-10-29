@@ -7,7 +7,7 @@ import (
 	"github.com/compliance-framework/api/internal/api/middleware"
 	"github.com/compliance-framework/api/internal/service/relational/workflows"
 	"github.com/google/uuid"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
@@ -71,7 +71,7 @@ type RoleAssignmentListResponse struct {
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/workflows/role-assignments [post]
-func (h *RoleAssignmentHandler) Create(ctx echo.Context) error {
+func (h *RoleAssignmentHandler) Create(ctx *echo.Context) error {
 	var req CreateRoleAssignmentRequest
 	if err := h.BindAndValidate(ctx, &req); err != nil {
 		return HandleError(err)
@@ -111,7 +111,7 @@ func (h *RoleAssignmentHandler) Create(ctx echo.Context) error {
 //	@Failure		500						{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/workflows/role-assignments [get]
-func (h *RoleAssignmentHandler) List(ctx echo.Context) error {
+func (h *RoleAssignmentHandler) List(ctx *echo.Context) error {
 	workflowInstIDStr := ctx.QueryParam("workflow_instance_id")
 	roleName := ctx.QueryParam("role_name")
 
@@ -156,7 +156,7 @@ func (h *RoleAssignmentHandler) List(ctx echo.Context) error {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/workflows/role-assignments/{id} [get]
-func (h *RoleAssignmentHandler) Get(ctx echo.Context) error {
+func (h *RoleAssignmentHandler) Get(ctx *echo.Context) error {
 	id, err := h.ParseUUID(ctx, "id", "role assignment")
 	if err != nil {
 		return HandleError(err)
@@ -186,7 +186,7 @@ func (h *RoleAssignmentHandler) Get(ctx echo.Context) error {
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/workflows/role-assignments/{id} [put]
-func (h *RoleAssignmentHandler) Update(ctx echo.Context) error {
+func (h *RoleAssignmentHandler) Update(ctx *echo.Context) error {
 	id, err := h.ParseUUID(ctx, "id", "role assignment")
 	if err != nil {
 		return HandleError(err)
@@ -235,7 +235,7 @@ func (h *RoleAssignmentHandler) Update(ctx echo.Context) error {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/workflows/role-assignments/{id} [delete]
-func (h *RoleAssignmentHandler) Delete(ctx echo.Context) error {
+func (h *RoleAssignmentHandler) Delete(ctx *echo.Context) error {
 	id, err := h.ParseUUID(ctx, "id", "role assignment")
 	if err != nil {
 		return HandleError(err)
@@ -263,7 +263,7 @@ func (h *RoleAssignmentHandler) Delete(ctx echo.Context) error {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/workflows/role-assignments/{id}/activate [put]
-func (h *RoleAssignmentHandler) Activate(ctx echo.Context) error {
+func (h *RoleAssignmentHandler) Activate(ctx *echo.Context) error {
 	id, err := h.ParseUUID(ctx, "id", "role assignment")
 	if err != nil {
 		return HandleError(err)
@@ -302,7 +302,7 @@ func (h *RoleAssignmentHandler) Activate(ctx echo.Context) error {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/workflows/role-assignments/{id}/deactivate [put]
-func (h *RoleAssignmentHandler) Deactivate(ctx echo.Context) error {
+func (h *RoleAssignmentHandler) Deactivate(ctx *echo.Context) error {
 	id, err := h.ParseUUID(ctx, "id", "role assignment")
 	if err != nil {
 		return HandleError(err)

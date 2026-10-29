@@ -20,7 +20,7 @@ import (
 	"github.com/compliance-framework/api/internal/service/relational"
 	riskrel "github.com/compliance-framework/api/internal/service/relational/risks"
 	"github.com/google/uuid"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
@@ -56,7 +56,7 @@ func (h *LineageHandler) WithEngineCache(cfg *config.LineageConfig) *LineageHand
 
 // engine returns the lineage engine for the scope, rebuilt when the request sets
 // refresh=true, and stamps the response with when its data was loaded.
-func (h *LineageHandler) engine(ctx echo.Context, sspID, componentID *uuid.UUID) (*lineageEngine, error) {
+func (h *LineageHandler) engine(ctx *echo.Context, sspID, componentID *uuid.UUID) (*lineageEngine, error) {
 	refresh := false
 	if raw := ctx.QueryParam("refresh"); raw != "" {
 		parsed, err := strconv.ParseBool(raw)
@@ -77,7 +77,7 @@ var errLineageRefreshParam = errors.New("refresh must be true or false")
 
 // engineError writes the response for an engine() failure: 400 for a bad refresh
 // parameter, otherwise a logged 500.
-func (h *LineageHandler) engineError(ctx echo.Context, err error) error {
+func (h *LineageHandler) engineError(ctx *echo.Context, err error) error {
 	if errors.Is(err, errLineageRefreshParam) {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
@@ -295,7 +295,7 @@ type LineageNode struct {
 // @Failure		500			{object}	api.Error
 // @Security		OAuth2Password
 // @Router			/lineage/roots [get]
-func (h *LineageHandler) Roots(ctx echo.Context) error {
+func (h *LineageHandler) Roots(ctx *echo.Context) error {
 	sspID, componentID, err := parseScope(ctx)
 	if err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
@@ -359,7 +359,7 @@ func (h *LineageHandler) Roots(ctx echo.Context) error {
 // @Failure		500			{object}	api.Error
 // @Security		OAuth2Password
 // @Router			/lineage/nodes/{key}/children [get]
-func (h *LineageHandler) Children(ctx echo.Context) error {
+func (h *LineageHandler) Children(ctx *echo.Context) error {
 	sspID, componentID, err := parseScope(ctx)
 	if err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
@@ -419,7 +419,7 @@ func (h *LineageHandler) Children(ctx echo.Context) error {
 // @Failure		500			{object}	api.Error
 // @Security		OAuth2Password
 // @Router			/lineage/nodes/{key}/ssps [get]
-func (h *LineageHandler) SSPDetail(ctx echo.Context) error {
+func (h *LineageHandler) SSPDetail(ctx *echo.Context) error {
 	// This table is inherently multi-SSP, so it ignores any sspId scope and always
 	// walks every plan; componentId still narrows the evidence.
 	_, componentID, err := parseScope(ctx)
@@ -2152,7 +2152,7 @@ func sortNodes(nodes []LineageNode) {
 }
 
 // parseScope parses the shared sspId/componentId query params.
-func parseScope(ctx echo.Context) (*uuid.UUID, *uuid.UUID, error) {
+func parseScope(ctx *echo.Context) (*uuid.UUID, *uuid.UUID, error) {
 	var sspID, componentID *uuid.UUID
 	if v := strings.TrimSpace(ctx.QueryParam("sspId")); v != "" {
 		id, err := uuid.Parse(v)

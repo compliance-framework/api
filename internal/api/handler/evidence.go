@@ -23,7 +23,7 @@ import (
 	"github.com/compliance-framework/api/internal/service/relational/sspscope"
 	oscalTypes_1_1_3 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
 	"github.com/google/uuid"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"go.uber.org/zap"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
@@ -267,7 +267,7 @@ func implementedComponentLinkID(itemIdentifier, componentIdentifier string) (uui
 //	@Failure		500			{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/evidence [post]
-func (h *EvidenceHandler) Create(ctx echo.Context) error {
+func (h *EvidenceHandler) Create(ctx *echo.Context) error {
 	var input *EvidenceCreateRequest
 	if err := ctx.Bind(&input); err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
@@ -525,7 +525,7 @@ type evidenceConfigResponse struct {
 //	@Produce		json
 //	@Success		200	{object}	GenericDataResponse[evidenceConfigResponse]
 //	@Router			/evidence/config [get]
-func (h *EvidenceHandler) Config(ctx echo.Context) error {
+func (h *EvidenceHandler) Config(ctx *echo.Context) error {
 	return ctx.JSON(http.StatusOK, GenericDataResponse[evidenceConfigResponse]{
 		Data: evidenceConfigResponse{ManualSubjectRequired: h.evidenceService.ManualEvidenceRequiresSubject()},
 	})
@@ -550,7 +550,7 @@ func (h *EvidenceHandler) Config(ctx echo.Context) error {
 //	@Failure		422				{object}	api.Error
 //	@Failure		500				{object}	api.Error
 //	@Router			/evidence/search [post]
-func (h *EvidenceHandler) Search(ctx echo.Context) error {
+func (h *EvidenceHandler) Search(ctx *echo.Context) error {
 	return h.search(ctx, nil)
 }
 
@@ -558,7 +558,7 @@ func (h *EvidenceHandler) Search(ctx echo.Context) error {
 type scopeRestriction func(labelfilter.Filter) (filter labelfilter.Filter, ok bool)
 
 // search serves an evidence search, narrowed by restrict when it is not nil.
-func (h *EvidenceHandler) search(ctx echo.Context, restrict scopeRestriction) error {
+func (h *EvidenceHandler) search(ctx *echo.Context, restrict scopeRestriction) error {
 	filter := &labelfilter.Filter{}
 	req := filteredSearchRequest{}
 
@@ -602,7 +602,7 @@ func (h *EvidenceHandler) search(ctx echo.Context, restrict scopeRestriction) er
 	return ctx.JSON(http.StatusOK, svc.NewListResponse(output, total, pagination.Page, pagination.Limit))
 }
 
-func parseEvidenceSearchOptions(ctx echo.Context, pagination *svc.PaginationParams) (evidencesvc.SearchOptions, error) {
+func parseEvidenceSearchOptions(ctx *echo.Context, pagination *svc.PaginationParams) (evidencesvc.SearchOptions, error) {
 	sortBy := evidencesvc.SearchSortBy(ctx.QueryParam("sortBy"))
 	if sortBy == "" {
 		sortBy = evidencesvc.SearchSortByLastSeenAt
@@ -794,7 +794,7 @@ func newCreatedEvidenceResponse(evidence *relational.Evidence) (*CreatedEvidence
 	return response, nil
 }
 
-func parseEvidenceID(ctx echo.Context) (uuid.UUID, error) {
+func parseEvidenceID(ctx *echo.Context) (uuid.UUID, error) {
 	return uuid.Parse(ctx.Param("id"))
 }
 
@@ -810,7 +810,7 @@ func parseEvidenceID(ctx echo.Context) (uuid.UUID, error) {
 //	@Failure		404	{object}	api.Error
 //	@Failure		500	{object}	api.Error
 //	@Router			/evidence/{id} [get]
-func (h *EvidenceHandler) Get(ctx echo.Context) error {
+func (h *EvidenceHandler) Get(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := parseEvidenceID(ctx)
 	if err != nil {
@@ -849,7 +849,7 @@ func (h *EvidenceHandler) Get(ctx echo.Context) error {
 //	@Failure		404		{object}	api.Error
 //	@Failure		500		{object}	api.Error
 //	@Router			/evidence/history/{id} [get]
-func (h *EvidenceHandler) History(ctx echo.Context) error {
+func (h *EvidenceHandler) History(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := parseEvidenceID(ctx)
 	if err != nil {
@@ -895,7 +895,7 @@ func (h *EvidenceHandler) History(ctx echo.Context) error {
 //	@Failure		404	{object}	api.Error
 //	@Failure		500	{object}	api.Error
 //	@Router			/evidence/latest/{id} [get]
-func (h *EvidenceHandler) Latest(ctx echo.Context) error {
+func (h *EvidenceHandler) Latest(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := parseEvidenceID(ctx)
 	if err != nil {
@@ -934,7 +934,7 @@ func (h *EvidenceHandler) Latest(ctx echo.Context) error {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/evidence/{id}/signature [get]
-func (h *EvidenceHandler) GetSignature(ctx echo.Context) error {
+func (h *EvidenceHandler) GetSignature(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := parseEvidenceID(ctx)
 	if err != nil {
@@ -970,7 +970,7 @@ func (h *EvidenceHandler) GetSignature(ctx echo.Context) error {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/evidence/{id}/verify [post]
-func (h *EvidenceHandler) VerifySignature(ctx echo.Context) error {
+func (h *EvidenceHandler) VerifySignature(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := parseEvidenceID(ctx)
 	if err != nil {
@@ -1016,7 +1016,7 @@ type EvidenceRiskResponse struct {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/evidence/{id}/risks [get]
-func (h *EvidenceHandler) Risks(ctx echo.Context) error {
+func (h *EvidenceHandler) Risks(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := parseEvidenceID(ctx)
 	if err != nil {
@@ -1082,7 +1082,7 @@ func (h *EvidenceHandler) Risks(ctx echo.Context) error {
 //	@Failure		404		{object}	api.Error
 //	@Failure		500		{object}	api.Error
 //	@Router			/evidence/for-control/{id} [get]
-func (h *EvidenceHandler) ForControl(ctx echo.Context) error {
+func (h *EvidenceHandler) ForControl(ctx *echo.Context) error {
 	type responseMetadata struct {
 		Control *oscalTypes_1_1_3.Control `json:"control"`
 	}
@@ -1153,13 +1153,13 @@ type StatusInterval struct {
 //	@Failure		422			{object}	api.Error
 //	@Failure		500			{object}	api.Error
 //	@Router			/evidence/status-over-time [post]
-func (h *EvidenceHandler) StatusOverTime(ctx echo.Context) error {
+func (h *EvidenceHandler) StatusOverTime(ctx *echo.Context) error {
 	return h.statusOverTime(ctx, nil)
 }
 
 // statusOverTime serves status counts over intervals, narrowed by restrict when it is
 // not nil.
-func (h *EvidenceHandler) statusOverTime(ctx echo.Context, restrict scopeRestriction) error {
+func (h *EvidenceHandler) statusOverTime(ctx *echo.Context, restrict scopeRestriction) error {
 	filter := &labelfilter.Filter{}
 	req := filteredSearchRequest{}
 
@@ -1247,7 +1247,7 @@ func (h *EvidenceHandler) statusOverTime(ctx echo.Context, restrict scopeRestric
 //	@Failure		500				{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/evidence/search [post]
-func (h *EvidenceHandler) SSPScopedSearch(ctx echo.Context) error {
+func (h *EvidenceHandler) SSPScopedSearch(ctx *echo.Context) error {
 	restrict, ok := h.sspScopeRestriction(ctx)
 	if !ok {
 		return nil
@@ -1273,7 +1273,7 @@ func (h *EvidenceHandler) SSPScopedSearch(ctx echo.Context) error {
 //	@Failure		500			{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/evidence/status-over-time [post]
-func (h *EvidenceHandler) SSPScopedStatusOverTime(ctx echo.Context) error {
+func (h *EvidenceHandler) SSPScopedStatusOverTime(ctx *echo.Context) error {
 	restrict, ok := h.sspScopeRestriction(ctx)
 	if !ok {
 		return nil
@@ -1294,7 +1294,7 @@ func (h *EvidenceHandler) SSPScopedStatusOverTime(ctx echo.Context) error {
 //	@Failure		422			{object}	api.Error
 //	@Failure		500			{object}	api.Error
 //	@Router			/evidence/status-over-time/{id} [get]
-func (h *EvidenceHandler) StatusOverTimeByUUID(ctx echo.Context) error {
+func (h *EvidenceHandler) StatusOverTimeByUUID(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -1360,7 +1360,7 @@ func (h *EvidenceHandler) StatusOverTimeByUUID(ctx echo.Context) error {
 //	@Failure		400		{object}	api.Error
 //	@Failure		500		{object}	api.Error
 //	@Router			/evidence/compliance-by-control/{id} [get]
-func (h *EvidenceHandler) ComplianceByControl(ctx echo.Context) error {
+func (h *EvidenceHandler) ComplianceByControl(ctx *echo.Context) error {
 	id := ctx.Param("id")
 	control, err := h.evidenceService.GetControlByID(id)
 	if err != nil {
@@ -1387,7 +1387,7 @@ func (h *EvidenceHandler) ComplianceByControl(ctx echo.Context) error {
 	return ctx.JSON(http.StatusOK, GenericDataListResponse[evidencesvc.StatusCount]{Data: rows})
 }
 
-func visibleControlFilters(ctx echo.Context, filterModels []relational.Filter) ([]labelfilter.Filter, error) {
+func visibleControlFilters(ctx *echo.Context, filterModels []relational.Filter) ([]labelfilter.Filter, error) {
 	sspIDParam := strings.TrimSpace(ctx.QueryParam("sspId"))
 	var sspID *uuid.UUID
 	if sspIDParam != "" {
@@ -1419,7 +1419,7 @@ func visibleControlFilters(ctx echo.Context, filterModels []relational.Filter) (
 //	@Failure		404	{object}	api.Error
 //	@Failure		500	{object}	api.Error
 //	@Router			/evidence/compliance-by-filter/{id} [get]
-func (h *EvidenceHandler) ComplianceByFilter(ctx echo.Context) error {
+func (h *EvidenceHandler) ComplianceByFilter(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {

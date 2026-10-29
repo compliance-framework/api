@@ -12,7 +12,7 @@ import (
 	poamsvc "github.com/compliance-framework/api/internal/service/relational/poam"
 	riskrel "github.com/compliance-framework/api/internal/service/relational/risks"
 	"github.com/google/uuid"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
@@ -300,7 +300,7 @@ func toMilestoneResponse(m *poamsvc.PoamItemMilestone) milestoneResponse {
 //	@Failure	500				{object}	api.Error
 //	@Security	OAuth2Password
 //	@Router		/poam-items [get]
-func (h *PoamItemsHandler) List(c echo.Context) error {
+func (h *PoamItemsHandler) List(c *echo.Context) error {
 	filters, err := parsePoamListFilters(c)
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, api.NewError(err))
@@ -338,7 +338,7 @@ func (h *PoamItemsHandler) List(c echo.Context) error {
 //	@Failure	500		{object}	api.Error
 //	@Security	OAuth2Password
 //	@Router		/poam-items [post]
-func (h *PoamItemsHandler) Create(c echo.Context) error {
+func (h *PoamItemsHandler) Create(c *echo.Context) error {
 	var in createPoamItemRequest
 	if err := c.Bind(&in); err != nil {
 		return c.JSON(http.StatusBadRequest, api.NewError(err))
@@ -456,7 +456,7 @@ func (h *PoamItemsHandler) Create(c echo.Context) error {
 //	@Failure	500	{object}	api.Error
 //	@Security	OAuth2Password
 //	@Router		/poam-items/{id} [get]
-func (h *PoamItemsHandler) Get(c echo.Context) error {
+func (h *PoamItemsHandler) Get(c *echo.Context) error {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, api.NewError(err))
@@ -485,7 +485,7 @@ func (h *PoamItemsHandler) Get(c echo.Context) error {
 //	@Failure	500		{object}	api.Error
 //	@Security	OAuth2Password
 //	@Router		/poam-items/{id} [put]
-func (h *PoamItemsHandler) Update(c echo.Context) error {
+func (h *PoamItemsHandler) Update(c *echo.Context) error {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, api.NewError(err))
@@ -614,7 +614,7 @@ func (h *PoamItemsHandler) Update(c echo.Context) error {
 //	@Failure	500	{object}	api.Error
 //	@Security	OAuth2Password
 //	@Router		/poam-items/{id} [delete]
-func (h *PoamItemsHandler) Delete(c echo.Context) error {
+func (h *PoamItemsHandler) Delete(c *echo.Context) error {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, api.NewError(err))
@@ -644,7 +644,7 @@ func (h *PoamItemsHandler) Delete(c echo.Context) error {
 //	@Failure	500	{object}	api.Error
 //	@Security	OAuth2Password
 //	@Router		/poam-items/{id}/milestones [get]
-func (h *PoamItemsHandler) ListMilestones(c echo.Context) error {
+func (h *PoamItemsHandler) ListMilestones(c *echo.Context) error {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, api.NewError(err))
@@ -680,7 +680,7 @@ func (h *PoamItemsHandler) ListMilestones(c echo.Context) error {
 //	@Failure	500		{object}	api.Error
 //	@Security	OAuth2Password
 //	@Router		/poam-items/{id}/milestones [post]
-func (h *PoamItemsHandler) AddMilestone(c echo.Context) error {
+func (h *PoamItemsHandler) AddMilestone(c *echo.Context) error {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, api.NewError(err))
@@ -731,7 +731,7 @@ func (h *PoamItemsHandler) AddMilestone(c echo.Context) error {
 //	@Failure	500			{object}	api.Error
 //	@Security	OAuth2Password
 //	@Router		/poam-items/{id}/milestones/{milestoneId} [put]
-func (h *PoamItemsHandler) UpdateMilestone(c echo.Context) error {
+func (h *PoamItemsHandler) UpdateMilestone(c *echo.Context) error {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, api.NewError(err))
@@ -777,7 +777,7 @@ func (h *PoamItemsHandler) UpdateMilestone(c echo.Context) error {
 //	@Failure	500			{object}	api.Error
 //	@Security	OAuth2Password
 //	@Router		/poam-items/{id}/milestones/{milestoneId} [delete]
-func (h *PoamItemsHandler) DeleteMilestone(c echo.Context) error {
+func (h *PoamItemsHandler) DeleteMilestone(c *echo.Context) error {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, api.NewError(err))
@@ -811,7 +811,7 @@ func (h *PoamItemsHandler) DeleteMilestone(c echo.Context) error {
 //	@Failure	500	{object}	api.Error
 //	@Security	OAuth2Password
 //	@Router		/poam-items/{id}/risks [get]
-func (h *PoamItemsHandler) ListRisks(c echo.Context) error {
+func (h *PoamItemsHandler) ListRisks(c *echo.Context) error {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, api.NewError(err))
@@ -843,7 +843,7 @@ func (h *PoamItemsHandler) ListRisks(c echo.Context) error {
 //	@Failure	500		{object}	api.Error
 //	@Security	OAuth2Password
 //	@Router		/poam-items/{id}/risks [post]
-func (h *PoamItemsHandler) AddRiskLink(c echo.Context) error {
+func (h *PoamItemsHandler) AddRiskLink(c *echo.Context) error {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, api.NewError(err))
@@ -884,7 +884,7 @@ func (h *PoamItemsHandler) AddRiskLink(c echo.Context) error {
 //	@Failure	500		{object}	api.Error
 //	@Security	OAuth2Password
 //	@Router		/poam-items/{id}/risks/{riskId} [delete]
-func (h *PoamItemsHandler) DeleteRiskLink(c echo.Context) error {
+func (h *PoamItemsHandler) DeleteRiskLink(c *echo.Context) error {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, api.NewError(err))
@@ -918,7 +918,7 @@ func (h *PoamItemsHandler) DeleteRiskLink(c echo.Context) error {
 //	@Failure	500	{object}	api.Error
 //	@Security	OAuth2Password
 //	@Router		/poam-items/{id}/evidence [get]
-func (h *PoamItemsHandler) ListEvidence(c echo.Context) error {
+func (h *PoamItemsHandler) ListEvidence(c *echo.Context) error {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, api.NewError(err))
@@ -950,7 +950,7 @@ func (h *PoamItemsHandler) ListEvidence(c echo.Context) error {
 //	@Failure	500		{object}	api.Error
 //	@Security	OAuth2Password
 //	@Router		/poam-items/{id}/evidence [post]
-func (h *PoamItemsHandler) AddEvidenceLink(c echo.Context) error {
+func (h *PoamItemsHandler) AddEvidenceLink(c *echo.Context) error {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, api.NewError(err))
@@ -991,7 +991,7 @@ func (h *PoamItemsHandler) AddEvidenceLink(c echo.Context) error {
 //	@Failure	500			{object}	api.Error
 //	@Security	OAuth2Password
 //	@Router		/poam-items/{id}/evidence/{evidenceId} [delete]
-func (h *PoamItemsHandler) DeleteEvidenceLink(c echo.Context) error {
+func (h *PoamItemsHandler) DeleteEvidenceLink(c *echo.Context) error {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, api.NewError(err))
@@ -1025,7 +1025,7 @@ func (h *PoamItemsHandler) DeleteEvidenceLink(c echo.Context) error {
 //	@Failure	500	{object}	api.Error
 //	@Security	OAuth2Password
 //	@Router		/poam-items/{id}/controls [get]
-func (h *PoamItemsHandler) ListControls(c echo.Context) error {
+func (h *PoamItemsHandler) ListControls(c *echo.Context) error {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, api.NewError(err))
@@ -1057,7 +1057,7 @@ func (h *PoamItemsHandler) ListControls(c echo.Context) error {
 //	@Failure	500		{object}	api.Error
 //	@Security	OAuth2Password
 //	@Router		/poam-items/{id}/controls [post]
-func (h *PoamItemsHandler) AddControlLink(c echo.Context) error {
+func (h *PoamItemsHandler) AddControlLink(c *echo.Context) error {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, api.NewError(err))
@@ -1099,7 +1099,7 @@ func (h *PoamItemsHandler) AddControlLink(c echo.Context) error {
 //	@Failure	500			{object}	api.Error
 //	@Security	OAuth2Password
 //	@Router		/poam-items/{id}/controls/{catalogId}/{controlId} [delete]
-func (h *PoamItemsHandler) DeleteControlLink(c echo.Context) error {
+func (h *PoamItemsHandler) DeleteControlLink(c *echo.Context) error {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, api.NewError(err))
@@ -1137,7 +1137,7 @@ func (h *PoamItemsHandler) DeleteControlLink(c echo.Context) error {
 //	@Failure	500	{object}	api.Error
 //	@Security	OAuth2Password
 //	@Router		/poam-items/{id}/findings [get]
-func (h *PoamItemsHandler) ListFindings(c echo.Context) error {
+func (h *PoamItemsHandler) ListFindings(c *echo.Context) error {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, api.NewError(err))
@@ -1169,7 +1169,7 @@ func (h *PoamItemsHandler) ListFindings(c echo.Context) error {
 //	@Failure	500		{object}	api.Error
 //	@Security	OAuth2Password
 //	@Router		/poam-items/{id}/findings [post]
-func (h *PoamItemsHandler) AddFindingLink(c echo.Context) error {
+func (h *PoamItemsHandler) AddFindingLink(c *echo.Context) error {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, api.NewError(err))
@@ -1210,7 +1210,7 @@ func (h *PoamItemsHandler) AddFindingLink(c echo.Context) error {
 //	@Failure	500			{object}	api.Error
 //	@Security	OAuth2Password
 //	@Router		/poam-items/{id}/findings/{findingId} [delete]
-func (h *PoamItemsHandler) DeleteFindingLink(c echo.Context) error {
+func (h *PoamItemsHandler) DeleteFindingLink(c *echo.Context) error {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, api.NewError(err))
@@ -1235,7 +1235,7 @@ func (h *PoamItemsHandler) DeleteFindingLink(c echo.Context) error {
 // parseListFilters parses and validates all query parameters for the List
 // endpoint. Returns 400-compatible errors for any malformed UUID or RFC3339
 // value rather than silently ignoring them (Copilot item 12).
-func parsePoamListFilters(c echo.Context) (poamsvc.ListFilters, error) {
+func parsePoamListFilters(c *echo.Context) (poamsvc.ListFilters, error) {
 	var f poamsvc.ListFilters
 
 	if s := c.QueryParam("status"); s != "" {
@@ -1319,7 +1319,7 @@ func parseControlRefs(raw []poamControlRefRequest) ([]poamsvc.ControlRef, error)
 	return result, nil
 }
 
-func (h *PoamItemsHandler) internalError(c echo.Context, msg string, err error) error {
+func (h *PoamItemsHandler) internalError(c *echo.Context, msg string, err error) error {
 	h.sugar.Errorw(msg, "error", err)
 	return c.JSON(http.StatusInternalServerError, api.NewError(err))
 }

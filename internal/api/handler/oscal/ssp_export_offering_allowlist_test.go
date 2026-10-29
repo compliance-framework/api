@@ -10,12 +10,12 @@ import (
 	"github.com/compliance-framework/api/internal/api/handler"
 	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/google/uuid"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 )
 
-func newAllowedDownstreamsRequestContext(method string, sspID, offeringID uuid.UUID, extraParam, extraValue string, body string) (echo.Context, *httptest.ResponseRecorder) {
+func newAllowedDownstreamsRequestContext(method string, sspID, offeringID uuid.UUID, extraParam, extraValue string, body string) (*echo.Context, *httptest.ResponseRecorder) {
 	e := echo.New()
 	var reader *bytes.Reader
 	if body != "" {
@@ -28,11 +28,9 @@ func newAllowedDownstreamsRequestContext(method string, sspID, offeringID uuid.U
 	rec := httptest.NewRecorder()
 	ctx := e.NewContext(req, rec)
 	if extraParam != "" {
-		ctx.SetParamNames("id", "offeringId", extraParam)
-		ctx.SetParamValues(sspID.String(), offeringID.String(), extraValue)
+		ctx.SetPathValues(echo.PathValues{{Name: "id", Value: sspID.String()}, {Name: "offeringId", Value: offeringID.String()}, {Name: extraParam, Value: extraValue}})
 	} else {
-		ctx.SetParamNames("id", "offeringId")
-		ctx.SetParamValues(sspID.String(), offeringID.String())
+		ctx.SetPathValues(echo.PathValues{{Name: "id", Value: sspID.String()}, {Name: "offeringId", Value: offeringID.String()}})
 	}
 	return ctx, rec
 }

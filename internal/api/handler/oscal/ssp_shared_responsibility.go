@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"gorm.io/gorm"
 
 	"github.com/compliance-framework/api/internal/api"
@@ -126,7 +126,7 @@ type SharedResponsibilityRollup struct {
 //	@Failure		500			{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/shared-responsibility [get]
-func (h *SystemSecurityPlanHandler) SharedResponsibility(ctx echo.Context) error {
+func (h *SystemSecurityPlanHandler) SharedResponsibility(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	sspID, err := uuid.Parse(idParam)
 	if err != nil {

@@ -12,7 +12,7 @@ import (
 	"github.com/compliance-framework/api/internal/api/middleware"
 	"github.com/compliance-framework/api/internal/service/relational/workflows"
 	"github.com/google/uuid"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -217,8 +217,7 @@ func TestWorkflowStepDefinitionHandler_Get(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/workflows/steps/"+stepDef.ID.String(), nil)
 		rec := httptest.NewRecorder()
 		c := e.NewContext(req, rec)
-		c.SetParamNames("id")
-		c.SetParamValues(stepDef.ID.String())
+		c.SetPathValues(echo.PathValues{{Name: "id", Value: stepDef.ID.String()}})
 
 		err := handler.Get(c)
 		require.NoError(t, err)
@@ -237,8 +236,7 @@ func TestWorkflowStepDefinitionHandler_Get(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/workflows/steps/"+nonExistentID.String(), nil)
 		rec := httptest.NewRecorder()
 		c := e.NewContext(req, rec)
-		c.SetParamNames("id")
-		c.SetParamValues(nonExistentID.String())
+		c.SetPathValues(echo.PathValues{{Name: "id", Value: nonExistentID.String()}})
 
 		err := handler.Get(c)
 		require.NoError(t, err)
@@ -249,8 +247,7 @@ func TestWorkflowStepDefinitionHandler_Get(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/workflows/steps/invalid-id", nil)
 		rec := httptest.NewRecorder()
 		c := e.NewContext(req, rec)
-		c.SetParamNames("id")
-		c.SetParamValues("invalid-id")
+		c.SetPathValues(echo.PathValues{{Name: "id", Value: "invalid-id"}})
 
 		err := handler.Get(c)
 		require.NoError(t, err)
@@ -294,8 +291,7 @@ func TestWorkflowStepDefinitionHandler_Update(t *testing.T) {
 		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 		rec := httptest.NewRecorder()
 		c := e.NewContext(req, rec)
-		c.SetParamNames("id")
-		c.SetParamValues(stepDef.ID.String())
+		c.SetPathValues(echo.PathValues{{Name: "id", Value: stepDef.ID.String()}})
 
 		err = handler.Update(c)
 		require.NoError(t, err)
@@ -325,8 +321,7 @@ func TestWorkflowStepDefinitionHandler_Update(t *testing.T) {
 		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 		rec := httptest.NewRecorder()
 		c := e.NewContext(req, rec)
-		c.SetParamNames("id")
-		c.SetParamValues(nonExistentID.String())
+		c.SetPathValues(echo.PathValues{{Name: "id", Value: nonExistentID.String()}})
 
 		err = handler.Update(c)
 		require.NoError(t, err)
@@ -355,8 +350,7 @@ func TestWorkflowStepDefinitionHandler_Delete(t *testing.T) {
 		req := httptest.NewRequest(http.MethodDelete, "/workflows/steps/"+stepDef.ID.String(), nil)
 		rec := httptest.NewRecorder()
 		c := e.NewContext(req, rec)
-		c.SetParamNames("id")
-		c.SetParamValues(stepDef.ID.String())
+		c.SetPathValues(echo.PathValues{{Name: "id", Value: stepDef.ID.String()}})
 
 		err := handler.Delete(c)
 		require.NoError(t, err)
@@ -373,8 +367,7 @@ func TestWorkflowStepDefinitionHandler_Delete(t *testing.T) {
 		req := httptest.NewRequest(http.MethodDelete, "/workflows/steps/"+nonExistentID.String(), nil)
 		rec := httptest.NewRecorder()
 		c := e.NewContext(req, rec)
-		c.SetParamNames("id")
-		c.SetParamValues(nonExistentID.String())
+		c.SetPathValues(echo.PathValues{{Name: "id", Value: nonExistentID.String()}})
 
 		err := handler.Delete(c)
 		require.NoError(t, err)
@@ -421,8 +414,7 @@ func TestWorkflowStepDefinitionHandler_GetDependencies(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/workflows/steps/"+step3.ID.String()+"/dependencies", nil)
 		rec := httptest.NewRecorder()
 		c := e.NewContext(req, rec)
-		c.SetParamNames("id")
-		c.SetParamValues(step3.ID.String())
+		c.SetPathValues(echo.PathValues{{Name: "id", Value: step3.ID.String()}})
 
 		err := handler.GetDependencies(c)
 		require.NoError(t, err)
@@ -438,8 +430,7 @@ func TestWorkflowStepDefinitionHandler_GetDependencies(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/workflows/steps/"+step1.ID.String()+"/dependencies", nil)
 		rec := httptest.NewRecorder()
 		c := e.NewContext(req, rec)
-		c.SetParamNames("id")
-		c.SetParamValues(step1.ID.String())
+		c.SetPathValues(echo.PathValues{{Name: "id", Value: step1.ID.String()}})
 
 		err := handler.GetDependencies(c)
 		require.NoError(t, err)

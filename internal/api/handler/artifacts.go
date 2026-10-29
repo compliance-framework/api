@@ -16,7 +16,7 @@ import (
 	"github.com/compliance-framework/api/internal/config"
 	artifactsvc "github.com/compliance-framework/api/internal/service/relational/artifacts"
 	"github.com/google/uuid"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"go.uber.org/zap"
 )
 
@@ -102,7 +102,7 @@ func (h *ArtifactHandler) RegisterRead(e *echo.Group, middlewares ...echo.Middle
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/agent/artifacts [post]
-func (h *ArtifactHandler) Upload(ctx echo.Context) error {
+func (h *ArtifactHandler) Upload(ctx *echo.Context) error {
 	// Read the whole body before any other work, so a slow upload holds nothing but its
 	// own connection.
 	content, err := io.ReadAll(http.MaxBytesReader(ctx.Response(), ctx.Request().Body, h.maxBytes))
@@ -161,7 +161,7 @@ func (h *ArtifactHandler) Upload(ctx echo.Context) error {
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/artifacts/{digest} [get]
-func (h *ArtifactHandler) Get(ctx echo.Context) error {
+func (h *ArtifactHandler) Get(ctx *echo.Context) error {
 	digest := ctx.Param("digest")
 	if !artifact.ValidDigest(digest) {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("invalid digest %q", digest)))
@@ -182,7 +182,7 @@ func (h *ArtifactHandler) Get(ctx echo.Context) error {
 	return ctx.Blob(http.StatusOK, stored.MediaType, stored.Content)
 }
 
-func uploaderAgentID(ctx echo.Context) *uuid.UUID {
+func uploaderAgentID(ctx *echo.Context) *uuid.UUID {
 	auth, ok := ctx.Get("agent_auth").(*middleware.AgentAuthContext)
 	if !ok || auth == nil || auth.Agent == nil {
 		return nil

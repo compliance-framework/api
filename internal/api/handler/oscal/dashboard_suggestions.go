@@ -22,7 +22,7 @@ import (
 	workersvc "github.com/compliance-framework/api/internal/service/worker"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"go.uber.org/zap"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
@@ -185,7 +185,7 @@ func (h *DashboardSuggestionHandler) Register(apiGroup *echo.Group, auth echo.Mi
 //	@Produce		json
 //	@Success		200	{object}	handler.GenericDataResponse[oscal.dashboardSuggestionConfigResponse]
 //	@Router			/dashboard-suggestions/config [get]
-func (h *DashboardSuggestionHandler) Config(ctx echo.Context) error {
+func (h *DashboardSuggestionHandler) Config(ctx *echo.Context) error {
 	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[dashboardSuggestionConfigResponse]{
 		Data: dashboardSuggestionConfigResponse{Enabled: h.aiEnabled()},
 	})
@@ -209,7 +209,7 @@ func (h *DashboardSuggestionHandler) Config(ctx echo.Context) error {
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/dashboard-suggestions/generate [post]
-func (h *DashboardSuggestionHandler) Generate(ctx echo.Context) error {
+func (h *DashboardSuggestionHandler) Generate(ctx *echo.Context) error {
 	sspID, err := parseUUIDParam(ctx, "id")
 	if err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
@@ -319,7 +319,7 @@ type generalizeDashboardSuggestionsResponse struct {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/dashboard-suggestions/generalize [post]
-func (h *DashboardSuggestionHandler) Generalize(ctx echo.Context) error {
+func (h *DashboardSuggestionHandler) Generalize(ctx *echo.Context) error {
 	sspID, err := parseUUIDParam(ctx, "id")
 	if err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
@@ -364,7 +364,7 @@ func (h *DashboardSuggestionHandler) Generalize(ctx echo.Context) error {
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/dashboard-suggestions/preview [post]
-func (h *DashboardSuggestionHandler) Preview(ctx echo.Context) error {
+func (h *DashboardSuggestionHandler) Preview(ctx *echo.Context) error {
 	sspID, err := parseUUIDParam(ctx, "id")
 	if err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
@@ -406,7 +406,7 @@ func (h *DashboardSuggestionHandler) Preview(ctx echo.Context) error {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/dashboard-suggestions/label-sets [get]
-func (h *DashboardSuggestionHandler) LabelSets(ctx echo.Context) error {
+func (h *DashboardSuggestionHandler) LabelSets(ctx *echo.Context) error {
 	filter, ok := h.labelPickerFilter(ctx, false)
 	if !ok {
 		return nil
@@ -433,7 +433,7 @@ func (h *DashboardSuggestionHandler) LabelSets(ctx echo.Context) error {
 //	@Failure		500			{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/dashboard-suggestions/label-keys [get]
-func (h *DashboardSuggestionHandler) LabelKeys(ctx echo.Context) error {
+func (h *DashboardSuggestionHandler) LabelKeys(ctx *echo.Context) error {
 	filter, ok := h.labelPickerFilter(ctx, true)
 	if !ok {
 		return nil
@@ -462,7 +462,7 @@ func (h *DashboardSuggestionHandler) LabelKeys(ctx echo.Context) error {
 //	@Failure		500			{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/dashboard-suggestions/label-values [get]
-func (h *DashboardSuggestionHandler) LabelValues(ctx echo.Context) error {
+func (h *DashboardSuggestionHandler) LabelValues(ctx *echo.Context) error {
 	filter, ok := h.labelPickerFilter(ctx, true)
 	if !ok {
 		return nil
@@ -490,7 +490,7 @@ func (h *DashboardSuggestionHandler) LabelValues(ctx echo.Context) error {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/dashboard-suggestion-runs/latest [get]
-func (h *DashboardSuggestionHandler) LatestRun(ctx echo.Context) error {
+func (h *DashboardSuggestionHandler) LatestRun(ctx *echo.Context) error {
 	sspID, err := parseUUIDParam(ctx, "id")
 	if err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
@@ -517,7 +517,7 @@ func (h *DashboardSuggestionHandler) LatestRun(ctx echo.Context) error {
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/dashboard-suggestion-runs/{runId} [get]
-func (h *DashboardSuggestionHandler) GetRun(ctx echo.Context) error {
+func (h *DashboardSuggestionHandler) GetRun(ctx *echo.Context) error {
 	sspID, err := parseUUIDParam(ctx, "id")
 	if err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
@@ -547,7 +547,7 @@ func (h *DashboardSuggestionHandler) GetRun(ctx echo.Context) error {
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/dashboard-suggestions [get]
-func (h *DashboardSuggestionHandler) ListSuggestions(ctx echo.Context) error {
+func (h *DashboardSuggestionHandler) ListSuggestions(ctx *echo.Context) error {
 	sspID, err := parseUUIDParam(ctx, "id")
 	if err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
@@ -576,7 +576,7 @@ func (h *DashboardSuggestionHandler) ListSuggestions(ctx echo.Context) error {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/dashboard-suggestions/control-results [get]
-func (h *DashboardSuggestionHandler) ControlResults(ctx echo.Context) error {
+func (h *DashboardSuggestionHandler) ControlResults(ctx *echo.Context) error {
 	sspID, err := parseUUIDParam(ctx, "id")
 	if err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
@@ -619,7 +619,7 @@ func (h *DashboardSuggestionHandler) ControlResults(ctx echo.Context) error {
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/dashboard-suggestions/accept [post]
-func (h *DashboardSuggestionHandler) Accept(ctx echo.Context) error {
+func (h *DashboardSuggestionHandler) Accept(ctx *echo.Context) error {
 	sspID, req, actorID, ok := h.bindDecision(ctx)
 	if !ok {
 		return nil
@@ -663,7 +663,7 @@ func (h *DashboardSuggestionHandler) Accept(ctx echo.Context) error {
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/dashboard-suggestions/reject [post]
-func (h *DashboardSuggestionHandler) Reject(ctx echo.Context) error {
+func (h *DashboardSuggestionHandler) Reject(ctx *echo.Context) error {
 	sspID, req, actorID, ok := h.bindDecision(ctx)
 	if !ok {
 		return nil
@@ -694,7 +694,7 @@ func (h *DashboardSuggestionHandler) Reject(ctx echo.Context) error {
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/dashboard-suggestions/edit-group [post]
-func (h *DashboardSuggestionHandler) EditGroup(ctx echo.Context) error {
+func (h *DashboardSuggestionHandler) EditGroup(ctx *echo.Context) error {
 	sspID, err := parseUUIDParam(ctx, "id")
 	if err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
@@ -747,7 +747,7 @@ func (h *DashboardSuggestionHandler) EditGroup(ctx echo.Context) error {
 //	@Failure		500				{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/dashboard-suggestions/{suggestionId}/events [get]
-func (h *DashboardSuggestionHandler) Events(ctx echo.Context) error {
+func (h *DashboardSuggestionHandler) Events(ctx *echo.Context) error {
 	sspID, err := parseUUIDParam(ctx, "id")
 	if err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
@@ -945,11 +945,11 @@ func snapshotJSON(snapshot suggestionrel.Snapshot) datatypes.JSONMap {
 	}
 }
 
-func parseUUIDParam(ctx echo.Context, name string) (uuid.UUID, error) {
+func parseUUIDParam(ctx *echo.Context, name string) (uuid.UUID, error) {
 	return uuid.Parse(ctx.Param(name))
 }
 
-func (h *DashboardSuggestionHandler) actorUserID(ctx echo.Context) (*uuid.UUID, error) {
+func (h *DashboardSuggestionHandler) actorUserID(ctx *echo.Context) (*uuid.UUID, error) {
 	claims, ok := ctx.Get("user").(*authn.UserClaims)
 	if !ok || claims == nil {
 		return nil, ctx.JSON(http.StatusUnauthorized, api.NewError(fmt.Errorf("missing authentication claims")))
@@ -964,7 +964,7 @@ func (h *DashboardSuggestionHandler) actorUserID(ctx echo.Context) (*uuid.UUID, 
 	return user.ID, nil
 }
 
-func (h *DashboardSuggestionHandler) bindDecision(ctx echo.Context) (uuid.UUID, dashboardSuggestionDecisionRequest, *uuid.UUID, bool) {
+func (h *DashboardSuggestionHandler) bindDecision(ctx *echo.Context) (uuid.UUID, dashboardSuggestionDecisionRequest, *uuid.UUID, bool) {
 	sspID, err := parseUUIDParam(ctx, "id")
 	if err != nil {
 		_ = ctx.JSON(http.StatusBadRequest, api.NewError(err))
@@ -1081,7 +1081,7 @@ func jsonMapFrom(value any) (datatypes.JSONMap, error) {
 	return out, nil
 }
 
-func (h *DashboardSuggestionHandler) respondRun(ctx echo.Context, run suggestionrel.DashboardSuggestionRun) error {
+func (h *DashboardSuggestionHandler) respondRun(ctx *echo.Context, run suggestionrel.DashboardSuggestionRun) error {
 	completed, failed, err := h.cellProgress(*run.ID)
 	if err != nil {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
@@ -1163,7 +1163,7 @@ func (e *emptyDashboardSuggestionScopeError) Error() string {
 	return e.message
 }
 
-func (h *DashboardSuggestionHandler) generateError(ctx echo.Context, err error) error {
+func (h *DashboardSuggestionHandler) generateError(ctx *echo.Context, err error) error {
 	if errors.Is(err, sspscope.ErrSSPNotFound) {
 		return ctx.JSON(http.StatusNotFound, api.NewError(err))
 	}
@@ -1198,7 +1198,7 @@ func (h *DashboardSuggestionHandler) generateError(ctx echo.Context, err error) 
 	return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 }
 
-func (h *DashboardSuggestionHandler) decisionError(ctx echo.Context, err error) error {
+func (h *DashboardSuggestionHandler) decisionError(ctx *echo.Context, err error) error {
 	var conflict *suggestionrel.ConflictError
 	if errors.As(err, &conflict) {
 		return ctx.JSON(http.StatusConflict, api.NewError(err))
@@ -1210,7 +1210,7 @@ func (h *DashboardSuggestionHandler) decisionError(ctx echo.Context, err error) 
 	return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 }
 
-func (h *DashboardSuggestionHandler) notFoundOrInternal(ctx echo.Context, err error) error {
+func (h *DashboardSuggestionHandler) notFoundOrInternal(ctx *echo.Context, err error) error {
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return ctx.JSON(http.StatusNotFound, api.NewError(err))
 	}
@@ -1241,7 +1241,7 @@ func scopedLabelFilter(db *gorm.DB, sspID uuid.UUID, requested *labelfilter.Filt
 // ?ignoreScope=true returns nil (all evidence): the scope editor needs labels that are
 // not in the scope yet. On failure it has already written the response and returns
 // ok=false.
-func (h *DashboardSuggestionHandler) labelPickerFilter(ctx echo.Context, allowIgnore bool) (*labelfilter.Filter, bool) {
+func (h *DashboardSuggestionHandler) labelPickerFilter(ctx *echo.Context, allowIgnore bool) (*labelfilter.Filter, bool) {
 	sspID, err := parseUUIDParam(ctx, "id")
 	if err != nil {
 		_ = ctx.JSON(http.StatusBadRequest, api.NewError(err))

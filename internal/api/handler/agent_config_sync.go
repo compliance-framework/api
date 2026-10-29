@@ -16,7 +16,7 @@ import (
 	"github.com/compliance-framework/api/internal/service/relational/agentcfg"
 	"github.com/compliance-framework/api/pkg/agentconfig"
 	"github.com/google/uuid"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"go.uber.org/zap"
 )
 
@@ -92,7 +92,7 @@ func (h *AgentConfigSyncHandler) Register(g *echo.Group, middlewares ...echo.Mid
 // agentAuthFrom returns the authenticated agent, or nil. The handler requires it even though
 // the route middleware does too: Cedar grants the agent role to anonymous subjects when
 // public agent endpoints are on (defence in depth).
-func agentAuthFrom(ctx echo.Context) *middleware.AgentAuthContext {
+func agentAuthFrom(ctx *echo.Context) *middleware.AgentAuthContext {
 	auth, _ := ctx.Get("agent_auth").(*middleware.AgentAuthContext)
 	if auth == nil || auth.Agent == nil || auth.Agent.ID == nil {
 		return nil
@@ -100,7 +100,7 @@ func agentAuthFrom(ctx echo.Context) *middleware.AgentAuthContext {
 	return auth
 }
 
-func setRemoteConfigHeaders(ctx echo.Context) {
+func setRemoteConfigHeaders(ctx *echo.Context) {
 	ctx.Response().Header().Set(headerRemoteConfig, "1")
 	ctx.Response().Header().Set(echo.HeaderCacheControl, "no-cache")
 }
@@ -119,7 +119,7 @@ func setRemoteConfigHeaders(ctx echo.Context) {
 //	@Failure		500				{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/agent/config [get]
-func (h *AgentConfigSyncHandler) GetConfig(ctx echo.Context) error {
+func (h *AgentConfigSyncHandler) GetConfig(ctx *echo.Context) error {
 	auth := agentAuthFrom(ctx)
 	if auth == nil {
 		return ctx.JSON(http.StatusUnauthorized, api.NewError(errors.New("agent authentication required")))
@@ -189,7 +189,7 @@ func (h *AgentConfigSyncHandler) GetConfig(ctx echo.Context) error {
 //	@Failure		500			{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/agent/instances/{instanceId}/config-report [put]
-func (h *AgentConfigSyncHandler) PutReport(ctx echo.Context) error {
+func (h *AgentConfigSyncHandler) PutReport(ctx *echo.Context) error {
 	auth := agentAuthFrom(ctx)
 	if auth == nil {
 		return ctx.JSON(http.StatusUnauthorized, api.NewError(errors.New("agent authentication required")))

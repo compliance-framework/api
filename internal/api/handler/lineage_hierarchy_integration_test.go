@@ -13,7 +13,7 @@ import (
 	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/compliance-framework/api/internal/tests"
 	"github.com/google/uuid"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/zap"
 )
@@ -31,8 +31,7 @@ func (suite *LineageHierarchySuite) children(key string) []LineageNode {
 	req := httptest.NewRequest(http.MethodGet, "/x", nil)
 	rec := httptest.NewRecorder()
 	ctx := e.NewContext(req, rec)
-	ctx.SetParamNames("key")
-	ctx.SetParamValues(key)
+	ctx.SetPathValues(echo.PathValues{{Name: "key", Value: key}})
 	suite.Require().NoError(NewLineageHandler(zap.NewNop().Sugar(), suite.DB).Children(ctx))
 	suite.Require().Equal(http.StatusOK, rec.Code, rec.Body.String())
 	var resp struct {

@@ -7,7 +7,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/google/uuid"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"gorm.io/gorm"
 
 	"github.com/compliance-framework/api/internal/api"
@@ -65,7 +65,7 @@ func (h *ActivityHandler) validateActivityInput(activity *oscalTypes_1_1_3.Activ
 //	@Failure		500			{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/activities [post]
-func (h *ActivityHandler) CreateActivity(ctx echo.Context) error {
+func (h *ActivityHandler) CreateActivity(ctx *echo.Context) error {
 	var activity oscalTypes_1_1_3.Activity
 	if err := ctx.Bind(&activity); err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
@@ -103,7 +103,7 @@ func (h *ActivityHandler) CreateActivity(ctx echo.Context) error {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/activities/{id} [get]
-func (h *ActivityHandler) GetActivity(ctx echo.Context) error {
+func (h *ActivityHandler) GetActivity(ctx *echo.Context) error {
 	fmt.Println("Trying to GET activity")
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
@@ -139,7 +139,7 @@ func (h *ActivityHandler) GetActivity(ctx echo.Context) error {
 //	@Failure		500			{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/activities/{id} [put]
-func (h *ActivityHandler) UpdateActivity(ctx echo.Context) error {
+func (h *ActivityHandler) UpdateActivity(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -207,7 +207,7 @@ func (h *ActivityHandler) UpdateActivity(ctx echo.Context) error {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/activities/{id} [delete]
-func (h *ActivityHandler) DeleteActivity(ctx echo.Context) error {
+func (h *ActivityHandler) DeleteActivity(ctx *echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {

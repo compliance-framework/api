@@ -8,7 +8,7 @@ import (
 	"github.com/compliance-framework/api/internal/authn"
 	"github.com/compliance-framework/api/internal/authz"
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // runGuarded runs a single ResourceGuard-produced middleware against a request from the given
@@ -22,9 +22,9 @@ func runGuarded(t *testing.T, subjectID string, mw echo.MiddlewareFunc) (int, bo
 	c.Set("user", &authn.UserClaims{RegisteredClaims: jwt.RegisteredClaims{Subject: subjectID}})
 
 	called := false
-	next := func(c echo.Context) error { called = true; return c.NoContent(http.StatusOK) }
+	next := func(c *echo.Context) error { called = true; return c.NoContent(http.StatusOK) }
 	if err := mw(next)(c); err != nil {
-		e.HTTPErrorHandler(err, c)
+		e.HTTPErrorHandler(c, err)
 	}
 	return rec.Code, called
 }

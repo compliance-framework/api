@@ -6,7 +6,7 @@ import (
 	"net/http"
 
 	"github.com/google/uuid"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"gorm.io/gorm"
 
 	"github.com/compliance-framework/api/internal/api"
@@ -139,7 +139,7 @@ func assertInheritedNotSubscribed(tx *gorm.DB, inheritedIDs []uuid.UUID) error {
 //	@Deprecated
 //	@Security	OAuth2Password
 //	@Router		/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/by-components/{byComponentId} [get]
-func (h *SystemSecurityPlanHandler) GetImplementedRequirementByComponent(ctx echo.Context) error {
+func (h *SystemSecurityPlanHandler) GetImplementedRequirementByComponent(ctx *echo.Context) error {
 	bc, ok := h.resolveByComponentForRequirement(ctx)
 	if !ok {
 		return nil
@@ -166,7 +166,7 @@ func (h *SystemSecurityPlanHandler) GetImplementedRequirementByComponent(ctx ech
 //	@Failure		500				{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/statements/{stmtId}/by-components/{byComponentId} [get]
-func (h *SystemSecurityPlanHandler) GetImplementedRequirementStatementByComponent(ctx echo.Context) error {
+func (h *SystemSecurityPlanHandler) GetImplementedRequirementStatementByComponent(ctx *echo.Context) error {
 	bc, ok := h.resolveByComponentForStatement(ctx)
 	if !ok {
 		return nil
@@ -175,7 +175,7 @@ func (h *SystemSecurityPlanHandler) GetImplementedRequirementStatementByComponen
 }
 
 // getByComponent renders one already-resolved by-component with every subtree preloaded.
-func (h *SystemSecurityPlanHandler) getByComponent(ctx echo.Context, bc *relational.ByComponent) error {
+func (h *SystemSecurityPlanHandler) getByComponent(ctx *echo.Context, bc *relational.ByComponent) error {
 	loaded, err := h.reloadByComponent(*bc.ID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -204,7 +204,7 @@ func (h *SystemSecurityPlanHandler) getByComponent(ctx echo.Context, bc *relatio
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/statements/{stmtId}/by-components [get]
-func (h *SystemSecurityPlanHandler) GetImplementedRequirementStatementByComponents(ctx echo.Context) error {
+func (h *SystemSecurityPlanHandler) GetImplementedRequirementStatementByComponents(ctx *echo.Context) error {
 	stmt, ok := h.resolveStatement(ctx)
 	if !ok {
 		return nil
@@ -235,7 +235,7 @@ func (h *SystemSecurityPlanHandler) GetImplementedRequirementStatementByComponen
 // in the path, writing the appropriate error response and returning ok=false on any failure —
 // the statement-level sibling of resolveByComponentForStatement, for routes that address a
 // statement rather than one by-component under it.
-func (h *SystemSecurityPlanHandler) resolveStatement(ctx echo.Context) (stmt *relational.Statement, ok bool) {
+func (h *SystemSecurityPlanHandler) resolveStatement(ctx *echo.Context) (stmt *relational.Statement, ok bool) {
 	sspID, reqID, stmtID, err := parseSSPReqStmtIDs(ctx)
 	if err != nil {
 		h.sugar.Warnw("Invalid statement path params", "error", err)
@@ -308,7 +308,7 @@ func (h *SystemSecurityPlanHandler) resolveStatement(ctx echo.Context) (stmt *re
 //	@Deprecated
 //	@Security	OAuth2Password
 //	@Router		/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/by-components/{byComponentId} [delete]
-func (h *SystemSecurityPlanHandler) DeleteImplementedRequirementByComponent(ctx echo.Context) error {
+func (h *SystemSecurityPlanHandler) DeleteImplementedRequirementByComponent(ctx *echo.Context) error {
 	bc, ok := h.resolveByComponentForRequirement(ctx)
 	if !ok {
 		return nil
@@ -328,7 +328,7 @@ func (h *SystemSecurityPlanHandler) DeleteImplementedRequirementByComponent(ctx 
 
 // getByComponentExportProvided lists the Provided entries under an already-resolved
 // by-component's Export.
-func (h *SystemSecurityPlanHandler) getByComponentExportProvided(ctx echo.Context, bc *relational.ByComponent) error {
+func (h *SystemSecurityPlanHandler) getByComponentExportProvided(ctx *echo.Context, bc *relational.ByComponent) error {
 	export, ok := h.findExportForByComponent(ctx, bc)
 	if !ok {
 		return nil
@@ -353,7 +353,7 @@ func (h *SystemSecurityPlanHandler) getByComponentExportProvided(ctx echo.Contex
 
 // getByComponentExportResponsibilities lists the ControlImplementationResponsibility entries
 // under an already-resolved by-component's Export.
-func (h *SystemSecurityPlanHandler) getByComponentExportResponsibilities(ctx echo.Context, bc *relational.ByComponent) error {
+func (h *SystemSecurityPlanHandler) getByComponentExportResponsibilities(ctx *echo.Context, bc *relational.ByComponent) error {
 	export, ok := h.findExportForByComponent(ctx, bc)
 	if !ok {
 		return nil
@@ -392,7 +392,7 @@ func (h *SystemSecurityPlanHandler) getByComponentExportResponsibilities(ctx ech
 //	@Deprecated
 //	@Security	OAuth2Password
 //	@Router		/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/by-components/{byComponentId}/export/provided [get]
-func (h *SystemSecurityPlanHandler) GetImplementedRequirementByComponentExportProvided(ctx echo.Context) error {
+func (h *SystemSecurityPlanHandler) GetImplementedRequirementByComponentExportProvided(ctx *echo.Context) error {
 	bc, ok := h.resolveByComponentForRequirement(ctx)
 	if !ok {
 		return nil
@@ -416,7 +416,7 @@ func (h *SystemSecurityPlanHandler) GetImplementedRequirementByComponentExportPr
 //	@Deprecated
 //	@Security	OAuth2Password
 //	@Router		/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/by-components/{byComponentId}/export/responsibilities [get]
-func (h *SystemSecurityPlanHandler) GetImplementedRequirementByComponentExportResponsibilities(ctx echo.Context) error {
+func (h *SystemSecurityPlanHandler) GetImplementedRequirementByComponentExportResponsibilities(ctx *echo.Context) error {
 	bc, ok := h.resolveByComponentForRequirement(ctx)
 	if !ok {
 		return nil
@@ -440,7 +440,7 @@ func (h *SystemSecurityPlanHandler) GetImplementedRequirementByComponentExportRe
 //	@Failure		500				{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/statements/{stmtId}/by-components/{byComponentId}/export/provided [get]
-func (h *SystemSecurityPlanHandler) GetImplementedRequirementStatementByComponentExportProvided(ctx echo.Context) error {
+func (h *SystemSecurityPlanHandler) GetImplementedRequirementStatementByComponentExportProvided(ctx *echo.Context) error {
 	bc, ok := h.resolveByComponentForStatement(ctx)
 	if !ok {
 		return nil
@@ -464,7 +464,7 @@ func (h *SystemSecurityPlanHandler) GetImplementedRequirementStatementByComponen
 //	@Failure		500				{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/statements/{stmtId}/by-components/{byComponentId}/export/responsibilities [get]
-func (h *SystemSecurityPlanHandler) GetImplementedRequirementStatementByComponentExportResponsibilities(ctx echo.Context) error {
+func (h *SystemSecurityPlanHandler) GetImplementedRequirementStatementByComponentExportResponsibilities(ctx *echo.Context) error {
 	bc, ok := h.resolveByComponentForStatement(ctx)
 	if !ok {
 		return nil
@@ -488,7 +488,7 @@ func (h *SystemSecurityPlanHandler) GetImplementedRequirementStatementByComponen
 //	@Failure		500				{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/statements/{stmtId}/by-components/{byComponentId}/inherited [get]
-func (h *SystemSecurityPlanHandler) GetImplementedRequirementStatementByComponentInherited(ctx echo.Context) error {
+func (h *SystemSecurityPlanHandler) GetImplementedRequirementStatementByComponentInherited(ctx *echo.Context) error {
 	bc, ok := h.resolveByComponentForStatement(ctx)
 	if !ok {
 		return nil
@@ -532,7 +532,7 @@ func (h *SystemSecurityPlanHandler) GetImplementedRequirementStatementByComponen
 //	@Failure		500				{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/statements/{stmtId}/by-components/{byComponentId}/inherited [post]
-func (h *SystemSecurityPlanHandler) CreateImplementedRequirementStatementByComponentInherited(ctx echo.Context) error {
+func (h *SystemSecurityPlanHandler) CreateImplementedRequirementStatementByComponentInherited(ctx *echo.Context) error {
 	sspID, _, _, err := parseSSPReqStmtIDs(ctx)
 	if err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
@@ -657,7 +657,7 @@ func (h *SystemSecurityPlanHandler) CreateImplementedRequirementStatementByCompo
 //	@Failure		500				{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/statements/{stmtId}/by-components/{byComponentId}/inherited/{inheritedId} [put]
-func (h *SystemSecurityPlanHandler) UpdateImplementedRequirementStatementByComponentInherited(ctx echo.Context) error {
+func (h *SystemSecurityPlanHandler) UpdateImplementedRequirementStatementByComponentInherited(ctx *echo.Context) error {
 	bc, ok := h.resolveByComponentForStatement(ctx)
 	if !ok {
 		return nil
@@ -747,7 +747,7 @@ func (h *SystemSecurityPlanHandler) UpdateImplementedRequirementStatementByCompo
 //	@Failure		500				{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/statements/{stmtId}/by-components/{byComponentId}/inherited/{inheritedId} [delete]
-func (h *SystemSecurityPlanHandler) DeleteImplementedRequirementStatementByComponentInherited(ctx echo.Context) error {
+func (h *SystemSecurityPlanHandler) DeleteImplementedRequirementStatementByComponentInherited(ctx *echo.Context) error {
 	bc, ok := h.resolveByComponentForStatement(ctx)
 	if !ok {
 		return nil
@@ -813,7 +813,7 @@ func (h *SystemSecurityPlanHandler) DeleteImplementedRequirementStatementByCompo
 //	@Failure		500				{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/statements/{stmtId}/by-components/{byComponentId}/satisfied [get]
-func (h *SystemSecurityPlanHandler) GetImplementedRequirementStatementByComponentSatisfied(ctx echo.Context) error {
+func (h *SystemSecurityPlanHandler) GetImplementedRequirementStatementByComponentSatisfied(ctx *echo.Context) error {
 	bc, ok := h.resolveByComponentForStatement(ctx)
 	if !ok {
 		return nil
@@ -859,7 +859,7 @@ func (h *SystemSecurityPlanHandler) GetImplementedRequirementStatementByComponen
 //	@Failure		500				{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/statements/{stmtId}/by-components/{byComponentId}/satisfied [post]
-func (h *SystemSecurityPlanHandler) CreateImplementedRequirementStatementByComponentSatisfied(ctx echo.Context) error {
+func (h *SystemSecurityPlanHandler) CreateImplementedRequirementStatementByComponentSatisfied(ctx *echo.Context) error {
 	sspID, _, _, err := parseSSPReqStmtIDs(ctx)
 	if err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
@@ -950,7 +950,7 @@ func (h *SystemSecurityPlanHandler) CreateImplementedRequirementStatementByCompo
 //	@Failure		500				{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/statements/{stmtId}/by-components/{byComponentId}/satisfied/{satisfiedId} [put]
-func (h *SystemSecurityPlanHandler) UpdateImplementedRequirementStatementByComponentSatisfied(ctx echo.Context) error {
+func (h *SystemSecurityPlanHandler) UpdateImplementedRequirementStatementByComponentSatisfied(ctx *echo.Context) error {
 	bc, ok := h.resolveByComponentForStatement(ctx)
 	if !ok {
 		return nil
@@ -1035,7 +1035,7 @@ func (h *SystemSecurityPlanHandler) UpdateImplementedRequirementStatementByCompo
 //	@Failure		500				{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/statements/{stmtId}/by-components/{byComponentId}/satisfied/{satisfiedId} [delete]
-func (h *SystemSecurityPlanHandler) DeleteImplementedRequirementStatementByComponentSatisfied(ctx echo.Context) error {
+func (h *SystemSecurityPlanHandler) DeleteImplementedRequirementStatementByComponentSatisfied(ctx *echo.Context) error {
 	sspID, _, _, err := parseSSPReqStmtIDs(ctx)
 	if err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))

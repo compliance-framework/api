@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"gorm.io/gorm"
 
 	"github.com/compliance-framework/api/internal/api"
@@ -73,7 +73,7 @@ type LineageLeverageRow struct {
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/lineage/nodes/{key}/leverage [get]
-func (h *LineageHandler) LeverageDetail(ctx echo.Context) error {
+func (h *LineageHandler) LeverageDetail(ctx *echo.Context) error {
 	// sspId here is a row filter (which downstream SSP), not a metric scope; componentId
 	// is irrelevant to leverage and is ignored.
 	var sspFilter *uuid.UUID

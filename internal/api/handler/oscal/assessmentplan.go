@@ -7,7 +7,7 @@ import (
 
 	"github.com/defenseunicorns/go-oscal/src/pkg/versioning"
 	"github.com/google/uuid"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 
@@ -71,7 +71,7 @@ func (h *AssessmentPlanHandler) Register(api *echo.Group, guard middleware.Resou
 }
 
 // verifyAssessmentPlanExists checks if an assessment plan exists in the database
-func (h *AssessmentPlanHandler) verifyAssessmentPlanExists(ctx echo.Context, planID uuid.UUID) error {
+func (h *AssessmentPlanHandler) verifyAssessmentPlanExists(ctx *echo.Context, planID uuid.UUID) error {
 	var count int64
 	if err := h.db.Model(&relational.AssessmentPlan{}).Where("id = ?", planID).Count(&count).Error; err != nil {
 		h.sugar.Errorw("failed to count assessment plans", "err", err)
@@ -94,7 +94,7 @@ func (h *AssessmentPlanHandler) verifyAssessmentPlanExists(ctx echo.Context, pla
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/assessment-plans [get]
-func (h *AssessmentPlanHandler) List(ctx echo.Context) error {
+func (h *AssessmentPlanHandler) List(ctx *echo.Context) error {
 	var plans []relational.AssessmentPlan
 	if err := h.db.
 		Preload("Metadata").
@@ -124,7 +124,7 @@ func (h *AssessmentPlanHandler) List(ctx echo.Context) error {
 //	@Failure		404	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/assessment-plans/{id} [get]
-func (h *AssessmentPlanHandler) Get(ctx echo.Context) error {
+func (h *AssessmentPlanHandler) Get(ctx *echo.Context) error {
 	id, err := uuid.Parse(ctx.Param("id"))
 	if err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.InvalidUUID())
@@ -160,7 +160,7 @@ func (h *AssessmentPlanHandler) Get(ctx echo.Context) error {
 //	@Failure		500		{object}	api.Error														"Internal server error"
 //	@Security		OAuth2Password
 //	@Router			/oscal/assessment-plans [post]
-func (h *AssessmentPlanHandler) Create(ctx echo.Context) error {
+func (h *AssessmentPlanHandler) Create(ctx *echo.Context) error {
 	var request AssessmentPlanCreateRequest
 	err := ctx.Bind(&request.Data)
 	if err != nil {
@@ -205,7 +205,7 @@ func (h *AssessmentPlanHandler) Create(ctx echo.Context) error {
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/assessment-plans/{id} [put]
-func (h *AssessmentPlanHandler) Update(ctx echo.Context) error {
+func (h *AssessmentPlanHandler) Update(ctx *echo.Context) error {
 	id, err := uuid.Parse(ctx.Param("id"))
 	if err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.InvalidUUID())
@@ -258,7 +258,7 @@ func (h *AssessmentPlanHandler) Update(ctx echo.Context) error {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/assessment-plans/{id} [delete]
-func (h *AssessmentPlanHandler) Delete(ctx echo.Context) error {
+func (h *AssessmentPlanHandler) Delete(ctx *echo.Context) error {
 	id, err := uuid.Parse(ctx.Param("id"))
 	if err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.InvalidUUID())
@@ -291,7 +291,7 @@ func (h *AssessmentPlanHandler) Delete(ctx echo.Context) error {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/assessment-plans/{id}/metadata [get]
-func (h *AssessmentPlanHandler) GetMetadata(ctx echo.Context) error {
+func (h *AssessmentPlanHandler) GetMetadata(ctx *echo.Context) error {
 	id, err := uuid.Parse(ctx.Param("id"))
 	if err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.InvalidUUID())
@@ -322,7 +322,7 @@ func (h *AssessmentPlanHandler) GetMetadata(ctx echo.Context) error {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/assessment-plans/{id}/import-ssp [get]
-func (h *AssessmentPlanHandler) GetImportSsp(ctx echo.Context) error {
+func (h *AssessmentPlanHandler) GetImportSsp(ctx *echo.Context) error {
 	id, err := uuid.Parse(ctx.Param("id"))
 	if err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.InvalidUUID())
@@ -354,7 +354,7 @@ func (h *AssessmentPlanHandler) GetImportSsp(ctx echo.Context) error {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/assessment-plans/{id}/local-definitions [get]
-func (h *AssessmentPlanHandler) GetLocalDefinitions(ctx echo.Context) error {
+func (h *AssessmentPlanHandler) GetLocalDefinitions(ctx *echo.Context) error {
 	id, err := uuid.Parse(ctx.Param("id"))
 	if err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.InvalidUUID())
@@ -389,7 +389,7 @@ func (h *AssessmentPlanHandler) GetLocalDefinitions(ctx echo.Context) error {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/assessment-plans/{id}/terms-and-conditions [get]
-func (h *AssessmentPlanHandler) GetTermsAndConditions(ctx echo.Context) error {
+func (h *AssessmentPlanHandler) GetTermsAndConditions(ctx *echo.Context) error {
 	id, err := uuid.Parse(ctx.Param("id"))
 	if err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.InvalidUUID())
@@ -424,7 +424,7 @@ func (h *AssessmentPlanHandler) GetTermsAndConditions(ctx echo.Context) error {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/assessment-plans/{id}/back-matter [get]
-func (h *AssessmentPlanHandler) GetBackMatter(ctx echo.Context) error {
+func (h *AssessmentPlanHandler) GetBackMatter(ctx *echo.Context) error {
 	id, err := uuid.Parse(ctx.Param("id"))
 	if err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.InvalidUUID())
@@ -459,7 +459,7 @@ func (h *AssessmentPlanHandler) GetBackMatter(ctx echo.Context) error {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/assessment-plans/{id}/full [get]
-func (h *AssessmentPlanHandler) Full(ctx echo.Context) error {
+func (h *AssessmentPlanHandler) Full(ctx *echo.Context) error {
 	id, err := uuid.Parse(ctx.Param("id"))
 	if err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.InvalidUUID())

@@ -11,7 +11,7 @@ import (
 	riskrel "github.com/compliance-framework/api/internal/service/relational/risks"
 	templaterel "github.com/compliance-framework/api/internal/service/relational/templates"
 	"github.com/google/uuid"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
@@ -145,7 +145,7 @@ type riskTemplateDataResponse struct {
 //	@Failure		500				{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/admin/risk-templates [get]
-func (h *RiskTemplateHandler) List(ctx echo.Context) error {
+func (h *RiskTemplateHandler) List(ctx *echo.Context) error {
 	pagination, err := h.pagination.ParseParams(ctx)
 	if err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
@@ -196,7 +196,7 @@ func (h *RiskTemplateHandler) List(ctx echo.Context) error {
 //	@Failure		500			{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/admin/risk-templates [post]
-func (h *RiskTemplateHandler) Create(ctx echo.Context) error {
+func (h *RiskTemplateHandler) Create(ctx *echo.Context) error {
 	var req upsertRiskTemplateRequest
 	if err := ctx.Bind(&req); err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
@@ -225,7 +225,7 @@ func (h *RiskTemplateHandler) Create(ctx echo.Context) error {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/admin/risk-templates/{id} [get]
-func (h *RiskTemplateHandler) Get(ctx echo.Context) error {
+func (h *RiskTemplateHandler) Get(ctx *echo.Context) error {
 	id, err := uuid.Parse(ctx.Param("id"))
 	if err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
@@ -254,7 +254,7 @@ func (h *RiskTemplateHandler) Get(ctx echo.Context) error {
 //	@Failure		500			{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/admin/risk-templates/{id} [put]
-func (h *RiskTemplateHandler) Update(ctx echo.Context) error {
+func (h *RiskTemplateHandler) Update(ctx *echo.Context) error {
 	id, err := uuid.Parse(ctx.Param("id"))
 	if err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
@@ -288,7 +288,7 @@ func (h *RiskTemplateHandler) Update(ctx echo.Context) error {
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/admin/risk-templates/{id} [delete]
-func (h *RiskTemplateHandler) Delete(ctx echo.Context) error {
+func (h *RiskTemplateHandler) Delete(ctx *echo.Context) error {
 	id, err := uuid.Parse(ctx.Param("id"))
 	if err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
@@ -396,7 +396,7 @@ type batchUpsertRiskTemplatesResponse struct {
 //	@Failure		400		{object}	api.Error
 //	@Failure		500		{object}	api.Error
 //	@Router			/agent/risk-templates/batch [post]
-func (h *RiskTemplateHandler) BatchUpsert(ctx echo.Context) error {
+func (h *RiskTemplateHandler) BatchUpsert(ctx *echo.Context) error {
 	var req batchUpsertRiskTemplatesRequest
 	if err := ctx.Bind(&req); err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))

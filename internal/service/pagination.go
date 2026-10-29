@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // PaginationConfig holds configuration for pagination behavior
@@ -29,7 +29,7 @@ type PaginationParams struct {
 }
 
 // ParseParams extracts and validates pagination parameters from echo context
-func (cfg *PaginationConfig) ParseParams(ctx echo.Context) (*PaginationParams, error) {
+func (cfg *PaginationConfig) ParseParams(ctx *echo.Context) (*PaginationParams, error) {
 	page := 1
 	limit := cfg.DefaultLimit
 

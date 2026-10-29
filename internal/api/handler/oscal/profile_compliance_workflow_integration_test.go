@@ -13,7 +13,7 @@ import (
 	"github.com/compliance-framework/api/internal/service/relational/workflows"
 	workflowevidence "github.com/compliance-framework/api/internal/workflow"
 	"github.com/google/uuid"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"go.uber.org/zap"
 )
 
@@ -85,8 +85,7 @@ func (suite *ProfileIntegrationSuite) TestComplianceProgressIncludesWorkflowComp
 	req := httptest.NewRequest(http.MethodGet, "/profiles/"+profileID.String()+"/compliance-progress", nil)
 	rec := httptest.NewRecorder()
 	ctx := e.NewContext(req, rec)
-	ctx.SetParamNames("id")
-	ctx.SetParamValues(profileID.String())
+	ctx.SetPathValues(echo.PathValues{{Name: "id", Value: profileID.String()}})
 
 	suite.Require().NoError(NewProfileHandler(zap.NewNop().Sugar(), suite.DB).ComplianceProgress(ctx))
 	suite.Require().Equal(http.StatusOK, rec.Code)
@@ -113,8 +112,7 @@ func (suite *ProfileIntegrationSuite) TestComplianceProgressIncludesWorkflowComp
 	req = httptest.NewRequest(http.MethodGet, "/profiles/"+profileID.String()+"/compliance-progress", nil)
 	rec = httptest.NewRecorder()
 	ctx = e.NewContext(req, rec)
-	ctx.SetParamNames("id")
-	ctx.SetParamValues(profileID.String())
+	ctx.SetPathValues(echo.PathValues{{Name: "id", Value: profileID.String()}})
 
 	suite.Require().NoError(NewProfileHandler(zap.NewNop().Sugar(), suite.DB).ComplianceProgress(ctx))
 	suite.Require().Equal(http.StatusOK, rec.Code)

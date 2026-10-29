@@ -11,7 +11,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/compliance-framework/api/pkg/agentconfig"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -294,7 +294,7 @@ func TestIsJSONObject(t *testing.T) {
 	assert.False(t, isJSONObject(json.RawMessage(`1`)))
 }
 
-func jsonBodyContext(contentType, body string) echo.Context {
+func jsonBodyContext(contentType, body string) *echo.Context {
 	req := httptest.NewRequest(http.MethodPut, "/", strings.NewReader(body))
 	if contentType != "" {
 		req.Header.Set(echo.HeaderContentType, contentType)
@@ -344,7 +344,9 @@ func TestReadJSONBody(t *testing.T) {
 		assert.Equal(t, http.StatusRequestEntityTooLarge, err.status)
 		assert.Equal(t, "request body exceeds 16 bytes", err.msg)
 		require.NoError(t, err.respond(ctx))
-		assert.Equal(t, http.StatusRequestEntityTooLarge, ctx.Response().Status)
+		resp, unwrapErr := echo.UnwrapResponse(ctx.Response())
+		require.NoError(t, unwrapErr)
+		assert.Equal(t, http.StatusRequestEntityTooLarge, resp.Status)
 	})
 	t.Run("413 from a MaxBytesReader", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPut, "/", strings.NewReader(strings.Repeat("a", 64)))
