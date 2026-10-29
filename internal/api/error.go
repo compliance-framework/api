@@ -21,6 +21,11 @@ func NewError(err error) Error {
 	switch {
 	case errors.As(err, &v):
 		e.Errors["body"] = v.Message
+		// Echo's binders return a generic 400 wrapping the decode error; that error says
+		// what was wrong with the request, as echo v4's message did.
+		if wrapped := v.Unwrap(); wrapped != nil {
+			e.Errors["body"] = wrapped.Error()
+		}
 	default:
 		e.Errors["body"] = err.Error()
 	}
