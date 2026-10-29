@@ -15,7 +15,7 @@ permissions: {}
 
 jobs:
   ci:
-    uses: compliance-framework/workflows/.github/workflows/ci-go-service.yml@aafa1649ac6f33c02c581486c50f9cf04cc0eb54 # v1.9.1
+    uses: compliance-framework/workflows/.github/workflows/ci-go-service.yml@dc7434879fbd0db1d1df9f590ed8bc13789bd320 # v1.9.2
     with:
       # Regenerate the Swagger docs (docs/) from the handler annotations before vet, the tests
       # and the make targets, as the old CI did before its tests.
@@ -33,14 +33,14 @@ jobs:
     secrets: inherit
 
   release-checks:
-    uses: compliance-framework/workflows/.github/workflows/release-checks.yml@aafa1649ac6f33c02c581486c50f9cf04cc0eb54 # v1.9.1
+    uses: compliance-framework/workflows/.github/workflows/release-checks.yml@dc7434879fbd0db1d1df9f590ed8bc13789bd320 # v1.9.2
     permissions:
       contents: read
 
   notify:
     needs: [ci, release-checks]
     if: always()
-    uses: compliance-framework/workflows/.github/workflows/notify-failure.yml@aafa1649ac6f33c02c581486c50f9cf04cc0eb54 # v1.9.1
+    uses: compliance-framework/workflows/.github/workflows/notify-failure.yml@dc7434879fbd0db1d1df9f590ed8bc13789bd320 # v1.9.2
     with:
       needs: ${{ toJSON(needs) }}
     permissions:
