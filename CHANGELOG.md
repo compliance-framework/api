@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.22.2](https://github.com/compliance-framework/api/compare/v0.22.1...v0.22.2) (2026-10-30)
+
+
+### Bug Fixes
+
+* **deps:** build with the go1.26.10 toolchain so Renovate can ship Go security fixes ([#538](https://github.com/compliance-framework/api/issues/538)) ([202d01e](https://github.com/compliance-framework/api/commit/202d01e25ab59ac13cf81645ddede18a7d234fe3))
+* **deps:** update aws-sdk-go-v2 monorepo ([#544](https://github.com/compliance-framework/api/issues/544)) ([5cc55a6](https://github.com/compliance-framework/api/commit/5cc55a606c9223e7e7dad4d39f0f4f1fe2170647))
+
 ## [0.22.1](https://github.com/compliance-framework/api/compare/v0.22.0...v0.22.1) (2026-10-28)
 
 
