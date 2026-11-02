@@ -34,7 +34,7 @@ RUN make swag
 # Build it: a static binary, since the production image has no libc.
 RUN CGO_ENABLED=0 GOOS=linux go build -o /api
 
-FROM gcr.io/distroless/static-debian13@sha256:15f8637509792e05b97d83451b0b6ccfa4abd548f997e406ac1e72c87fe1fa78 AS production
+FROM gcr.io/distroless/static-debian13@sha256:448810357cc8e67b7208988abdba0f5ec3d3aebee0a5b13eb624979792cffc0f AS production
 
 # The release and preview workflows pass VERSION (X.Y.Z, X.Y.Z-rcN, main-<sha7> or
 # pr-<number>-<sha7>) and set the source and revision labels themselves.
