@@ -31,7 +31,7 @@ require (
 	github.com/riverqueue/river/rivertype v0.49.0
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/schollz/progressbar/v3 v3.19.1
-	github.com/slack-go/slack v0.30.1
+	github.com/slack-go/slack v0.31.0
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/viper v1.21.0
 	github.com/stretchr/testify v1.12.1
