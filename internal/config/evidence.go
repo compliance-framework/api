@@ -2,11 +2,26 @@ package config
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/spf13/viper"
 )
+
+const DefaultEvidenceBadgeMaxParams = 3
+
+func LoadEvidenceBadgeMaxParamsFromViper(v *viper.Viper) (int, error) {
+	if !v.IsSet("evidence_badge_max_params") {
+		return DefaultEvidenceBadgeMaxParams, nil
+	}
+	raw := strings.TrimSpace(v.GetString("evidence_badge_max_params"))
+	value, err := strconv.Atoi(raw)
+	if err != nil || value <= 0 {
+		return 0, fmt.Errorf("CCF_EVIDENCE_BADGE_MAX_PARAMS must be a positive integer, got %q", raw)
+	}
+	return value, nil
+}
 
 // EvidenceRequireSubjectMode is how agent evidence without a derived subject is handled
 // (CCF_EVIDENCE_REQUIRE_SUBJECT).

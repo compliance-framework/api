@@ -16753,6 +16753,29 @@ paths:
       summary: Verify Evidence signature by ID
       tags:
       - Evidence
+  /evidence/badge.svg:
+    get:
+      description: |-
+        Returns an SVG badge for the latest evidence matching ALL supplied query parameters as label name/value pairs, e.g. ?provider=aws&environment=production.
+        Requires 1 to CCF_EVIDENCE_BADGE_MAX_PARAMS labels (default 3). Each key must occur once with a non-empty value. No labels are implicit. Names and values are limited to 255 characters without surrounding whitespace or control characters; internal spaces are allowed.
+      produces:
+      - image/svg+xml
+      responses:
+        "200":
+          description: SVG compliance badge
+          schema:
+            type: string
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Get an SVG compliance status badge
+      tags:
+      - Evidence
   /evidence/batches:
     post:
       consumes:
