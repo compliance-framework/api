@@ -6,7 +6,6 @@ toolchain go1.27.3
 
 require (
 	github.com/anthropics/anthropic-sdk-go v1.84.0
-	github.com/anthropics/anthropic-sdk-go/v2 v2.4.0
 	github.com/aws/aws-sdk-go-v2 v1.47.5
 	github.com/aws/aws-sdk-go-v2/config v1.33.12
 	github.com/aws/aws-sdk-go-v2/credentials v1.20.12
