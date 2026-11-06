@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.22.3](https://github.com/compliance-framework/api/compare/v0.22.2...v0.22.3) (2026-11-06)
+
+
+### Bug Fixes
+
+* **deps:** update all non-major dependencies ([#553](https://github.com/compliance-framework/api/issues/553)) ([6781c6b](https://github.com/compliance-framework/api/commit/6781c6b7b680e4250428dc7b9ea9b266ba099852))
+* **deps:** update all non-major dependencies ([#555](https://github.com/compliance-framework/api/issues/555)) ([e74afcd](https://github.com/compliance-framework/api/commit/e74afcdd4893566cd37be977f7eced540f508ff6))
+* **deps:** update aws-sdk-go-v2 monorepo ([#548](https://github.com/compliance-framework/api/issues/548)) ([16ef942](https://github.com/compliance-framework/api/commit/16ef9424d4fc2d22229ce8ffa3ba169e57bff30e))
+* **deps:** update aws-sdk-go-v2 monorepo ([#552](https://github.com/compliance-framework/api/issues/552)) ([9c8482c](https://github.com/compliance-framework/api/commit/9c8482cdb66de871fa6269ca7592dfcad82424c8))
+* **deps:** update module github.com/open-policy-agent/opa to v1.21.4 ([#545](https://github.com/compliance-framework/api/issues/545)) ([e574c02](https://github.com/compliance-framework/api/commit/e574c02b2301a332f61576011e4a30fd28508976))
+* **deps:** update module github.com/slack-go/slack to v0.31.0 ([#549](https://github.com/compliance-framework/api/issues/549)) ([9aa95e9](https://github.com/compliance-framework/api/commit/9aa95e9048a788108cc4a29175d0ec2b9edafd64))
+* **deps:** update river monorepo to v0.50.0 ([#550](https://github.com/compliance-framework/api/issues/550)) ([b0426c2](https://github.com/compliance-framework/api/commit/b0426c2617d6535b82374a117962d7abcbd952ac))
+
 ## [0.22.2](https://github.com/compliance-framework/api/compare/v0.22.1...v0.22.2) (2026-11-02)
 
 
