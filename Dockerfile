@@ -1,6 +1,6 @@
 # Use the official Golang image to create a build artifact.
 # This is based on Debian.
-FROM golang:1.27@sha256:c292963ad0e5f51e843c726edc204a4e4c26a859ba1e4d736d91028aa3633048 AS local
+FROM golang:1.27@sha256:e519d3b0a5b285e5aa53ab9eef02bc6bbb9cb04608389b743a136a9ce75f0d1e AS local
 # Build with the go.mod toolchain line (Renovate bumps it for Go security fixes), downloading it when this image's Go is older.
 ENV GOTOOLCHAIN=auto
 
@@ -15,7 +15,7 @@ RUN make swag
 
 CMD ["go", "tool", "air"]
 
-FROM golang:1.27@sha256:c292963ad0e5f51e843c726edc204a4e4c26a859ba1e4d736d91028aa3633048 AS builder
+FROM golang:1.27@sha256:e519d3b0a5b285e5aa53ab9eef02bc6bbb9cb04608389b743a136a9ce75f0d1e AS builder
 # Build with the go.mod toolchain line (Renovate bumps it for Go security fixes), downloading it when this image's Go is older.
 ENV GOTOOLCHAIN=auto
 
