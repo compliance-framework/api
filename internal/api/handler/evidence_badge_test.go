@@ -93,6 +93,21 @@ func TestComplianceBadgeInvalidQueries(t *testing.T) {
 	}
 }
 
+func TestComplianceBadgeReturns429WhenBusy(t *testing.T) {
+	h := NewEvidenceHandler(zap.NewNop().Sugar(), nil, nil)
+	for range cap(h.badgeSlots) {
+		h.badgeSlots <- struct{}{}
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/badge.svg?team=platform", nil)
+	rec := httptest.NewRecorder()
+	err := h.ComplianceBadge(echo.New().NewContext(req, rec))
+
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusTooManyRequests, rec.Code)
+	assert.Contains(t, rec.Body.String(), "too many compliance badge requests")
+}
+
 func TestComplianceBadgeSVG(t *testing.T) {
 	tests := []struct {
 		status string

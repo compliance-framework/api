@@ -41,6 +41,7 @@ type EvidenceHandler struct {
 	batchPDP        authz.PDP
 	sspScope        *sspscope.Service
 	badgeMaxParams  int
+	badgeSlots      chan struct{}
 }
 
 // WithArtifactService lets evidence refer to stored policy artifacts. Without it, evidence
@@ -57,6 +58,7 @@ func NewEvidenceHandler(sugar *zap.SugaredLogger, evidenceService *evidencesvc.E
 		pagination:      svc.NewPaginationConfig(),
 		sugar:           sugar,
 		badgeMaxParams:  config.DefaultEvidenceBadgeMaxParams,
+		badgeSlots:      make(chan struct{}, complianceBadgeMaxConcurrent),
 	}
 }
 

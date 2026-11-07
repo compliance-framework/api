@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"errors"
 	"fmt"
 	"maps"
 	"net/http"
@@ -18,6 +19,7 @@ import (
 )
 
 const complianceBadgeMaxParamLength = 255
+const complianceBadgeMaxConcurrent = 4
 
 // ComplianceBadge godoc
 //
@@ -28,6 +30,7 @@ const complianceBadgeMaxParamLength = 255
 //	@Produce		image/svg+xml
 //	@Success		200	{string}	string	"SVG compliance badge"
 //	@Failure		400	{object}	api.Error
+//	@Failure		429	{object}	api.Error
 //	@Failure		500	{object}	api.Error
 //	@Router			/evidence/badge.svg [get]
 func (h *EvidenceHandler) ComplianceBadge(ctx *echo.Context) error {
@@ -43,6 +46,13 @@ func (h *EvidenceHandler) ComplianceBadge(ctx *echo.Context) error {
 	filter, err := parseComplianceBadgeParams(params, h.badgeMaxParams)
 	if err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	select {
+	case h.badgeSlots <- struct{}{}:
+		defer func() { <-h.badgeSlots }()
+	default:
+		return ctx.JSON(http.StatusTooManyRequests, api.NewError(errors.New("too many compliance badge requests in progress, retry shortly")))
 	}
 
 	rows, err := h.evidenceService.GetStatusCountsAtPoint(filter, nil)
