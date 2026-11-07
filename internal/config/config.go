@@ -35,7 +35,8 @@ type Config struct {
 	Email                             *EmailConfig
 	Slack                             *SlackConfig
 	Worker                            *WorkerConfig
-	EvidenceDefaultExpiryMonths       int    // Default expiration in months for evidence without explicit expiry
+	EvidenceDefaultExpiryMonths       int // Default expiration in months for evidence without explicit expiry
+	EvidenceBadgeMaxParams            int
 	DigestEnabled                     bool   // Enable or disable the digest scheduler
 	DigestSchedule                    string // Cron schedule for digest emails
 	Workflow                          *WorkflowConfig
@@ -193,6 +194,11 @@ func NewConfig(logger *zap.SugaredLogger) *Config {
 		logger.Fatalw("Invalid evidence batch config", "error", err)
 	}
 
+	evidenceBadgeMaxParams, err := LoadEvidenceBadgeMaxParamsFromViper(viper.GetViper())
+	if err != nil {
+		logger.Fatalw("Invalid evidence badge config", "error", err)
+	}
+
 	lineageConfig, err := LoadLineageConfig()
 	if err != nil {
 		logger.Fatalw("Invalid lineage config", "error", err)
@@ -292,6 +298,7 @@ func NewConfig(logger *zap.SugaredLogger) *Config {
 		Slack:                             slackConfig,
 		Worker:                            workerConfig,
 		EvidenceDefaultExpiryMonths:       evidenceDefaultExpiryMonths,
+		EvidenceBadgeMaxParams:            evidenceBadgeMaxParams,
 		EvidenceSubjects:                  evidenceSubjectConfig,
 		EvidenceBatch:                     evidenceBatchConfig,
 		SSPScope:                          LoadSSPScopeConfig(),

@@ -4827,6 +4827,38 @@ const docTemplate = `{
                 ]
             }
         },
+        "/evidence/badge.svg": {
+            "get": {
+                "description": "Returns an SVG badge for the latest evidence matching ALL supplied query parameters as label name/value pairs, e.g. ?provider=aws\u0026environment=production.\nRequires 1 to CCF_EVIDENCE_BADGE_MAX_PARAMS labels (default 3). Each key must occur once with a non-empty value. No labels are implicit. Names and values are limited to 255 characters without surrounding whitespace or control characters; internal spaces are allowed.",
+                "produces": [
+                    "image/svg+xml"
+                ],
+                "tags": [
+                    "Evidence"
+                ],
+                "summary": "Get an SVG compliance status badge",
+                "responses": {
+                    "200": {
+                        "description": "SVG compliance badge",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
         "/evidence/batches": {
             "post": {
                 "description": "Accepts up to CCF_EVIDENCE_BATCH_MAX_ITEMS evidence and stores them asynchronously, returning the batch to poll with GET /evidence/batches/{id}. Each evidence is the body POST /evidence accepts; its shape and times are checked on submit, everything else when it is processed, where a failure fails that evidence only. Needs an authenticated user or agent, and the worker service.",
