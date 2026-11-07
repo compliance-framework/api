@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.22.4](https://github.com/compliance-framework/api/compare/v0.22.3...v0.22.4) (2026-11-06)
+
+
+### Bug Fixes
+
+* **deps:** update module github.com/anthropics/anthropic-sdk-go to v2 ([#546](https://github.com/compliance-framework/api/issues/546)) ([c72714b](https://github.com/compliance-framework/api/commit/c72714b05a2c651bdd3de32dd2e932ff263ac703))
+
 ## [0.22.3](https://github.com/compliance-framework/api/compare/v0.22.2...v0.22.3) (2026-11-06)
 
 
