@@ -1,12 +1,70 @@
 package config
 
 import (
+	"os"
 	"testing"
 	"time"
 
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/require"
 )
+
+// TestLoadEvidenceBadgeMaxParams checks defaults, configured limits, and invalid settings.
+func TestLoadEvidenceBadgeMaxParams(t *testing.T) {
+	t.Setenv("CCF_EVIDENCE_BADGE_MAX_PARAMS", "")
+	require.NoError(t, os.Unsetenv("CCF_EVIDENCE_BADGE_MAX_PARAMS"))
+
+	for _, tt := range []struct {
+		name    string
+		value   string
+		want    int
+		wantErr bool
+	}{
+		{name: "default", want: 3},
+		{name: "custom", value: "5", want: 5},
+		{name: "one", value: "1", want: 1},
+		{name: "zero", value: "0", wantErr: true},
+		{name: "negative", value: "-1", wantErr: true},
+		{name: "fraction", value: "1.5", wantErr: true},
+		{name: "not an integer", value: "unlimited", wantErr: true},
+		{name: "empty", wantErr: true},
+		{name: "whitespace", value: " ", wantErr: true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			v := viper.New()
+			if tt.name != "default" {
+				v.Set("evidence_badge_max_params", tt.value)
+			}
+			value, err := LoadEvidenceBadgeMaxParamsFromViper(v)
+			if tt.wantErr {
+				require.ErrorContains(t, err, "CCF_EVIDENCE_BADGE_MAX_PARAMS")
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tt.want, value)
+		})
+	}
+	t.Run("environment override", func(t *testing.T) {
+		t.Setenv("CCF_EVIDENCE_BADGE_MAX_PARAMS", "7")
+		v := viper.New()
+		v.SetEnvPrefix("CCF")
+		v.AutomaticEnv()
+		value, err := LoadEvidenceBadgeMaxParamsFromViper(v)
+		require.NoError(t, err)
+		require.Equal(t, 7, value)
+	})
+	t.Run("empty environment override", func(t *testing.T) {
+		t.Setenv("CCF_EVIDENCE_BADGE_MAX_PARAMS", "")
+		v := viper.New()
+		v.SetEnvPrefix("CCF")
+		v.MustBindEnv("evidence_badge_max_params")
+		v.SetDefault("evidence_badge_max_params", DefaultEvidenceBadgeMaxParams)
+
+		_, err := LoadEvidenceBadgeMaxParamsFromViper(v)
+
+		require.ErrorContains(t, err, "CCF_EVIDENCE_BADGE_MAX_PARAMS")
+	})
+}
 
 func TestLoadEvidenceSubjectConfigDefaults(t *testing.T) {
 	cfg, err := LoadEvidenceSubjectConfigFromViper(viper.New())

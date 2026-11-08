@@ -2,11 +2,33 @@ package config
 
 import (
 	"fmt"
+	"os"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/spf13/viper"
 )
+
+// DefaultEvidenceBadgeMaxParams is the default number of label parameters accepted by a badge request.
+const DefaultEvidenceBadgeMaxParams = 3
+
+// LoadEvidenceBadgeMaxParamsFromViper reads the maximum number of compliance badge labels,
+// defaulting to three only when absent and rejecting empty or non-positive settings.
+func LoadEvidenceBadgeMaxParamsFromViper(v *viper.Viper) (int, error) {
+	if raw, present := os.LookupEnv("CCF_EVIDENCE_BADGE_MAX_PARAMS"); present && raw == "" {
+		return 0, fmt.Errorf("CCF_EVIDENCE_BADGE_MAX_PARAMS must be a positive integer, got %q", raw)
+	}
+	if !v.IsSet("evidence_badge_max_params") {
+		return DefaultEvidenceBadgeMaxParams, nil
+	}
+	raw := strings.TrimSpace(v.GetString("evidence_badge_max_params"))
+	value, err := strconv.Atoi(raw)
+	if err != nil || value <= 0 {
+		return 0, fmt.Errorf("CCF_EVIDENCE_BADGE_MAX_PARAMS must be a positive integer, got %q", raw)
+	}
+	return value, nil
+}
 
 // EvidenceRequireSubjectMode is how agent evidence without a derived subject is handled
 // (CCF_EVIDENCE_REQUIRE_SUBJECT).

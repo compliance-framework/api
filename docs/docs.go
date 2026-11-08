@@ -4827,6 +4827,69 @@ const docTemplate = `{
                 ]
             }
         },
+        "/evidence/badge.svg": {
+            "get": {
+                "description": "Returns an SVG badge for the latest evidence matching ALL supplied query parameters as label name/value pairs, e.g. ?provider=aws\u0026environment=production.\nAggregates the latest evidence from each matching stream, so a failure in another stream can make the badge red (not-satisfied).\nRequires 1 to CCF_EVIDENCE_BADGE_MAX_PARAMS labels (default 3). Each key must occur exactly once (keys must be unique case-insensitively) with a non-empty value. No labels are implicit. Names and values are limited to 255 characters without surrounding whitespace or control characters; internal spaces are allowed.\nLabels can be sent in two equivalent forms, which may be mixed: one ?\u003clabel-name\u003e=\u003clabel-value\u003e query parameter per label, or the repeatable label parameter as label=\u003clabel-name\u003e:\u003clabel-value\u003e (split at the first colon). Swagger UI exposes only the label parameter; add one item per label pair.\nThe label key is reserved for the second form, so a label literally named \"label\" must be sent as label=label:\u003cvalue\u003e.\nAuthentication is conditional. When public evidence reads are enabled (CCF_STRICT_DISABLE_PUBLIC_AGENT_ENDPOINTS is false, the default) and the authorization policy permits the read, no credentials are required. Otherwise send an OAuth2 bearer token (Authorization: Bearer \u003ctoken\u003e) or the ccf_auth_token session cookie for a user or agent allowed to read evidence. A supplied Authorization header must always be valid.",
+                "produces": [
+                    "image/svg+xml",
+                    "application/json"
+                ],
+                "tags": [
+                    "Evidence"
+                ],
+                "summary": "Get an SVG compliance status badge",
+                "parameters": [
+                    {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "collectionFormat": "multi",
+                        "description": "Label pair as name:value, e.g. provider:aws. Repeat for each label.",
+                        "name": "label",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "SVG compliance badge",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "Missing, duplicate, too many or invalid label parameters",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Credentials are required (public evidence reads disabled) or the supplied token is invalid",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "403": {
+                        "description": "The authorization policy denies reading evidence",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "429": {
+                        "description": "Too many badge requests in progress",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
         "/evidence/batches": {
             "post": {
                 "description": "Accepts up to CCF_EVIDENCE_BATCH_MAX_ITEMS evidence and stores them asynchronously, returning the batch to poll with GET /evidence/batches/{id}. Each evidence is the body POST /evidence accepts; its shape and times are checked on submit, everything else when it is processed, where a failure fails that evidence only. Needs an authenticated user or agent, and the worker service.",

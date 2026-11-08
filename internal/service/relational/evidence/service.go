@@ -510,14 +510,15 @@ func (s *EvidenceService) GetLatestForFilters(filters ...labelfilter.Filter) ([]
 	return evidences, nil
 }
 
-func (s *EvidenceService) GetStatusCountsAtPoint(filter labelfilter.Filter, endBefore *time.Time) ([]StatusCount, error) {
+// GetStatusCountsAtPoint counts latest matching evidence streams by status before the optional cutoff.
+func (s *EvidenceService) GetStatusCountsAtPoint(ctx context.Context, filter labelfilter.Filter, endBefore *time.Time) ([]StatusCount, error) {
 	latestQuery := relational.LatestEvidenceQuery(s.db, relational.LatestEvidenceOptions{EndBefore: endBefore})
 	q, err := relational.GetEvidenceSearchByFilterQuery(latestQuery, s.db, filter)
 	if err != nil {
 		return nil, err
 	}
 	var rows []StatusCount
-	if err := q.Model(&relational.Evidence{}).
+	if err := q.WithContext(ctx).Model(&relational.Evidence{}).
 		Select("count(DISTINCT uuid) as count, status->>'state' as status").
 		Group("status->>'state'").
 		Scan(&rows).Error; err != nil {

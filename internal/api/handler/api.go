@@ -118,6 +118,9 @@ func RegisterHandlers(server *api.Server, logger *zap.SugaredLogger, db *gorm.DB
 
 	artifactService := artifactsvc.NewService(db)
 	evidenceHandler := NewEvidenceHandler(logger, services.EvidenceService, riskService).WithArtifactService(artifactService)
+	if config.EvidenceBadgeMaxParams != 0 {
+		evidenceHandler.badgeMaxParams = config.EvidenceBadgeMaxParams
+	}
 	evidenceGuard := pep.For(authz.ResourceEvidence)
 
 	// Batches are stored in the background, signed as their submitter, and read back only

@@ -3,6 +3,7 @@
 package evidence
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -226,7 +227,7 @@ func (suite *EvidenceServiceSearchIntegrationSuite) TestStatusCountsReturnEmptyS
 
 	svc := NewEvidenceService(suite.DB, nil, nil, nil)
 
-	rows, err := svc.GetStatusCountsAtPoint(labelfilter.Filter{}, nil)
+	rows, err := svc.GetStatusCountsAtPoint(context.Background(), labelfilter.Filter{}, nil)
 	suite.Require().NoError(err)
 	suite.NotNil(rows)
 	suite.Empty(rows)

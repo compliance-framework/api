@@ -70,6 +70,29 @@ Copy this file to .env to configure environment variables
 cp .env.example .env
 ```
 
+### Evidence compliance badge
+
+`GET /api/evidence/badge.svg?provider=aws&environment=production` returns an SVG
+badge using the latest evidence per stream matching **all** supplied labels.
+Every query key is a label name; `source`, `repo`, and `branch` have no special
+meaning, required format, or defaults. The one exception is `label`: it is reserved
+for the repeatable `label=<name>:<value>` form (split at the first colon), e.g.
+`?label=provider:aws&label=environment:production`. This form is what Swagger UI
+sends, and it can be mixed with plain `name=value` labels. Send a label literally
+named `label` as `label=label:<value>`.
+
+Supply between one and `CCF_EVIDENCE_BADGE_MAX_PARAMS` labels (default **3**).
+The setting must be a positive integer; an explicitly empty setting is invalid.
+Empty names/values, repeated keys
+(case-insensitive), and exceeding the limit return HTTP 400. Names and values
+must be valid UTF-8, at most 255 characters, without surrounding whitespace or
+control characters. Internal spaces are allowed; URL-encode label names and values.
+
+The badge is red for `not-satisfied`, green for `satisfied` when no failures are
+present, and grey for `unknown` (including no matching evidence). Responses use
+`Cache-Control: no-store`. Existing evidence-read authentication and authorization
+rules apply.
+
 ## Contributing
 
 We welcome contributions to the API!
@@ -99,4 +122,3 @@ export TESTCONTAINERS_RYUK_DISABLED=true;
 
 ## License
 This project is licensed under the GNU AGPLv3 License - see the [LICENSE](LICENSE) file for details.
-

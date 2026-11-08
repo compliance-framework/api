@@ -14,6 +14,7 @@ import (
 	"github.com/compliance-framework/api/internal/api/authcontext"
 	"github.com/compliance-framework/api/internal/artifact"
 	"github.com/compliance-framework/api/internal/authz"
+	"github.com/compliance-framework/api/internal/config"
 	"github.com/compliance-framework/api/internal/converters/labelfilter"
 	svc "github.com/compliance-framework/api/internal/service"
 	"github.com/compliance-framework/api/internal/service/relational"
@@ -39,6 +40,8 @@ type EvidenceHandler struct {
 	batchMaxItems   int
 	batchPDP        authz.PDP
 	sspScope        *sspscope.Service
+	badgeMaxParams  int
+	badgeSlots      chan struct{}
 }
 
 // WithArtifactService lets evidence refer to stored policy artifacts. Without it, evidence
@@ -48,18 +51,23 @@ func (h *EvidenceHandler) WithArtifactService(service *artifactsvc.Service) *Evi
 	return h
 }
 
+// NewEvidenceHandler constructs evidence endpoints with default pagination and badge limits.
 func NewEvidenceHandler(sugar *zap.SugaredLogger, evidenceService *evidencesvc.EvidenceService, riskService *riskrel.RiskService) *EvidenceHandler {
 	return &EvidenceHandler{
 		evidenceService: evidenceService,
 		riskService:     riskService,
 		pagination:      svc.NewPaginationConfig(),
 		sugar:           sugar,
+		badgeMaxParams:  config.DefaultEvidenceBadgeMaxParams,
+		badgeSlots:      make(chan struct{}, complianceBadgeMaxConcurrent),
 	}
 }
 
+// Register mounts evidence creation and read routes on the supplied group.
 func (h *EvidenceHandler) Register(api *echo.Group) {
 	api.POST("", h.Create)
 	api.GET("/config", h.Config)
+	api.GET("/badge.svg", h.ComplianceBadge)
 	api.GET("/:id", h.Get)
 	api.GET("/history/:id", h.History)
 	api.GET("/latest/:id", h.Latest)
@@ -81,6 +89,7 @@ func (h *EvidenceHandler) RegisterCreate(api *echo.Group, middlewares ...echo.Mi
 // POST /status-over-time are queries, not mutations — hence read.
 func (h *EvidenceHandler) RegisterReadRoutes(api *echo.Group, middlewares ...echo.MiddlewareFunc) {
 	api.GET("/config", h.Config, middlewares...)
+	api.GET("/badge.svg", h.ComplianceBadge, middlewares...)
 	api.GET("/:id", h.Get, middlewares...)
 	api.GET("/history/:id", h.History, middlewares...)
 	api.GET("/latest/:id", h.Latest, middlewares...)
@@ -1203,7 +1212,7 @@ func (h *EvidenceHandler) statusOverTime(ctx *echo.Context, restrict scopeRestri
 				t := now.Add(-d).UTC()
 				endBefore = &t
 			}
-			rows, err := h.evidenceService.GetStatusCountsAtPoint(*filter, endBefore)
+			rows, err := h.evidenceService.GetStatusCountsAtPoint(ctx.Request().Context(), *filter, endBefore)
 			if err != nil {
 				ch <- result{idx: i, err: err}
 				return

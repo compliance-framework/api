@@ -36,6 +36,7 @@ type Config struct {
 	Slack                             *SlackConfig
 	Worker                            *WorkerConfig
 	EvidenceDefaultExpiryMonths       int    // Default expiration in months for evidence without explicit expiry
+	EvidenceBadgeMaxParams            int    // Maximum label query parameters on the compliance badge endpoint
 	DigestEnabled                     bool   // Enable or disable the digest scheduler
 	DigestSchedule                    string // Cron schedule for digest emails
 	Workflow                          *WorkflowConfig
@@ -56,6 +57,7 @@ type Config struct {
 	SSPTemplate                       *SSPTemplateConfig
 }
 
+// NewConfig loads application settings and terminates on invalid required configuration.
 func NewConfig(logger *zap.SugaredLogger) *Config {
 	if !viper.IsSet("db_driver") {
 		logger.Fatal(
@@ -193,6 +195,11 @@ func NewConfig(logger *zap.SugaredLogger) *Config {
 		logger.Fatalw("Invalid evidence batch config", "error", err)
 	}
 
+	evidenceBadgeMaxParams, err := LoadEvidenceBadgeMaxParamsFromViper(viper.GetViper())
+	if err != nil {
+		logger.Fatalw("Invalid evidence badge config", "error", err)
+	}
+
 	lineageConfig, err := LoadLineageConfig()
 	if err != nil {
 		logger.Fatalw("Invalid lineage config", "error", err)
@@ -292,6 +299,7 @@ func NewConfig(logger *zap.SugaredLogger) *Config {
 		Slack:                             slackConfig,
 		Worker:                            workerConfig,
 		EvidenceDefaultExpiryMonths:       evidenceDefaultExpiryMonths,
+		EvidenceBadgeMaxParams:            evidenceBadgeMaxParams,
 		EvidenceSubjects:                  evidenceSubjectConfig,
 		EvidenceBatch:                     evidenceBatchConfig,
 		SSPScope:                          LoadSSPScopeConfig(),

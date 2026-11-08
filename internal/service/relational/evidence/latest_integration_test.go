@@ -3,6 +3,7 @@
 package evidence
 
 import (
+	"context"
 	"fmt"
 	"sort"
 	"testing"
@@ -167,7 +168,7 @@ func (suite *LatestEvidenceIntegrationSuite) TestMatchesDistinctOn() {
 		for i, filter := range filters {
 			want, err := oldStatusCountsAtPoint(suite.DB, filter, at)
 			suite.Require().NoError(err)
-			got, err := svc.GetStatusCountsAtPoint(filter, at)
+			got, err := svc.GetStatusCountsAtPoint(context.Background(), filter, at)
 			suite.Require().NoError(err)
 			suite.Equal(sortedStatusCounts(want), sortedStatusCounts(got), "filter %d at %s", i, label)
 		}
@@ -256,7 +257,7 @@ func (suite *LatestEvidenceIntegrationSuite) TestScale() {
 	start = time.Now()
 	var newCounts [][]StatusCount
 	for _, at := range points {
-		rows, err := svc.GetStatusCountsAtPoint(filter, at)
+		rows, err := svc.GetStatusCountsAtPoint(context.Background(), filter, at)
 		suite.Require().NoError(err)
 		newCounts = append(newCounts, sortedStatusCounts(rows))
 	}

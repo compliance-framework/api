@@ -22,6 +22,7 @@ var (
 	}
 )
 
+// setDefaultEnvironmentVariables configures defaults for supported Viper keys.
 func setDefaultEnvironmentVariables() {
 	viper.SetDefault("app_port", ":8080")
 	viper.SetDefault("db_debug", "false")
@@ -48,6 +49,7 @@ func setDefaultEnvironmentVariables() {
 	viper.SetDefault("authz_fail_mode", "closed")
 }
 
+// bindEnvironmentVariables binds supported Viper keys to CCF-prefixed environment variables.
 func bindEnvironmentVariables() {
 	viper.SetEnvPrefix("ccf")
 	viper.MustBindEnv("app_port")
@@ -69,6 +71,7 @@ func bindEnvironmentVariables() {
 	viper.MustBindEnv("metrics_port")
 	viper.MustBindEnv("use_dev_logger")
 	viper.MustBindEnv("evidence_default_expiry_months")
+	viper.MustBindEnv("evidence_badge_max_params")
 	viper.MustBindEnv("evidence_require_subject")
 	viper.MustBindEnv("manual_evidence_require_subject")
 	viper.MustBindEnv("digest_enabled")
@@ -149,6 +152,7 @@ func init() {
 	rootCmd.AddCommand(RiskDigestCmd)
 }
 
+// Execute runs the root API command.
 func Execute() error {
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println("Error executing root command:", err)
