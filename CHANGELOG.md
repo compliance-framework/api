@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.22.5](https://github.com/compliance-framework/api/compare/v0.22.4...v0.22.5) (2026-11-07)
+
+
+### Bug Fixes
+
+* **deps:** update all non-major dependencies ([#559](https://github.com/compliance-framework/api/issues/559)) ([bd1555b](https://github.com/compliance-framework/api/commit/bd1555b525d1a54ea7cb5e272f3f016b3e0f62d8))
+* **deps:** update aws-sdk-go-v2 monorepo ([#560](https://github.com/compliance-framework/api/issues/560)) ([b1e3fe7](https://github.com/compliance-framework/api/commit/b1e3fe7eb8a5e91885cb29db26ef48ee0ddec9bc))
+
 ## [0.22.4](https://github.com/compliance-framework/api/compare/v0.22.3...v0.22.4) (2026-11-06)
 
 
