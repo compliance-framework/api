@@ -13,7 +13,7 @@ require (
 	github.com/cedar-policy/cedar-go v1.9.0
 	github.com/coreos/go-oidc/v3 v3.21.0
 	github.com/defenseunicorns/go-oscal v0.7.2
-	github.com/go-jose/go-jose/v4 v4.1.8
+	github.com/go-jose/go-jose/v4 v4.1.9
 	github.com/go-playground/validator/v10 v10.30.6
 	github.com/go-viper/mapstructure/v2 v2.5.0
 	github.com/golang-jwt/jwt/v5 v5.3.1
@@ -31,7 +31,7 @@ require (
 	github.com/riverqueue/river/rivertype v0.51.0
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/schollz/progressbar/v3 v3.19.1
-	github.com/slack-go/slack v0.33.0
+	github.com/slack-go/slack v0.35.0
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/viper v1.21.0
 	github.com/stretchr/testify v1.12.1
