@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.22.6](https://github.com/compliance-framework/api/compare/v0.22.5...v0.22.6) (2026-11-13)
+
+
+### Bug Fixes
+
+* **deps:** update all non-major dependencies ([#564](https://github.com/compliance-framework/api/issues/564)) ([01aa3cb](https://github.com/compliance-framework/api/commit/01aa3cba40c290133d5869a43caf214be62ce31f))
+* **deps:** update aws-sdk-go-v2 monorepo ([#566](https://github.com/compliance-framework/api/issues/566)) ([a3cdd7a](https://github.com/compliance-framework/api/commit/a3cdd7a6d3e503495abf526b4fcfc08d6e118624))
+* **deps:** update aws-sdk-go-v2 monorepo ([#568](https://github.com/compliance-framework/api/issues/568)) ([20d0c9d](https://github.com/compliance-framework/api/commit/20d0c9d1db8579ea7a9cfbc8d5ac7098bdab4d89))
+* **deps:** update river monorepo to v0.51.0 ([#562](https://github.com/compliance-framework/api/issues/562)) ([3ae0184](https://github.com/compliance-framework/api/commit/3ae018481daa05308124ba5fb17728cac2c7405f))
+* **deps:** update river monorepo to v0.51.1 ([#570](https://github.com/compliance-framework/api/issues/570)) ([abc0866](https://github.com/compliance-framework/api/commit/abc0866b0114461549aeca4f2ba2a3807c74d267))
+* **deps:** update security fixes (gomod) [security] ([#565](https://github.com/compliance-framework/api/issues/565)) ([1ac1a17](https://github.com/compliance-framework/api/commit/1ac1a175f8fb5e3d0d131318668ad1af1e8056c8))
+* **deps:** update testcontainers-go monorepo to v0.45.0 ([#571](https://github.com/compliance-framework/api/issues/571)) ([47e15e7](https://github.com/compliance-framework/api/commit/47e15e7fdac8070f0e0da49792d9eff815da7229))
+
 ## [0.22.5](https://github.com/compliance-framework/api/compare/v0.22.4...v0.22.5) (2026-11-07)
 
 
