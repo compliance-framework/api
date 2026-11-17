@@ -15,7 +15,7 @@ import (
 type apiClient interface {
 	SendMessageContext(ctx context.Context, channelID string, options ...slack.MsgOption) (string, string, string, error)
 	AuthTestContext(ctx context.Context) (*slack.AuthTestResponse, error)
-	GetTeamInfoContext(ctx context.Context) (*slack.TeamInfo, error)
+	GetTeamInfoContext(ctx context.Context, options ...slack.GetTeamInfoOption) (*slack.TeamInfo, error)
 	GetBotInfoContext(ctx context.Context, parameters slack.GetBotInfoParameters) (*slack.Bot, error)
 }
 
