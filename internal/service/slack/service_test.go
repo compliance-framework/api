@@ -34,7 +34,7 @@ func (f *fakeAPIClient) AuthTestContext(_ context.Context) (*goslack.AuthTestRes
 	return f.authResponse, nil
 }
 
-func (f *fakeAPIClient) GetTeamInfoContext(_ context.Context) (*goslack.TeamInfo, error) {
+func (f *fakeAPIClient) GetTeamInfoContext(_ context.Context, _ ...goslack.GetTeamInfoOption) (*goslack.TeamInfo, error) {
 	if f.teamInfoErr != nil {
 		return nil, f.teamInfoErr
 	}
