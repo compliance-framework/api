@@ -46,12 +46,18 @@ func NewBaseOAuthProvider(cfg *config.SSOProviderConfig, callbackURL string, log
 	}, nil
 }
 
-func (p *BaseOAuthProvider) GetAuthURL(state string) string {
+// GetAuthURL ignores codeVerifier: OAuth providers do not use PKCE.
+func (p *BaseOAuthProvider) GetAuthURL(state string, _ string) string {
 	return p.oauth2Config.AuthCodeURL(state)
 }
 
-func (p *BaseOAuthProvider) ExchangeCode(ctx context.Context, code string) (*oauth2.Token, error) {
+// ExchangeCode ignores codeVerifier: OAuth providers do not use PKCE.
+func (p *BaseOAuthProvider) ExchangeCode(ctx context.Context, code string, _ string) (*oauth2.Token, error) {
 	return p.oauth2Config.Exchange(ctx, code)
+}
+
+func (p *BaseOAuthProvider) UsesPKCE() bool {
+	return false
 }
 
 func (p *BaseOAuthProvider) GetUserInfo(ctx context.Context, token *oauth2.Token) (*types.UserInfo, error) {

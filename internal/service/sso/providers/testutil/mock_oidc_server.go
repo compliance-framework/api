@@ -3,11 +3,15 @@ package testutil
 import (
 	"crypto/rand"
 	"crypto/rsa"
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -23,6 +27,16 @@ type MockOIDCServer struct {
 	keyID      string
 
 	userInfo map[string]any
+
+	mu             sync.Mutex
+	codeChallenges map[string]string
+	tokenRequests  []TokenRequest
+}
+
+// TokenRequest is a request received by the mock token endpoint.
+type TokenRequest struct {
+	Form   url.Values
+	Header http.Header
 }
 
 // NewMockOIDCServer starts a mock OIDC issuer that serves discovery + JWKS.
@@ -35,8 +49,9 @@ func NewMockOIDCServer(t *testing.T) *MockOIDCServer {
 	}
 
 	mock := &MockOIDCServer{
-		privateKey: privKey,
-		keyID:      "test-key",
+		privateKey:     privKey,
+		keyID:          "test-key",
+		codeChallenges: map[string]string{},
 	}
 
 	mux := http.NewServeMux()
@@ -73,8 +88,10 @@ func NewMockOIDCServer(t *testing.T) *MockOIDCServer {
 		_ = json.NewEncoder(w).Encode(mock.userInfo)
 	})
 
+	mux.HandleFunc("/token", mock.handleToken)
+
 	mock.Server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.HasPrefix(r.URL.Path, "/.well-known") || r.URL.Path == "/keys" || r.URL.Path == "/userinfo" {
+		if strings.HasPrefix(r.URL.Path, "/.well-known") || r.URL.Path == "/keys" || r.URL.Path == "/userinfo" || r.URL.Path == "/token" {
 			mux.ServeHTTP(w, r)
 			return
 		}
@@ -135,4 +152,60 @@ func ensureClaim(claims map[string]any, key string, value any) {
 // SetUserInfo sets the JSON object returned from /userinfo.
 func (m *MockOIDCServer) SetUserInfo(data map[string]any) {
 	m.userInfo = data
+}
+
+// IssueCode registers an authorization code the token endpoint will redeem, bound to the PKCE
+// S256 code_challenge sent on the authorization request (as an IdP does). Redeeming the code
+// requires the code_verifier whose S256 hash matches the challenge.
+func (m *MockOIDCServer) IssueCode(code string, codeChallenge string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.codeChallenges[code] = codeChallenge
+}
+
+// TokenRequests returns the requests received by the token endpoint.
+func (m *MockOIDCServer) TokenRequests() []TokenRequest {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return append([]TokenRequest(nil), m.tokenRequests...)
+}
+
+// handleToken implements the authorization-code grant with PKCE (RFC 7636 §4.6): the code must
+// have been issued with IssueCode, and the code_verifier must hash to its code_challenge.
+func (m *MockOIDCServer) handleToken(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	m.mu.Lock()
+	m.tokenRequests = append(m.tokenRequests, TokenRequest{Form: r.PostForm, Header: r.Header.Clone()})
+	challenge, ok := m.codeChallenges[r.PostForm.Get("code")]
+	m.mu.Unlock()
+
+	sum := sha256.Sum256([]byte(r.PostForm.Get("code_verifier")))
+	if !ok || r.PostForm.Get("code_verifier") == "" || base64.RawURLEncoding.EncodeToString(sum[:]) != challenge {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "invalid_grant"})
+		return
+	}
+
+	clientID := r.PostForm.Get("client_id")
+	if user, _, hasBasic := r.BasicAuth(); hasBasic {
+		clientID = user
+	}
+	idToken, err := m.SignIDToken(map[string]any{"aud": clientID})
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"access_token": "access-token",
+		"token_type":   "Bearer",
+		"expires_in":   300,
+		"id_token":     idToken,
+	})
 }

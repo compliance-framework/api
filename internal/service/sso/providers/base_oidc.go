@@ -44,6 +44,12 @@ func NewBaseOIDCProvider(ctx context.Context, cfg *config.SSOProviderConfig, cal
 		Endpoint:     provider.Endpoint(),
 		Scopes:       scopes,
 	}
+	if cfg.PublicClient {
+		// A public client has no credentials: it sends client_id in the token request body and
+		// no client authentication (RFC 6749 §2.3, §4.1.3), instead of auto-detecting a style.
+		oauth2Config.ClientSecret = ""
+		oauth2Config.Endpoint.AuthStyle = oauth2.AuthStyleInParams
+	}
 
 	verifier := provider.Verifier(&oidc.Config{ClientID: cfg.ClientID})
 
@@ -150,12 +156,23 @@ func rewriteIssuerURL(value string, publicIssuerURL string, internalIssuerURL st
 	return value
 }
 
-func (p *BaseOIDCProvider) GetAuthURL(state string) string {
-	return p.oauth2Config.AuthCodeURL(state)
+// GetAuthURL returns the authorization URL carrying the S256 PKCE challenge for codeVerifier.
+// PKCE is used for every OIDC client, confidential or public.
+func (p *BaseOIDCProvider) GetAuthURL(state string, codeVerifier string) string {
+	return p.oauth2Config.AuthCodeURL(state, oauth2.S256ChallengeOption(codeVerifier))
 }
 
-func (p *BaseOIDCProvider) ExchangeCode(ctx context.Context, code string) (*oauth2.Token, error) {
-	return p.oauth2Config.Exchange(ctx, code)
+// ExchangeCode redeems code with the PKCE verifier of the login. A missing verifier is an error,
+// never a fallback to an exchange without PKCE.
+func (p *BaseOIDCProvider) ExchangeCode(ctx context.Context, code string, codeVerifier string) (*oauth2.Token, error) {
+	if codeVerifier == "" {
+		return nil, fmt.Errorf("missing PKCE code verifier")
+	}
+	return p.oauth2Config.Exchange(ctx, code, oauth2.VerifierOption(codeVerifier))
+}
+
+func (p *BaseOIDCProvider) UsesPKCE() bool {
+	return true
 }
 
 func (p *BaseOIDCProvider) GetUserInfo(ctx context.Context, token *oauth2.Token) (*types.UserInfo, error) {

@@ -65,24 +65,33 @@ func NewService(cfg *config.SSOConfig, logger *zap.SugaredLogger) (*Service, err
 	return service, nil
 }
 
-// GetAuthURL returns the authorization URL for a given provider
-func (s *Service) GetAuthURL(providerName string, state string) (string, error) {
+// UsesPKCE reports whether the given provider protects its code exchange with PKCE, in which
+// case each login needs a code verifier. Unknown providers report false.
+func (s *Service) UsesPKCE(providerName string) bool {
+	provider, ok := s.providers[providerName]
+	return ok && provider.UsesPKCE()
+}
+
+// GetAuthURL returns the authorization URL for a given provider. codeVerifier is the login's
+// PKCE verifier (empty for providers that do not use PKCE).
+func (s *Service) GetAuthURL(providerName string, state string, codeVerifier string) (string, error) {
 	provider, ok := s.providers[providerName]
 	if !ok {
 		return "", fmt.Errorf("provider %s not configured", providerName)
 	}
 
-	return provider.GetAuthURL(state), nil
+	return provider.GetAuthURL(state, codeVerifier), nil
 }
 
-// ExchangeCode exchanges an authorization code for a token
-func (s *Service) ExchangeCode(ctx context.Context, providerName string, code string) (*oauth2.Token, error) {
+// ExchangeCode exchanges an authorization code for a token. codeVerifier is the login's PKCE
+// verifier (empty for providers that do not use PKCE).
+func (s *Service) ExchangeCode(ctx context.Context, providerName string, code string, codeVerifier string) (*oauth2.Token, error) {
 	provider, ok := s.providers[providerName]
 	if !ok {
 		return nil, fmt.Errorf("provider %s not configured", providerName)
 	}
 
-	return provider.ExchangeCode(ctx, code)
+	return provider.ExchangeCode(ctx, code, codeVerifier)
 }
 
 // GetUserInfo retrieves user information from the provider

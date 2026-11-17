@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 
 	"github.com/compliance-framework/api/internal/config"
@@ -232,4 +233,153 @@ func TestBaseOIDCProvider_RejectsWellKnownURLIssuerMismatch(t *testing.T) {
 	_, err := NewBaseOIDCProvider(context.Background(), cfg, "https://app.example.com/callback", logger)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "configured issuer URL")
+}
+
+// pkceAuthorize builds the authorization URL for verifier and lets the mock IdP issue a code bound
+// to the code_challenge it carries, as a real IdP would when the user signs in.
+func pkceAuthorize(t *testing.T, mock *testutil.MockOIDCServer, provider *BaseOIDCProvider, verifier string) (*url.URL, string) {
+	t.Helper()
+
+	authURL, err := url.Parse(provider.GetAuthURL("state123", verifier))
+	require.NoError(t, err)
+
+	const code = "auth-code"
+	mock.IssueCode(code, authURL.Query().Get("code_challenge"))
+	return authURL, code
+}
+
+func TestBaseOIDCProvider_GetAuthURLCarriesPKCEChallenge(t *testing.T) {
+	mock := testutil.NewMockOIDCServer(t)
+	defer mock.Close()
+
+	cfg := &config.SSOProviderConfig{
+		Name:         "test-oidc",
+		ClientID:     "test-client",
+		ClientSecret: "test-secret",
+		IssuerURL:    mock.IssuerURL,
+	}
+	provider, err := NewBaseOIDCProvider(context.Background(), cfg, "https://app.example.com/callback", zap.NewNop().Sugar())
+	require.NoError(t, err)
+	require.True(t, provider.UsesPKCE())
+
+	verifier := oauth2.GenerateVerifier()
+	authURL, _ := pkceAuthorize(t, mock, provider, verifier)
+
+	query := authURL.Query()
+	require.Equal(t, "state123", query.Get("state"))
+	require.Equal(t, oauth2.S256ChallengeFromVerifier(verifier), query.Get("code_challenge"))
+	require.Equal(t, "S256", query.Get("code_challenge_method"))
+	require.NotContains(t, authURL.String(), verifier)
+}
+
+func TestBaseOIDCProvider_ExchangeCodeSendsPKCEVerifier(t *testing.T) {
+	mock := testutil.NewMockOIDCServer(t)
+	defer mock.Close()
+
+	cfg := &config.SSOProviderConfig{
+		Name:         "test-oidc",
+		ClientID:     "test-client",
+		ClientSecret: "test-secret",
+		IssuerURL:    mock.IssuerURL,
+	}
+	provider, err := NewBaseOIDCProvider(context.Background(), cfg, "https://app.example.com/callback", zap.NewNop().Sugar())
+	require.NoError(t, err)
+
+	verifier := oauth2.GenerateVerifier()
+	_, code := pkceAuthorize(t, mock, provider, verifier)
+
+	token, err := provider.ExchangeCode(context.Background(), code, verifier)
+	require.NoError(t, err)
+	require.Equal(t, "access-token", token.AccessToken)
+
+	requests := mock.TokenRequests()
+	require.Len(t, requests, 1)
+	require.Equal(t, verifier, requests[0].Form.Get("code_verifier"))
+
+	// The confidential client still authenticates with its secret.
+	clientID, clientSecret, ok := basicAuth(requests[0].Header)
+	require.True(t, ok)
+	require.Equal(t, "test-client", clientID)
+	require.Equal(t, "test-secret", clientSecret)
+
+	userInfo, err := provider.GetUserInfo(context.Background(), token)
+	require.NoError(t, err)
+	require.Equal(t, "test-subject", userInfo.Subject)
+}
+
+func TestBaseOIDCProvider_ExchangeCodeRejectsWrongPKCEVerifier(t *testing.T) {
+	mock := testutil.NewMockOIDCServer(t)
+	defer mock.Close()
+
+	cfg := &config.SSOProviderConfig{
+		Name:         "test-oidc",
+		ClientID:     "test-client",
+		ClientSecret: "test-secret",
+		IssuerURL:    mock.IssuerURL,
+	}
+	provider, err := NewBaseOIDCProvider(context.Background(), cfg, "https://app.example.com/callback", zap.NewNop().Sugar())
+	require.NoError(t, err)
+
+	_, code := pkceAuthorize(t, mock, provider, oauth2.GenerateVerifier())
+
+	_, err = provider.ExchangeCode(context.Background(), code, oauth2.GenerateVerifier())
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "invalid_grant")
+}
+
+func TestBaseOIDCProvider_ExchangeCodeRequiresPKCEVerifier(t *testing.T) {
+	mock := testutil.NewMockOIDCServer(t)
+	defer mock.Close()
+
+	cfg := &config.SSOProviderConfig{
+		Name:         "test-oidc",
+		ClientID:     "test-client",
+		ClientSecret: "test-secret",
+		IssuerURL:    mock.IssuerURL,
+	}
+	provider, err := NewBaseOIDCProvider(context.Background(), cfg, "https://app.example.com/callback", zap.NewNop().Sugar())
+	require.NoError(t, err)
+
+	_, err = provider.ExchangeCode(context.Background(), "auth-code", "")
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "missing PKCE code verifier")
+	require.Empty(t, mock.TokenRequests(), "no exchange without PKCE may reach the IdP")
+}
+
+func TestBaseOIDCProvider_PublicClientExchangeSendsClientIDWithoutSecret(t *testing.T) {
+	mock := testutil.NewMockOIDCServer(t)
+	defer mock.Close()
+
+	cfg := &config.SSOProviderConfig{
+		Name:         "dex",
+		ClientID:     "test-client",
+		PublicClient: true,
+		IssuerURL:    mock.IssuerURL,
+	}
+	provider, err := NewBaseOIDCProvider(context.Background(), cfg, "https://app.example.com/callback", zap.NewNop().Sugar())
+	require.NoError(t, err)
+
+	verifier := oauth2.GenerateVerifier()
+	_, code := pkceAuthorize(t, mock, provider, verifier)
+
+	token, err := provider.ExchangeCode(context.Background(), code, verifier)
+	require.NoError(t, err)
+
+	requests := mock.TokenRequests()
+	require.Len(t, requests, 1)
+	form := requests[0].Form
+	require.Equal(t, "test-client", form.Get("client_id"))
+	require.Equal(t, verifier, form.Get("code_verifier"))
+	_, hasSecret := form["client_secret"]
+	require.False(t, hasSecret, "a public client must not send client_secret")
+	require.Empty(t, requests[0].Header.Get("Authorization"), "a public client must not use client authentication")
+
+	userInfo, err := provider.GetUserInfo(context.Background(), token)
+	require.NoError(t, err)
+	require.Equal(t, "test-subject", userInfo.Subject)
+}
+
+func basicAuth(header http.Header) (string, string, bool) {
+	req := &http.Request{Header: header}
+	return req.BasicAuth()
 }
