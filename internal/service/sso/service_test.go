@@ -13,23 +13,28 @@ import (
 )
 
 type mockProvider struct {
-	name      string
-	protocol  string
-	cfg       *config.SSOProviderConfig
-	authURL   string
-	token     *oauth2.Token
-	userInfo  *types.UserInfo
-	tokenErr  error
-	userErr   error
-	exchanged bool
+	name         string
+	protocol     string
+	cfg          *config.SSOProviderConfig
+	authURL      string
+	token        *oauth2.Token
+	userInfo     *types.UserInfo
+	tokenErr     error
+	userErr      error
+	exchanged    bool
+	usesPKCE     bool
+	authVerifier string
+	codeVerifier string
 }
 
-func (m *mockProvider) GetAuthURL(state string) string {
+func (m *mockProvider) GetAuthURL(state string, codeVerifier string) string {
+	m.authVerifier = codeVerifier
 	return m.authURL + "?state=" + state
 }
 
-func (m *mockProvider) ExchangeCode(ctx context.Context, code string) (*oauth2.Token, error) {
+func (m *mockProvider) ExchangeCode(ctx context.Context, code string, codeVerifier string) (*oauth2.Token, error) {
 	m.exchanged = true
+	m.codeVerifier = codeVerifier
 	if m.token != nil {
 		return m.token, m.tokenErr
 	}
@@ -50,6 +55,10 @@ func (m *mockProvider) GetName() string {
 
 func (m *mockProvider) GetProtocol() string {
 	return m.protocol
+}
+
+func (m *mockProvider) UsesPKCE() bool {
+	return m.usesPKCE
 }
 
 func TestNewService_InitializesProviders(t *testing.T) {
@@ -96,6 +105,7 @@ func TestService_MethodsUseRegisteredProvider(t *testing.T) {
 		authURL:  "https://auth/google",
 		token:    &oauth2.Token{AccessToken: "token123"},
 		userInfo: &types.UserInfo{Subject: "sub"},
+		usesPKCE: true,
 	}
 
 	providerFactory = func(cfg *config.SSOProviderConfig, callbackURL string, logger *zap.SugaredLogger) (Provider, error) {
@@ -112,14 +122,19 @@ func TestService_MethodsUseRegisteredProvider(t *testing.T) {
 	service, err := NewService(cfg, zap.NewNop().Sugar())
 	require.NoError(t, err)
 
-	url, err := service.GetAuthURL("google", "state123")
+	require.True(t, service.UsesPKCE("google"))
+	require.False(t, service.UsesPKCE("unknown"))
+
+	url, err := service.GetAuthURL("google", "state123", "verifier123")
 	require.NoError(t, err)
 	require.True(t, strings.Contains(url, "state123"))
+	require.Equal(t, "verifier123", mp.authVerifier)
 
-	token, err := service.ExchangeCode(context.Background(), "google", "code123")
+	token, err := service.ExchangeCode(context.Background(), "google", "code123", "verifier123")
 	require.NoError(t, err)
 	require.Equal(t, "token123", token.AccessToken)
 	require.True(t, mp.exchanged)
+	require.Equal(t, "verifier123", mp.codeVerifier)
 
 	info, err := service.GetUserInfo(context.Background(), "google", token)
 	require.NoError(t, err)
@@ -132,7 +147,7 @@ func TestService_MethodsUseRegisteredProvider(t *testing.T) {
 	require.True(t, ok)
 	require.NotNil(t, placeholder)
 
-	_, err = service.GetAuthURL("unknown", "state")
+	_, err = service.GetAuthURL("unknown", "state", "")
 	require.Error(t, err)
 }
 

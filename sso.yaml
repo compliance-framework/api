@@ -1,5 +1,10 @@
 # SSO Configuration for CCF
 # Environment variables can be used with ${VAR_NAME} syntax
+#
+# OIDC providers (protocol "oidc", the default) always use PKCE (S256) on the authorization-code
+# flow. Set `public_client: true` on an OIDC provider to use a public client, which has no
+# client_secret (see the Dex example at the end of this file). OAuth providers (protocol "oauth")
+# do not use PKCE and always need a client_secret.
 
 enabled: true
 base_url: "http://localhost:8000" # Web UI base URL
@@ -77,3 +82,29 @@ providers:
   #     # "admin": ["admin", "super_admin"]
   #     # "developers": ["developer"]
   #     # "viewers": ["viewer"]
+
+  # Public OIDC client (no client secret), e.g. a static client of a central Dex.
+  # The redirect URI registered at the IdP is <callback_url>/<provider name>.
+  #
+  # Dex config:
+  #   staticClients:
+  #     - id: ccf
+  #       name: CCF
+  #       public: true
+  #       redirectURIs:
+  #         - "http://localhost:8080/api/auth/sso/callback/dex"
+  #
+  # dex:
+  #   name: "dex"
+  #   display_name: "Dex"
+  #   provider: "generic"
+  #   protocol: "oidc"
+  #   client_id: "ccf"
+  #   public_client: true # no client_secret: the login is protected by PKCE alone
+  #   issuer_url: "https://dex.example.com/dex"
+  #   scopes:
+  #     - "openid"
+  #     - "email"
+  #     - "profile"
+  #     - "groups"
+  #   enabled: false

@@ -36,12 +36,17 @@ type mockSSOService struct {
 	canCreate        bool
 	mappedAttributes []string
 	enabledProviders []config.SSOProviderConfig
+	pkceProviders    map[string]bool
+	authVerifier     string
+	exchanged        bool
+	exchangeVerifier string
 }
 
 func newMockSSOService() *mockSSOService {
 	return &mockSSOService{
 		oauthConfigs:    map[string]*oauth2.Config{},
 		providerConfigs: map[string]*config.SSOProviderConfig{},
+		pkceProviders:   map[string]bool{},
 	}
 }
 
@@ -62,11 +67,18 @@ func (m *mockSSOService) GenerateState() (string, error) {
 	return m.state, m.stateErr
 }
 
-func (m *mockSSOService) GetAuthURL(providerName string, state string) (string, error) {
+func (m *mockSSOService) UsesPKCE(providerName string) bool {
+	return m.pkceProviders[providerName]
+}
+
+func (m *mockSSOService) GetAuthURL(providerName string, state string, codeVerifier string) (string, error) {
+	m.authVerifier = codeVerifier
 	return m.authURL, m.authURLErr
 }
 
-func (m *mockSSOService) ExchangeCode(ctx context.Context, providerName string, code string) (*oauth2.Token, error) {
+func (m *mockSSOService) ExchangeCode(ctx context.Context, providerName string, code string, codeVerifier string) (*oauth2.Token, error) {
+	m.exchanged = true
+	m.exchangeVerifier = codeVerifier
 	return m.token, m.tokenErr
 }
 
@@ -155,6 +167,121 @@ func TestSSOHandlerInitiateLogin_SetsStateCookie(t *testing.T) {
 	require.Equal(t, http.SameSiteLaxMode, stateCookie.SameSite)
 }
 
+func findCookie(rec *httptest.ResponseRecorder, name string) *http.Cookie {
+	for _, c := range rec.Result().Cookies() {
+		if c.Name == name {
+			return c
+		}
+	}
+	return nil
+}
+
+func TestSSOHandlerInitiateLogin_SetsPKCEVerifierCookie(t *testing.T) {
+	h, mockSvc, _ := setupTestHandler(t)
+	mockSvc.enabled = true
+	mockSvc.state = "state123"
+	mockSvc.authURL = "https://sso.example.com/auth"
+	mockSvc.oauthConfigs["dex"] = &oauth2.Config{}
+	mockSvc.pkceProviders["dex"] = true
+
+	e := echo.New()
+	req := httptest.NewRequest(http.MethodGet, "/api/auth/sso/dex", nil)
+	rec := httptest.NewRecorder()
+	ctx := e.NewContext(req, rec)
+	ctx.SetPathValues(echo.PathValues{{Name: "provider", Value: "dex"}})
+
+	require.NoError(t, h.InitiateLogin(ctx))
+	require.Equal(t, http.StatusTemporaryRedirect, rec.Code)
+
+	verifierCookie := findCookie(rec, oauthCodeVerifierCookie)
+	require.NotNil(t, verifierCookie)
+	require.NotEmpty(t, verifierCookie.Value)
+	require.Equal(t, mockSvc.authVerifier, verifierCookie.Value, "the auth URL must be built from the verifier stored in the cookie")
+	require.True(t, verifierCookie.HttpOnly)
+	require.True(t, verifierCookie.Secure)
+	require.Equal(t, "/", verifierCookie.Path)
+	require.Equal(t, http.SameSiteLaxMode, verifierCookie.SameSite)
+	require.WithinDuration(t, time.Now().Add(5*time.Minute), verifierCookie.Expires, 5*time.Second)
+}
+
+func TestSSOHandlerInitiateLogin_NoPKCEVerifierCookieForOAuthProvider(t *testing.T) {
+	h, mockSvc, _ := setupTestHandler(t)
+	mockSvc.enabled = true
+	mockSvc.state = "state123"
+	mockSvc.authURL = "https://github.com/login/oauth/authorize"
+	mockSvc.oauthConfigs["github"] = &oauth2.Config{}
+
+	e := echo.New()
+	req := httptest.NewRequest(http.MethodGet, "/api/auth/sso/github", nil)
+	rec := httptest.NewRecorder()
+	ctx := e.NewContext(req, rec)
+	ctx.SetPathValues(echo.PathValues{{Name: "provider", Value: "github"}})
+
+	require.NoError(t, h.InitiateLogin(ctx))
+	require.Equal(t, http.StatusTemporaryRedirect, rec.Code)
+	require.NotNil(t, findCookie(rec, oauthStateCookie))
+	require.Nil(t, findCookie(rec, oauthCodeVerifierCookie))
+	require.Empty(t, mockSvc.authVerifier)
+}
+
+func newPKCECallbackRequest(verifier string) *http.Request {
+	req := httptest.NewRequest(http.MethodGet, "/api/auth/sso/callback/dex", nil)
+	q := req.URL.Query()
+	q.Set("state", "state123")
+	q.Set("code", "abc123")
+	req.URL.RawQuery = q.Encode()
+	req.AddCookie(&http.Cookie{Name: oauthStateCookie, Value: "state123"})
+	if verifier != "" {
+		req.AddCookie(&http.Cookie{Name: oauthCodeVerifierCookie, Value: verifier})
+	}
+	return req
+}
+
+func TestSSOHandlerCallback_PassesPKCEVerifierAndClearsCookie(t *testing.T) {
+	h, mockSvc, _ := setupTestHandler(t)
+	mockSvc.enabled = true
+	mockSvc.pkceProviders["dex"] = true
+	mockSvc.token = &oauth2.Token{AccessToken: "token"}
+	mockSvc.userInfo = &types.UserInfo{Subject: "dex-123", Email: "pkce@example.com"}
+	mockSvc.canCreate = true
+	mockSvc.providerConfigs["dex"] = &config.SSOProviderConfig{}
+
+	e := echo.New()
+	rec := httptest.NewRecorder()
+	ctx := e.NewContext(newPKCECallbackRequest("verifier-123"), rec)
+	ctx.SetPathValues(echo.PathValues{{Name: "provider", Value: "dex"}})
+
+	require.NoError(t, h.Callback(ctx))
+	require.Equal(t, http.StatusTemporaryRedirect, rec.Code)
+	require.Contains(t, rec.Header().Get("Location"), "/auth/sso/callback")
+	require.Equal(t, "verifier-123", mockSvc.exchangeVerifier)
+
+	for _, name := range []string{oauthStateCookie, oauthCodeVerifierCookie} {
+		cleared := findCookie(rec, name)
+		require.NotNil(t, cleared, "expected %s to be cleared", name)
+		require.Empty(t, cleared.Value)
+		require.True(t, cleared.Expires.Before(time.Now()))
+	}
+}
+
+func TestSSOHandlerCallback_MissingPKCEVerifierFailsLogin(t *testing.T) {
+	h, mockSvc, _ := setupTestHandler(t)
+	mockSvc.enabled = true
+	mockSvc.pkceProviders["dex"] = true
+	mockSvc.token = &oauth2.Token{AccessToken: "token"}
+
+	e := echo.New()
+	rec := httptest.NewRecorder()
+	ctx := e.NewContext(newPKCECallbackRequest(""), rec)
+	ctx.SetPathValues(echo.PathValues{{Name: "provider", Value: "dex"}})
+
+	require.NoError(t, h.Callback(ctx))
+	require.Equal(t, http.StatusTemporaryRedirect, rec.Code)
+	require.Equal(t, "https://app.example.com/login?error=invalid_state", rec.Header().Get("Location"))
+	require.False(t, mockSvc.exchanged, "the code must not be exchanged without the PKCE verifier")
+	require.Nil(t, findCookie(rec, "ccf_auth_token"))
+}
+
 func TestSSOHandlerCallback_NewUserCreated(t *testing.T) {
 	h, mockSvc, db := setupTestHandler(t)
 	mockSvc.enabled = true
@@ -188,6 +315,9 @@ func TestSSOHandlerCallback_NewUserCreated(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, http.StatusTemporaryRedirect, rec.Code)
 	require.Contains(t, rec.Header().Get("Location"), "/auth/sso/callback")
+	// A provider without PKCE logs in without a verifier cookie and gets no verifier.
+	require.True(t, mockSvc.exchanged)
+	require.Empty(t, mockSvc.exchangeVerifier)
 
 	var user relational.User
 	require.NoError(t, db.Where("email = ?", "new@example.com").First(&user).Error)

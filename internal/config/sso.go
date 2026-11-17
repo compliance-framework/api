@@ -27,6 +27,7 @@ type SSOProviderConfig struct {
 	Scopes              []string            `yaml:"scopes" json:"scopes" mapstructure:"scopes"`
 	Enabled             bool                `yaml:"enabled" json:"enabled" mapstructure:"enabled"`
 	GroupMapping        map[string][]string `yaml:"group_mapping" json:"groupMapping" mapstructure:"group_mapping"`
+	PublicClient        bool                `yaml:"public_client" json:"publicClient" mapstructure:"public_client"` // oidc only: no client_secret, the code exchange is protected by PKCE
 }
 
 type SSOConfig struct {
@@ -72,6 +73,17 @@ func (c *SSOConfig) validate() error {
 		}
 		if strings.TrimSpace(p.ClientID) == "" {
 			return fmt.Errorf("provider %q is enabled but client_id is empty", p.Name)
+		}
+		if p.PublicClient {
+			// A public client (e.g. a Dex static client with `public: true`) authenticates with
+			// client_id + PKCE only, which only the OIDC providers implement.
+			if protocol := strings.ToLower(strings.TrimSpace(p.Protocol)); protocol != "" && protocol != "oidc" {
+				return fmt.Errorf("provider %q sets public_client but uses protocol %q: public clients are only supported for oidc", p.Name, p.Protocol)
+			}
+			if strings.TrimSpace(p.ClientSecret) != "" {
+				return fmt.Errorf("provider %q sets public_client but also sets client_secret: a public client has no secret", p.Name)
+			}
+			continue
 		}
 		if strings.TrimSpace(p.ClientSecret) == "" {
 			return fmt.Errorf("provider %q is enabled but client_secret is empty", p.Name)

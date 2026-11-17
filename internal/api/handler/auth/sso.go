@@ -27,13 +27,25 @@ type ssoService interface {
 	GetOAuth2Config(providerName string) (*oauth2.Config, bool)
 	GetEnabledProviders() []config.SSOProviderConfig
 	GenerateState() (string, error)
-	GetAuthURL(providerName string, state string) (string, error)
-	ExchangeCode(ctx context.Context, providerName string, code string) (*oauth2.Token, error)
+	UsesPKCE(providerName string) bool
+	GetAuthURL(providerName string, state string, codeVerifier string) (string, error)
+	ExchangeCode(ctx context.Context, providerName string, code string, codeVerifier string) (*oauth2.Token, error)
 	GetUserInfo(ctx context.Context, providerName string, token *oauth2.Token) (*types.UserInfo, error)
 	GetProviderConfig(providerName string) *config.SSOProviderConfig
 	CanCreateUser(userInfo *types.UserInfo, providerConfig *config.SSOProviderConfig) bool
 	MapUserAttributes(userInfo *types.UserInfo, providerConfig *config.SSOProviderConfig) []string
 }
+
+const (
+	// oauthStateCookie carries the CSRF state across the redirect to the IdP.
+	oauthStateCookie = "oauth_state"
+	// oauthCodeVerifierCookie carries the PKCE code verifier across the redirect to the IdP. Only
+	// its S256 hash (the code_challenge) is sent to the IdP; the verifier is sent with the code
+	// exchange.
+	oauthCodeVerifierCookie = "oauth_code_verifier"
+	// ssoFlowCookieTTL bounds how long a login may take between the redirect and the callback.
+	ssoFlowCookieTTL = 5 * time.Minute
+)
 
 type SSOHandler struct {
 	sugar      *zap.SugaredLogger
@@ -153,24 +165,15 @@ func (h *SSOHandler) InitiateLogin(ctx *echo.Context) error {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
-	cookie := new(http.Cookie)
-	cookie.Name = "oauth_state"
-	cookie.Value = state
-	cookie.Expires = time.Now().Add(5 * time.Minute)
-	cookie.HttpOnly = true
-	cookie.Path = "/"
-	// Note: cannot set this to Strict as it breaks OIDC/oAuth2 flow
-	cookie.SameSite = http.SameSiteLaxMode
+	h.setSSOFlowCookie(ctx, oauthStateCookie, state)
 
-	if isDevelopmentEnvironment(h.config.Environment) {
-		cookie.Secure = false
-	} else {
-		cookie.Secure = true
+	var codeVerifier string
+	if h.ssoService.UsesPKCE(providerName) {
+		codeVerifier = oauth2.GenerateVerifier()
+		h.setSSOFlowCookie(ctx, oauthCodeVerifierCookie, codeVerifier)
 	}
 
-	ctx.SetCookie(cookie)
-
-	authURL, err := h.ssoService.GetAuthURL(providerName, state)
+	authURL, err := h.ssoService.GetAuthURL(providerName, state, codeVerifier)
 	if err != nil {
 		h.sugar.Errorw("Failed to get auth URL", "error", err)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
@@ -186,7 +189,7 @@ func (h *SSOHandler) Callback(ctx *echo.Context) error {
 		return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("SSO is not enabled")))
 	}
 
-	storedState, err := ctx.Cookie("oauth_state")
+	storedState, err := ctx.Cookie(oauthStateCookie)
 	if err != nil {
 		h.sugar.Warnw("State cookie not found", "error", err)
 		return ctx.Redirect(http.StatusTemporaryRedirect, h.config.SSO.BaseURL+"/login?error=invalid_state")
@@ -198,13 +201,10 @@ func (h *SSOHandler) Callback(ctx *echo.Context) error {
 		return ctx.Redirect(http.StatusTemporaryRedirect, h.config.SSO.BaseURL+"/login?error=invalid_state")
 	}
 
-	clearCookie := new(http.Cookie)
-	clearCookie.Name = "oauth_state"
-	clearCookie.Value = ""
-	clearCookie.Expires = time.Now().Add(-1 * time.Hour)
-	clearCookie.HttpOnly = true
-	clearCookie.Path = "/"
-	ctx.SetCookie(clearCookie)
+	clearSSOFlowCookie(ctx, oauthStateCookie)
+	// Always clear the verifier too, so a verifier left by an abandoned login does not linger.
+	verifierCookie, verifierErr := ctx.Cookie(oauthCodeVerifierCookie)
+	clearSSOFlowCookie(ctx, oauthCodeVerifierCookie)
 
 	if errParam := ctx.QueryParam("error"); errParam != "" {
 		errDesc := ctx.QueryParam("error_description")
@@ -218,7 +218,17 @@ func (h *SSOHandler) Callback(ctx *echo.Context) error {
 		return ctx.Redirect(http.StatusTemporaryRedirect, h.config.SSO.BaseURL+"/login?error=no_code")
 	}
 
-	token, err := h.ssoService.ExchangeCode(ctx.Request().Context(), providerName, code)
+	var codeVerifier string
+	if h.ssoService.UsesPKCE(providerName) {
+		// Without the verifier the login fails; it never falls back to an exchange without PKCE.
+		if verifierErr != nil || verifierCookie.Value == "" {
+			h.sugar.Warnw("PKCE code verifier cookie not found", "provider", providerName)
+			return ctx.Redirect(http.StatusTemporaryRedirect, h.config.SSO.BaseURL+"/login?error=invalid_state")
+		}
+		codeVerifier = verifierCookie.Value
+	}
+
+	token, err := h.ssoService.ExchangeCode(ctx.Request().Context(), providerName, code, codeVerifier)
 	if err != nil {
 		h.sugar.Errorw("Failed to exchange code for token", "provider", providerName, "error", err)
 		return ctx.Redirect(http.StatusTemporaryRedirect, h.config.SSO.BaseURL+"/login?error=token_exchange_failed")
@@ -276,6 +286,38 @@ func (h *SSOHandler) Callback(ctx *echo.Context) error {
 	redirectURL := fmt.Sprintf("%s/auth/sso/callback?provider=%s", baseURL, url.QueryEscape(providerName))
 
 	return ctx.Redirect(http.StatusTemporaryRedirect, redirectURL)
+}
+
+// setSSOFlowCookie sets a short-lived cookie that carries per-login state (CSRF state, PKCE
+// verifier) across the redirect to the IdP and back.
+func (h *SSOHandler) setSSOFlowCookie(ctx *echo.Context, name string, value string) {
+	cookie := new(http.Cookie)
+	cookie.Name = name
+	cookie.Value = value
+	cookie.Expires = time.Now().Add(ssoFlowCookieTTL)
+	cookie.HttpOnly = true
+	cookie.Path = "/"
+	// Note: cannot set this to Strict as it breaks OIDC/oAuth2 flow
+	cookie.SameSite = http.SameSiteLaxMode
+
+	if isDevelopmentEnvironment(h.config.Environment) {
+		cookie.Secure = false
+	} else {
+		cookie.Secure = true
+	}
+
+	ctx.SetCookie(cookie)
+}
+
+// clearSSOFlowCookie expires a cookie set by setSSOFlowCookie.
+func clearSSOFlowCookie(ctx *echo.Context, name string) {
+	clearCookie := new(http.Cookie)
+	clearCookie.Name = name
+	clearCookie.Value = ""
+	clearCookie.Expires = time.Now().Add(-1 * time.Hour)
+	clearCookie.HttpOnly = true
+	clearCookie.Path = "/"
+	ctx.SetCookie(clearCookie)
 }
 
 // reconcileSSOGroups translates the user's RAW IdP claim groups (UserInfo.RawGroups, e.g.

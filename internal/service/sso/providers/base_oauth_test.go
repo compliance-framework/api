@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 
 	"github.com/compliance-framework/api/internal/config"
@@ -94,4 +95,35 @@ func TestBaseOAuthProvider_GetUserInfo_EmailFallback(t *testing.T) {
 	require.Equal(t, "primary@example.com", info.Email)
 	require.Equal(t, "Fallback", info.FirstName)
 	require.Equal(t, "User", info.LastName)
+}
+
+func TestBaseOAuthProvider_DoesNotUsePKCE(t *testing.T) {
+	cfg := &config.SSOProviderConfig{
+		Name:         "generic-oauth",
+		ClientID:     "client",
+		ClientSecret: "secret",
+		AuthURL:      "https://oauth.example.com/authorize",
+		TokenURL:     "https://oauth.example.com/token",
+	}
+
+	base, err := NewBaseOAuthProvider(cfg, "https://app.example.com/callback", zap.NewNop().Sugar())
+	require.NoError(t, err)
+	github, err := NewGitHubOAuthProvider(cfg, "https://app.example.com/callback", zap.NewNop().Sugar())
+	require.NoError(t, err)
+
+	for name, provider := range map[string]interface {
+		GetAuthURL(state string, codeVerifier string) string
+		UsesPKCE() bool
+	}{"generic": base, "github": github} {
+		t.Run(name, func(t *testing.T) {
+			require.False(t, provider.UsesPKCE())
+
+			authURL, err := url.Parse(provider.GetAuthURL("state123", oauth2.GenerateVerifier()))
+			require.NoError(t, err)
+			query := authURL.Query()
+			require.Equal(t, "state123", query.Get("state"))
+			require.Empty(t, query.Get("code_challenge"))
+			require.Empty(t, query.Get("code_challenge_method"))
+		})
+	}
 }
