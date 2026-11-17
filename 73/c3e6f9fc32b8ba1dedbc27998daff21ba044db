@@ -6,3 +6,11 @@ lisa-design:
 - public_client: oidc only (protocol oidc or empty), rejected at config validation for any other protocol; public_client with a non-empty client_secret is rejected too (fail closed instead of silently ignoring a configured secret). Public clients use oauth2.AuthStyleInParams (client_id in body, no secret, no Basic auth) instead of auto-detect.
 - PublicClient field added at the end of SSOProviderConfig so gofmt does not realign every existing field.
 - Mock OIDC server's /token implements the PKCE check (IssueCode binds a code to the challenge; mismatched or missing verifier -> invalid_grant) so tests fail on a wrong verifier rather than only asserting the form field.
+
+lisa-selfreview:
+pass 1 (strict):
+- must-fix CORE-TEST-002 sso_test.go TestSSOHandlerInitiateLogin_SetsPKCEVerifierCookie: vacuous NotContains(Location/body, verifier) assertions (mock authURL is fixed).
+- must-fix CORE-TEST-001 base_oidc.go NewBaseOIDCProvider: public-client secret clearing untested.
+- should-fix tests/oauth-callback-verifier-unasserted sso_test.go TestSSOHandlerCallback_NewUserCreated: non-PKCE callback does not assert empty verifier + exchange.
+- question intent/missing-verifier-error-code sso.go Callback: missing verifier reuses error=invalid_state vs a dedicated code.
+- question intent/public-client-with-secret-rejected config/sso.go validate: public_client + client_secret rejected at startup vs ignored.
