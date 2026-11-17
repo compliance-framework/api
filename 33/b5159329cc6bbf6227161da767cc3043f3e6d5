@@ -1,0 +1,2 @@
+lisa-addressed:
+CI fix: slack-go v0.23.1->v0.35.0 changed GetTeamInfoContext to take ...GetTeamInfoOption; widened apiClient interface + test fake. All CI failures (go, lint, make, image) were this one compile error.
