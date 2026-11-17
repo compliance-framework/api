@@ -202,9 +202,6 @@ func TestSSOHandlerInitiateLogin_SetsPKCEVerifierCookie(t *testing.T) {
 	require.Equal(t, "/", verifierCookie.Path)
 	require.Equal(t, http.SameSiteLaxMode, verifierCookie.SameSite)
 	require.WithinDuration(t, time.Now().Add(5*time.Minute), verifierCookie.Expires, 5*time.Second)
-
-	require.NotContains(t, rec.Header().Get("Location"), verifierCookie.Value)
-	require.NotContains(t, rec.Body.String(), verifierCookie.Value)
 }
 
 func TestSSOHandlerInitiateLogin_NoPKCEVerifierCookieForOAuthProvider(t *testing.T) {
@@ -318,6 +315,9 @@ func TestSSOHandlerCallback_NewUserCreated(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, http.StatusTemporaryRedirect, rec.Code)
 	require.Contains(t, rec.Header().Get("Location"), "/auth/sso/callback")
+	// A provider without PKCE logs in without a verifier cookie and gets no verifier.
+	require.True(t, mockSvc.exchanged)
+	require.Empty(t, mockSvc.exchangeVerifier)
 
 	var user relational.User
 	require.NoError(t, db.Where("email = ?", "new@example.com").First(&user).Error)

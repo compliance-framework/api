@@ -354,6 +354,8 @@ func TestBaseOIDCProvider_PublicClientExchangeSendsClientIDWithoutSecret(t *test
 		Name:         "dex",
 		ClientID:     "test-client",
 		PublicClient: true,
+		// Config validation rejects a secret on a public client; the provider must still never send one.
+		ClientSecret: "must-not-be-sent",
 		IssuerURL:    mock.IssuerURL,
 	}
 	provider, err := NewBaseOIDCProvider(context.Background(), cfg, "https://app.example.com/callback", zap.NewNop().Sugar())
