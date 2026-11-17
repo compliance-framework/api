@@ -3,3 +3,6 @@ self-review pass 1:
 - CORE-TEST-002 TestSSOHandlerInitiateLogin_SetsPKCEVerifierCookie: dropped vacuous NotContains(Location/body) assertions (property is asserted in TestBaseOIDCProvider_GetAuthURLCarriesPKCEChallenge).
 - CORE-TEST-001 NewBaseOIDCProvider public-client secret clearing: public-client test now sets a ClientSecret and asserts it is never sent (verified the test fails without the clearing line).
 - tests/oauth-callback-verifier-unasserted: TestSSOHandlerCallback_NewUserCreated asserts the non-PKCE exchange happens with an empty verifier.
+
+lisa-selfreview:
+pass 2 (strict): approve, no new findings. Open questions carried to PR body: missing-verifier-error-code, public-client-with-secret-rejected.
