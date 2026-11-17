@@ -1,0 +1,2 @@
+lisa-addressed:
+CI fix: go mod tidy failed because code imported anthropic-sdk-go v1 while go.mod added v2. Moved internal/service/llm/anthropic.go to /v2; compiles unchanged. v2 = API version 2026-10-21 + Authorization: Bearer for API keys. Only risk: an operator CCF_AI_BASE_URL proxy that reads X-Api-Key (none in repo/helm/local-dev).
