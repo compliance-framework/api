@@ -2,6 +2,7 @@ package authz
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -56,7 +57,7 @@ func LoadRoleAssignments(path string) (*RoleAssignments, error) {
 	// UnmarshalStrict treated it.
 	dec := yaml.NewDecoder(bytes.NewReader(data))
 	dec.KnownFields(true)
-	if err := dec.Decode(&ra); err != nil && err != io.EOF {
+	if err := dec.Decode(&ra); err != nil && !errors.Is(err, io.EOF) {
 		return nil, fmt.Errorf("authz: parse role assignments %s: %w", path, err)
 	}
 	return &ra, nil
