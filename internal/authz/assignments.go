@@ -1,12 +1,14 @@
 package authz
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 	"os"
 	"sort"
 	"strings"
 
-	yaml "gopkg.in/yaml.v2"
+	yaml "gopkg.in/yaml.v3"
 )
 
 // DefaultAgentRole is the role granted to every authenticated agent when the role-assignment
@@ -49,7 +51,12 @@ func LoadRoleAssignments(path string) (*RoleAssignments, error) {
 		return nil, fmt.Errorf("authz: read role assignments %s: %w", path, err)
 	}
 	var ra RoleAssignments
-	if err := yaml.UnmarshalStrict(data, &ra); err != nil {
+	// yaml.v3 dropped UnmarshalStrict; a strict Decoder is its replacement. The EOF
+	// tolerance keeps an empty file a valid "no static assignments" document, as
+	// UnmarshalStrict treated it.
+	dec := yaml.NewDecoder(bytes.NewReader(data))
+	dec.KnownFields(true)
+	if err := dec.Decode(&ra); err != nil && err != io.EOF {
 		return nil, fmt.Errorf("authz: parse role assignments %s: %w", path, err)
 	}
 	return &ra, nil
