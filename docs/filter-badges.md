@@ -10,6 +10,11 @@ compliance state as an API-rendered SVG that can be embedded in a README.
 Publishing is an opt-in setting on the saved filter, not an anonymous endpoint
 that accepts arbitrary evidence labels or filter expressions.
 
+With this feature, the public badge route is the only supported anonymous view
+of a filter's aggregate. The JSON `compliance-by-filter` endpoint is not intended
+for anonymous use; its current anonymous access under builtin with public agent
+endpoints enabled is expected to go away. Do not build integrations on it.
+
 Saved filters are inexpensive and already support SSP scope, scope-following,
 and control/component associations. Reuse those objects rather than introducing
 a parallel badge-query model.
@@ -108,13 +113,15 @@ Disabling, clearing/changing the slug, or deleting the filter makes subsequent
 origin requests to the old public URL return `404`. Changing a slug never
 redirects an existing embed to its replacement.
 
-To keep a revoked URL from later publishing a different filter, v1 must reject
-reassignment of a retired slug, including reassignment to the original filter.
-Retain retired slugs in a small reservation/tombstone table when a slug is
-changed, cleared, or its filter is deleted. Claiming and retiring slugs must
-serialize transactionally against concurrent claims. The partial unique index
-on `filters.badge_slug` still protects active reservations; tombstones protect
-retired names. Disabling without clearing does not retire the retained slug.
+A slug is reserved only while a filter holds it, published or not. Changing or
+clearing the slug, or deleting its filter, frees it; a later claim by any filter
+is allowed. Disabling without clearing retains the slug. The partial unique
+index on `filters.badge_slug` protects these reservations; no tombstone table
+is needed.
+
+Revocation removes the current mapping, not the URL forever. If a freed slug is
+later claimed and enabled, existing embeds of that URL display the new holder's
+aggregate. There are still no redirects or aliases.
 
 This is origin revocation, not erasure: the API cannot retract previously
 downloaded SVGs, screenshots, or copies cached by external image proxies.
@@ -139,36 +146,59 @@ or changing a slug, enabling, disabling, clearing, or changing the label.
 An identical settings round trip is not a publication change.
 
 Because changing a published filter's selection changes what is disclosed,
-also require publish authority for user-authored changes to its effective
-predicate, SSP binding, or scope-following configuration while it is enabled.
-Otherwise a contributor could broaden a published filter without enabling a
-badge themselves. Reject the entire unauthorized write before any mutation.
+also require publish authority for changes made through the filter routes to
+its effective predicate, SSP binding, or scope-following configuration while it
+is enabled. This prevents a caller with only filter update rights from
+broadening a published filter through those routes. Reject the entire
+unauthorized write before any mutation.
 Unrelated metadata/association edits retain existing authorization unless they
 change the evidence selection.
 
-A published badge is a live view: new evidence and already-configured automatic
-SSP scope updates affect it without another publication request. This behavior
-must be made clear at publication time. Filter deletion retains its existing
-delete permission and revokes the badge.
+A published badge is a live view: new evidence and SSP scope updates affect it
+without another publication request. Editing an SSP's scope never requires
+`filter:publish`; it retains its existing SSP authorization, and a scope-following
+badge reflects scope changes as part of its live view. This behavior must be
+made clear at publication time. Filter deletion retains its existing delete
+permission and revokes the badge.
 
 Enforce conditional publish checks through the existing PDP/PEP mechanisms,
-not hard-coded role names in handlers. Evaluate before side effects, and use
-the current persisted state when checking an update. Publication checks must
-fail closed if the PDP is unavailable, even if ordinary authorization is
-configured fail-open.
+not hard-coded role names in handlers. For every publication-sensitive write
+through the filter routes, the publication-state read, authorization decision,
+and write must form one atomic decision. Serialize competing writes (for
+example, lock the filter row before checking and hold the lock until commit),
+or use a versioned conditional write and roll back the entire transaction on
+conflict (`409`). All competing filter-route writers, including enabling a
+badge, must follow the same concurrency protocol.
+
+A predicate write authorized only while disabled must not commit after another
+transaction enables the badge: it must fail without mutation. Evaluate
+authorization before side effects against the state protected by that protocol,
+not an earlier unlocked read. Slug claims/releases and affected associations
+belong to the same transaction, with the unique index arbitrating concurrent
+slug claims. This atomicity requirement does not add publish checks to SSP
+scope edits. Publication checks must fail closed if the PDP is unavailable,
+even if ordinary authorization is configured fail-open.
 
 ## SVG endpoints
 
 | Route | Authentication and authorization | Behavior |
 | --- | --- | --- |
-| `GET /api/filters/:id/badge.svg` | User JWT and `filter:read` | Preview by filter UUID, whether published or not and without requiring a slug. |
-| `GET /api/public/badges/:slug.svg` | Anonymous; no user or agent token required | Render only when the slug resolves to an existing filter with `badge.enabled = true`. |
+| `GET /api/filters/:id/badge.svg` | User JWT, `filter:read`, and the same `evidence:read` authorization as `GET /api/evidence/compliance-by-filter/:id` | Preview by filter UUID, whether published or not and without requiring a slug. |
+| `GET /api/public/badges/{slug}.svg` | Anonymous; no user or agent token required | Render only when the slug resolves to an existing filter with `badge.enabled = true`. |
 
-The public route is explicitly `/api/public/badges/:slug.svg`; the slug is the
-dynamic path segment preceding the `.svg` suffix.
+The public URL shape is `/api/public/badges/{slug}.svg`. In Echo, register
+`/api/public/badges/:file`, require the captured `file` to end in the literal
+`.svg` suffix, strip that suffix, and validate the remaining slug. Return the
+generic public `404` for a missing suffix or invalid slug. Do not register
+`:slug.svg`: Echo treats the entire `slug.svg` as the parameter name and does
+not enforce that suffix.
 
-Register preview in the existing authenticated filter group with its read
-guard. Register public badges in a separate, deliberately anonymous group in
+Register preview in the existing authenticated filter group with both the
+filter-read and evidence-read guards. Use the same evidence authorization
+semantics as the JSON compliance endpoint; `filter:read` alone must not disclose
+evidence-derived state, even for an enabled badge.
+
+Register public badges in a separate, deliberately anonymous group in
 [RegisterHandlers](../internal/api/handler/api.go). Do not attach optional agent
 authentication, an evidence-read guard, or an anonymous `filter:read` grant.
 The narrowly scoped publication lookup is the public access gate.
@@ -186,9 +216,11 @@ aggregation. Reject unsupported query parameters with `400`.
 - Success: `200`, `Content-Type: image/svg+xml; charset=utf-8`, raw SVG bytes,
   not a JSON response envelope.
 - Preview: `400` for a malformed UUID; existing JWT behavior for unauthenticated
-  requests; `403` for denied read permission; `404` for an unknown filter.
-- Public: `404` for an invalid, unknown, retired, cleared, disabled, or deleted
-  slug, with the same generic response shape for each case.
+  requests; `403` if either read permission is denied; `404` for an unknown filter.
+- Public: `404` for a missing `.svg` suffix, invalid/unknown slug, or a slug with
+  no enabled holder (including after clearing, disabling, or deletion), with
+  the same generic response shape for each case. A freed slug may be reclaimed
+  and published as described above.
 - Database/aggregation/rendering failures: log internally and return a generic
   `500` using the API error helper. Never render a green badge or pretend that
   a failure means no evidence.
@@ -251,6 +283,9 @@ revocation.
 
 Origin requests begun after a revocation transaction commits must observe it.
 Already in-flight responses and external caches are outside that guarantee.
+Do not add an in-process publication/result cache: independent caches across API
+replicas could continue serving a revoked mapping after commit. Each origin
+request must check the current mapping.
 GitHub's image proxy may cache independently; document that no cache header can
 guarantee immediate removal from an already-rendered GitHub README.
 
@@ -269,13 +304,16 @@ over HTTPS. A private-network-only API will not render there. Operators may
 expose only this path through their ingress without exposing authenticated
 API data. Publishing a badge does not configure DNS, TLS, firewall, or ingress.
 
-No CORS change is needed for an ordinary Markdown/image embed. API rate
-limits and bounded request handling still apply to this anonymous endpoint.
+No CORS change is needed for an ordinary Markdown/image embed. The API currently
+has no HTTP rate limiting. Operators must rate-limit `/api/public/badges/` at
+the ingress before exposing it: each render performs an aggregate query, and
+the revalidation policy can send every proxy hit back to the origin. Do not
+assume an existing API limiter or add an in-process result cache as a substitute.
 
 ## Implementation and verification checklist
 
-1. Add model fields, defaults, validation, the partial unique index, retired
-   slug reservations, and migrations in the production and test migrators.
+1. Add model fields, defaults, validation, the partial unique index, and
+   migrations in the production and test migrators.
    Existing filters must all migrate unpublished.
 2. Extend filter requests/responses and conditional publish authorization;
    preserve existing clients and ensure imports/automatic filters stay private.
@@ -287,16 +325,25 @@ limits and bounded request handling still apply to this anonymous endpoint.
    Swagger files.
 6. Add focused tests covering:
    - Defaults, omitted/null settings, label/slug validation, duplicate slugs,
-     concurrent claims, retired-slug rejection, and transactional rollback.
+     concurrent claims, and transactional rollback.
    - Publish allowed for admin, denied for ordinary contributors, and not
      implied by builtin filter update; single/batch permission parity and
      fail-closed publication during PDP failure.
    - Unauthorized changes to a published predicate/scope, unchanged settings
-     round trips, and compatibility with older request bodies.
-   - Preview before publication and after disabling; JWT/read enforcement;
+     round trips, and compatibility with older request bodies; an SSP scope
+     edit without `filter:publish` still updates a scope-following badge.
+   - Concurrent predicate changes and badge enablement: an update authorized
+     only while disabled must not commit after publication. Include slug
+     claims/releases and verify conflicts leave no partial mutations.
+   - Preview before publication and after disabling; user JWT enforcement,
+     success with both read permissions, and `403` when either one is missing;
      public success with no token under both values of the strict-agent flag.
-   - `404` after disable, rename, clear, deletion, and attempted slug reuse;
-     no redirect, alias, or conditional-cache bypass.
+   - `404` after disable, rename, clear, or deletion until a freed slug is
+     reclaimed and enabled; reuse by the same or another filter succeeds,
+     while disabled filters retain their slugs. No redirect, alias, or
+     conditional-cache bypass.
+   - Public filename routing: valid `.svg` URLs work; missing suffixes,
+     invalid slugs, and unsupported query parameters are rejected as specified.
    - Parity with the existing compliance query for latest evidence, overlapping
      matches, and effective SSP-following filters; one grouped evidence query.
    - Passing, failing, mixed, empty, and unknown states; database failures;
@@ -305,6 +352,8 @@ limits and bounded request handling still apply to this anonymous endpoint.
      no regressions in existing filter/evidence access.
 7. Run targeted unit/integration tests and lint. Integration tests require
    Docker; compile integration-tagged code when shared helpers change.
+   Before deployment, verify ingress rate limiting on the public badge path
+   and revocation visibility across API replicas.
 
 UI controls and permission hints can consume this contract in a separate UI
 change. They must explain that enabling a badge publishes a live aggregate and
