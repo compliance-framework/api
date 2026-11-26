@@ -5775,7 +5775,7 @@ const docTemplate = `{
                 }
             },
             "post": {
-                "description": "Creates a new filter.",
+                "description": "Creates a new filter. Setting a non-default badge needs the filter:publish\npermission (403 without it); a slug another filter holds is a 409.",
                 "consumes": [
                     "application/json"
                 ],
@@ -5806,6 +5806,18 @@ const docTemplate = `{
                     },
                     "400": {
                         "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
                         "schema": {
                             "$ref": "#/definitions/api.Error"
                         }
@@ -5916,7 +5928,7 @@ const docTemplate = `{
                 }
             },
             "put": {
-                "description": "Updates an existing filter.",
+                "description": "Updates an existing filter. Changing its badge, or the predicate, SSP or\nscope following of a filter whose badge is published, needs the\nfilter:publish permission (403 without it); a slug another filter holds\nis a 409. Omitting badge keeps the current settings.",
                 "consumes": [
                     "application/json"
                 ],
@@ -5958,8 +5970,20 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
                     "404": {
                         "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
                         "schema": {
                             "$ref": "#/definitions/api.Error"
                         }
@@ -6010,6 +6034,71 @@ const docTemplate = `{
                         }
                     }
                 }
+            }
+        },
+        "/filters/{id}/badge.svg": {
+            "get": {
+                "description": "Renders the SVG badge of a saved filter by ID, whether or not it is published.\nRequires filter read and the evidence read authorization of\n/evidence/compliance-by-filter/{id}. Takes no query parameters.",
+                "produces": [
+                    "image/svg+xml",
+                    "application/json"
+                ],
+                "tags": [
+                    "Filters"
+                ],
+                "summary": "Preview a filter's badge",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Filter ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "SVG badge",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
             }
         },
         "/filters/{id}/responsibilities": {
@@ -30954,6 +31043,54 @@ const docTemplate = `{
                 ]
             }
         },
+        "/public/badges/{file}": {
+            "get": {
+                "description": "Renders the SVG badge published under a slug. Anonymous: no token is needed.\nOnly the badge label and aggregate state (passing, failing, unknown or no\nevidence) are disclosed. Unknown, invalid and unpublished slugs all return the\nsame 404. Takes no query parameters.",
+                "produces": [
+                    "image/svg+xml",
+                    "application/json"
+                ],
+                "tags": [
+                    "Filters"
+                ],
+                "summary": "Get a published filter badge",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Badge slug followed by .svg, e.g. payments-service.svg",
+                        "name": "file",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "SVG badge",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
         "/risks": {
             "get": {
                 "description": "Lists risk register entries with filtering, sorting, and pagination.",
@@ -37540,6 +37677,14 @@ const docTemplate = `{
         "handler.FilterWithAssociations": {
             "type": "object",
             "properties": {
+                "badge": {
+                    "description": "Badge is never imported or copied: imports, clones and generated filters start\nunpublished.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/relational.FilterBadge"
+                        }
+                    ]
+                },
                 "components": {
                     "type": "array",
                     "items": {
@@ -41394,6 +41539,15 @@ const docTemplate = `{
                 "name"
             ],
             "properties": {
+                "badge": {
+                    "description": "Badge changes the filter's public badge (docs/filter-badges.md) and needs the\nfilter:publish permission unless it leaves the settings unchanged. Omitted keeps the\ncurrent settings (POST: unpublished defaults); null resets them to the defaults.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/handler.filterBadgeRequest"
+                        }
+                    ],
+                    "x-nullable": true
+                },
                 "components": {
                     "type": "array",
                     "items": {
@@ -41654,6 +41808,26 @@ const docTemplate = `{
                 },
                 "poam-item-id": {
                     "type": "string"
+                }
+            }
+        },
+        "handler.filterBadgeRequest": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "description": "Enabled publishes the badge at /api/public/badges/{slug}.svg; it requires a slug.",
+                    "type": "boolean"
+                },
+                "label": {
+                    "description": "Label is the badge's left-hand text: 1-64 characters after trimming, no control\ncharacters.",
+                    "type": "string",
+                    "example": "compliance"
+                },
+                "slug": {
+                    "description": "Slug is the public identifier: lowercase letters, digits and single hyphens, at\nmost 63 characters, unique across filters. null clears it and unpublishes.",
+                    "type": "string",
+                    "x-nullable": true,
+                    "example": "payments-production"
                 }
             }
         },
@@ -50737,6 +50911,14 @@ const docTemplate = `{
         "relational.Filter": {
             "type": "object",
             "properties": {
+                "badge": {
+                    "description": "Badge is never imported or copied: imports, clones and generated filters start\nunpublished.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/relational.FilterBadge"
+                        }
+                    ]
+                },
                 "components": {
                     "type": "array",
                     "items": {
@@ -50771,6 +50953,22 @@ const docTemplate = `{
                     ]
                 },
                 "sspId": {
+                    "type": "string"
+                }
+            }
+        },
+        "relational.FilterBadge": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean"
+                },
+                "label": {
+                    "description": "Label is the plain-text left-hand side of the badge.",
+                    "type": "string"
+                },
+                "slug": {
+                    "description": "Slug is the public identifier in /api/public/badges/{slug}.svg. Absent is NULL, never \"\".",
                     "type": "string"
                 }
             }

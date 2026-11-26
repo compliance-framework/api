@@ -13,7 +13,7 @@ class). Attribute-rich (ABAC/ReBAC) policy is an Enterprise / bring-your-own-PDP
 
 | Driver    | What it is                                                              |
 | --------- | ---------------------------------------------------------------------- |
-| `builtin` | **Default.** Pre-authz rules: authenticated = allowed, admin via SSO groups. The `agent` resource (agent reads and remote configuration) also requires the admin check for users; agent service accounts may only register, ingest and sync. |
+| `builtin` | **Default.** Pre-authz rules: authenticated = allowed, admin via SSO groups. The `agent` resource (agent reads and remote configuration) also requires the admin check for users; agent service accounts may only register, ingest and sync. `filter:publish` (a saved filter's public badge, see [filter-badges.md](filter-badges.md)) also requires the admin check. |
 | `cedar`   | Embedded Cedar RBAC against the bundled role policies (this document).  |
 | `authzen` | Delegate every decision to a remote AuthZen-compliant PDP (bring your own). |
 
@@ -34,7 +34,7 @@ Four fixed global roles plus the agent service role (the manifest lists every ro
 | Role          | Grants                                                                       |
 | ------------- | ---------------------------------------------------------------------------- |
 | `admin`       | Everything (all resources, all actions).                                     |
-| `contributor` | Author content (OSCAL docs, risk/poam register, workflows, dashboards, evidence); read everything; no admin. |
+| `contributor` | Author content (OSCAL docs, risk/poam register, workflows, dashboards, evidence); read everything; no admin. Cannot publish filter badges (`filter:publish`). |
 | `auditor`     | Read everything; record evidence; maintain the risk/poam register.           |
 | `viewer`      | Read everything; no writes.                                                  |
 | `agent`       | Service accounts: ingest evidence/heartbeats, register, sync their remote configuration. |

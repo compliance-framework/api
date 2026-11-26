@@ -1,7 +1,9 @@
 # Saved evidence filter badges: API specification
 
-Status: proposed. This document specifies API work; it does not describe an
-already implemented feature.
+Status: implemented. The model, the `filter:publish` action, the preview route
+(`GET /api/filters/{id}/badge.svg`) and the public route
+(`GET /api/public/badges/{slug}.svg`) are in place; the renderer lives in
+`internal/badge`.
 
 ## Purpose and scope
 

@@ -8,8 +8,10 @@ import (
 
 	"github.com/compliance-framework/api/internal/api"
 	"github.com/compliance-framework/api/internal/api/middleware"
+	"github.com/compliance-framework/api/internal/authz"
 	"github.com/compliance-framework/api/internal/converters/labelfilter"
 	"github.com/compliance-framework/api/internal/service/relational"
+	evidencesvc "github.com/compliance-framework/api/internal/service/relational/evidence"
 	"github.com/compliance-framework/api/internal/service/relational/sspscope"
 	oscalTypes_1_1_3 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
 	"github.com/google/uuid"
@@ -22,8 +24,10 @@ import (
 
 // FilterHandler handles CRUD operations for filters.
 type FilterHandler struct {
-	db    *gorm.DB
-	sugar *zap.SugaredLogger
+	db              *gorm.DB
+	sugar           *zap.SugaredLogger
+	pdp             authz.PDP
+	evidenceService *evidencesvc.EvidenceService
 }
 
 func NewFilterHandler(sugar *zap.SugaredLogger, db *gorm.DB) *FilterHandler {
@@ -31,6 +35,18 @@ func NewFilterHandler(sugar *zap.SugaredLogger, db *gorm.DB) *FilterHandler {
 		sugar: sugar,
 		db:    db,
 	}
+}
+
+// WithPDP sets the PDP that decides filter:publish. Without one, badge changes are denied.
+func (h *FilterHandler) WithPDP(pdp authz.PDP) *FilterHandler {
+	h.pdp = pdp
+	return h
+}
+
+// WithEvidenceService sets the service badges aggregate evidence through.
+func (h *FilterHandler) WithEvidenceService(svc *evidencesvc.EvidenceService) *FilterHandler {
+	h.evidenceService = svc
+	return h
 }
 
 // Register registers the filter endpoints.
@@ -194,13 +210,16 @@ func (h *FilterHandler) List(ctx *echo.Context) error {
 // Create godoc
 //
 //	@Summary		Create a new filter
-//	@Description	Creates a new filter.
+//	@Description	Creates a new filter. Setting a non-default badge needs the filter:publish
+//	@Description	permission (403 without it); a slug another filter holds is a 409.
 //	@Tags			Filters
 //	@Accept			json
 //	@Produce		json
 //	@Param			filter	body		createFilterRequest	true	"Filter to add"
 //	@Success		201		{object}	GenericDataResponse[relational.Filter]
 //	@Failure		400		{object}	api.Error
+//	@Failure		403		{object}	api.Error
+//	@Failure		409		{object}	api.Error
 //	@Failure		422		{object}	api.Error
 //	@Failure		500		{object}	api.Error
 //	@Router			/filters [post]
@@ -225,11 +244,22 @@ func (h *FilterHandler) Create(ctx *echo.Context) error {
 		)
 	}
 
+	badgeSettings, err := resolveFilterBadge(relational.DefaultFilterBadge(), req.Badge, req.badgeSet)
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	if !badgeEqual(badgeSettings, relational.DefaultFilterBadge()) {
+		if err := h.authorizePublish(ctx, ""); err != nil {
+			return h.filterWriteError(ctx, err)
+		}
+	}
+
 	filter := relational.Filter{
 		Name:   req.Name,
 		SSPID:  req.SSPID,
 		Filter: datatypes.NewJSONType(req.Filter),
 		Origin: relational.FilterOriginManual,
+		Badge:  badgeSettings,
 	}
 	follow := req.FollowSSPScope != nil && *req.FollowSSPScope
 
@@ -269,6 +299,9 @@ func (h *FilterHandler) Create(ctx *echo.Context) error {
 				return err
 			}
 		}
+		if err := checkBadgeSlugAvailable(tx, nil, filter.Badge.Slug); err != nil {
+			return err
+		}
 		return tx.Create(&filter).Error
 	}); err != nil {
 		return h.filterWriteError(ctx, err)
@@ -280,7 +313,10 @@ func (h *FilterHandler) Create(ctx *echo.Context) error {
 // Update godoc
 //
 //	@Summary		Update a filter
-//	@Description	Updates an existing filter.
+//	@Description	Updates an existing filter. Changing its badge, or the predicate, SSP or
+//	@Description	scope following of a filter whose badge is published, needs the
+//	@Description	filter:publish permission (403 without it); a slug another filter holds
+//	@Description	is a 409. Omitting badge keeps the current settings.
 //	@Tags			Filters
 //	@Accept			json
 //	@Produce		json
@@ -288,7 +324,9 @@ func (h *FilterHandler) Create(ctx *echo.Context) error {
 //	@Param			filter	body		createFilterRequest	true	"Filter to update"
 //	@Success		200		{object}	GenericDataResponse[relational.Filter]
 //	@Failure		400		{object}	api.Error
+//	@Failure		403		{object}	api.Error
 //	@Failure		404		{object}	api.Error
+//	@Failure		409		{object}	api.Error
 //	@Failure		500		{object}	api.Error
 //	@Router			/filters/{id} [put]
 func (h *FilterHandler) Update(ctx *echo.Context) error {
@@ -307,38 +345,6 @@ func (h *FilterHandler) Update(ctx *echo.Context) error {
 		return ctx.JSON(http.StatusBadRequest, api.Validator(err))
 	}
 
-	var filter relational.Filter
-	if err := h.db.First(&filter, "id = ?", id).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return ctx.JSON(http.StatusNotFound, api.NewError(err))
-		}
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
-	}
-
-	filter.Name = req.Name
-	// PUT is full replacement: omitted or null sspId intentionally clears the SSP binding.
-	filter.SSPID = req.SSPID
-	// followSspScope: true follows (filter is the new base), false stops following and
-	// keeps the current effective filter, omitted keeps the filter's current state.
-	following := filter.ScopeBase != nil
-	follow := following
-	if req.FollowSSPScope != nil {
-		follow = *req.FollowSSPScope
-	}
-	if !following || follow {
-		filter.Filter = datatypes.NewJSONType(req.Filter)
-	}
-	filter.ScopeBase = nil
-
-	// Note: nil and empty slices are semantically different here.
-	// If one of controls / components is present but empty, that
-	// means clear the existing controls / components, whereas a nil
-	// slice means we should ignore it entirely. Now consider, an
-	// existing filter with controls, and a request to update it where
-	// controls is nil but components is populated. This should be
-	// invalid, as the expected update would be to ignore the controls
-	// and update the components, resulting in a filter with both.
-
 	// The request contains one or more of both Controls and Components
 	if (req.Controls != nil && len(*req.Controls) > 0) && (req.Components != nil && len(*req.Components) > 0) {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(
@@ -348,71 +354,128 @@ func (h *FilterHandler) Update(ctx *echo.Context) error {
 		)
 	}
 
-	// The request contains one or more Controls, with a nil slice for Components
-	if (req.Controls != nil && len(*req.Controls) > 0) && (req.Components == nil) && len(filter.Components) > 0 {
-		return ctx.JSON(http.StatusBadRequest, api.NewError(
-			fmt.Errorf(
-				"cannot link Controls to a Filter with associated Components."+
-					"To remove existing Component associations, send an empty list for the Components field",
-			)),
-		)
-	}
-
-	// The request contains a nil slice for Controls, with one or more Components
-	if (req.Controls == nil) && (req.Components != nil && len(*req.Components) > 0) && len(filter.Controls) > 0 {
-		return ctx.JSON(http.StatusBadRequest, api.NewError(
-			fmt.Errorf(
-				"cannot link Components to a Filter with associated Controls."+
-					"To remove existing Control associations, send an empty list for the Controls field",
-			)),
-		)
-	}
-
-	// Update controls if provided
-	if req.Controls != nil {
-		// Clear existing controls association
-		if err := h.db.Model(&filter).Association("Controls").Clear(); err != nil {
-			return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
-		}
-		// Add new controls
-		for _, controlId := range *req.Controls {
-			searchDB := h.db.Session(&gorm.Session{})
-			control := relational.Control{}
-			err := searchDB.First(&control, "id = ?", controlId).Error
-			if err != nil {
-				if errors.Is(err, gorm.ErrRecordNotFound) {
-					return ctx.JSON(http.StatusNotFound, api.NewError(err))
-				}
-				return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
-			}
-			filter.Controls = append(filter.Controls, control)
-		}
-	}
-
-	if req.Components != nil {
-		if err := h.db.Model(&filter).Association("Components").Clear(); err != nil {
-			return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
-		}
-
-		for _, componentId := range *req.Components {
-			searchDB := h.db.Session(&gorm.Session{})
-			component := relational.SystemComponent{}
-			err := searchDB.First(&component, "id = ?", componentId).Error
-			if err != nil {
-				if errors.Is(err, gorm.ErrRecordNotFound) {
-					return ctx.JSON(http.StatusNotFound, api.NewError(err))
-				}
-				return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
-			}
-			filter.Components = append(filter.Components, component)
-		}
-	}
-
+	// The row is locked for the whole read-authorize-write, so the publish decision is
+	// made against the badge state the write commits over, and a failed check or
+	// conflict leaves nothing changed.
+	var filter relational.Filter
 	if err := h.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&filter, "id = ?", id).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return &filterHTTPError{status: http.StatusNotFound, err: err}
+			}
+			return err
+		}
+		before, err := selectionOf(&filter)
+		if err != nil {
+			return err
+		}
+		currentBadge := filter.Badge
+
+		filter.Name = req.Name
+		// PUT is full replacement: omitted or null sspId intentionally clears the SSP binding.
+		filter.SSPID = req.SSPID
+		// followSspScope: true follows (filter is the new base), false stops following and
+		// keeps the current effective filter, omitted keeps the filter's current state.
+		following := filter.ScopeBase != nil
+		follow := following
+		if req.FollowSSPScope != nil {
+			follow = *req.FollowSSPScope
+		}
+		if !following || follow {
+			filter.Filter = datatypes.NewJSONType(req.Filter)
+		}
+		filter.ScopeBase = nil
+
+		// Note: nil and empty slices are semantically different here.
+		// If one of controls / components is present but empty, that
+		// means clear the existing controls / components, whereas a nil
+		// slice means we should ignore it entirely. Now consider, an
+		// existing filter with controls, and a request to update it where
+		// controls is nil but components is populated. This should be
+		// invalid, as the expected update would be to ignore the controls
+		// and update the components, resulting in a filter with both.
+
+		// The request contains one or more Controls, with a nil slice for Components
+		if (req.Controls != nil && len(*req.Controls) > 0) && (req.Components == nil) && len(filter.Components) > 0 {
+			return badRequest(fmt.Errorf(
+				"cannot link Controls to a Filter with associated Components." +
+					"To remove existing Component associations, send an empty list for the Components field",
+			))
+		}
+
+		// The request contains a nil slice for Controls, with one or more Components
+		if (req.Controls == nil) && (req.Components != nil && len(*req.Components) > 0) && len(filter.Controls) > 0 {
+			return badRequest(fmt.Errorf(
+				"cannot link Components to a Filter with associated Controls." +
+					"To remove existing Control associations, send an empty list for the Controls field",
+			))
+		}
+
+		var controls []relational.Control
+		if req.Controls != nil {
+			for _, controlId := range *req.Controls {
+				control := relational.Control{}
+				if err := tx.Session(&gorm.Session{}).First(&control, "id = ?", controlId).Error; err != nil {
+					if errors.Is(err, gorm.ErrRecordNotFound) {
+						return &filterHTTPError{status: http.StatusNotFound, err: err}
+					}
+					return err
+				}
+				controls = append(controls, control)
+			}
+		}
+
+		var components []relational.SystemComponent
+		if req.Components != nil {
+			for _, componentId := range *req.Components {
+				component := relational.SystemComponent{}
+				if err := tx.Session(&gorm.Session{}).First(&component, "id = ?", componentId).Error; err != nil {
+					if errors.Is(err, gorm.ErrRecordNotFound) {
+						return &filterHTTPError{status: http.StatusNotFound, err: err}
+					}
+					return err
+				}
+				components = append(components, component)
+			}
+		}
+
+		badgeSettings, err := resolveFilterBadge(currentBadge, req.Badge, req.badgeSet)
+		if err != nil {
+			return badRequest(err)
+		}
+		filter.Badge = badgeSettings
+
 		if follow {
 			if err := followSSPScope(tx, &filter, req.Filter); err != nil {
 				return err
 			}
+		}
+
+		after, err := selectionOf(&filter)
+		if err != nil {
+			return err
+		}
+		if !badgeEqual(currentBadge, badgeSettings) || (currentBadge.Enabled && before != after) {
+			if err := h.authorizePublish(ctx, id.String()); err != nil {
+				return err
+			}
+		}
+		if err := checkBadgeSlugAvailable(tx, &id, filter.Badge.Slug); err != nil {
+			return err
+		}
+
+		// Clearing resets the struct's association field, so assign the new ones after.
+		if req.Controls != nil {
+			if err := tx.Model(&filter).Association("Controls").Clear(); err != nil {
+				return err
+			}
+			filter.Controls = controls
+		}
+		if req.Components != nil {
+			if err := tx.Model(&filter).Association("Components").Clear(); err != nil {
+				return err
+			}
+			filter.Components = components
 		}
 		return tx.Save(&filter).Error
 	}); err != nil {
@@ -863,9 +926,17 @@ func followSSPScope(tx *gorm.DB, filter *relational.Filter, base labelfilter.Fil
 }
 
 func (h *FilterHandler) filterWriteError(ctx *echo.Context, err error) error {
+	var httpErr *filterHTTPError
 	switch {
+	case errors.As(err, &httpErr):
+		return ctx.JSON(httpErr.status, api.NewError(httpErr.err))
 	case errors.Is(err, errFollowNeedsSSP), errors.Is(err, sspscope.ErrScopeEmpty), errors.Is(err, sspscope.ErrSSPNotFound):
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	case errors.Is(err, errPublishForbidden):
+		return ctx.JSON(http.StatusForbidden, api.NewError(errPublishForbidden))
+	case errors.Is(err, errBadgeSlugTaken), isBadgeSlugConflict(err):
+		return ctx.JSON(http.StatusConflict, api.NewError(errBadgeSlugTaken))
 	}
-	return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	h.sugar.Errorw("Failed to write filter", "error", err)
+	return ctx.JSON(http.StatusInternalServerError, api.InternalServerError())
 }

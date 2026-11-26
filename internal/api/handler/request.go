@@ -2,6 +2,8 @@ package handler
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -40,6 +42,65 @@ type createFilterRequest struct {
 	// scope changes. Requires sspId and a non-empty scope. On PUT, false stops following
 	// and keeps the current effective filter; omitted keeps the current state.
 	FollowSSPScope *bool `json:"followSspScope,omitempty" yaml:"-"`
+	// Badge changes the filter's public badge (docs/filter-badges.md) and needs the
+	// filter:publish permission unless it leaves the settings unchanged. Omitted keeps the
+	// current settings (POST: unpublished defaults); null resets them to the defaults.
+	Badge *filterBadgeRequest `json:"badge,omitempty" yaml:"-" extensions:"x-nullable"`
+
+	// badgeSet records that the body had a badge key, so a null badge can be told apart
+	// from an omitted one.
+	badgeSet bool
+}
+
+// filterBadgeRequest is the badge object of a filter create or update. Omitted fields
+// keep their current values on update and take the defaults on create.
+type filterBadgeRequest struct {
+	// Enabled publishes the badge at /api/public/badges/{slug}.svg; it requires a slug.
+	Enabled *bool `json:"enabled,omitempty"`
+	// Label is the badge's left-hand text: 1-64 characters after trimming, no control
+	// characters.
+	Label *string `json:"label,omitempty" example:"compliance"`
+	// Slug is the public identifier: lowercase letters, digits and single hyphens, at
+	// most 63 characters, unique across filters. null clears it and unpublishes.
+	Slug *string `json:"slug,omitempty" extensions:"x-nullable" example:"payments-production"`
+
+	// slugSet records that the body had a slug key, so a null slug can be told apart from
+	// an omitted one.
+	slugSet bool
+}
+
+func (r *filterBadgeRequest) UnmarshalJSON(data []byte) error {
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(data, &fields); err != nil {
+		return err
+	}
+	if fields == nil {
+		return errors.New("badge must be an object")
+	}
+	*r = filterBadgeRequest{}
+	if raw, ok := fields["enabled"]; ok {
+		if err := json.Unmarshal(raw, &r.Enabled); err != nil {
+			return fmt.Errorf("badge.enabled: %w", err)
+		}
+		if r.Enabled == nil {
+			return errors.New("badge.enabled must be true or false")
+		}
+	}
+	if raw, ok := fields["label"]; ok {
+		if err := json.Unmarshal(raw, &r.Label); err != nil {
+			return fmt.Errorf("badge.label: %w", err)
+		}
+		if r.Label == nil {
+			return errors.New("badge.label must be a string")
+		}
+	}
+	if raw, ok := fields["slug"]; ok {
+		r.slugSet = true
+		if err := json.Unmarshal(raw, &r.Slug); err != nil {
+			return fmt.Errorf("badge.slug: %w", err)
+		}
+	}
+	return nil
 }
 
 // UnmarshalJSON accepts sspId in either camelCase or kebab-case ("ssp-id"). The
@@ -55,6 +116,7 @@ func (r *createFilterRequest) UnmarshalJSON(data []byte) error {
 		Controls   *[]string          `json:"controls"`
 		Components *[]string          `json:"components"`
 		Follow     *bool              `json:"followSspScope"`
+		Badge      json.RawMessage    `json:"badge"`
 	}
 
 	var decoded requestAlias
@@ -71,6 +133,14 @@ func (r *createFilterRequest) UnmarshalJSON(data []byte) error {
 	r.Controls = decoded.Controls
 	r.Components = decoded.Components
 	r.FollowSSPScope = decoded.Follow
+	r.Badge = nil
+	r.badgeSet = decoded.Badge != nil
+	if r.badgeSet && string(decoded.Badge) != "null" {
+		r.Badge = &filterBadgeRequest{}
+		if err := json.Unmarshal(decoded.Badge, r.Badge); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 

@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"mime/multipart"
@@ -13,6 +14,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v5"
 	"gorm.io/datatypes"
+	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
 
@@ -73,7 +75,7 @@ func (h *FilterHandler) ImportFilters(ctx *echo.Context) error {
 	}
 
 	for _, fileHeader := range files {
-		result := h.processFilterFile(fileHeader)
+		result := h.processFilterFile(ctx, fileHeader)
 		response.Results = append(response.Results, result)
 		if result.Success {
 			response.SuccessfulCount++
@@ -91,7 +93,7 @@ func (h *FilterHandler) ImportFilters(ctx *echo.Context) error {
 	return ctx.JSON(statusCode, GenericDataResponse[FilterImportResponse]{Data: response})
 }
 
-func (h *FilterHandler) processFilterFile(fileHeader *multipart.FileHeader) FilterImportFileResult {
+func (h *FilterHandler) processFilterFile(ctx *echo.Context, fileHeader *multipart.FileHeader) FilterImportFileResult {
 	result := FilterImportFileResult{
 		Filename: fileHeader.Filename,
 		Success:  false,
@@ -140,7 +142,13 @@ func (h *FilterHandler) processFilterFile(fileHeader *multipart.FileHeader) Filt
 			rec.Filter = datatypes.NewJSONType(lf)
 		}
 
-		if err := h.db.Clauses(clause.OnConflict{UpdateAll: true}).Create(&rec).Error; err != nil {
+		if err := h.db.Transaction(func(tx *gorm.DB) error {
+			return h.upsertImportedFilter(ctx, tx, &rec)
+		}); err != nil {
+			if errors.Is(err, errPublishForbidden) {
+				result.Message = fmt.Sprintf("Failed to import filter '%s': %v", in.Name, err)
+				return result
+			}
 			result.Message = fmt.Sprintf("Failed to create filter '%s': %v", in.Name, err)
 			return result
 		}
@@ -171,4 +179,34 @@ func (h *FilterHandler) processFilterFile(fileHeader *multipart.FileHeader) Filt
 	result.Count = created
 	result.Message = fmt.Sprintf("Successfully imported %d dashboard(s)", created)
 	return result
+}
+
+// upsertImportedFilter creates rec, or overwrites the imported fields of the filter with
+// its ID. The existing filter keeps its badge settings, and changing the selection of a
+// published one needs filter:publish, as on PUT /filters/:id.
+func (h *FilterHandler) upsertImportedFilter(ctx *echo.Context, tx *gorm.DB, rec *relational.Filter) error {
+	if rec.ID != nil {
+		var existing relational.Filter
+		err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&existing, "id = ?", *rec.ID).Error
+		switch {
+		case errors.Is(err, gorm.ErrRecordNotFound):
+		case err != nil:
+			return err
+		case existing.Badge.Enabled:
+			before, err := selectionOf(&existing)
+			if err != nil {
+				return err
+			}
+			after, err := selectionOf(rec)
+			if err != nil {
+				return err
+			}
+			if before != after {
+				if err := h.authorizePublish(ctx, rec.ID.String()); err != nil {
+					return err
+				}
+			}
+		}
+	}
+	return tx.Clauses(relational.FilterImportUpsert()).Create(rec).Error
 }

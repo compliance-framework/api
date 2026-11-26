@@ -28,7 +28,7 @@
 # roles — it allows every authenticated non-admin request and only gates `admin` via SSO
 # groups (zero behavior change), except the `agent` resource: users need the same admin
 # check there, agent service accounts may only register, ingest and sync, and anonymous is
-# denied (R39). The embedded Cedar engine (BCH-1316) DOES honor this C0 role
+# denied (R39); filter:publish also needs the admin check. The embedded Cedar engine (BCH-1316) DOES honor this C0 role
 # set; select it with `authz.driver: cedar` (see docs/authz-oss-cedar.md). C1/C2 stay
 # Enterprise/BYO.
 schemaVersion: 1
@@ -168,7 +168,9 @@ resources:
 
   # ── Archetype E: dashboard / config (SSP-scoped) ──
   filter:
-    actions: [read, create, update, delete]
+    # publish changes a saved filter's anonymous badge (docs/filter-badges.md): its badge
+    # settings, or the selection of a published filter. Only admin ("*") holds it.
+    actions: [read, create, update, delete, publish]
     attributes:
       ssp_id: uuid
   dashboard-suggestion:

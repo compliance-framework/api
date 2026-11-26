@@ -86,10 +86,18 @@ func RegisterHandlers(server *api.Server, logger *zap.SugaredLogger, db *gorm.DB
 	meGroup.Use(middleware.JWTMiddleware(config.JWTPublicKey))
 	permissionsHandler.Register(meGroup, pep.For(authz.ResourceUser))
 
-	filterHandler := NewFilterHandler(logger, db)
+	filterHandler := NewFilterHandler(logger, db).WithPDP(pdp).WithEvidenceService(services.EvidenceService)
 	filterGroup := server.API().Group("/filters")
+	// Before authentication, so a badge request's 401 is uncacheable too.
+	filterGroup.Use(filterBadgeErrorNoStore)
 	filterGroup.Use(middleware.JWTMiddleware(config.JWTPublicKey))
 	filterHandler.Register(filterGroup, pep.For(authz.ResourceFilter))
+	// The preview discloses evidence-derived state, so it also needs evidence read.
+	filterHandler.RegisterBadgePreview(filterGroup, pep.For(authz.ResourceFilter), pep.For(authz.ResourceEvidence))
+	// Published badges are deliberately anonymous, whatever StrictDisablePublicAgentEndpoints
+	// says: publication (filter:publish) is the access gate. Keep this group free of auth
+	// middleware and of every other route.
+	filterHandler.RegisterPublicBadges(server.API().Group("/public/badges"))
 
 	// Policies & Procedures + Compliance Lineage.
 	controlLinkHandler := NewControlLinkHandler(logger, db)
