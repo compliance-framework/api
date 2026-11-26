@@ -520,6 +520,55 @@ func (s *FilterBadgeIntegrationSuite) TestUpdateLocksScopeBeforeFilter() {
 	s.Equal(providerFilter("gcp"), kept.ScopeBase.Data())
 }
 
+// Moving a filter off an SSP waits for that SSP's scope edits, so they cannot rewrite the
+// moved filter with the old scope.
+func (s *FilterBadgeIntegrationSuite) TestUpdateLocksPreviousSSPScope() {
+	scope := sspscope.NewService(s.DB)
+	newSSP := func(repo string) uuid.UUID {
+		id := uuid.New()
+		s.Require().NoError(s.DB.Create(&relational.SystemSecurityPlan{UUIDModel: relational.UUIDModel{ID: &id}}).Error)
+		_, err := scope.AddEntry(id, []relational.ScopeLabel{{Key: "repo", Value: repo}}, nil)
+		s.Require().NoError(err)
+		return id
+	}
+	oldSSP, nextSSP := newSSP("a"), newSSP("b")
+
+	for name, update := range map[string]map[string]any{
+		"moved":   {"sspId": nextSSP, "followSspScope": true},
+		"cleared": {"followSspScope": false},
+	} {
+		s.Run(name, func() {
+			rec := s.do(s.builtin, http.MethodPost, "/api/filters", s.admin, filterBody("f", "aws", map[string]any{
+				"sspId": oldSSP, "followSspScope": true,
+			}))
+			s.Require().Equal(http.StatusCreated, rec.Code, rec.Body.String())
+			f := s.decode(rec)
+
+			// A scope edit on the old SSP: lock it, then list its following filters.
+			tx := s.DB.Begin()
+			defer tx.Rollback()
+			s.Require().NoError(sspscope.LockSSP(tx, oldSSP))
+			var following []uuid.UUID
+			s.Require().NoError(tx.Model(&relational.Filter{}).
+				Where("ssp_id = ? AND scope_base IS NOT NULL", oldSSP).Pluck("id", &following).Error)
+			s.Require().Contains(following, *f.ID)
+
+			done := make(chan *httptest.ResponseRecorder, 1)
+			go func() {
+				done <- s.do(s.builtin, http.MethodPut, "/api/filters/"+f.ID.String(), s.admin, filterBody("updated", "gcp", update))
+			}()
+			s.waitForLockWaiter()
+			stale := datatypes.NewJSONType(providerFilter("stale"))
+			s.Require().NoError(tx.Model(&relational.Filter{}).Where("id IN ?", following).Update("filter", stale).Error)
+			s.Require().NoError(tx.Commit().Error)
+
+			rec = <-done
+			s.Require().Equal(http.StatusOK, rec.Code, rec.Body.String())
+			s.Equal(s.decode(rec).Filter.Data(), s.stored(*f.ID).Filter.Data(), "the scope edit must not overwrite the update")
+		})
+	}
+}
+
 // A scope edit rewrites a following filter without filter:publish, and the published badge
 // follows it.
 func (s *FilterBadgeIntegrationSuite) TestScopeEditUpdatesFollowingBadge() {

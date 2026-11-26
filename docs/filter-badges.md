@@ -171,8 +171,13 @@ example, lock the filter row before checking and hold the lock until commit),
 or use a versioned conditional write and roll back the entire transaction on
 conflict (`409`). All competing filter-route writers, including enabling a
 badge, must follow the same concurrency protocol.
-When updating an SSP-bound filter, acquire the SSP scope lock before the filter
-row lock, matching scope edits, and hold both through authorization and commit.
+When updating a filter, acquire the scope locks of its current SSP and of the
+requested SSP, in a fixed order, before the filter row lock, matching scope
+edits, and hold them through authorization and commit. Locking only the
+requested SSP would let a scope edit on the SSP the filter leaves rewrite it
+with the old scope after the update commits. If the row's SSP changed between
+choosing the locks and locking the row, retry, and return `409` once retries
+are exhausted.
 
 An import that finds no row must insert without overwriting on conflict. If
 another transaction creates the ID first, repeat the locked lookup and

@@ -1,9 +1,11 @@
 package handler
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 	"strings"
 
 	"github.com/compliance-framework/api/internal/api"
@@ -358,18 +360,22 @@ func (h *FilterHandler) Update(ctx *echo.Context) error {
 	// made against the badge state the write commits over, and a failed check or
 	// conflict leaves nothing changed.
 	var filter relational.Filter
-	if err := h.db.Transaction(func(tx *gorm.DB) error {
-		// Scope changes lock the SSP before rewriting following filters.
-		if req.SSPID != nil {
-			if err := sspscope.LockSSP(tx, *req.SSPID); err != nil {
-				return err
+	update := func(tx *gorm.DB) error {
+		seenSSP, err := lockFilterScopes(tx, id, req.SSPID)
+		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return &filterHTTPError{status: http.StatusNotFound, err: err}
 			}
+			return err
 		}
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&filter, "id = ?", id).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return &filterHTTPError{status: http.StatusNotFound, err: err}
 			}
 			return err
+		}
+		if !sameSSP(seenSSP, filter.SSPID) {
+			return errFilterSSPMoved
 		}
 		before, err := selectionOf(&filter)
 		if err != nil {
@@ -484,11 +490,55 @@ func (h *FilterHandler) Update(ctx *echo.Context) error {
 			filter.Components = components
 		}
 		return tx.Save(&filter).Error
-	}); err != nil {
+	}
+	for attempt := 1; ; attempt++ {
+		filter = relational.Filter{}
+		err = h.db.Transaction(update)
+		if !errors.Is(err, errFilterSSPMoved) || attempt == filterUpdateAttempts {
+			break
+		}
+	}
+	if err != nil {
 		return h.filterWriteError(ctx, err)
 	}
 
 	return ctx.JSON(http.StatusOK, GenericDataResponse[relational.Filter]{Data: filter})
+}
+
+// filterUpdateAttempts bounds Update's retries when the filter's SSP changes under it.
+const filterUpdateAttempts = 3
+
+// errFilterSSPMoved means the filter's SSP changed between the unlocked read that chose
+// the scope locks and the row lock, so those locks do not cover it.
+var errFilterSSPMoved = errors.New("filter SSP changed concurrently; retry the update")
+
+// lockFilterScopes takes the scope locks of the filter's current SSP and the requested
+// one, in a fixed order and before the filter row lock, as scope edits do. A scope edit
+// on the SSP a filter leaves could otherwise rewrite it with that SSP's scope after the
+// update. It returns the SSP it read, which the caller checks against the locked row.
+func lockFilterScopes(tx *gorm.DB, id uuid.UUID, requested *uuid.UUID) (*uuid.UUID, error) {
+	var current relational.Filter
+	if err := tx.Select("id", "ssp_id").First(&current, "id = ?", id).Error; err != nil {
+		return nil, err
+	}
+	var ssps []uuid.UUID
+	if current.SSPID != nil {
+		ssps = append(ssps, *current.SSPID)
+	}
+	if requested != nil && !sameSSP(current.SSPID, requested) {
+		ssps = append(ssps, *requested)
+	}
+	slices.SortFunc(ssps, func(a, b uuid.UUID) int { return bytes.Compare(a[:], b[:]) })
+	for _, sspID := range ssps {
+		if err := sspscope.LockSSP(tx, sspID); err != nil {
+			return nil, err
+		}
+	}
+	return current.SSPID, nil
+}
+
+func sameSSP(a, b *uuid.UUID) bool {
+	return (a == nil) == (b == nil) && (a == nil || *a == *b)
 }
 
 // Delete godoc
@@ -942,6 +992,8 @@ func (h *FilterHandler) filterWriteError(ctx *echo.Context, err error) error {
 		return ctx.JSON(http.StatusForbidden, api.NewError(errPublishForbidden))
 	case errors.Is(err, errBadgeSlugTaken), isBadgeSlugConflict(err):
 		return ctx.JSON(http.StatusConflict, api.NewError(errBadgeSlugTaken))
+	case errors.Is(err, errFilterSSPMoved):
+		return ctx.JSON(http.StatusConflict, api.NewError(errFilterSSPMoved))
 	}
 	h.sugar.Errorw("Failed to write filter", "error", err)
 	return ctx.JSON(http.StatusInternalServerError, api.InternalServerError())
