@@ -6,7 +6,7 @@ import (
 	"sort"
 	"strings"
 
-	yaml "gopkg.in/yaml.v2"
+	yaml "gopkg.in/yaml.v3"
 )
 
 // ExportFormat is a target the manifest vocabulary can be rendered into for GitOps
