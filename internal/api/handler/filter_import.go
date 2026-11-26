@@ -185,11 +185,23 @@ func (h *FilterHandler) processFilterFile(ctx *echo.Context, fileHeader *multipa
 // its ID. The existing filter keeps its badge settings, and changing the selection of a
 // published one needs filter:publish, as on PUT /filters/:id.
 func (h *FilterHandler) upsertImportedFilter(ctx *echo.Context, tx *gorm.DB, rec *relational.Filter) error {
-	if rec.ID != nil {
+	for rec.ID != nil {
 		var existing relational.Filter
 		err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&existing, "id = ?", *rec.ID).Error
 		switch {
 		case errors.Is(err, gorm.ErrRecordNotFound):
+			insert := tx.Clauses(clause.OnConflict{
+				Columns:   []clause.Column{{Name: "id"}},
+				DoNothing: true,
+			}).Create(rec)
+			if insert.Error != nil {
+				return insert.Error
+			}
+			if insert.RowsAffected > 0 {
+				return nil
+			}
+			// A missing row cannot be locked; recheck the concurrent insert.
+			continue
 		case err != nil:
 			return err
 		case existing.Badge.Enabled:
@@ -207,6 +219,7 @@ func (h *FilterHandler) upsertImportedFilter(ctx *echo.Context, tx *gorm.DB, rec
 				}
 			}
 		}
+		break
 	}
 	return tx.Clauses(relational.FilterImportUpsert()).Create(rec).Error
 }

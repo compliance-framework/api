@@ -707,13 +707,22 @@ func (s *FilterBadgeIntegrationSuite) TestImportKeepsBadges() {
 		return map[string]any{"id": f.ID, "name": "imported-name", "filter": providerFilter(provider)}
 	}
 
-	out := s.importFilters(s.cedar, s.cedarContributor, []map[string]any{dashboard("aws"), {"name": "new", "filter": providerFilter("x")}})
+	freshID := uuid.New()
+	out := s.importFilters(s.cedar, s.cedarContributor, []map[string]any{
+		dashboard("aws"),
+		{"name": "new", "filter": providerFilter("x")},
+		{"id": freshID, "name": "new-with-id", "filter": providerFilter("x")},
+	})
 	s.Require().Equal(1, out.SuccessfulCount, out.Results)
+	s.Equal(3, out.TotalDashboards)
 	kept := s.stored(*f.ID)
 	s.Equal("imported-name", kept.Name)
 	s.Equal(f.Badge, kept.Badge)
 	var fresh relational.Filter
 	s.Require().NoError(s.DB.First(&fresh, "name = ?", "new").Error)
+	s.Equal(relational.DefaultFilterBadge(), fresh.Badge)
+	fresh = s.stored(freshID)
+	s.Equal(providerFilter("x"), fresh.Filter.Data())
 	s.Equal(relational.DefaultFilterBadge(), fresh.Badge)
 
 	out = s.importFilters(s.cedar, s.cedarContributor, []map[string]any{dashboard("gcp")})
@@ -726,4 +735,58 @@ func (s *FilterBadgeIntegrationSuite) TestImportKeepsBadges() {
 	kept = s.stored(*f.ID)
 	s.Equal(providerFilter("gcp"), kept.Filter.Data())
 	s.Equal(f.Badge, kept.Badge)
+}
+
+func (s *FilterBadgeIntegrationSuite) TestConcurrentImportAndCreate() {
+	for _, tc := range []struct {
+		name     string
+		enabled  bool
+		provider string
+		token    string
+		allow    bool
+	}{
+		{"published selection change denied", true, "gcp", s.cedarContributor, false},
+		{"published selection unchanged", true, "aws", s.cedarContributor, true},
+		{"published selection change authorized", true, "gcp", s.cedarAdmin, true},
+		{"unpublished selection change", false, "gcp", s.cedarContributor, true},
+	} {
+		s.Run(tc.name, func() {
+			id := uuid.New()
+			slug := "import-" + id.String()
+			f := relational.Filter{
+				UUIDModel: relational.UUIDModel{ID: &id},
+				Name:      "concurrent",
+				Filter:    datatypes.NewJSONType(providerFilter("aws")),
+				Badge:     relational.FilterBadge{Enabled: tc.enabled, Label: "kept", Slug: &slug},
+			}
+			tx := s.DB.Begin()
+			defer tx.Rollback()
+			s.Require().NoError(tx.Create(&f).Error)
+
+			// The lookup cannot see the uncommitted row; the insert must wait for it.
+			done := make(chan FilterImportResponse, 1)
+			go func() {
+				done <- s.importFilters(s.cedar, tc.token, []map[string]any{
+					{"id": id, "name": "imported-name", "filter": providerFilter(tc.provider)},
+				})
+			}()
+			s.waitForLockWaiter()
+			s.Require().NoError(tx.Commit().Error)
+
+			out := <-done
+			wantName, wantProvider := "imported-name", tc.provider
+			if tc.allow {
+				s.Require().Equal(1, out.SuccessfulCount, out.Results)
+			} else {
+				s.Require().Equal(1, out.FailedCount, out.Results)
+				s.Require().Len(out.Results, 1)
+				s.Contains(out.Results[0].Message, "filter:publish")
+				wantName, wantProvider = "concurrent", "aws"
+			}
+			kept := s.stored(id)
+			s.Equal(wantName, kept.Name)
+			s.Equal(providerFilter(wantProvider), kept.Filter.Data())
+			s.Equal(f.Badge, kept.Badge)
+		})
+	}
 }

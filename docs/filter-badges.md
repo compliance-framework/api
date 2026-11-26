@@ -172,6 +172,10 @@ or use a versioned conditional write and roll back the entire transaction on
 conflict (`409`). All competing filter-route writers, including enabling a
 badge, must follow the same concurrency protocol.
 
+An import that finds no row must insert without overwriting on conflict. If
+another transaction creates the ID first, repeat the locked lookup and
+selection-dependent publish check before updating it.
+
 A predicate write authorized only while disabled must not commit after another
 transaction enables the badge: it must fail without mutation. Evaluate
 authorization before side effects against the state protected by that protocol,
