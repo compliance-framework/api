@@ -35,7 +35,7 @@ func (e *ScopeWouldEmptyError) Is(target error) bool { return target == ErrScope
 // open transaction and the filter must be written in it; a concurrent scope change then
 // waits and rewrites the filter. It fails with ErrSSPNotFound or ErrScopeEmpty.
 func FollowScope(tx *gorm.DB, sspID uuid.UUID, base labelfilter.Filter) (labelfilter.Filter, error) {
-	if err := lockSSP(tx, sspID); err != nil {
+	if err := LockSSP(tx, sspID); err != nil {
 		return labelfilter.Filter{}, err
 	}
 	if err := ensureSSP(tx, sspID); err != nil {

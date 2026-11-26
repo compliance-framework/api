@@ -359,6 +359,12 @@ func (h *FilterHandler) Update(ctx *echo.Context) error {
 	// conflict leaves nothing changed.
 	var filter relational.Filter
 	if err := h.db.Transaction(func(tx *gorm.DB) error {
+		// Scope changes lock the SSP before rewriting following filters.
+		if req.SSPID != nil {
+			if err := sspscope.LockSSP(tx, *req.SSPID); err != nil {
+				return err
+			}
+		}
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&filter, "id = ?", id).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return &filterHTTPError{status: http.StatusNotFound, err: err}

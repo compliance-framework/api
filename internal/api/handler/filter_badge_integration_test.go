@@ -485,6 +485,41 @@ func (s *FilterBadgeIntegrationSuite) TestConcurrentUpdateAndEnable() {
 	s.Equal(providerFilter("aws"), kept.Filter.Data())
 }
 
+func (s *FilterBadgeIntegrationSuite) TestUpdateLocksScopeBeforeFilter() {
+	sspID := uuid.New()
+	s.Require().NoError(s.DB.Create(&relational.SystemSecurityPlan{UUIDModel: relational.UUIDModel{ID: &sspID}}).Error)
+	_, err := sspscope.NewService(s.DB).AddEntry(sspID, []relational.ScopeLabel{{Key: "repo", Value: "a"}}, nil)
+	s.Require().NoError(err)
+	rec := s.do(s.builtin, http.MethodPost, "/api/filters", s.admin, filterBody("f", "aws", map[string]any{
+		"sspId": sspID, "followSspScope": true,
+	}))
+	s.Require().Equal(http.StatusCreated, rec.Code, rec.Body.String())
+	f := s.decode(rec)
+
+	tx := s.DB.Begin()
+	defer tx.Rollback()
+	effective, err := sspscope.FollowScope(tx, sspID, providerFilter("aws"))
+	s.Require().NoError(err)
+	s.Require().NoError(tx.Exec("SET LOCAL lock_timeout = '1s'").Error)
+
+	done := make(chan *httptest.ResponseRecorder, 1)
+	go func() {
+		done <- s.do(s.builtin, http.MethodPut, "/api/filters/"+f.ID.String(), s.admin,
+			filterBody("updated", "gcp", map[string]any{"sspId": sspID}))
+	}()
+	s.waitForLockWaiter()
+	s.Require().NoError(tx.Model(&f).Update("filter", datatypes.NewJSONType(effective)).Error,
+		"the scope writer must be able to lock the filter while Update waits for the scope")
+	s.Require().NoError(tx.Commit().Error)
+
+	rec = <-done
+	s.Require().Equal(http.StatusOK, rec.Code, rec.Body.String())
+	kept := s.stored(*f.ID)
+	s.Equal("updated", kept.Name)
+	s.Require().NotNil(kept.ScopeBase)
+	s.Equal(providerFilter("gcp"), kept.ScopeBase.Data())
+}
+
 // A scope edit rewrites a following filter without filter:publish, and the published badge
 // follows it.
 func (s *FilterBadgeIntegrationSuite) TestScopeEditUpdatesFollowingBadge() {
