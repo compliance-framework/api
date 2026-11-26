@@ -717,7 +717,7 @@ func (s *FilterBadgeIntegrationSuite) TestRenderFailureIsGeneric500() {
 	s.JSONEq(`{"errors":{"body":"internal server error"}}`, rec.Body.String())
 }
 
-func (s *FilterBadgeIntegrationSuite) importFilters(srv *api.Server, token string, dashboards []map[string]any) FilterImportResponse {
+func (s *FilterBadgeIntegrationSuite) importRequest(token string, dashboards []map[string]any) *http.Request {
 	var buf bytes.Buffer
 	w := multipart.NewWriter(&buf)
 	part, err := w.CreateFormFile("files", "dashboards.json")
@@ -727,8 +727,16 @@ func (s *FilterBadgeIntegrationSuite) importFilters(srv *api.Server, token strin
 	req := httptest.NewRequest(http.MethodPost, "/api/filters/import", &buf)
 	req.Header.Set(echo.HeaderContentType, w.FormDataContentType())
 	req.Header.Set(echo.HeaderAuthorization, "Bearer "+token)
+	return req
+}
+
+func (s *FilterBadgeIntegrationSuite) importFilters(srv *api.Server, token string, dashboards []map[string]any) FilterImportResponse {
 	rec := httptest.NewRecorder()
-	srv.E().ServeHTTP(rec, req)
+	srv.E().ServeHTTP(rec, s.importRequest(token, dashboards))
+	return s.decodeImport(rec)
+}
+
+func (s *FilterBadgeIntegrationSuite) decodeImport(rec *httptest.ResponseRecorder) FilterImportResponse {
 	var out GenericDataResponse[FilterImportResponse]
 	s.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &out), rec.Body.String())
 	return out.Data
@@ -799,16 +807,19 @@ func (s *FilterBadgeIntegrationSuite) TestConcurrentImportAndCreate() {
 			s.Require().NoError(tx.Create(&f).Error)
 
 			// The lookup cannot see the uncommitted row; the insert must wait for it.
-			done := make(chan FilterImportResponse, 1)
+			req := s.importRequest(tc.token, []map[string]any{
+				{"id": id, "name": "imported-name", "filter": providerFilter(tc.provider)},
+			})
+			done := make(chan *httptest.ResponseRecorder, 1)
 			go func() {
-				done <- s.importFilters(s.cedar, tc.token, []map[string]any{
-					{"id": id, "name": "imported-name", "filter": providerFilter(tc.provider)},
-				})
+				rec := httptest.NewRecorder()
+				s.cedar.E().ServeHTTP(rec, req)
+				done <- rec
 			}()
 			s.waitForLockWaiter()
 			s.Require().NoError(tx.Commit().Error)
 
-			out := <-done
+			out := s.decodeImport(<-done)
 			wantName, wantProvider := "imported-name", tc.provider
 			if tc.allow {
 				s.Require().Equal(1, out.SuccessfulCount, out.Results)
