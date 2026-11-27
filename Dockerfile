@@ -1,6 +1,6 @@
 # Use the official Golang image to create a build artifact.
 # This is based on Debian.
-FROM golang:1.27@sha256:205c7636d74e0ffbe3d007162df7d74f859f5a8c8322dfb9f907977686c126cf AS local
+FROM golang:1.27@sha256:87f49b77a7b6a99ad7dc656be010ae453322459dd2ed902ac177649a302bc101 AS local
 # Build with the go.mod toolchain line (Renovate bumps it for Go security fixes), downloading it when this image's Go is older.
 ENV GOTOOLCHAIN=auto
 
@@ -15,7 +15,7 @@ RUN make swag
 
 CMD ["go", "tool", "air"]
 
-FROM golang:1.27@sha256:205c7636d74e0ffbe3d007162df7d74f859f5a8c8322dfb9f907977686c126cf AS builder
+FROM golang:1.27@sha256:87f49b77a7b6a99ad7dc656be010ae453322459dd2ed902ac177649a302bc101 AS builder
 # Build with the go.mod toolchain line (Renovate bumps it for Go security fixes), downloading it when this image's Go is older.
 ENV GOTOOLCHAIN=auto
 
@@ -34,7 +34,7 @@ RUN make swag
 # Build it: a static binary, since the production image has no libc.
 RUN CGO_ENABLED=0 GOOS=linux go build -o /api
 
-FROM gcr.io/distroless/static-debian13@sha256:1a64f46364620465ef9e9a8f5413757dfdf22695e050bbfd7303eeaf17a59383 AS production
+FROM gcr.io/distroless/static-debian13@sha256:4c2cd1dee442c9a99924a378c7c126fac8fef14771579ef567c3f2bdd7a5122a AS production
 
 # The release and preview workflows pass VERSION (X.Y.Z, X.Y.Z-rcN, main-<sha7> or
 # pr-<number>-<sha7>) and set the source and revision labels themselves.
