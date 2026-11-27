@@ -22,7 +22,8 @@ func init() {
 // Builtin is the default, in-process PDP. It reproduces CCF's pre-authz access rules with
 // zero behavior change: admin resources require SSO admin-group membership (password
 // users are treated as super admins), the agent resource requires the same admin check for
-// users (agent service accounts may register, ingest and sync; anonymous is denied; R39), and every other
+// users (agent service accounts may register, ingest and sync; anonymous is denied; R39),
+// filter:publish requires the same admin check, and every other
 // resource is allowed once the request is authenticated — the authn middleware having already enforced authentication
 // and any public-endpoint policy before the PEP runs.
 //
@@ -68,6 +69,11 @@ func (b *Builtin) Evaluate(ctx context.Context, s Subject, action string, r Reso
 			return Decision{Allow: false, Reason: "builtin: anonymous access to agent resource"}, nil
 		}
 	default:
+		if r.Type == ResourceFilter && action == ActionPublish {
+			// Publishing makes evidence-derived state anonymous, so it needs the admin
+			// check rather than the authenticated-request allow below.
+			return b.evaluateAdmin(ctx, s)
+		}
 		// Phase 1: authenticated = allowed. The authn middleware already enforced
 		// authentication (and any public-endpoint policy) before the PEP runs, so any
 		// request that reaches a decision is permitted. Resource-attribute policies
@@ -90,8 +96,10 @@ func (b *Builtin) Evaluations(ctx context.Context, reqs []EvalRequest) ([]Decisi
 
 	out := make([]Decision, len(reqs))
 	for i, req := range reqs {
-		// Agent-resource requests from users resolve through the same admin check.
-		if req.Resource.Type == ResourceAdmin || (req.Resource.Type == ResourceAgent && req.Subject.Type == "user") {
+		// Agent-resource requests from users, and filter:publish, resolve through the same
+		// admin check.
+		if req.Resource.Type == ResourceAdmin || (req.Resource.Type == ResourceAgent && req.Subject.Type == "user") ||
+			(req.Resource.Type == ResourceFilter && req.Action == ActionPublish) {
 			key := adminKey{req.Subject.Type, req.Subject.ID}
 			if d, ok := adminMemo[key]; ok {
 				out[i] = d

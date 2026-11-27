@@ -200,7 +200,7 @@ type LearnResult struct {
 // immediately.
 func (s *Service) Learn(tx *gorm.DB, sspID, templateID uuid.UUID, entries [][]relational.ScopeLabel) (LearnResult, error) {
 	result := LearnResult{Added: []relational.SSPScopeEntry{}, Skipped: []SkippedEntry{}}
-	if err := lockSSP(tx, sspID); err != nil {
+	if err := LockSSP(tx, sspID); err != nil {
 		return LearnResult{}, err
 	}
 	if err := ensureSSP(tx, sspID); err != nil {
@@ -341,7 +341,7 @@ func (s *Service) afterChange(tx *gorm.DB, sspID uuid.UUID) error {
 // exists.
 func (s *Service) write(sspID uuid.UUID, fn func(tx *gorm.DB) error) error {
 	return s.db.Transaction(func(tx *gorm.DB) error {
-		if err := lockSSP(tx, sspID); err != nil {
+		if err := LockSSP(tx, sspID); err != nil {
 			return err
 		}
 		if err := ensureSSP(tx, sspID); err != nil {
@@ -351,8 +351,9 @@ func (s *Service) write(sspID uuid.UUID, fn func(tx *gorm.DB) error) error {
 	})
 }
 
-// lockSSP takes the SSP's transaction-scoped advisory lock (postgres only).
-func lockSSP(tx *gorm.DB, sspID uuid.UUID) error {
+// LockSSP takes the SSP's transaction-scoped advisory lock (postgres only).
+// tx must be an open transaction; acquire this lock before locking filter rows.
+func LockSSP(tx *gorm.DB, sspID uuid.UUID) error {
 	if tx.Name() != "postgres" {
 		return nil
 	}

@@ -13,7 +13,6 @@ import (
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
 	"gorm.io/datatypes"
-	"gorm.io/gorm/clause"
 )
 
 func newDashboardsImportCMD() *cobra.Command {
@@ -89,7 +88,8 @@ func importDashboards(cmd *cobra.Command, args []string) {
 			rec.Filter = datatypes.NewJSONType(lf)
 		}
 
-		if err := db.Clauses(clause.OnConflict{UpdateAll: true}).Create(&rec).Error; err != nil {
+		// An operator-run import may overwrite a filter by ID, but never its badge settings.
+		if err := db.Clauses(relational.FilterImportUpsert()).Create(&rec).Error; err != nil {
 			sugar.Fatalf("failed to create filter '%s': %v", in.Name, err)
 		}
 

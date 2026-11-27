@@ -142,6 +142,11 @@ const (
 	// Cedar grants it to admin only, unless an operator grants it to another role.
 	ActionInspect = "inspect"
 
+	// ActionPublish (resource filter) publishes a saved filter's aggregate as an anonymous
+	// badge: changing its badge settings, or the selection of a published filter. Cedar
+	// grants it to admin only; builtin requires the admin check.
+	ActionPublish = "publish"
+
 	// Agent remote configuration (resource agent). ActionConfigure writes an agent's
 	// configuration overlay; ActionSync is the agent fetching its overlay and reporting.
 	ActionRegister  = "register"

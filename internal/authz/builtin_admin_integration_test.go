@@ -206,3 +206,30 @@ func TestBuiltinEvaluationsMemoizesAdmin(t *testing.T) {
 	// would issue 8 (2 × 4 actions); the memo keeps it at the single-resolution cost.
 	require.LessOrEqualf(t, queries, 2, "admin facts should resolve once (<=2 queries), got %d", queries)
 }
+
+// filter:publish resolves through the admin check, with the same decision singly and in a
+// batch, while filter:update stays allowed for any authenticated user.
+func TestBuiltinFilterPublishAdminParity(t *testing.T) {
+	db := setupAuthzDB(t)
+	cfg := ssoEnabledConfig([]string{"ccf-admins"})
+	admin := createUser(t, db, "admin@example.com", "sso")
+	createSSOLink(t, db, admin, "test", []string{"ccf-admins"})
+	member := createUser(t, db, "member@example.com", "sso")
+	createSSOLink(t, db, member, "test", []string{"engineers"})
+
+	b := NewBuiltin(db, cfg, zap.NewNop().Sugar())
+	filter := Resource{Type: ResourceFilter, ID: "f-1"}
+	for email, want := range map[string]bool{"admin@example.com": true, "member@example.com": false} {
+		s := Subject{Type: "user", ID: email}
+		single, err := b.Evaluate(context.Background(), s, ActionPublish, filter, nil)
+		require.NoError(t, err)
+		batch, err := b.Evaluations(context.Background(), []EvalRequest{
+			{Subject: s, Action: ActionUpdate, Resource: filter},
+			{Subject: s, Action: ActionPublish, Resource: filter},
+		})
+		require.NoError(t, err)
+		require.Equalf(t, want, single.Allow, "%s: single filter:publish", email)
+		require.Equalf(t, want, batch[1].Allow, "%s: batch filter:publish", email)
+		require.Truef(t, batch[0].Allow, "%s: filter:update", email)
+	}
+}

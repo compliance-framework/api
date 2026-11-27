@@ -88,3 +88,28 @@ func TestBuiltinRegisteredAsDefaultDriver(t *testing.T) {
 		t.Fatal("Open(unknown driver) expected error, got nil")
 	}
 }
+
+// filter:publish is not implied by an authenticated request the way other filter actions
+// are: without a user subject it is denied, before any DB access, singly and in a batch.
+func TestBuiltinFilterPublishNeedsAdmin(t *testing.T) {
+	b := NewBuiltin(nil, nil, nil)
+	filter := Resource{Type: ResourceFilter, ID: "f-1"}
+
+	for _, s := range []Subject{{Type: "anonymous"}, {Type: "agent", ID: "agent-1"}, {Type: "user", ID: ""}} {
+		update, err := b.Evaluate(context.Background(), s, ActionUpdate, filter, nil)
+		if err != nil || !update.Allow {
+			t.Fatalf("Evaluate(filter:update) subject=%+v = %+v, %v; want allow", s, update, err)
+		}
+		publish, err := b.Evaluate(context.Background(), s, ActionPublish, filter, nil)
+		if err != nil {
+			t.Fatalf("Evaluate(filter:publish) subject=%+v error = %v", s, err)
+		}
+		decs, err := b.Evaluations(context.Background(), []EvalRequest{{Subject: s, Action: ActionPublish, Resource: filter}})
+		if err != nil {
+			t.Fatalf("Evaluations(filter:publish) subject=%+v error = %v", s, err)
+		}
+		if publish.Allow || decs[0].Allow {
+			t.Errorf("filter:publish subject=%+v allow = %v (single), %v (batch); want false", s, publish.Allow, decs[0].Allow)
+		}
+	}
+}

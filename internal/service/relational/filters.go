@@ -4,6 +4,7 @@ import (
 	"github.com/compliance-framework/api/internal/converters/labelfilter"
 	"github.com/google/uuid"
 	"gorm.io/datatypes"
+	"gorm.io/gorm/clause"
 )
 
 // Origins of a filter.
@@ -11,6 +12,39 @@ const (
 	FilterOriginManual      = "manual"
 	FilterOriginScopePolicy = "scope-policy"
 )
+
+const (
+	// DefaultFilterBadgeLabel is the badge label of a filter that has not set one.
+	DefaultFilterBadgeLabel = "compliance"
+	// FilterBadgeSlugIndex is the partial unique index reserving badge slugs across all
+	// filters, published or not.
+	FilterBadgeSlugIndex = "idx_filters_badge_slug"
+)
+
+// FilterBadge holds a filter's public badge settings (docs/filter-badges.md). A slug is
+// reserved while a filter holds it; the badge is public only while Enabled.
+type FilterBadge struct {
+	Enabled bool `json:"enabled" gorm:"column:badge_enabled;not null;default:false;check:chk_filters_badge_enabled_slug,badge_enabled = false OR badge_slug IS NOT NULL"`
+	// Label is the plain-text left-hand side of the badge.
+	Label string `json:"label" gorm:"column:badge_label;not null;default:compliance"`
+	// Slug is the public identifier in /api/public/badges/{slug}.svg. Absent is NULL, never "".
+	Slug *string `json:"slug" gorm:"column:badge_slug;uniqueIndex:idx_filters_badge_slug,where:badge_slug IS NOT NULL;check:chk_filters_badge_slug_not_empty,badge_slug IS NULL OR badge_slug <> ''"`
+}
+
+// DefaultFilterBadge returns the settings of an unpublished filter.
+func DefaultFilterBadge() FilterBadge {
+	return FilterBadge{Label: DefaultFilterBadgeLabel}
+}
+
+// FilterImportUpsert is the conflict clause for filter imports that may overwrite an
+// existing filter by ID. It updates the imported fields only, so an import never
+// copies, resets or clears another filter's badge settings.
+func FilterImportUpsert() clause.OnConflict {
+	return clause.OnConflict{
+		Columns:   []clause.Column{{Name: "id"}},
+		DoUpdates: clause.AssignmentColumns([]string{"name", "ssp_id", "filter", "scope_base", "origin"}),
+	}
+}
 
 type Filter struct {
 	UUIDModel
@@ -23,7 +57,10 @@ type Filter struct {
 	ScopeBase *datatypes.JSONType[labelfilter.Filter] `json:"scopeBase,omitempty" yaml:"-"`
 	// Origin is "manual" for user-made filters and "scope-policy" for automatic per-policy
 	// filters.
-	Origin     string            `json:"origin" yaml:"-" gorm:"not null;default:manual"`
+	Origin string `json:"origin" yaml:"-" gorm:"not null;default:manual"`
+	// Badge is never imported or copied: imports, clones and generated filters start
+	// unpublished.
+	Badge      FilterBadge       `json:"badge" yaml:"-" gorm:"embedded"`
 	Controls   []Control         `json:"controls" gorm:"many2many:filter_controls;"`
 	Components []SystemComponent `json:"components" gorm:"many2many:filter_system_components;"`
 
