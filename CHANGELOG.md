@@ -1,5 +1,33 @@
 # Changelog
 
+## [0.22.6](https://github.com/compliance-framework/api/compare/v0.22.5...v0.22.6) (2026-11-28)
+
+
+### Bug Fixes
+
+* **deps:** update all non-major dependencies ([#564](https://github.com/compliance-framework/api/issues/564)) ([01aa3cb](https://github.com/compliance-framework/api/commit/01aa3cba40c290133d5869a43caf214be62ce31f))
+* **deps:** update all non-major dependencies ([#567](https://github.com/compliance-framework/api/issues/567)) ([688ac6b](https://github.com/compliance-framework/api/commit/688ac6b576bf21c83a46d1e5b75f643cb194ab5c))
+* **deps:** update all non-major dependencies ([#577](https://github.com/compliance-framework/api/issues/577)) ([9ad7298](https://github.com/compliance-framework/api/commit/9ad729824518672f8d86b6b196931d16b6970b67))
+* **deps:** update all non-major dependencies ([#581](https://github.com/compliance-framework/api/issues/581)) ([58379c7](https://github.com/compliance-framework/api/commit/58379c70098f8415b49c3a6a2a6c6d87d312f4b6))
+* **deps:** update all non-major dependencies ([#582](https://github.com/compliance-framework/api/issues/582)) ([a17fff2](https://github.com/compliance-framework/api/commit/a17fff2e8ad01fbf465516c0f34e9fc66367484a))
+* **deps:** update all non-major dependencies ([#583](https://github.com/compliance-framework/api/issues/583)) ([819339b](https://github.com/compliance-framework/api/commit/819339b6ff65e37a32a228f28306d0a049beb529))
+* **deps:** update all non-major dependencies ([#589](https://github.com/compliance-framework/api/issues/589)) ([968ceeb](https://github.com/compliance-framework/api/commit/968ceebe7745e379d2dc352b898617d287d9fdad))
+* **deps:** update aws-sdk-go-v2 monorepo ([#566](https://github.com/compliance-framework/api/issues/566)) ([a3cdd7a](https://github.com/compliance-framework/api/commit/a3cdd7a6d3e503495abf526b4fcfc08d6e118624))
+* **deps:** update aws-sdk-go-v2 monorepo ([#568](https://github.com/compliance-framework/api/issues/568)) ([20d0c9d](https://github.com/compliance-framework/api/commit/20d0c9d1db8579ea7a9cfbc8d5ac7098bdab4d89))
+* **deps:** update aws-sdk-go-v2 monorepo ([#573](https://github.com/compliance-framework/api/issues/573)) ([7cd5823](https://github.com/compliance-framework/api/commit/7cd5823b4fdc8b0a2dcb8571572daaffc9b3aab6))
+* **deps:** update aws-sdk-go-v2 monorepo ([#578](https://github.com/compliance-framework/api/issues/578)) ([7e955f6](https://github.com/compliance-framework/api/commit/7e955f6e62dc8e0eca6fe0fcbaedd6c5fd7c432f))
+* **deps:** update aws-sdk-go-v2 monorepo ([#584](https://github.com/compliance-framework/api/issues/584)) ([92bd5c2](https://github.com/compliance-framework/api/commit/92bd5c2893881d88b0fb7abde4cd8826993e96ee))
+* **deps:** update aws-sdk-go-v2 monorepo ([#587](https://github.com/compliance-framework/api/issues/587)) ([4e6a388](https://github.com/compliance-framework/api/commit/4e6a3880d43a4799b9f687bd71ab7b60bd0c25be))
+* **deps:** update aws-sdk-go-v2 monorepo ([#588](https://github.com/compliance-framework/api/issues/588)) ([2b73b73](https://github.com/compliance-framework/api/commit/2b73b73ddfe8849220c97088a93ed5ba6ff72eb6))
+* **deps:** update module github.com/anthropics/anthropic-sdk-go to v2 ([#574](https://github.com/compliance-framework/api/issues/574)) ([8f6682f](https://github.com/compliance-framework/api/commit/8f6682fbdadfee5134e583ba36bedf48cce902cc))
+* **deps:** update module gopkg.in/yaml.v2 to v3 ([#579](https://github.com/compliance-framework/api/issues/579)) ([d117453](https://github.com/compliance-framework/api/commit/d1174530af2da2a5db9477ba6a066e04fe03f669))
+* **deps:** update river monorepo to v0.51.0 ([#562](https://github.com/compliance-framework/api/issues/562)) ([3ae0184](https://github.com/compliance-framework/api/commit/3ae018481daa05308124ba5fb17728cac2c7405f))
+* **deps:** update river monorepo to v0.51.1 ([#570](https://github.com/compliance-framework/api/issues/570)) ([abc0866](https://github.com/compliance-framework/api/commit/abc0866b0114461549aeca4f2ba2a3807c74d267))
+* **deps:** update river monorepo to v0.51.2 ([#576](https://github.com/compliance-framework/api/issues/576)) ([651f21f](https://github.com/compliance-framework/api/commit/651f21fc0878a26e1cde5150f8e4f30c9c97ecb8))
+* **deps:** update security fixes (gomod) [security] ([#565](https://github.com/compliance-framework/api/issues/565)) ([1ac1a17](https://github.com/compliance-framework/api/commit/1ac1a175f8fb5e3d0d131318668ad1af1e8056c8))
+* **deps:** update testcontainers-go monorepo to v0.45.0 ([#571](https://github.com/compliance-framework/api/issues/571)) ([47e15e7](https://github.com/compliance-framework/api/commit/47e15e7fdac8070f0e0da49792d9eff815da7229))
+* **sso:** PKCE for OIDC logins and opt-in public OIDC clients ([#575](https://github.com/compliance-framework/api/issues/575)) ([9b0851e](https://github.com/compliance-framework/api/commit/9b0851eb472d353d85766e015dc10e6772055c18))
+
 ## [0.22.5](https://github.com/compliance-framework/api/compare/v0.22.4...v0.22.5) (2026-11-07)
 
 
