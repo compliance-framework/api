@@ -5,12 +5,12 @@ go 1.26.1
 toolchain go1.27.4
 
 require (
-	github.com/anthropics/anthropic-sdk-go/v2 v2.10.0
+	github.com/anthropics/anthropic-sdk-go/v2 v2.13.0
 	github.com/aws/aws-sdk-go-v2 v1.48.0
 	github.com/aws/aws-sdk-go-v2/config v1.33.20
 	github.com/aws/aws-sdk-go-v2/credentials v1.21.2
 	github.com/aws/aws-sdk-go-v2/service/sesv2 v1.80.0
-	github.com/cedar-policy/cedar-go v1.9.2
+	github.com/cedar-policy/cedar-go v1.9.3
 	github.com/coreos/go-oidc/v3 v3.21.0
 	github.com/defenseunicorns/go-oscal v0.7.2
 	github.com/go-jose/go-jose/v4 v4.1.9
@@ -22,7 +22,7 @@ require (
 	github.com/jackc/pgx/v5 v5.13.0
 	github.com/joho/godotenv v1.5.1
 	github.com/labstack/echo-contrib/v5 v5.0.1
-	github.com/labstack/echo/v5 v5.4.6
+	github.com/labstack/echo/v5 v5.4.7
 	github.com/moby/moby/api v1.57.0
 	github.com/open-policy-agent/opa v1.22.0
 	github.com/prometheus/client_golang v1.25.0
